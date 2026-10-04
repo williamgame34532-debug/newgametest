@@ -13,7 +13,7 @@ namespace StickWars
 
     public partial class Battle : MonoBehaviour
     {
-        public enum Mode { Fight, Demo, Showroom, Replay }
+        public enum Mode { Fight, Demo, Showroom, Replay, Survival }
         public enum Phase { Intro, Fight, Victory }
 
         public Mode mode;
@@ -99,7 +99,8 @@ namespace StickWars
                 return;
             }
 
-            for (int i = 0; i < red.Count; i++) Spawn(red[i], 0, i, new Vector2(-5f - i * 1.7f, 0), 1);
+            if (m == Mode.Survival) Spawn(red[0], 0, 0, new Vector2(0f, 0), 1);
+            else for (int i = 0; i < red.Count; i++) Spawn(red[i], 0, i, new Vector2(-5f - i * 1.7f, 0), 1);
             for (int i = 0; i < blue.Count; i++) Spawn(blue[i], 1, i, new Vector2(5f + i * 1.7f, 0), -1);
             foreach (var f in fighters)
             {
@@ -118,7 +119,20 @@ namespace StickWars
             }
             phase = Phase.Intro;
             phaseT = 0;
-            if (m == Mode.Fight) StartRecording();
+            if (m == Mode.Survival)
+            {
+                SurvivalInit();
+                Cinematic3D(new Vector2(0f, 1.2f), IntroTime * 0.85f, -70f, 0f, 12f, 7f);
+                Announce("ОДИН ПРОТИВ ВСЕХ", new Color(1f, 0.2f, 0.15f), 2f);
+                audio.Sfx("gong", 0.9f, 0f);
+            }
+            else ClearCrowd();
+            if (m == Mode.Fight)
+            {
+                StartRecording();
+                float mid = 0f;
+                Cinematic3D(new Vector2(mid, 1.2f), IntroTime * 0.85f, -55f, -5f, 13f, 9f);
+            }
             dropTimer = dropInterval * 0.6f;
             cam.Snap(new Vector2(0, 2.5f), 9f);
             if (m == Mode.Fight)
@@ -146,6 +160,7 @@ namespace StickWars
 
         public void Clear(bool keepStains)
         {
+            End3D();
             foreach (var f in removedFighters) if (f != null) Destroy(f.gameObject);
             removedFighters.Clear();
             StopRecording();
@@ -184,7 +199,13 @@ namespace StickWars
 
             for (int i = 0; i < fighters.Count; i++) fighters[i].Tick(dt);
             for (int i = fighters.Count - 1; i >= 0; i--)
-                if (fighters[i].remove) { removedFighters.Add(fighters[i]); fighters.RemoveAt(i); }
+                if (fighters[i].remove)
+                {
+                    if (mode == Mode.Survival) Destroy(fighters[i].gameObject); // в выживании повтора нет — не копим
+                    else removedFighters.Add(fighters[i]);
+                    fighters.RemoveAt(i);
+                }
+            CrowdTick(dt);
             for (int i = projs.Count - 1; i >= 0; i--)
             {
                 var p = projs[i];
@@ -211,7 +232,8 @@ namespace StickWars
             if (announceT > 0) announceT -= praw;
             if (flashT > 0) flashT -= raw;
 
-            cam.Tick(praw, this);
+            if (c3dCooldown > 0f) c3dCooldown -= raw;
+            if (c3d) Cine3DTick(raw); else cam.Tick(praw, this);
             var cp = cam.cam.transform.position;
             float hh = cam.cam.orthographicSize;
             theme.Follow(cp);
@@ -231,9 +253,9 @@ namespace StickWars
                     if (phaseT >= it)
                     {
                         phase = Phase.Fight; phaseT = 0;
-                        if (mode == Mode.Fight)
+                        if (Epic)
                         {
-                            Announce("БОЙ!", new Color(1f, 0.25f, 0.2f), 1.1f);
+                            Announce(mode == Mode.Survival ? "РЕЗНЯ!" : "БОЙ!", new Color(1f, 0.25f, 0.2f), 1.1f);
                             audio.Sfx("explosion", 0.5f, 0f);
                             cam.Shake(0.5f);
                         }
@@ -252,7 +274,7 @@ namespace StickWars
                             killerT = 12f;
                             var kw = killerPool[Random.Range(0, killerPool.Count)];
                             SpawnPickup(kw, kw.ammo, new Vector2(Random.Range(-W + 2f, W - 2f), 15f), Vector2.zero, true);
-                            if (mode == Mode.Fight) Announce("ОРУЖИЕ " + kw.name.ToUpper() + "!", new Color(1f, 0.8f, 0.2f), 1.6f);
+                            if (Epic) Announce("ОРУЖИЕ " + kw.name.ToUpper() + "!", new Color(1f, 0.8f, 0.2f), 1.6f);
                         }
                     }
                     if (!suddenDeath && fightTime > 100f)
@@ -262,7 +284,7 @@ namespace StickWars
                         if (any)
                         {
                             suddenDeath = true;
-                            if (mode == Mode.Fight) { Announce("ВНЕЗАПНАЯ СМЕРТЬ!", new Color(1f, 0.2f, 0.2f), 2f); audio.Sfx("gong", 0.8f, 0f); }
+                            if (Epic) { Announce("ВНЕЗАПНАЯ СМЕРТЬ!", new Color(1f, 0.2f, 0.2f), 2f); audio.Sfx("gong", 0.8f, 0f); }
                         }
                     }
                     if (dropsOn && dropPool != null && dropPool.Count > 0 && pickups.Count < 3)
@@ -273,9 +295,10 @@ namespace StickWars
                             dropTimer = dropInterval * Random.Range(0.7f, 1.3f);
                             var w = dropPool[Random.Range(0, dropPool.Count)];
                             SpawnPickup(w, w.ammo, new Vector2(Random.Range(-W + 2f, W - 2f), 15f), Vector2.zero, true);
-                            if (mode == Mode.Fight) Popup("СБРОС: " + w.name, new Vector2(cam.cam.transform.position.x, cam.cam.transform.position.y + cam.cam.orthographicSize * 0.6f), new Color(1f, 0.85f, 0.3f), 0.9f);
+                            if (Epic) Popup("СБРОС: " + w.name, new Vector2(cam.cam.transform.position.x, cam.cam.transform.position.y + cam.cam.orthographicSize * 0.6f), new Color(1f, 0.85f, 0.3f), 0.9f);
                         }
                     }
+                    if (mode == Mode.Survival) { SurvivalTick(dt); break; }
                     bool r = false, b = false;
                     foreach (var f in fighters) { if (f.dead || f.minion) continue; if (f.team == 0) r = true; else b = true; }
                     if (!r || !b)
@@ -294,7 +317,7 @@ namespace StickWars
                     }
                     break;
                 case Phase.Victory:
-                    if (mode == Mode.Fight && phaseT > 3f && VideoRecorder.I != null && VideoRecorder.I.Active && !capturing) VideoRecorder.I.End();
+                    if (Epic && phaseT > 3f && VideoRecorder.I != null && VideoRecorder.I.Active && !capturing) VideoRecorder.I.End();
                     if (mode == Mode.Demo && phaseT > 4f && Game.I != null) Game.I.NextDemo();
                     break;
             }
@@ -345,7 +368,16 @@ namespace StickWars
             bool last = true;
             foreach (var o in fighters) if (!o.dead && o.team == f.team) last = false;
             if (mode == Mode.Showroom) return;
-            if (last || Random.value < 0.35f || h.heavy)
+            bool big = true;
+            if (mode == Mode.Survival)
+            {
+                if (f.team == 1 && !f.minion) survKills++;
+                last = f == hero || f.boss;
+                // в мясорубке эффектные кадры — только на боссах, каждом 10-м убийстве и гибели героя
+                big = last || survKills % 10 == 0;
+                if (survKills > 0 && survKills % 25 == 0 && f.team == 1) Announce(survKills + " УБИТО!", new Color(1f, 0.3f, 0.2f), 1.2f);
+            }
+            if (last || (big && (Random.value < 0.35f || h.heavy)))
             {
                 SlowMo(last ? 1.4f : 0.8f);
                 cam.Focus(f.Center, last ? 1.3f : 0.7f);
@@ -354,7 +386,8 @@ namespace StickWars
             cam.Kick(1f);
             Flash(0.12f, new Color(1f, 1f, 1f, 0.75f));
             RecEvent(16, f.Center, Vector2.zero, 0, Color.white, null);
-            if (mode == Mode.Fight) ImpactFrame();
+            if (Epic && (big || survKills % 5 == 0)) ImpactFrame();
+            if (Epic && big) { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(f.Center, last ? 1.6f : 1.1f, side * 40f, side * 12f, 7.5f, 4.5f); }
             Popup("K.O.", f.J[2] + Vector2.up * 0.8f, new Color(1f, 0.9f, 0.2f), 1.3f);
             audio.Duck(0.5f);
         }
@@ -366,7 +399,8 @@ namespace StickWars
             cam.Shake(Mathf.Min(0.6f, dmg * 0.018f + (heavy ? 0.25f : 0f)));
             if (dmg > 12f || heavy) cam.Kick(Mathf.Min(1f, dmg / 25f));
             if (heavy && dmg > 10f) Flash(0.05f, new Color(1f, 1f, 1f, 0.3f));
-            if (mode == Mode.Fight && (heavy || dmg > 14f) && Random.value < 0.35f) cam.Cut(at + Vector2.up * 0.4f, Random.Range(2.6f, 3.4f), Random.Range(0.35f, 0.6f));
+            if (mode == Mode.Fight && heavy && dmg > 12f && !c3d && c3dCooldown <= 0f && Random.value < 0.18f) { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(at, 0.8f, side * 30f, side * 18f, 5.5f, 4.2f); }
+            else if (Epic && (heavy || dmg > 14f) && Random.value < (mode == Mode.Survival ? 0.12f : 0.35f)) cam.Cut(at + Vector2.up * 0.4f, Random.Range(2.6f, 3.4f), Random.Range(0.35f, 0.6f));
         }
 
         public void SlowMo(float dur)
@@ -742,6 +776,7 @@ namespace StickWars
                 foreach (var f in b.fighters)
                 {
                     if (f.dead && f.deadTime > 1.5f) continue;
+                    if (b.mode == Battle.Mode.Survival && !b.SurvivalCamInclude(f)) continue;
                     Vector2 h = f.HeadPos;
                     Vector2 p = f.dead ? f.Center : f.pos;
                     minX = Mathf.Min(minX, Mathf.Min(p.x, h.x)); maxX = Mathf.Max(maxX, Mathf.Max(p.x, h.x));
@@ -752,6 +787,7 @@ namespace StickWars
                 tc = new Vector2((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
                 ts = Mathf.Max((maxY - minY) * 0.5f + 1.8f, ((maxX - minX) * 0.5f + 2.6f) / aspect);
                 ts = Mathf.Clamp(ts, 3.6f, 10.5f);
+                if (b.mode == Battle.Mode.Survival) ts = Mathf.Min(ts, 8.2f);
                 if (b.phase == Battle.Phase.Intro && b.mode == Battle.Mode.Fight)
                 {
                     float k = Mathf.Clamp01(b.phaseT / Battle.IntroTime);

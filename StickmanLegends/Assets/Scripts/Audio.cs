@@ -38,6 +38,8 @@ namespace StickWars
                 pool[i].playOnAwake = false;
             }
             BuildSfx();
+            var rev = gameObject.AddComponent<AudioReverbFilter>();
+            rev.reverbPreset = AudioReverbPreset.Room;
             var th = new Thread(() =>
             {
                 try
@@ -378,6 +380,31 @@ namespace StickWars
             Make("saw", 0.2f, (t, r, s) => { s[0] += (95f + 10f * Mathf.Sin(t * 60f)) / SFX_SR; return (2f * (s[0] % 1f) - 1f) * 0.7f + N(r) * 0.4f; });
             Make("gong", 2.5f, (t, r, s) => { s[0] += (55f + 30f * Mathf.Exp(-t * 8f)) / SFX_SR; float e = Mathf.Exp(-t * 1.6f); return S(s[0]) * Mathf.Exp(-t * 3f) * 1.2f + (Mathf.Sin(t * 440f * 6.283f) + Mathf.Sin(t * 659f * 6.283f) * 0.6f + Mathf.Sin(t * 1047f * 6.283f) * 0.3f) * e * 0.4f + N(r) * Mathf.Exp(-t * 20f) * 0.6f; });
             Make("heal", 0.5f, (t, r, s) => { s[0] += (500f + 600f * t) / SFX_SR; return S(s[0]) * Mathf.Sin(Mathf.Clamp01(t / 0.5f) * Mathf.PI) * 0.6f; });
+            // --- новые, более «киношные» звуки ---
+            // тяжёлый удар: низкий бум + хруст
+            Make("heavy", 0.55f, (t, r, s) => { s[0] += (38f + 120f * Mathf.Exp(-t * 14f)) / SFX_SR; s[1] += (N(r) - s[1]) * 0.35f; float crunch = r.NextDouble() < 0.03 * Mathf.Exp(-t * 10f) ? N(r) * 3f : 0f; return S(s[0]) * Mathf.Exp(-t * 6f) * 1.3f + s[1] * Mathf.Exp(-t * 22f) * 0.9f + crunch; });
+            // хлёсткий удар рукой: щелчок + шлепок + шорох
+            Make("snap", 0.18f, (t, r, s) => { s[0] += (90f + 260f * Mathf.Exp(-t * 60f)) / SFX_SR; return S(s[0]) * Mathf.Exp(-t * 30f) + N(r) * Mathf.Exp(-t * 90f) * 1.2f; });
+            // металлический свист меча
+            Make("shing", 0.6f, (t, r, s) => { float e = Mathf.Exp(-t * 6f); s[1] += (N(r) - s[1]) * 0.6f; return (Mathf.Sin(t * 3150f * 6.283f) * 0.5f + Mathf.Sin(t * 4720f * 6.283f) * 0.35f + Mathf.Sin(t * 6230f * 6.283f) * 0.2f) * e * (1f + 0.3f * Mathf.Sin(t * 40f)) + s[1] * Mathf.Exp(-t * 25f) * 0.5f; });
+            // взмах оружием: тяжёлый свист
+            Make("swing", 0.35f, (t, r, s) => { float e = Mathf.Sin(Mathf.Clamp01(t / 0.35f) * Mathf.PI); float c = 0.03f + 0.18f * e * e; s[1] += (N(r) - s[1]) * c; s[2] += (s[1] - s[2]) * 0.05f; return (s[1] - s[2]) * e * 2.2f; });
+            // разрез плоти
+            Make("slice", 0.32f, (t, r, s) => { s[1] += (N(r) - s[1]) * 0.7f; s[0] += (200f - 120f * t) / SFX_SR; return s[1] * Mathf.Exp(-t * 14f) * 0.8f + S(s[0]) * Mathf.Exp(-t * 18f) * 0.4f + (r.NextDouble() < 0.02 ? N(r) : 0f) * Mathf.Exp(-t * 8f); });
+            // хруст костей
+            Make("crunch", 0.4f, (t, r, s) => { bool click = r.NextDouble() < 0.06 * Mathf.Exp(-t * 6f); s[1] += ((click ? N(r) * 4f : 0f) - s[1]) * 0.5f; s[2] += (N(r) - s[2]) * 0.1f; return s[1] + s[2] * Mathf.Exp(-t * 10f) * 0.8f; });
+            // падение тела
+            Make("bodyfall", 0.6f, (t, r, s) => { s[0] += (48f + 30f * Mathf.Exp(-t * 8f)) / SFX_SR; s[1] += (N(r) - s[1]) * 0.06f; float second = t > 0.16f ? Mathf.Exp(-(t - 0.16f) * 14f) * 0.6f : 0f; return S(s[0]) * (Mathf.Exp(-t * 12f) + second) + s[1] * Mathf.Exp(-t * 7f) * 2.2f; });
+            // блок: глухой удар с лязгом
+            Make("block", 0.3f, (t, r, s) => { s[0] += 140f / SFX_SR; return S(s[0]) * Mathf.Exp(-t * 20f) + (Mathf.Sin(t * 1600f * 6.283f) + Mathf.Sin(t * 2400f * 6.283f) * 0.5f) * Mathf.Exp(-t * 16f) * 0.4f + N(r) * Mathf.Exp(-t * 70f) * 0.6f; });
+            // прыжок, приземление, шаг
+            Make("jump", 0.22f, (t, r, s) => { float e = Mathf.Sin(Mathf.Clamp01(t / 0.22f) * Mathf.PI); s[1] += (N(r) - s[1]) * (0.04f + 0.15f * e); return s[1] * e * 1.5f; });
+            Make("land", 0.25f, (t, r, s) => { s[0] += (50f + 40f * Mathf.Exp(-t * 20f)) / SFX_SR; s[1] += (N(r) - s[1]) * 0.12f; return S(s[0]) * Mathf.Exp(-t * 16f) + s[1] * Mathf.Exp(-t * 18f) * 1.5f; });
+            Make("step", 0.1f, (t, r, s) => { s[1] += (N(r) - s[1]) * 0.2f; return s[1] * Mathf.Exp(-t * 45f); });
+            // зарядка энергии
+            Make("charge", 0.7f, (t, r, s) => { s[0] += (180f + 900f * t * t) / SFX_SR; s[1] += (190f + 905f * t * t) / SFX_SR; float e = Mathf.Clamp01(t / 0.6f); return (S(s[0]) + S(s[1])) * 0.5f * e * (0.6f + 0.4f * Mathf.Sin(t * 50f)); });
+            // кинематографичный «вжух» для 3D-перехода
+            Make("cine", 1.2f, (t, r, s) => { float e = Mathf.Sin(Mathf.Clamp01(t / 1.2f) * Mathf.PI); s[1] += (N(r) - s[1]) * (0.02f + 0.1f * e); s[0] += (60f + 40f * t) / SFX_SR; return s[1] * e * 2f + S(s[0]) * e * 0.4f; });
             Make("click", 0.06f, (t, r, s) => { s[0] += 1200f / SFX_SR; return S(s[0]) * Mathf.Exp(-t * 60f); });
         }
     }

@@ -10,14 +10,14 @@ namespace StickWars
             public Vector2 pos, vel;
             public float life, max, size, grav, drag, sx, sy;
             public Color col;
-            public bool stain, fade, shrink, alive;
+            public bool stain, fade, shrink, alive, streak;
         }
 
         struct S
         {
             public Vector2 pos;
-            public float w, h, grow, maxW, rot;
-            public Color col;
+            public float w, h, grow, maxW, rot, age, dripMax;
+            public Color col, col0;
         }
 
         const int MAXP = 3500, MAXS = 2600;
@@ -26,6 +26,7 @@ namespace StickWars
         S[] ss = new S[MAXS];
         int sCount, sHead;
         bool sDirty;
+        float dryT;
 
         Mesh pm, sm;
         Vector3[] pv, sv;
@@ -75,21 +76,90 @@ namespace StickWars
             if (stainsToo) { sCount = 0; sHead = 0; sDirty = true; }
         }
 
-        public void Emit(Vector2 pos, Vector2 vel, Color col, float size, float life, float grav, bool stain, float drag = 0.5f, bool fade = true, float sx = 1, float sy = 1, bool shrink = false)
+        public void Emit(Vector2 pos, Vector2 vel, Color col, float size, float life, float grav, bool stain, float drag = 0.5f, bool fade = true, float sx = 1, float sy = 1, bool shrink = false, bool streak = false)
         {
             var p = new P();
             p.pos = pos; p.vel = vel; p.col = col; p.size = size; p.life = life; p.max = life;
-            p.grav = grav; p.stain = stain; p.drag = drag; p.fade = fade; p.sx = sx; p.sy = sy; p.alive = true; p.shrink = shrink;
+            p.grav = grav; p.stain = stain; p.drag = drag; p.fade = fade; p.sx = sx; p.sy = sy; p.alive = true; p.shrink = shrink; p.streak = streak;
             ps[pHead] = p;
             pHead = (pHead + 1) % MAXP;
         }
 
-        public static int InkMode; // 0 кровь, 1 чёрная тушь, 2 графит
+        public static int InkMode; // 0 кровь, 1 чёрная тушь, 2 графит, 3 яркая алая (нуар)
+        // мрачная кровь: густой тёмно-багровый с редкими влажными алыми бликами
         public static Color BloodColor()
         {
             if (InkMode == 1) return new Color(Random.Range(0.02f, 0.1f), Random.Range(0.02f, 0.08f), Random.Range(0.02f, 0.08f), 1f);
             if (InkMode == 2) return new Color(Random.Range(0.25f, 0.4f), Random.Range(0.25f, 0.4f), Random.Range(0.27f, 0.42f), 1f);
-            return new Color(Random.Range(0.45f, 0.72f), Random.Range(0f, 0.04f), Random.Range(0f, 0.03f), 1f);
+            if (InkMode == 3) return new Color(Random.Range(0.85f, 1f), Random.Range(0f, 0.05f), Random.Range(0.02f, 0.06f), 1f);
+            if (Random.value < 0.18f) return new Color(Random.Range(0.72f, 0.86f), Random.Range(0.02f, 0.05f), Random.Range(0.03f, 0.06f), 1f);
+            float d = Random.Range(0.26f, 0.55f);
+            return new Color(d, d * Random.Range(0f, 0.06f), d * Random.Range(0.02f, 0.1f), 1f);
+        }
+        static Color DarkBlood(float a)
+        {
+            if (InkMode == 1) return new Color(0.02f, 0.02f, 0.03f, a);
+            if (InkMode == 2) return new Color(0.3f, 0.3f, 0.32f, a);
+            if (InkMode == 3) return new Color(0.7f, 0f, 0.02f, a);
+            return new Color(0.2f, 0.0f, 0.015f, a);
+        }
+
+        // Плёнка поверх экрана: брызги на «объектив» камеры при мощных ударах (рисует GameUI)
+        public struct Splat { public Vector2 p; public float r, t, max; public Color c; public int seed; }
+        public static readonly System.Collections.Generic.List<Splat> ScreenSplats = new System.Collections.Generic.List<Splat>();
+        public static void ScreenSplat(int n, float power)
+        {
+            if (Game.I != null && (Game.I.S.blood <= 0.01f || !Game.I.S.screenBlood)) return;
+            for (int i = 0; i < n && ScreenSplats.Count < 14; i++)
+            {
+                var sp = new Splat();
+                // ближе к краям кадра, чтобы не закрывать бой
+                float ang = Random.value * Mathf.PI * 2f;
+                sp.p = new Vector2(0.5f + Mathf.Cos(ang) * Random.Range(0.32f, 0.5f), 0.5f + Mathf.Sin(ang) * Random.Range(0.3f, 0.48f));
+                sp.r = Random.Range(0.04f, 0.1f) * power;
+                sp.max = sp.t = Random.Range(1.6f, 2.8f);
+                sp.c = BloodColor(); sp.c.a = 0.9f;
+                sp.seed = Random.Range(0, 99999);
+                ScreenSplats.Add(sp);
+            }
+        }
+        public static void TickSplats(float dt)
+        {
+            for (int i = ScreenSplats.Count - 1; i >= 0; i--)
+            {
+                var sp = ScreenSplats[i]; sp.t -= dt; sp.p.y -= dt * 0.012f; // медленно стекают
+                if (sp.t <= 0) ScreenSplats.RemoveAt(i); else ScreenSplats[i] = sp;
+            }
+        }
+
+        // Кровавая дуга: лента капель вдоль траектории клинка — как в аниме-рубке
+        public void BloodArc(Vector2 at, Vector2 dir, float power)
+        {
+            if (Rec != null) Rec(18, at, dir, power, Color.red);
+            float mul = Game.I != null ? Game.I.S.blood : 1f;
+            if (mul <= 0.01f) return;
+            dir = dir.sqrMagnitude > 0.001f ? dir.normalized : Vector2.right;
+            Vector2 perp = new Vector2(-dir.y, dir.x);
+            if (perp.y < 0) perp = -perp;
+            int n = Mathf.Clamp((int)(26 * power * mul), 8, 90);
+            for (int i = 0; i < n; i++)
+            {
+                float k = i / (float)n;
+                float a = Mathf.Lerp(-0.9f, 1.2f, k);
+                Vector2 v = (dir * Mathf.Cos(a) + perp * Mathf.Sin(a)) * Random.Range(5f, 11f) * (0.7f + power * 0.3f);
+                Emit(at + dir * (k - 0.5f) * 0.4f, v, BloodColor(), Random.Range(0.05f, 0.13f), Random.Range(0.9f, 1.8f), -20f, true, 0.6f, false, 1, 1, false, true);
+            }
+            Mist(at, dir, power);
+        }
+
+        // Тёмная кровавая взвесь
+        public void Mist(Vector2 at, Vector2 dir, float power)
+        {
+            float mul = Game.I != null ? Game.I.S.blood : 1f;
+            if (mul <= 0.01f) return;
+            int n = Mathf.Clamp((int)(6 * power * mul), 2, 18);
+            for (int i = 0; i < n; i++)
+                Emit(at + Random.insideUnitCircle * 0.15f, dir.normalized * Random.Range(0.5f, 2.5f) + Random.insideUnitCircle * 0.8f, DarkBlood(Random.Range(0.25f, 0.45f)), Random.Range(0.4f, 0.9f) * Mathf.Sqrt(power), Random.Range(0.5f, 1.1f), -0.6f, false, 2.5f, true);
         }
 
         // Брызги крови
@@ -99,15 +169,23 @@ namespace StickWars
             float mul = Game.I != null ? Game.I.S.blood : 1f;
             if (mul <= 0.01f) { Sparks(at, dir, 4, new Color(0.3f, 0.3f, 0.3f)); return; }
             int n = Mathf.Clamp((int)(amount * 2.2f * mul), 2, 160);
+            Vector2 dn = dir.sqrMagnitude > 0.001f ? dir.normalized : Vector2.up;
             for (int i = 0; i < n; i++)
             {
-                Vector2 v = (dir.normalized * Random.Range(2f, 9f) + Random.insideUnitCircle * 3.5f + Vector2.up * Random.Range(0.5f, 4f)) * Random.Range(0.5f, 1.2f);
-                Emit(at + Random.insideUnitCircle * 0.08f, v, BloodColor(), Random.Range(0.05f, 0.16f), Random.Range(0.8f, 2.2f), -22f, true, 0.4f, false);
+                // основной конус — быстрые вытянутые капли-штрихи
+                bool fast = i % 3 != 0;
+                Vector2 v = (dn * Random.Range(2f, fast ? 13f : 7f) + Random.insideUnitCircle * (fast ? 2f : 3.5f) + Vector2.up * Random.Range(0.5f, 4f)) * Random.Range(0.5f, 1.2f);
+                Emit(at + Random.insideUnitCircle * 0.08f, v, BloodColor(), Random.Range(0.04f, fast ? 0.12f : 0.18f), Random.Range(0.8f, 2.2f), -22f, true, 0.4f, false, 1, 1, false, fast);
             }
-            // мелкая пыль крови
-            for (int i = 0; i < n / 3; i++)
-                Emit(at, (dir.normalized * Random.Range(1f, 4f) + Random.insideUnitCircle * 2f), Draw.A(BloodColor(), 0.6f), Random.Range(0.15f, 0.35f), Random.Range(0.15f, 0.35f), -4f, false, 3f, true, 1, 1, true);
+            // крупные густые сгустки
+            for (int i = 0; i < Mathf.Max(1, n / 12); i++)
+                Emit(at, dn * Random.Range(1.5f, 4f) + Vector2.up * Random.Range(1f, 3f), DarkBlood(1f), Random.Range(0.16f, 0.26f), 2f, -24f, true, 0.2f, false);
+            // мелкая взвесь
+            for (int i = 0; i < n / 4; i++)
+                Emit(at, (dn * Random.Range(1f, 4f) + Random.insideUnitCircle * 2f), DarkBlood(0.55f), Random.Range(0.15f, 0.35f), Random.Range(0.2f, 0.45f), -4f, false, 3f, true, 1, 1, true);
+            if (amount >= 30) Mist(at, dn, amount / 30f);
         }
+
 
         public void Fountain(Vector2 at, Vector2 dir, int n)
         {
@@ -118,7 +196,7 @@ namespace StickWars
             for (int i = 0; i < n; i++)
             {
                 Vector2 v = dir.normalized * Random.Range(3f, 7f) + Random.insideUnitCircle * 1.2f;
-                Emit(at, v, BloodColor(), Random.Range(0.05f, 0.12f), 2f, -22f, true, 0.3f, false);
+                Emit(at, v, BloodColor(), Random.Range(0.05f, 0.12f), 2f, -22f, true, 0.3f, false, 1, 1, false, true);
             }
         }
 
@@ -181,8 +259,8 @@ namespace StickWars
         public void Stain(Vector2 at, float w, float h, Color c, float grow = 0, float maxW = 0)
         {
             var s = new S();
-            s.pos = at; s.w = w; s.h = h; s.col = c; s.grow = grow; s.maxW = maxW > 0 ? maxW : w;
-            s.rot = Random.Range(-0.2f, 0.2f);
+            s.pos = at; s.w = w; s.h = h; s.col = c; s.col0 = c; s.grow = grow; s.maxW = maxW > 0 ? maxW : w;
+            s.rot = Random.Range(-0.12f, 0.12f);
             ss[sHead] = s;
             sHead = (sHead + 1) % MAXS;
             sCount = Mathf.Min(sCount + 1, MAXS);
@@ -193,7 +271,9 @@ namespace StickWars
         {
             if (Rec != null) Rec(17, at, Vector2.zero, maxW, Color.red);
             if (Game.I != null && Game.I.S.blood <= 0.01f) return;
-            Stain(new Vector2(at.x, groundY + 0.015f), 0.1f, 0.08f, new Color(0.42f, 0.0f, 0.02f, 0.95f), 0.5f, maxW * Game.I.S.blood);
+            Stain(new Vector2(at.x, groundY + 0.015f), 0.1f, 0.08f, DarkBlood(0.97f), 0.5f, maxW * Game.I.S.blood);
+            // влажный блик поверх лужи
+            Stain(new Vector2(at.x + 0.05f, groundY + 0.02f), 0.05f, 0.03f, new Color(0.45f, 0.02f, 0.04f, 0.8f), 0.2f, maxW * 0.45f * Game.I.S.blood);
         }
 
         public void Tick(float dt)
@@ -213,13 +293,21 @@ namespace StickWars
                     if (p.pos.y <= groundY)
                     {
                         float sz = p.size * Random.Range(1.5f, 3.2f);
-                        Stain(new Vector2(p.pos.x, groundY + 0.01f), sz * 1.6f, sz * 0.35f, p.col);
+                        float spd = Mathf.Abs(p.vel.x);
+                        // быстрые капли размазываются полосой по направлению полёта, вокруг — мелкие брызги
+                        Stain(new Vector2(p.pos.x, groundY + 0.01f), sz * (1.6f + Mathf.Min(spd * 0.25f, 2.5f)), sz * 0.33f, p.col);
+                        if (sz > 0.18f && sCount < MAXS - 4)
+                            for (int k = 0; k < 2; k++)
+                                Stain(new Vector2(p.pos.x + Random.Range(-0.35f, 0.35f) * sz * 3f, groundY + 0.012f), sz * 0.35f, sz * 0.12f, p.col);
                         p.alive = false;
                     }
                     else if (Mathf.Abs(p.pos.x) >= W + 0.2f)
                     {
                         float sz = p.size * Random.Range(1.2f, 2.5f);
                         Stain(new Vector2(Mathf.Sign(p.pos.x) * (W + 0.2f), p.pos.y), sz * 0.5f, sz * 1.4f, p.col);
+                        // потёк по стене
+                        int last = (sHead - 1 + MAXS) % MAXS;
+                        ss[last].dripMax = Random.Range(0.4f, 1.6f);
                         p.alive = false;
                     }
                 }
@@ -230,12 +318,31 @@ namespace StickWars
                 }
                 ps[i] = p;
             }
+            dryT += dt;
+            bool dry = dryT > 0.5f;
+            if (dry) dryT = 0f;
             for (int i = 0; i < sCount; i++)
             {
                 if (ss[i].grow > 0 && ss[i].w < ss[i].maxW)
                 {
                     ss[i].w = Mathf.Min(ss[i].maxW, ss[i].w + ss[i].grow * dt);
                     ss[i].h = Mathf.Min(0.16f, ss[i].w * 0.12f);
+                    sDirty = true;
+                }
+                if (ss[i].dripMax > 0 && ss[i].h < ss[i].dripMax)
+                {
+                    float g = dt * 0.35f;
+                    ss[i].h += g; ss[i].pos.y -= g * 0.5f;
+                    if (ss[i].pos.y - ss[i].h * 0.5f < groundY) ss[i].dripMax = 0;
+                    sDirty = true;
+                }
+                if (dry)
+                {
+                    // кровь засыхает: темнеет до почти чёрно-бурой
+                    ss[i].age += 0.5f;
+                    float k = Mathf.Clamp01(ss[i].age / 25f);
+                    Color c0 = ss[i].col0;
+                    ss[i].col = Color.Lerp(c0, new Color(c0.r * 0.45f, c0.g * 0.4f, c0.b * 0.45f, c0.a), k);
                     sDirty = true;
                 }
             }
@@ -254,11 +361,24 @@ namespace StickWars
                 var p = ps[i];
                 float t = p.life / p.max;
                 float s = p.size * (p.shrink ? Mathf.Lerp(0.2f, 1f, t) : 1f);
-                float hx = s * p.sx * 0.5f, hy = s * p.sy * 0.5f;
-                pv[k] = new Vector3(p.pos.x - hx, p.pos.y - hy);
-                pv[k + 1] = new Vector3(p.pos.x - hx, p.pos.y + hy);
-                pv[k + 2] = new Vector3(p.pos.x + hx, p.pos.y + hy);
-                pv[k + 3] = new Vector3(p.pos.x + hx, p.pos.y - hy);
+                if (p.streak)
+                {
+                    // капля вытягивается вдоль скорости — штрих, а не кружок
+                    float sp = p.vel.magnitude;
+                    Vector2 d = sp > 0.01f ? p.vel / sp : Vector2.up;
+                    Vector2 n = new Vector2(-d.y, d.x);
+                    float len = s * (1f + Mathf.Min(sp * 0.09f, 3.5f)) * 0.5f, wid = s * 0.42f;
+                    Vector2 a0 = p.pos - d * len, a1 = p.pos + d * len;
+                    pv[k] = a0 - n * wid; pv[k + 1] = a0 + n * wid; pv[k + 2] = a1 + n * wid; pv[k + 3] = a1 - n * wid;
+                }
+                else
+                {
+                    float hx = s * p.sx * 0.5f, hy = s * p.sy * 0.5f;
+                    pv[k] = new Vector3(p.pos.x - hx, p.pos.y - hy);
+                    pv[k + 1] = new Vector3(p.pos.x - hx, p.pos.y + hy);
+                    pv[k + 2] = new Vector3(p.pos.x + hx, p.pos.y + hy);
+                    pv[k + 3] = new Vector3(p.pos.x + hx, p.pos.y - hy);
+                }
                 Color c = p.col;
                 if (p.fade) c.a *= Mathf.Clamp01(t * 1.5f);
                 pc[k] = pc[k + 1] = pc[k + 2] = pc[k + 3] = c;
@@ -274,10 +394,9 @@ namespace StickWars
                     if (i >= sCount) { sv[k] = sv[k + 1] = sv[k + 2] = sv[k + 3] = Vector3.zero; continue; }
                     var s = ss[i];
                     float hx = s.w * 0.5f, hy = s.h * 0.5f;
-                    sv[k] = new Vector3(s.pos.x - hx, s.pos.y - hy);
-                    sv[k + 1] = new Vector3(s.pos.x - hx, s.pos.y + hy);
-                    sv[k + 2] = new Vector3(s.pos.x + hx, s.pos.y + hy);
-                    sv[k + 3] = new Vector3(s.pos.x + hx, s.pos.y - hy);
+                    float cr = Mathf.Cos(s.rot * 0.15f), sr = Mathf.Sin(s.rot * 0.15f);
+                    Vector2 ax = new Vector2(cr, sr) * hx, ay = new Vector2(-sr, cr) * hy;
+                    sv[k] = s.pos - ax - ay; sv[k + 1] = s.pos - ax + ay; sv[k + 2] = s.pos + ax + ay; sv[k + 3] = s.pos + ax - ay;
                     sc[k] = sc[k + 1] = sc[k + 2] = sc[k + 3] = s.col;
                 }
                 sm.vertices = sv; sm.colors = sc;

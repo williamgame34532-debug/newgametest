@@ -93,11 +93,11 @@ namespace StickWars
 
         // ===================== СТИЛИ РИСОВКИ =====================
         // 0 — стиль арены, 1 — чернила (чёрные силуэты на светлом), 2 — негатив, 3 — красный кадр удара, 4 — плоская дуэль (красный/синий на тёмном)
-        public static readonly string[] StyleNames = { "Арена", "Чернила", "Негатив", "Кадр удара", "Дуэль", "Карандаш", "Комикс", "Тушь" };
+        public static readonly string[] StyleNames = { "Арена", "Чернила", "Негатив", "Кадр удара", "Дуэль", "Карандаш", "Комикс", "Тушь", "Тени Hyun", "Акварель", "Неон", "Старое кино", "Кровавый нуар", "Багровая ночь" };
         public int curStyle, baseStyle;
         float impactT;
         int styleStep, tempoAnn;
-        Transform styleGround, decorPencil, decorComic, decorSumi;
+        Transform styleGround, decorPencil, decorComic, decorSumi, decorNoir;
         readonly List<LineRenderer> comicRays = new List<LineRenderer>();
         SpriteRenderer sgFill;
         LineRenderer sgLine;
@@ -106,7 +106,8 @@ namespace StickWars
         {
             get
             {
-                if (mode != Mode.Fight || phase != Phase.Fight || Game.I == null || !Game.I.S.tempoRamp) return 1f;
+                if ((mode != Mode.Fight && mode != Mode.Survival) || phase != Phase.Fight || Game.I == null || !Game.I.S.tempoRamp) return 1f;
+                if (mode == Mode.Survival) return 1f + Mathf.Min(0.4f, wave * 0.03f);
                 return 1f + Mathf.Clamp01(fightTime / 90f) * 0.45f;
             }
         }
@@ -156,6 +157,33 @@ namespace StickWars
                 Draw.Set(m, new List<Vector2> { new Vector2(x - 6, 0), new Vector2(x, 4f + (float)rnd.NextDouble() * 3f), new Vector2(x + 6, 0) });
                 Draw.Taper(m, 0.6f, 0.05f);
             }
+            // нуар: огромная кровавая луна, мёртвые деревья и туман
+            decorNoir = new GameObject("noir").transform; decorNoir.SetParent(styleGround, false);
+            var moonGlow = Draw.Spr(decorNoir, "moonGlow", Draw.Soft, new Color(0.9f, 0.05f, 0.05f, 0.45f), -46);
+            moonGlow.transform.localPosition = new Vector3(-3f, 7.5f, 0); moonGlow.transform.localScale = Vector3.one * 15f;
+            var moon = Draw.Spr(decorNoir, "moon", Draw.Circle, new Color(0.82f, 0.06f, 0.05f), -45);
+            moon.transform.localPosition = new Vector3(-3f, 7.5f, 0); moon.transform.localScale = Vector3.one * 7f;
+            for (int i = 0; i < 9; i++)
+            {
+                float x = -34 + i * 8.5f + (float)rnd.NextDouble() * 3f;
+                float hgt = 3f + (float)rnd.NextDouble() * 3.5f;
+                var tr = Draw.Line(decorNoir, "deadTree", 1f, new Color(0.01f, 0.01f, 0.01f), -43, true, 1);
+                Draw.Set(tr, new Vector2(x, 0), new Vector2(x + 0.3f, hgt));
+                Draw.Taper(tr, 0.45f, 0.06f);
+                for (int b = 0; b < 4; b++)
+                {
+                    float y0 = hgt * (0.45f + b * 0.14f);
+                    float dir = b % 2 == 0 ? 1f : -1f;
+                    var br = Draw.Line(decorNoir, "branch", 1f, new Color(0.01f, 0.01f, 0.01f), -43, true, 0);
+                    Draw.Set(br, new List<Vector2> { new Vector2(x + 0.15f, y0), new Vector2(x + dir * 1.1f, y0 + 0.7f), new Vector2(x + dir * 1.9f, y0 + 0.6f + (float)rnd.NextDouble()) });
+                    Draw.Taper(br, 0.16f, 0.01f);
+                }
+            }
+            for (int i = 0; i < 5; i++)
+            {
+                var mist = Draw.Spr(decorNoir, "mist", Draw.Soft, new Color(0.35f, 0.02f, 0.03f, 0.35f), -42);
+                mist.transform.localPosition = new Vector3(-30 + i * 15f, 0.6f, 0); mist.transform.localScale = new Vector3(18f, 2.5f, 1f);
+            }
             styleGround.gameObject.SetActive(false);
         }
 
@@ -176,12 +204,19 @@ namespace StickWars
                 case 5: bg = new Color(0.96f, 0.95f, 0.91f); fill = new Color(0.91f, 0.9f, 0.86f); line = new Color(0.2f, 0.2f, 0.22f); break;
                 case 6: bg = new Color(1f, 0.82f, 0.25f); fill = new Color(0.95f, 0.5f, 0.12f); line = new Color(0.02f, 0.02f, 0.02f); break;
                 case 7: bg = new Color(0.93f, 0.89f, 0.8f); fill = new Color(0.86f, 0.81f, 0.7f); line = new Color(0.05f, 0.05f, 0.05f); break;
+                case 8: bg = new Color(0.9f, 0.43f, 0.26f); fill = new Color(0.62f, 0.26f, 0.19f); line = new Color(0.4f, 0.12f, 0.1f); break;
+                case 9: bg = new Color(0.97f, 0.95f, 0.9f); fill = new Color(0.9f, 0.88f, 0.82f); line = new Color(0.55f, 0.6f, 0.7f); break;
+                case 10: bg = new Color(0.02f, 0.02f, 0.05f); fill = new Color(0.03f, 0.02f, 0.07f); line = new Color(0.1f, 1f, 0.95f); break;
+                case 11: bg = new Color(0.74f, 0.66f, 0.52f); fill = new Color(0.6f, 0.53f, 0.42f); line = new Color(0.2f, 0.16f, 0.12f); break;
+                case 12: bg = new Color(0.88f, 0.86f, 0.82f); fill = new Color(0.02f, 0.02f, 0.02f); line = new Color(0.02f, 0.02f, 0.02f); break;
+                case 13: bg = new Color(0.1f, 0.01f, 0.02f); fill = new Color(0.02f, 0f, 0.01f); line = new Color(0.45f, 0.03f, 0.04f); break;
             }
+            decorNoir.gameObject.SetActive(st == 12 || st == 13);
             decorPencil.gameObject.SetActive(st == 5);
             decorComic.gameObject.SetActive(st == 6);
             decorSumi.gameObject.SetActive(st == 7);
             sgLine.widthMultiplier = st == 7 ? 0.22f : st == 6 ? 0.16f : 0.1f;
-            Particles.InkMode = st == 7 || st == 1 ? 1 : st == 5 ? 2 : 0;
+            Particles.InkMode = st == 7 || st == 1 ? 1 : st == 5 ? 2 : st == 12 || st == 13 ? 3 : 0;
             cam.cam.backgroundColor = bg;
             sgFill.color = fill; Draw.Col(sgLine, line);
             foreach (var f in fighters) f.SetStyle(st);
@@ -193,7 +228,7 @@ namespace StickWars
         public void FlashStyle(int st, float t)
         {
             if (Game.I != null && !Game.I.S.styleShift) return;
-            if (mode != Mode.Fight && mode != Mode.Replay) return;
+            if (mode != Mode.Fight && mode != Mode.Replay && mode != Mode.Survival) return;
             ApplyStyle(st);
             impactT = Mathf.Max(impactT, t);
         }
@@ -206,6 +241,7 @@ namespace StickWars
             decorComic.rotation = Quaternion.Euler(0, 0, Time.unscaledTime * 6f);
             decorSumi.position = new Vector3(cp.x * 0.85f, cp.y * 0.6f, 0);
             decorPencil.position = new Vector3(cp.x * 0.1f, 0, 0);
+            decorNoir.position = new Vector3(cp.x * 0.8f, cp.y * 0.5f, 0);
         }
 
         // Манга-линии фокуса: полосы со всех сторон сходятся к точке удара
@@ -214,7 +250,7 @@ namespace StickWars
             var go = new GameObject("focus");
             var lines = new List<LineRenderer>();
             var dirs = new List<Vector2>();
-            Color c = curStyle == 2 || curStyle == 4 || theme.id == 1 || theme.id == 4 ? new Color(1f, 1f, 1f, 0.55f) : new Color(0.05f, 0.05f, 0.05f, 0.55f);
+            Color c = curStyle == 2 || curStyle == 4 || curStyle == 13 || (curStyle == 0 && (theme.id == 1 || theme.id == 4 || theme.id == 11 || theme.id == 12)) ? new Color(1f, 1f, 1f, 0.55f) : new Color(0.05f, 0.05f, 0.05f, 0.55f);
             int n = 26;
             for (int i = 0; i < n; i++)
             {
@@ -258,7 +294,7 @@ namespace StickWars
             }
             if (mode != Mode.Fight || phase != Phase.Fight || Game.I == null || !Game.I.S.styleShift) return;
             // рисовка меняется по ходу дуэли, как в анимациях
-            int[] seq = { 4, 5, 0, 6, 7, 1, 0, 4, 5, 6, 7, 0 };
+            int[] seq = { 13, 8, 4, 12, 0, 6, 10, 7, 13, 9, 1, 11, 12, 0, 8, 6 };
             if (styleStep < seq.Length && fightTime >= 12f * (styleStep + 1))
             {
                 baseStyle = seq[styleStep];
@@ -302,10 +338,12 @@ namespace StickWars
             foreach (var f in removedFighters) if (f != null) f.replaying = true;
             ApplyStyle(0);
             Announce("ФИЛЬМ БИТВЫ", new Color(1f, 0.9f, 0.6f), 1.6f);
+            if (recFrames.Count > 0) { var f0 = recFrames[0]; mode = Mode.Fight; Cinematic3D(new Vector2(f0.cam.x, 1.2f), 2f, 60f, 0f, 12f, 8f); mode = Mode.Replay; }
         }
 
         public void StopReplay()
         {
+            End3D();
             StopCapture();
             mode = Mode.Fight;
             foreach (var g in ghostPool) g.enabled = false;
@@ -384,7 +422,7 @@ namespace StickWars
             else if (replayStyleT > 5f && pw < 1f)
             {
                 replayStyleT = 0;
-                int[] seq = { 4, 5, 6, 0, 7, 1, 2, 4 };
+                int[] seq = { 8, 13, 4, 5, 12, 6, 0, 10, 7, 9, 11, 1, 2 };
                 baseStyle = seq[replayStyleIdx % seq.Length];
                 replayStyleIdx++;
                 Flash(0.08f, new Color(1, 1, 1, 0.7f));
@@ -430,9 +468,13 @@ namespace StickWars
             // камера: запись + режиссёрский наезд и наклон
             Vector3 cpos = Vector3.Lerp(A.cam, B.cam, k);
             float size = Mathf.Lerp(A.size, B.size, k) * Mathf.Lerp(0.88f, 0.7f, Mathf.Clamp01(pw / 2.5f));
-            cam.cam.orthographicSize = size;
-            cam.cam.transform.position = new Vector3(cpos.x, Mathf.Max(cpos.y, size - 2.4f), -10f);
-            cam.cam.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(replayT * 0.7f) * 1.5f + (pw > 1.3f ? Mathf.Sin(replayT * 40f) * pw * 0.8f : 0f));
+            if (c3d) Cine3DTick(raw);
+            else
+            {
+                cam.cam.orthographicSize = size;
+                cam.cam.transform.position = new Vector3(cpos.x, Mathf.Max(cpos.y, size - 2.4f), -10f);
+                cam.cam.transform.rotation = Quaternion.Euler(0, 0, Mathf.Sin(replayT * 0.7f) * 1.5f + (pw > 1.3f ? Mathf.Sin(replayT * 40f) * pw * 0.8f : 0f));
+            }
 
             fx.Tick(dt);
             for (int i = timed.Count - 1; i >= 0; i--)
@@ -473,6 +515,7 @@ namespace StickWars
                 case 16:
                     ApplyStyle(3); impactT = 0.16f;
                     Flash(0.12f, new Color(1, 1, 1, 0.8f));
+                    { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(e.a, 1.4f, side * 45f, side * 10f, 7f, 4.2f); }
                     break;
                 case 101: fx.Blood(e.a, e.b, e.x); break;
                 case 107: fx.Dust(e.a, (int)e.x); break;
@@ -483,6 +526,7 @@ namespace StickWars
                 case 113: fx.Fountain(e.a, e.b, (int)e.x); break;
                 case 114: fx.Drip(e.a); break;
                 case 117: fx.Pool(e.a, e.x); break;
+                case 118: fx.BloodArc(e.a, e.b, e.x); break;
             }
         }
     }

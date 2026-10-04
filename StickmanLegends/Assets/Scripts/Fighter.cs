@@ -25,7 +25,7 @@ namespace StickWars
         public int combo;
         public float comboT;
 
-        public enum Act { None, Move, Shoot, Throw, Cast, Block, Dash, Saw, Laser, Roll, Flip, GetUp, ThrowSec }
+        public enum Act { None, Move, Shoot, Throw, Cast, Block, Dash, Saw, Laser, Roll, Flip, GetUp, ThrowSec, Grab, Step }
         public enum BodyS { Normal, Tumble, Down }
         public Act act;
         public BodyS body;
@@ -48,6 +48,10 @@ namespace StickWars
         bool slamPending;
         public bool tkSlam;
         Fighter tkBy;
+        public Fighter heldBy;
+        Fighter grabbed;
+        float lastTapL = -9f, lastTapR = -9f;
+        int stepDir = 1;
         float animT, runPhase;
         Pose cur = Pose.Guard;
         Pose hurtPose = Pose.Hurt;
@@ -68,7 +72,7 @@ namespace StickWars
         public WeaponStats sec;
         public int secAmmo;
         float secCd;
-        public bool minion, remove;
+        public bool minion, remove, boss;
         public float life;
         Fighter owner;
         float downTarget, slideDustT;
@@ -103,6 +107,20 @@ namespace StickWars
         SpriteRenderer[] dotR, dotF;
         SpriteRenderer sHeadOut, sHeadShade, hOutF, hOutB, hFilF, hFilB, fOutF, fOutB, fFilF, fFilB, shadowHead;
         LineRenderer lNeckO, lNeckF;
+        // вид Dojo: толстые сужающиеся силуэты, торс-«колокол», подсветка объёма
+        bool dojo;
+        LineRenderer rimTorso, rimArm, rimLeg;
+        SpriteRenderer dHandF, dHandB, dFootF, dFootB;
+        // ауры с «языками», руны, ножны, эффекты оружия
+        LineRenderer[] auraTongues;
+        LineRenderer[] runes;
+        LineRenderer lSheath;
+        // новые аксессуары и произвольные предметы из описания
+        LineRenderer lNecklace, lPack, lPackStrap, lChainF, lChainB;
+        SpriteRenderer sPendant, sShieldP, sShieldPIn, sShieldPBoss, sCuffF, sCuffB, sItemHand, sItemHandGlow, sItemBelt, sItemNeck;
+        LineRenderer[] lBandages;
+        LineRenderer lItemBack, lItemHand;
+        float weaponFxT;
         float boilT;
         int replayRF = 1;
         float replayAlpha = 1f;
@@ -464,6 +482,23 @@ namespace StickWars
                         }
                 }
             }
+            if (B.acc.Contains(Acc.Aura) || B.HasAb(Ability.Rage))
+            {
+                int n = 9;
+                auraTongues = new LineRenderer[n];
+                for (int i = 0; i < n; i++) { auraTongues[i] = Draw.Line(transform, "tongue", 1f, Color.white, baseOrder - 5, true, 2); auraTongues[i].positionCount = 3; auraTongues[i].enabled = false; }
+            }
+            BuildExtraGear(s, hr, w, o);
+            if (B.acc.Contains(Acc.Runes))
+            {
+                Color rc = AccC(Acc.Runes, new Color(0.3f, 1f, 0.9f));
+                runes = new LineRenderer[3];
+                for (int i = 0; i < 3; i++) { runes[i] = Draw.Line(transform, "rune", 0.035f * s, rc, baseOrder + 13, true, 0); runes[i].positionCount = 4; }
+            }
+            if (B.acc.Contains(Acc.Sheath))
+            {
+                lSheath = Draw.Line(transform, "sheath", 0.08f * s, AccC(Acc.Sheath, new Color(0.12f, 0.1f, 0.1f)), baseOrder + 2, true, 2);
+            }
             if (B.acc.Contains(Acc.Aura))
             {
                 auraCol = AccC(Acc.Aura, Color.Lerp(mainCol, Color.white, 0.4f));
@@ -707,11 +742,26 @@ namespace StickWars
 
         void Physics(float dt, float move, bool jump)
         {
+            if (heldBy != null)
+            {
+                // в захвате: висит в руке противника
+                if (heldBy.dead || heldBy.grabbed != this) heldBy = null;
+                else
+                {
+                    Vector2 hand = heldBy.J[4];
+                    pos = new Vector2(hand.x + heldBy.facing * 0.15f, Mathf.Max(0f, hand.y - 1.5f * Size));
+                    vel = Vector2.zero;
+                    grounded = pos.y < 0.01f;
+                    hurtT = Mathf.Max(hurtT, 0.1f);
+                    return;
+                }
+            }
             float spd = 7f * B.spd * (slowT > 0 ? 0.5f : 1f) * (RageOn ? 1.25f : 1f);
             float u = act != Act.None ? actT / Mathf.Max(0.01f, actDur) : 0f;
             if (body == BodyS.Tumble) vel.x *= 1f - dt * 0.4f;
             else if (body == BodyS.Down) vel.x = Mathf.MoveTowards(vel.x, 0, 18f * dt);
             else if (act == Act.Dash) vel.x = facing * 24f;
+            else if (act == Act.Step) vel.x = stepDir * 17f * Mathf.Sqrt(B.spd);
             else if (act == Act.Roll) vel.x = rollDir * 11f * Mathf.Sqrt(B.agi);
             else if (act == Act.Flip) { }
             else if (stun > 0 || hurtT > 0) vel.x = Mathf.MoveTowards(vel.x, 0, (grounded ? 14f : 2f) * dt);
@@ -741,6 +791,7 @@ namespace StickWars
                 {
                     vel.y = jv; grounded = false; act = Act.None;
                     battle.fx.Dust(pos, 5);
+                    battle.audio.Sfx("jump", 0.4f, 0.15f);
                     if (B.style == Style.Acrobat || Random.value < 0.25f * B.agi) StartAirFlip(Mathf.Abs(vel.x) > 2f && Mathf.Sign(vel.x) == facing ? -1f : 1f);
                 }
                 else if (Mathf.Abs(pos.x) > battle.W - 0.55f)
@@ -873,7 +924,7 @@ namespace StickWars
             if (vel.y < -10f)
             {
                 battle.fx.Dust(pos, 8);
-                battle.audio.Sfx("thud", 0.3f);
+                battle.audio.Sfx("land", 0.6f);
                 landT = 0.12f;
             }
             jumps = B.HasAb(Ability.DoubleJump) ? 1 : 0;
@@ -917,7 +968,7 @@ namespace StickWars
             if (grounded && Mathf.Abs(vel.x) > 6f && body == BodyS.Normal)
             {
                 dustT -= dt;
-                if (dustT <= 0f) { dustT = 0.12f; battle.fx.Dust(pos, 1); }
+                if (dustT <= 0f) { dustT = 0.12f; battle.fx.Dust(pos, 1); battle.audio.Sfx("step", 0.25f, 0.2f); }
             }
         }
 
@@ -944,7 +995,7 @@ namespace StickWars
             act = Act.Move; actT = 0; actFired = false;
             float sp = Mathf.Sqrt(B.spd) * (RageOn ? 1.2f : 1f);
             float r = (m.weapon && weapon != null) ? Mathf.Sqrt(weapon.rate) : 1f;
-            actDur = Mathf.Max(0.12f, m.dur / (sp * r) * (B.style == Style.Brute ? 1.1f : 1f));
+            actDur = Mathf.Max(0.1f, m.dur / (sp * r) * (B.style == Style.Brute ? 1.1f : 1f) * 0.88f);
             mvHit = false; mvHitList.Clear(); queued = null;
             if (m.hopX != 0 || m.hopY != 0)
             {
@@ -954,7 +1005,8 @@ namespace StickWars
             if (m.air && !grounded && vel.y < 2f) vel.y = 2f;
             ClearTrail();
             battle.OnAttackStart(this);
-            if (m.heavy || m.flip) battle.audio.Sfx("whoosh", 0.5f);
+            if (m.weapon) battle.audio.Sfx("swing", 0.55f, 0.15f);
+            else if (m.heavy || m.flip) battle.audio.Sfx("whoosh", 0.5f);
         }
 
         public void Attack(bool kick)
@@ -1025,6 +1077,32 @@ namespace StickWars
             battle.audio.Sfx("whoosh", 0.5f);
         }
 
+        public void StartStep(int dir)
+        {
+            if (!Free || !grounded) return;
+            stepDir = dir;
+            StartAct(Act.Step, 0.16f);
+            iframes = 0.08f;
+            battle.fx.Dust(pos, 4);
+            battle.audio.Sfx("whoosh", 0.4f, 0.2f);
+        }
+
+        // захват: поднять противника и швырнуть
+        public bool StartGrab()
+        {
+            var t = target;
+            if (!Free || t == null || t.dead || t.heldBy != null || t.body != BodyS.Normal || !t.grounded || t.iframes > 0 || t.Invisible) return false;
+            if (Mathf.Abs(t.pos.x - pos.x) > 1.25f * Size || Mathf.Abs(t.pos.y - pos.y) > 0.6f) return false;
+            facing = t.pos.x >= pos.x ? 1 : -1;
+            StartAct(Act.Grab, 0.65f);
+            grabbed = t; t.heldBy = this;
+            if (t.act == Act.Laser) { t.lLaser.enabled = t.lLaserGlow.enabled = false; }
+            t.act = Act.None; t.mv = null;
+            battle.Popup("ЗАХВАТ!", J[2] + Vector2.up * 0.8f, new Color(1f, 0.8f, 0.3f), 0.8f);
+            battle.audio.Sfx("snap", 0.8f);
+            return true;
+        }
+
         public void StartBackflip()
         {
             if (!Free || !grounded) return;
@@ -1093,6 +1171,25 @@ namespace StickWars
                     break;
                 case Act.Roll:
                     if (Random.value < 0.3f) battle.fx.Dust(pos, 1);
+                    break;
+                case Act.Step:
+                    ghostT -= dt;
+                    if (ghostT <= 0) { ghostT = 0.035f; battle.AfterImage(this, Draw.A(mainCol, 0.4f)); }
+                    break;
+                case Act.Grab:
+                    if (grabbed == null || grabbed.dead) { act = Act.None; grabbed = null; break; }
+                    if (!actFired && u >= 0.7f)
+                    {
+                        actFired = true;
+                        var g = grabbed; grabbed = null; g.heldBy = null;
+                        var h = MakeHit(9f * B.str, DmgType.Blunt, B.affinity, 13f, 0.4f);
+                        h.dir = new Vector2(facing, 0.5f).normalized; h.lift = 9f; h.knockdown = true; h.heavy = true;
+                        h.point = g.Center; h.extra |= HF.Unarmed;
+                        g.TakeHit(h);
+                        battle.Popup("БРОСОК!", J[2] + Vector2.up * 0.9f, new Color(1f, 0.6f, 0.2f), 1f);
+                        battle.audio.Sfx("heavy", 1f);
+                        battle.cam.Shake(0.5f);
+                    }
                     break;
                 case Act.GetUp:
                     break;
@@ -1218,8 +1315,10 @@ namespace StickWars
             if (combo == 5 || combo == 10) battle.FlashStyle(2, 0.09f);
             if (combo >= 3) battle.Popup(combo + " HITS!", J[2] + new Vector2(-facing * 0.6f, 1.1f), Color.Lerp(mainCol, Color.white, 0.5f), 0.7f + Mathf.Min(0.6f, combo * 0.05f));
             atkCd = Mathf.Min(atkCd, 0.05f);
-            if (h.type == DmgType.Blade || h.type == DmgType.Pierce) { battle.audio.Sfx("cut", 0.8f); battle.audio.Sfx("splat", 0.5f); }
-            else battle.audio.Sfx(mv != null ? mv.sfx : "punch", 0.9f);
+            if (h.type == DmgType.Blade || h.type == DmgType.Pierce) { battle.audio.Sfx("slice", 0.9f); battle.audio.Sfx("shing", 0.35f); }
+            else if (h.heavy || h.launcher) { battle.audio.Sfx("heavy", 1f); }
+            else battle.audio.Sfx(mv != null && mv.limb < 2 ? "snap" : (mv != null ? mv.sfx : "punch"), 0.9f);
+            if (h.heavy) battle.audio.Sfx("punch", 0.6f);
         }
 
         void Clash(Fighter e)
@@ -1324,6 +1423,7 @@ namespace StickWars
                     if (a == Ability.Summon && (minion || battle.MinionCount(this) >= 3)) return false;
                     castAb = a;
                     castFromStaff = false;
+                    battle.audio.Sfx("charge", 0.5f);
                     aim = AimAt(target);
                     StartAct(Act.Cast, a == Ability.Lightning ? 0.6f : 0.5f);
                     break;
@@ -1623,8 +1723,25 @@ namespace StickWars
                     d *= 0.15f; h.knock *= 0.35f;
                     battle.fx.Sparks(h.point, -h.dir, 12, new Color(1f, 0.9f, 0.5f));
                     battle.HitSpark(h.point, -h.dir, 0.7f, new Color(1f, 0.9f, 0.5f));
-                    battle.audio.Sfx("clang", 0.6f);
+                    battle.audio.Sfx("block", 0.8f);
+                    if (h.attacker != null && h.attacker.weapon != null) battle.audio.Sfx("clang", 0.45f);
                     h.launcher = h.knockdown = h.slam = false;
+                    // парирование: идеальный блок — враг оглушён, и сразу контратака
+                    bool perfect = human ? actT < 0.2f : Random.value < 0.3f * B.agi;
+                    var a = h.attacker;
+                    if (perfect && a != null && !a.dead && a != this && Mathf.Abs(a.pos.x - pos.x) < 3f)
+                    {
+                        d = 0f; h.noFlinch = true;
+                        a.stun = Mathf.Max(a.stun, 0.55f); a.act = Act.None; a.mv = null; a.vel.x = -a.facing * 5f; a.hurtT = 0.3f;
+                        battle.Popup("ПАРИРОВАНИЕ!", J[2] + Vector2.up * 1f, new Color(0.6f, 0.95f, 1f), 1f);
+                        battle.HitSpark(h.point, Vector2.up, 1.8f, new Color(0.7f, 0.95f, 1f));
+                        battle.audio.Sfx("clang", 1f);
+                        battle.FlashStyle(2, 0.06f);
+                        act = Act.None;
+                        facing = a.pos.x >= pos.x ? 1 : -1;
+                        StartMove(MeleeWeapon ? Move.Rise : Move.Upper);
+                        iframes = 0.25f;
+                    }
                 }
             }
             int flags = Flags(h);
@@ -1659,6 +1776,9 @@ namespace StickWars
                 if (h.type == DmgType.Fire || h.type == DmgType.Lightning || h.type == DmgType.Ice) amt *= 0.4f;
                 Vector2 bdir = (h.extra & HF.Head) != 0 ? (h.dir + Vector2.up * 0.8f) : h.dir;
                 battle.fx.Blood(h.point, bdir, amt);
+                if (h.type == DmgType.Blade && amt > 8f) battle.fx.BloodArc(h.point, h.dir, Mathf.Clamp(amt / 25f, 0.5f, 2f));
+                if ((h.heavy && d >= 18f) || d >= 30f) Particles.ScreenSplat(Random.Range(1, 3), 1f);
+                if (h.type == DmgType.Blade || h.type == DmgType.Pierce || h.type == DmgType.Blunt && d >= 12f) AddWound(h.point);
                 if (h.type == DmgType.Fire) battle.fx.Fire(h.point, 6, 0.2f);
                 if (h.type == DmgType.Ice) battle.fx.Sparks(h.point, h.dir, 8, new Color(0.6f, 0.95f, 1f));
                 if (h.type == DmgType.Lightning) battle.fx.Sparks(h.point, Vector2.up, 10, new Color(1f, 1f, 0.5f));
@@ -1715,6 +1835,7 @@ namespace StickWars
                 pv[1] -= imp; pv[3] -= imp * 0.8f;
             }
             battle.Impact(d, h.point, h.heavy || h.launcher);
+            if (act != Act.Grab && grabbed != null) { grabbed.heldBy = null; grabbed = null; }
 
             if (hp <= 0) Die(h);
         }
@@ -1740,6 +1861,8 @@ namespace StickWars
         {
             if (dead) return;
             dead = true; hp = 0; act = Act.None; deadTime = 0; mv = null;
+            if (grabbed != null) { grabbed.heldBy = null; grabbed = null; }
+            heldBy = null;
             shieldT = 0; invisT = 0;
             ClearTrail();
             lLaser.enabled = lLaserGlow.enabled = false;
@@ -1758,8 +1881,11 @@ namespace StickWars
                 battle.Popup("ГОЛОВА С ПЛЕЧ!", J[2] + Vector2.up * 1.2f, new Color(1f, 0.2f, 0.15f), 1.1f);
             }
             battle.fx.Blood(h.point, h.dir, 60);
+            battle.fx.BloodArc(h.point, h.dir, decap ? 2.2f : 1.4f);
+            Particles.ScreenSplat(decap ? 4 : 2, decap ? 1.5f : 1.1f);
             battle.audio.Sfx("splat", 1f);
-            battle.audio.Sfx("thud", 0.8f);
+            battle.audio.Sfx("crunch", 0.9f);
+            battle.audio.Sfx("bodyfall", 0.8f);
             if (h.attacker != null && h.attacker != this) h.attacker.kills++;
             battle.OnDeath(this, h);
         }
@@ -1835,6 +1961,10 @@ namespace StickWars
             }
             if (g.Held(L)) move -= 1;
             if (g.Held(R)) move += 1;
+            float now = Time.unscaledTime;
+            if (g.Pressed(L)) { if (now - lastTapL < 0.25f && free && !g.Held(D)) StartStep(-1); lastTapL = now; }
+            if (g.Pressed(R)) { if (now - lastTapR < 0.25f && free && !g.Held(D)) StartStep(1); lastTapR = now; }
+            if (free && g.Pressed(pindex == 0 ? KeyCode.Q : KeyCode.J)) StartGrab();
             bool atk = g.Pressed(A), kick = g.Pressed(K);
             if (g.Pressed(U) && !atk && !kick) jump = true;
 
@@ -1941,6 +2071,7 @@ namespace StickWars
                     }
                     else if (free && grounded && dist > 2f && dist < 4.5f && Random.value < 0.06f * B.agi) StartRoll(dir);
                 }
+                else if (free && grounded && dist > 2.6f && dist < 6.5f && Random.value < 0.12f * B.spd) StartStep(dir);
                 else if (wantBack && free && grounded && dist < 2.4f && Random.value < 0.35f)
                 {
                     StartRoll(dir); // прокат под противником — за спину
@@ -1973,6 +2104,7 @@ namespace StickWars
             else if (!ranged && dist <= reach && target.body != BodyS.Down)
             {
                 if (wantBack && (target.facing == dir)) { Attack(false); return; } // уже за спиной!
+                if (dist < 1.15f * Size && Random.value < (B.style == Style.Brute ? 0.3f : 0.07f) && StartGrab()) return;
                 float kickChance = B.style == Style.Kicker ? 0.7f : B.style == Style.Boxer ? 0.1f : weapon != null ? 0.12f : 0.35f;
                 Attack(Random.value < kickChance);
             }
@@ -2169,6 +2301,12 @@ namespace StickWars
                         return Pose.Keys(u, new[] { k0, k1, k2, k3 }, new[] { 0f, 0.35f, 0.68f, 1f });
                     }
                 case Act.ThrowSec: return Pose.Attack(rest, Pose.ThrowW, Pose.ThrowS, u);
+                case Act.Grab:
+                    {
+                        Pose hold = new Pose(-12, 140, 150, 40, 120, 30, 5, -25, -10);
+                        return Pose.Attack(rest, hold, Pose.ThrowS, u, 0.7f);
+                    }
+                case Act.Step: { Pose p = Pose.Lerp(Pose.Run(1.4f, false), Pose.Dash, 0.45f); if (stepDir != facing) p.lean = -15f; return p; }
             }
             if (!grounded)
             {
@@ -2292,7 +2430,7 @@ namespace StickWars
         {
             Vector2[] src = dead && rag != null && !replaying ? rag.p : J;
             float s = Size;
-            bool drawn = styleMode == 5 || styleMode == 6 || styleMode == 7;
+            bool drawn = styleMode == 5 || styleMode == 6 || styleMode == 7 || styleMode == 9 || styleMode == 11;
             if (drawn)
             {
                 // рисованная анимация: поза «на двойках» (12 кадров/с) и дрожание линий
@@ -2418,6 +2556,8 @@ namespace StickWars
             RenderGear(P, rf, alpha, c, cb);
             RenderSketch(P, sh, alpha);
             RenderClassic(P, sh, c, cb, alpha, rf);
+            RenderDojo(P, c, cb, alpha, rf);
+            RenderFx(P, rf, alpha);
 
             bool shOn = shieldT > 0 && !dead;
             lShield.enabled = shOn; sShieldGlow.enabled = shOn;
@@ -2450,7 +2590,10 @@ namespace StickWars
 
         void BuildClassic()
         {
-            classic = (Game.I == null || Game.I.S.classicStick) && !glow && !silhouette;
+            int look = Game.I != null ? Game.I.S.stickLook : 0;
+            classic = look == 1 && !glow && !silhouette;
+            dojo = look == 0;
+            if (dojo) BuildDojo();
             if (!classic) return;
             float s = Size, fw = 0.095f * s;
             // порядки: нога(з) 0, рука(з) 1, корпус 3, нога(п) 6, голова 8, рука(п) 12
@@ -2476,6 +2619,87 @@ namespace StickWars
             for (int i = 0; i < 5; i++) { shadowL[i] = Draw.Line(transform, "castShadow", 0.12f * s, new Color(0, 0, 0, 0.15f), -1, true, 3); shadowL[i].positionCount = 3; }
             shadowHead = Draw.Spr(transform, "castShadowHead", Draw.Circle, new Color(0, 0, 0, 0.15f), -1);
             sShadow.enabled = false;
+        }
+
+        static AnimationCurve Curve(float a, float b, float c) { return new AnimationCurve(new Keyframe(0f, a), new Keyframe(0.5f, b), new Keyframe(1f, c)); }
+
+        void BuildDojo()
+        {
+            float s = Size;
+            Color lite = Color.Lerp(mainCol, Color.white, 0.35f);
+            rimTorso = Draw.Line(transform, "rimTorso", 1f, Draw.A(lite, 0.35f), baseOrder + 3, true, 4); rimTorso.positionCount = 4;
+            rimArm = Draw.Line(transform, "rimArm", 1f, Draw.A(lite, 0.35f), baseOrder + 12, true, 4); rimArm.positionCount = 3;
+            rimLeg = Draw.Line(transform, "rimLeg", 1f, Draw.A(lite, 0.35f), baseOrder + 6, true, 4); rimLeg.positionCount = 3;
+            rimTorso.widthMultiplier = rimArm.widthMultiplier = rimLeg.widthMultiplier = s;
+            rimTorso.widthCurve = new AnimationCurve(new Keyframe(0f, 0.07f), new Keyframe(0.7f, 0.12f), new Keyframe(1f, 0.08f));
+            rimArm.widthCurve = Curve(0.06f, 0.045f, 0.035f);
+            rimLeg.widthCurve = Curve(0.075f, 0.055f, 0.04f);
+            dHandF = Draw.Spr(transform, "dHandF", Draw.Circle, mainCol, baseOrder + 12);
+            dHandB = Draw.Spr(transform, "dHandB", Draw.Circle, backCol, baseOrder + 1);
+            dFootF = Draw.Spr(transform, "dFootF", Draw.Circle, mainCol, baseOrder + 6);
+            dFootB = Draw.Spr(transform, "dFootB", Draw.Circle, backCol, baseOrder + 0);
+            if (sFistF != null) { sFistF.enabled = sFistB.enabled = false; }
+            if (lFootF != null) { lFootF.enabled = lFootB.enabled = false; }
+            ApplyLimbCurves();
+        }
+
+        // ширина конечностей: Dojo — толстые у основания и тоньше к концу, тушь — мазок кисти
+        void ApplyLimbCurves()
+        {
+            if (lArmF == null) return;
+            float s = Size;
+            if (styleMode == 7)
+            {
+                var c7 = new AnimationCurve(new Keyframe(0f, 1.35f), new Keyframe(0.5f, 0.95f), new Keyframe(1f, 0.5f));
+                foreach (var l in new[] { lArmF, lArmB, lLegF, lLegB, lTorso }) { l.widthMultiplier = Skel.Width * s; l.widthCurve = c7; }
+                return;
+            }
+            if (dojo)
+            {
+                foreach (var l in new[] { lArmF, lArmB, lLegF, lLegB, lTorso }) l.widthMultiplier = s;
+                lArmF.widthCurve = lArmB.widthCurve = Curve(0.22f, 0.165f, 0.13f);
+                lLegF.widthCurve = lLegB.widthCurve = Curve(0.28f, 0.205f, 0.16f);
+                lTorso.widthCurve = new AnimationCurve(new Keyframe(0f, 0.3f), new Keyframe(0.35f, 0.26f), new Keyframe(0.78f, 0.42f), new Keyframe(1f, 0.3f));
+                return;
+            }
+            foreach (var l in new[] { lArmF, lArmB, lLegF, lLegB, lTorso }) l.widthCurve = AnimationCurve.Constant(0f, 1f, 1f);
+            lArmF.widthMultiplier = lArmB.widthMultiplier = lLegF.widthMultiplier = lLegB.widthMultiplier = Skel.Width * s;
+            lTorso.widthMultiplier = Skel.Width * s * 1.12f;
+        }
+
+        void RenderDojo(Vector2[] P, Color c, Color cb, float alpha, int rf)
+        {
+            if (!dojo) return;
+            float s = Size;
+            // торс-«колокол»: плечи шире талии
+            Vector2 neck = P[1] + (P[2] - P[1]).normalized * 0.04f * s;
+            Draw.Set(lTorso, new List<Vector2> { P[0], Vector2.Lerp(P[0], neck, 0.35f), Vector2.Lerp(P[0], neck, 0.78f), neck });
+            bool sk = styleMode == 5 || styleMode == 6;
+            bool rimOn = styleMode == 0 || styleMode == 4 || styleMode == 9;
+            rimTorso.enabled = rimArm.enabled = rimLeg.enabled = rimOn && alpha > 0.5f;
+            if (rimTorso.enabled)
+            {
+                Vector2 off = new Vector2(-0.045f, 0.035f) * s;
+                Color lite = Draw.A(Color.Lerp(c, Color.white, 0.4f), 0.4f * alpha);
+                rimTorso.SetPosition(0, P[0] + off); rimTorso.SetPosition(1, Vector2.Lerp(P[0], neck, 0.35f) + off * 1.2f); rimTorso.SetPosition(2, Vector2.Lerp(P[0], neck, 0.78f) + off * 1.6f); rimTorso.SetPosition(3, neck + off);
+                Vector2 sh = P[1] - (P[1] - P[0]).normalized * 0.06f * s;
+                rimArm.SetPosition(0, sh + off); rimArm.SetPosition(1, P[3] + off); rimArm.SetPosition(2, P[4] + off);
+                rimLeg.SetPosition(0, P[0] + off); rimLeg.SetPosition(1, P[7] + off); rimLeg.SetPosition(2, P[8] + off);
+                Draw.Col(rimTorso, lite); Draw.Col(rimArm, lite); Draw.Col(rimLeg, lite);
+                foreach (var l in new[] { rimTorso, rimArm, rimLeg }) for (int i = 0; i < l.positionCount; i++) { var v = l.GetPosition(i); v.z = -0.01f; l.SetPosition(i, v); }
+            }
+            float hs = 0.2f * s;
+            dHandF.transform.position = P[4]; dHandB.transform.position = P[6];
+            dHandF.transform.localScale = dHandB.transform.localScale = Vector3.one * hs;
+            dHandF.color = c; dHandB.color = cb;
+            Vector2 fa = (P[8] - P[7]).normalized, fb = (P[10] - P[9]).normalized;
+            dFootF.transform.position = P[8] + new Vector2(rf * 0.05f * s, 0) + fa * 0.02f;
+            dFootB.transform.position = P[10] + new Vector2(rf * 0.05f * s, 0) + fb * 0.02f;
+            dFootF.transform.localScale = dFootB.transform.localScale = new Vector3(0.27f * s, 0.17f * s, 1f);
+            dFootF.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(fa.y, fa.x) * Mathf.Rad2Deg + 90f);
+            dFootB.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(fb.y, fb.x) * Mathf.Rad2Deg + 90f);
+            dFootF.color = c; dFootB.color = cb;
+            sHead.transform.localScale = Vector3.one * Skel.HeadR * 2.15f * s;
         }
 
         static void Z(Transform t, float z) { var p = t.position; p.z = z; t.position = p; }
@@ -2523,6 +2747,91 @@ namespace StickWars
         }
 
         // Классический стикман как в анимациях: сегменты-трубки, суставы, кисти и стопы «яйцом», голова с тенью
+        // ауры с языками пламени, руны, ножны, стихийные эффекты оружия
+        void RenderFx(Vector2[] P, int rf, float alpha)
+        {
+            float s = Size, t = animT;
+            bool alive = !dead;
+            if (auraTongues != null)
+            {
+                bool on = alive && alpha > 0.5f && (B.acc.Contains(Acc.Aura) || RageOn);
+                Color ac = RageOn && !B.acc.Contains(Acc.Aura) ? new Color(1f, 0.15f, 0.05f) : auraCol;
+                int kind = RageOn && !B.acc.Contains(Acc.Aura) ? 1 : B.auraKind;
+                if (kind == 3) ac = new Color(0.25f, 0.05f, 0.35f);
+                for (int i = 0; i < auraTongues.Length; i++)
+                {
+                    var l = auraTongues[i];
+                    l.enabled = on;
+                    if (!on) continue;
+                    int j = new[] { 0, 1, 2, 3, 5, 7, 9, 4, 6 }[i];
+                    Vector2 root = P[j];
+                    float ph = t * (kind == 2 ? 30f : 9f) + i * 1.7f;
+                    float len = (0.5f + 0.35f * Mathf.Sin(ph) + (kind == 5 ? 0.35f : 0f)) * s;
+                    Vector2 up = new Vector2(Mathf.Sin(ph * 0.7f) * 0.25f - vel.x * 0.03f, 1f).normalized;
+                    Vector2 mid = root + up * len * 0.5f + new Vector2(Mathf.Sin(ph * 1.3f) * 0.12f, 0) * s;
+                    if (kind == 2) mid += Random.insideUnitCircle * 0.12f * s;
+                    l.SetPosition(0, root); l.SetPosition(1, mid); l.SetPosition(2, root + up * len);
+                    l.widthMultiplier = 1f;
+                    l.widthCurve = Curve(0.28f * s, 0.16f * s, 0f);
+                    float a = (kind == 2 ? (Random.value < 0.5f ? 0.8f : 0.2f) : 0.45f) * alpha;
+                    Draw.Col(l, Draw.A(kind == 2 ? Color.Lerp(ac, Color.white, 0.5f) : ac, a));
+                }
+                if (on)
+                {
+                    Vector2 cen = Vector2.Lerp(P[0], P[1], 0.5f);
+                    if (kind == 1 && Random.value < 0.6f) battle.fx.Fire(cen + Random.insideUnitCircle * 0.5f * s, 1, 0.2f);
+                    if (kind == 2 && Random.value < 0.25f) battle.fx.Sparks(cen + Random.insideUnitCircle * 0.6f * s, Random.insideUnitCircle, 3, new Color(0.7f, 0.95f, 1f));
+                    if (kind == 3 && Random.value < 0.5f) battle.fx.Emit(cen + Random.insideUnitCircle * 0.6f * s, Vector2.up * Random.Range(0.5f, 1.5f), new Color(0.12f, 0.02f, 0.18f, 0.6f), Random.Range(0.2f, 0.4f) * s, 0.8f, 0f, false, 1f, true);
+                    if (kind == 4 && Random.value < 0.4f) battle.fx.Emit(cen + Random.insideUnitCircle * 0.7f * s, new Vector2(Random.Range(-0.3f, 0.3f), -0.5f), new Color(0.85f, 0.97f, 1f, 0.9f), 0.06f * s, 1.2f, -1f, false, 0.5f);
+                    if (kind == 5 && Random.value < 0.7f) battle.fx.Emit(cen + new Vector2(Random.Range(-0.5f, 0.5f), Random.Range(-1f, 0.5f)) * s, Vector2.up * Random.Range(4f, 7f), new Color(1f, 0.92f, 0.5f, 0.8f), 0.05f * s, 0.25f, 0f, false, 0f, true, 1f, 7f);
+                }
+            }
+            if (runes != null)
+            {
+                float glowA = (0.6f + 0.4f * Mathf.Sin(t * 4f)) * alpha;
+                Vector2[][] paths =
+                {
+                    new[] { Vector2.Lerp(P[1], P[3], 0.2f), Vector2.Lerp(P[1], P[3], 0.6f), Vector2.Lerp(P[3], P[4], 0.3f), Vector2.Lerp(P[3], P[4], 0.75f) },
+                    new[] { Vector2.Lerp(P[0], P[1], 0.15f), Vector2.Lerp(P[0], P[1], 0.45f) + new Vector2(rf * 0.06f, 0), Vector2.Lerp(P[0], P[1], 0.7f), Vector2.Lerp(P[0], P[1], 0.9f) + new Vector2(rf * 0.05f, 0) },
+                    new[] { Vector2.Lerp(P[0], P[7], 0.25f), Vector2.Lerp(P[0], P[7], 0.7f), Vector2.Lerp(P[7], P[8], 0.3f), Vector2.Lerp(P[7], P[8], 0.7f) },
+                };
+                for (int i = 0; i < 3; i++)
+                {
+                    for (int k = 0; k < 4; k++) runes[i].SetPosition(k, new Vector3(paths[i][k].x, paths[i][k].y, -0.02f));
+                    var rc = runes[i].startColor; rc.a = glowA; Draw.Col(runes[i], rc);
+                    runes[i].enabled = !dead || deadTime < 2f;
+                }
+            }
+            if (lSheath != null)
+            {
+                Vector2 u = (P[1] - P[0]).normalized;
+                Vector2 a0 = Vector2.Lerp(P[0], P[1], 0.85f) - new Vector2(rf * 0.12f * s, 0);
+                Vector2 dir = (new Vector2(-rf * 0.6f, -1f)).normalized;
+                Draw.Set(lSheath, a0 - dir * 0.15f * s, a0 + dir * 1.0f * s);
+                SetAlpha(lSheath, alpha);
+            }
+            // стихийное оружие: огонь, молнии, лёд, яд, тьма бегут по клинку
+            if (weapon != null && weapon.element != Element.None && alive && weaponRends.Count > 0)
+            {
+                weaponFxT -= Time.deltaTime;
+                if (weaponFxT <= 0f)
+                {
+                    weaponFxT = 0.03f;
+                    Vector2 a0 = weaponRoot.position;
+                    Vector2 a1 = weaponRoot.TransformPoint(new Vector3(TipLen(), 0, 0));
+                    Vector2 pt = Vector2.Lerp(a0, a1, Random.Range(0.3f, 1f));
+                    switch (weapon.element)
+                    {
+                        case Element.Fire: battle.fx.Fire(pt, 1, 0.05f); break;
+                        case Element.Lightning: battle.fx.Sparks(pt, Random.insideUnitCircle, 2, new Color(0.75f, 0.95f, 1f)); break;
+                        case Element.Ice: battle.fx.Emit(pt, Random.insideUnitCircle * 0.4f, new Color(0.85f, 0.97f, 1f, 0.9f), 0.05f, 0.5f, -2f, false, 1f); break;
+                        case Element.Poison: battle.fx.Emit(pt, new Vector2(0, -0.6f), new Color(0.4f, 0.95f, 0.2f, 0.9f), 0.06f, 0.7f, -6f, false, 0.5f); break;
+                        case Element.Shadow: battle.fx.Emit(pt, Vector2.up * 0.6f, new Color(0.18f, 0.04f, 0.25f, 0.6f), 0.18f, 0.6f, 0f, false, 1f, true); break;
+                    }
+                }
+            }
+        }
+
         void RenderClassic(Vector2[] P, Vector2 sh, Color c, Color cb, float alpha, int rf)
         {
             bool on = classic && styleMode == 0;
@@ -2599,7 +2908,7 @@ namespace StickWars
         void RenderSketch(Vector2[] P, Vector2 sh, float alpha)
         {
             if (!sketch[0].enabled) return;
-            bool comic = styleMode == 6;
+            bool comic = styleMode == 6 || styleMode == 10;
             int[][] ch = { new[] { 0, 9, 10 }, new[] { 0, 7, 8 }, new[] { 0, 1, 1 }, new[] { 1, 5, 6 }, new[] { 1, 3, 4 } };
             for (int k = 0; k < 5; k++)
             {
@@ -2612,7 +2921,7 @@ namespace StickWars
                     if (!comic) p += jit2[j] + (k % 2 == 0 ? Vector2.one : -Vector2.one) * 0.02f * Size;
                     l.SetPosition(i, p);
                 }
-                var cc = l.startColor; cc.a = (comic ? 1f : 0.7f) * alpha; Draw.Col(l, cc);
+                var cc = l.startColor; cc.a = (comic ? (styleMode == 10 ? 0.9f + 0.1f * Mathf.Sin(animT * 20f) : 1f) : styleMode == 9 ? 0.25f : 0.7f) * alpha; Draw.Col(l, cc);
             }
             float r = Skel.HeadR * Size * (comic ? 1.12f : 1.04f);
             for (int i = 0; i < 18; i++)
@@ -2621,7 +2930,7 @@ namespace StickWars
                 Vector2 o = comic ? Vector2.zero : jit2[i % 11] * 0.6f;
                 sketchHead.SetPosition(i, P[2] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r + o);
             }
-            var hc = sketchHead.startColor; hc.a = (comic ? 1f : 0.75f) * alpha; Draw.Col(sketchHead, hc);
+            var hc = sketchHead.startColor; hc.a = (comic ? 1f : styleMode == 9 ? 0.25f : 0.75f) * alpha; Draw.Col(sketchHead, hc);
         }
 
         // смена рисовки: 0 обычная, 1 чернила, 2 негатив, 3 кадр удара, 4 плоская дуэль
@@ -2629,22 +2938,26 @@ namespace StickWars
         {
             styleMode = st;
             if (under != null) { foreach (var u in under) u.enabled = st == 0; sHeadUnder.enabled = st == 0; }
-            bool sk = st == 5 || st == 6;
+            bool sk = st == 5 || st == 6 || st == 9 || st == 10;
             float w = Skel.Width * Size;
+            Color neon = team == 0 ? new Color(1f, 0.2f, 0.75f) : new Color(0.1f, 0.95f, 1f);
+            // 6 — жирный контур комикса, 9 — акварельные «растёки», 10 — неоновый контур, 5 — карандашный штрих
+            float sw = st == 6 ? w + 0.13f * Size : st == 9 ? w * 2.1f : st == 10 ? w + 0.09f * Size : 0.035f;
+            int so = st == 5 ? baseOrder + 15 : baseOrder - 1;
+            Color scol = st == 6 ? new Color(0.02f, 0.02f, 0.02f) : st == 9 ? Draw.A(Color.Lerp(mainCol, Color.white, 0.3f), 0.25f) : st == 10 ? neon : new Color(0.12f, 0.12f, 0.14f, 0.7f);
             foreach (var l in sketch)
             {
                 l.enabled = sk;
-                l.widthMultiplier = st == 6 ? w + 0.13f * Size : 0.035f;
-                l.sortingOrder = st == 6 ? baseOrder - 1 : baseOrder + 15;
-                Draw.Col(l, st == 6 ? new Color(0.02f, 0.02f, 0.02f) : new Color(0.12f, 0.12f, 0.14f, 0.7f));
+                l.widthMultiplier = sw;
+                l.sortingOrder = so;
+                Draw.Col(l, scol);
             }
             sketchHead.enabled = sk;
-            sketchHead.widthMultiplier = st == 6 ? 0.12f * Size : 0.035f;
-            sketchHead.sortingOrder = st == 6 ? baseOrder - 1 : baseOrder + 15;
-            Draw.Col(sketchHead, st == 6 ? new Color(0.02f, 0.02f, 0.02f) : new Color(0.12f, 0.12f, 0.14f, 0.75f));
+            sketchHead.widthMultiplier = st == 6 ? 0.12f * Size : st == 9 ? 0.2f * Size : st == 10 ? 0.09f * Size : 0.035f;
+            sketchHead.sortingOrder = so;
+            Draw.Col(sketchHead, scol);
             // тушь: конечности как мазки кисти — толстые у основания, тонкие к концу
-            var curve = st == 7 ? new AnimationCurve(new Keyframe(0f, 1.35f), new Keyframe(0.5f, 0.95f), new Keyframe(1f, 0.5f)) : AnimationCurve.Constant(0f, 1f, 1f);
-            foreach (var l in new[] { lArmF, lArmB, lLegF, lLegB, lTorso }) l.widthCurve = curve;
+            ApplyLimbCurves();
             heldOk = false;
         }
 
@@ -2665,6 +2978,12 @@ namespace StickWars
                     cb = Color.Lerp(c, Color.white, 0.25f);
                     break;
                 case 7: c = new Color(0.04f, 0.04f, 0.05f); cb = new Color(0.3f, 0.29f, 0.28f); break;
+                case 8: c = team == 0 ? new Color(0.06f, 0.06f, 0.1f) : new Color(0.13f, 0.18f, 0.45f); cb = Color.Lerp(c, Color.black, 0.25f); break;
+                case 9: c = Draw.A(Color.Lerp(mainCol, Color.white, 0.15f), 0.82f); cb = Draw.A(Color.Lerp(backCol, Color.white, 0.3f), 0.75f); break;
+                case 10: c = new Color(0.04f, 0.04f, 0.07f); cb = new Color(0.08f, 0.08f, 0.12f); break;
+                case 11: c = new Color(0.16f, 0.13f, 0.1f); cb = new Color(0.32f, 0.27f, 0.22f); break;
+                case 12: c = new Color(0.02f, 0.02f, 0.02f); cb = new Color(0.2f, 0.2f, 0.21f); break;
+                case 13: c = new Color(0.01f, 0.01f, 0.01f); cb = new Color(0.16f, 0.02f, 0.03f); break;
             }
         }
 
@@ -2680,12 +2999,284 @@ namespace StickWars
             Render();
         }
 
+        void BuildExtraGear(float s, float hr, float w, int o)
+        {
+            foreach (var a in B.acc)
+            {
+                switch (a)
+                {
+                    case Acc.Cap:
+                        {
+                            Color c = AccC(a, new Color(0.75f, 0.12f, 0.12f));
+                            var pts = new List<Vector2>();
+                            for (int i = 0; i <= 10; i++) { float ang = Mathf.Lerp(0f, 180f, i / 10f) * Mathf.Deg2Rad; pts.Add(new Vector2(Mathf.Cos(ang) * hr * 1.06f, Mathf.Sin(ang) * hr * 1.0f + hr * 0.2f)); }
+                            headRends.Add(Draw.Poly(headRoot, pts.ToArray(), c, o, "cap"));
+                            var brim = Draw.Line(headRoot, "capBrim", 0.08f * s, Draw.Mul(c, 0.75f), o + 1, false, 2);
+                            Draw.Set(brim, new Vector2(hr * 0.2f, hr * 0.24f), new Vector2(hr * 1.75f, hr * 0.16f));
+                            headRends.Add(brim);
+                            break;
+                        }
+                    case Acc.Glasses:
+                        {
+                            Color c = AccC(a, new Color(0.05f, 0.05f, 0.07f));
+                            var g = Draw.Line(headRoot, "glasses", 0.13f * s, c, o + 3, false, 2);
+                            Draw.Set(g, new Vector2(hr * 0.15f, hr * 0.15f), new Vector2(hr * 1.02f, hr * 0.12f));
+                            headRends.Add(g);
+                            var arm = Draw.Line(headRoot, "glassArm", 0.03f * s, c, o + 3, false, 0);
+                            Draw.Set(arm, new Vector2(hr * 0.15f, hr * 0.17f), new Vector2(-hr * 0.6f, hr * 0.2f));
+                            headRends.Add(arm);
+                            var shine = Draw.Line(headRoot, "glassShine", 0.025f * s, new Color(1, 1, 1, 0.8f), o + 4, false, 0);
+                            Draw.Set(shine, new Vector2(hr * 0.55f, hr * 0.2f), new Vector2(hr * 0.75f, hr * 0.1f));
+                            headRends.Add(shine);
+                            break;
+                        }
+                    case Acc.Scar:
+                        {
+                            Color c = AccC(a, new Color(0.55f, 0.05f, 0.06f));
+                            var sc = Draw.Line(headRoot, "scar", 0.035f * s, c, o + 4, false, 0);
+                            Draw.Set(sc, new Vector2(hr * 0.35f, hr * 0.6f), new Vector2(hr * 0.8f, -hr * 0.35f));
+                            headRends.Add(sc);
+                            for (int i = 0; i < 3; i++)
+                            {
+                                var st = Draw.Line(headRoot, "stitch", 0.02f * s, c, o + 4, false, 0);
+                                Vector2 m = Vector2.Lerp(new Vector2(hr * 0.35f, hr * 0.6f), new Vector2(hr * 0.8f, -hr * 0.35f), 0.25f + i * 0.25f);
+                                Draw.Set(st, m - new Vector2(hr * 0.15f, hr * 0.06f), m + new Vector2(hr * 0.15f, hr * 0.06f));
+                                headRends.Add(st);
+                            }
+                            break;
+                        }
+                    case Acc.Necklace:
+                        {
+                            Color c = AccC(a, new Color(0.95f, 0.75f, 0.2f));
+                            lNecklace = Draw.Line(transform, "necklace", 0.03f * s, c, baseOrder + 14, true, 2);
+                            lNecklace.positionCount = 3;
+                            sPendant = Draw.Spr(transform, "pendant", Draw.Circle, c, baseOrder + 15);
+                            sPendant.transform.localScale = Vector3.one * 0.12f * s;
+                            break;
+                        }
+                    case Acc.Backpack:
+                        {
+                            Color c = AccC(a, new Color(0.4f, 0.27f, 0.12f));
+                            lPack = Draw.Line(transform, "pack", w * 2.1f, c, baseOrder - 1, true, 2);
+                            lPackStrap = Draw.Line(transform, "packStrap", 0.04f * s, Draw.Mul(c, 0.6f), baseOrder + 12, true, 0);
+                            break;
+                        }
+                    case Acc.ShieldProp:
+                        {
+                            Color c = AccC(a, new Color(0.55f, 0.35f, 0.15f));
+                            sShieldP = Draw.Spr(transform, "shieldProp", Draw.Circle, new Color(0.3f, 0.3f, 0.33f), baseOrder + 15);
+                            sShieldPIn = Draw.Spr(transform, "shieldPropIn", Draw.Circle, c, baseOrder + 16);
+                            sShieldPBoss = Draw.Spr(transform, "shieldPropBoss", Draw.Circle, new Color(0.75f, 0.75f, 0.8f), baseOrder + 17);
+                            sShieldP.transform.localScale = Vector3.one * 0.85f * s;
+                            sShieldPIn.transform.localScale = Vector3.one * 0.72f * s;
+                            sShieldPBoss.transform.localScale = Vector3.one * 0.2f * s;
+                            break;
+                        }
+                    case Acc.Bandages:
+                        {
+                            Color c = AccC(a, new Color(0.93f, 0.9f, 0.82f));
+                            lBandages = new LineRenderer[6];
+                            for (int i = 0; i < 6; i++) lBandages[i] = Draw.Line(transform, "bandage", 0.05f * s, i % 2 == 0 ? c : Draw.Mul(c, 0.85f), baseOrder + 14, true, 0);
+                            break;
+                        }
+                    case Acc.Chains:
+                        {
+                            Color c = AccC(a, new Color(0.55f, 0.56f, 0.6f));
+                            sCuffF = Draw.Spr(transform, "cuffF", Draw.Circle, c, baseOrder + 14);
+                            sCuffB = Draw.Spr(transform, "cuffB", Draw.Circle, Draw.Mul(c, 0.75f), baseOrder + 2);
+                            sCuffF.transform.localScale = sCuffB.transform.localScale = Vector3.one * w * 1.45f;
+                            lChainF = Draw.Line(transform, "chainF", 0.045f * s, c, baseOrder + 14, true, 0);
+                            lChainB = Draw.Line(transform, "chainB", 0.045f * s, Draw.Mul(c, 0.75f), baseOrder + 2, true, 0);
+                            lChainF.positionCount = lChainB.positionCount = 5;
+                            break;
+                        }
+                }
+            }
+            // Любые предметы из описания, которых нет в словаре — каждый получает форму и место на теле
+            foreach (var it in B.items)
+            {
+                Color c = it.color;
+                int shape = Mathf.Abs(it.name.GetHashCode()) % 3;
+                switch (it.slot)
+                {
+                    case 0:
+                        {
+                            Vector2[] pts = shape == 0
+                                ? new[] { new Vector2(-hr * 0.7f, hr * 0.85f), new Vector2(hr * 0.7f, hr * 0.85f), new Vector2(hr * 0.5f, hr * 1.5f), new Vector2(-hr * 0.5f, hr * 1.5f) }
+                                : shape == 1
+                                ? new[] { new Vector2(-hr * 0.6f, hr * 0.85f), new Vector2(hr * 0.6f, hr * 0.85f), new Vector2(0, hr * 1.9f) }
+                                : new[] { new Vector2(-hr * 0.9f, hr * 0.8f), new Vector2(hr * 0.9f, hr * 0.8f), new Vector2(hr * 0.6f, hr * 1.25f), new Vector2(0, hr * 1.05f), new Vector2(-hr * 0.6f, hr * 1.25f) };
+                            headRends.Add(Draw.Poly(headRoot, pts, c, o + 2, "item_" + it.name));
+                            break;
+                        }
+                    case 1:
+                        {
+                            var e = Draw.Spr(headRoot, "item_" + it.name, Draw.Circle, c, o + 4);
+                            e.transform.localPosition = shape == 0 ? new Vector3(-hr * 0.05f, -hr * 0.55f, 0) : new Vector3(hr * 0.55f, hr * 0.1f, 0);
+                            e.transform.localScale = Vector3.one * hr * (shape == 0 ? 0.35f : 0.5f);
+                            headRends.Add(e);
+                            var ring = Draw.Line(headRoot, "itemRing", 0.025f * s, Draw.Mul(c, 0.6f), o + 4, false, 0);
+                            Draw.Set(ring, (Vector2)e.transform.localPosition + new Vector2(0, hr * 0.18f), (Vector2)e.transform.localPosition + new Vector2(0, hr * 0.38f));
+                            headRends.Add(ring);
+                            break;
+                        }
+                    case 2:
+                        sItemNeck = Draw.Spr(transform, "item_" + it.name, shape == 1 ? Draw.Square : Draw.Circle, c, baseOrder + 15);
+                        sItemNeck.transform.localScale = Vector3.one * 0.17f * s;
+                        if (lNecklace == null) { lNecklace = Draw.Line(transform, "itemCord", 0.025f * s, Draw.Mul(c, 0.6f), baseOrder + 14, true, 2); lNecklace.positionCount = 3; }
+                        break;
+                    case 3:
+                        lItemBack = Draw.Line(transform, "item_" + it.name, shape == 0 ? w * 2.2f : 0.09f * s, c, baseOrder - 1, true, shape == 0 ? 3 : 1);
+                        break;
+                    case 4:
+                        lItemHand = Draw.Line(transform, "item_" + it.name, 0.16f * s, c, baseOrder + 15, true, shape == 2 ? 4 : 1);
+                        sItemHand = Draw.Spr(transform, "itemHead", shape == 1 ? Draw.Square : Draw.Circle, Color.Lerp(c, Color.white, 0.35f), baseOrder + 16);
+                        sItemHand.transform.localScale = Vector3.one * 0.2f * s;
+                        sItemHandGlow = Draw.Spr(transform, "itemGlow", Draw.Soft, Draw.A(Color.Lerp(c, Color.white, 0.5f), 0.35f), baseOrder - 2);
+                        sItemHandGlow.transform.localScale = Vector3.one * 0.9f * s;
+                        break;
+                    default:
+                        sItemBelt = Draw.Spr(transform, "item_" + it.name, shape == 1 ? Draw.Square : Draw.Circle, c, baseOrder + 14);
+                        sItemBelt.transform.localScale = new Vector3(0.22f, 0.26f, 1f) * s;
+                        break;
+                }
+            }
+        }
+
+        // Раны: остаются на теле там, куда пришёлся удар, и сочатся кровью
+        struct Wound { public int a, b; public float t, off, age; public SpriteRenderer spr, core; public LineRenderer drip; }
+        readonly List<Wound> wounds = new List<Wound>();
+        static readonly int[,] Bones = { { 0, 1 }, { 1, 3 }, { 3, 4 }, { 1, 5 }, { 5, 6 }, { 0, 7 }, { 7, 8 }, { 0, 9 }, { 9, 10 }, { 1, 2 } };
+
+        void AddWound(Vector2 at)
+        {
+            if (Game.I != null && Game.I.S.blood <= 0.01f) return;
+            if (wounds.Count >= 7) return;
+            int best = 0; float bd = 1e9f, bt = 0;
+            for (int i = 0; i < Bones.GetLength(0); i++)
+            {
+                Vector2 a = J[Bones[i, 0]], b = J[Bones[i, 1]];
+                Vector2 ab = b - a; float l2 = Mathf.Max(ab.sqrMagnitude, 1e-5f);
+                float t = Mathf.Clamp01(Vector2.Dot(at - a, ab) / l2);
+                float d = (a + ab * t - at).sqrMagnitude;
+                if (d < bd) { bd = d; best = i; bt = t; }
+            }
+            var w = new Wound { a = Bones[best, 0], b = Bones[best, 1], t = best == 9 ? 1f : bt, off = Random.Range(-0.4f, 0.4f) };
+            float s = Size;
+            w.spr = Draw.Spr(transform, "wound", Draw.Circle, new Color(0.32f, 0.0f, 0.02f), baseOrder + 14);
+            w.spr.transform.localScale = new Vector3(Random.Range(0.1f, 0.15f), Random.Range(0.07f, 0.1f), 1f) * s;
+            w.spr.transform.rotation = Quaternion.Euler(0, 0, Random.Range(0f, 180f));
+            w.core = Draw.Spr(transform, "woundCore", Draw.Circle, new Color(0.7f, 0.03f, 0.05f), baseOrder + 14);
+            w.core.transform.localScale = w.spr.transform.localScale * 0.45f;
+            w.drip = Draw.Line(transform, "woundDrip", 1f, new Color(0.4f, 0.0f, 0.03f), baseOrder + 14, true, 2);
+            Draw.Taper(w.drip, 0.045f * s, 0.015f * s);
+            wounds.Add(w);
+        }
+
+        void ClearWounds()
+        {
+            foreach (var w in wounds) { if (w.spr) Destroy(w.spr.gameObject); if (w.core) Destroy(w.core.gameObject); if (w.drip) Destroy(w.drip.gameObject); }
+            wounds.Clear();
+        }
+
+        void RenderWounds(Vector2[] P, float alpha)
+        {
+            float s = Size;
+            for (int i = 0; i < wounds.Count; i++)
+            {
+                var w = wounds[i];
+                if (w.spr == null) continue;
+                w.age += Time.deltaTime;
+                Vector2 a = P[w.a], b = P[w.b];
+                Vector2 d = (b - a); Vector2 n = d.sqrMagnitude > 1e-5f ? new Vector2(-d.y, d.x).normalized : Vector2.right;
+                Vector2 pos = w.a == 1 && w.b == 2 ? b + n * w.off * Skel.HeadR * s : Vector2.Lerp(a, b, w.t) + n * w.off * Skel.Width * s * 0.5f;
+                w.spr.transform.position = pos; w.core.transform.position = pos;
+                bool on = alpha > 0.5f && styleMode != 3;
+                w.spr.enabled = w.core.enabled = w.drip.enabled = on;
+                float dl = Mathf.Min(0.08f + w.age * 0.06f, 0.32f) * s;
+                Draw.Set(w.drip, pos, pos + new Vector2(Mathf.Sin(w.age * 2f + i) * 0.02f, -dl));
+                if (!dead && Random.value < Time.deltaTime * 0.6f) battle.fx.Drip(pos - Vector2.up * dl);
+                wounds[i] = w;
+            }
+        }
+
+        void RenderExtraGear(Vector2[] P, int rf, float alpha, Vector2 u, Vector2 perp)
+        {
+            float s = Size;
+            RenderWounds(P, alpha);
+            Vector2 neck = P[1] - u * 0.05f * s;
+            if (lNecklace != null)
+            {
+                Vector2 a = neck + perp * 0.1f * s, b = neck - perp * 0.1f * s;
+                Vector2 low = neck - u * 0.28f * s + new Vector2(rf * 0.06f * s, 0);
+                lNecklace.SetPosition(0, a); lNecklace.SetPosition(1, low); lNecklace.SetPosition(2, b);
+                SetAlpha(lNecklace, alpha);
+                Vector2 pend = low - u * 0.06f * s + new Vector2(-vel.x * 0.006f, 0);
+                if (sPendant != null) { sPendant.transform.position = pend; SetAlpha(sPendant, alpha); }
+                if (sItemNeck != null) { sItemNeck.transform.position = pend - u * 0.04f * s; SetAlpha(sItemNeck, alpha); }
+            }
+            Vector2 back = Vector2.Lerp(P[0], P[1], 0.6f) - new Vector2(rf * 0.2f * s, 0);
+            if (lPack != null)
+            {
+                Draw.Set(lPack, back - u * 0.25f * s, back + u * 0.2f * s); SetAlpha(lPack, alpha);
+                Draw.Set(lPackStrap, P[1] - u * 0.05f * s, Vector2.Lerp(P[0], P[1], 0.35f) + new Vector2(rf * 0.06f * s, 0)); SetAlpha(lPackStrap, alpha);
+            }
+            if (lItemBack != null) { Draw.Set(lItemBack, back - u * 0.35f * s + new Vector2(-rf * 0.05f * s, 0), back + u * 0.45f * s + new Vector2(-rf * 0.12f * s, 0)); SetAlpha(lItemBack, alpha); }
+            if (sShieldP != null)
+            {
+                Vector2 hp = P[6] + new Vector2(rf * 0.12f * s, 0);
+                sShieldP.transform.position = hp; sShieldPIn.transform.position = hp; sShieldPBoss.transform.position = hp;
+                float sq = act == Act.Block ? 1f : 0.55f; // щит поворачивается к врагу при блоке
+                sShieldP.transform.localScale = new Vector3(0.85f * sq, 0.85f, 1f) * s; sShieldPIn.transform.localScale = new Vector3(0.72f * sq, 0.72f, 1f) * s;
+                sShieldPBoss.transform.localScale = new Vector3(0.2f * sq, 0.2f, 1f) * s;
+                SetAlpha(sShieldP, alpha); SetAlpha(sShieldPIn, alpha); SetAlpha(sShieldPBoss, alpha);
+            }
+            if (lBandages != null)
+            {
+                int[,] seg = { { 3, 4 }, { 3, 4 }, { 5, 6 }, { 7, 8 }, { 7, 8 }, { 0, 1 } };
+                for (int i = 0; i < 6; i++)
+                {
+                    Vector2 a = P[seg[i, 0]], b = P[seg[i, 1]];
+                    Vector2 m = Vector2.Lerp(a, b, i % 2 == 0 ? 0.45f : 0.65f);
+                    Vector2 d = (b - a).normalized; Vector2 pp = new Vector2(-d.y, d.x);
+                    Draw.Set(lBandages[i], m - pp * 0.1f * s - d * 0.03f * s, m + pp * 0.1f * s + d * 0.03f * s);
+                    SetAlpha(lBandages[i], alpha);
+                }
+            }
+            if (sCuffF != null)
+            {
+                sCuffF.transform.position = Vector2.Lerp(P[3], P[4], 0.8f); sCuffB.transform.position = Vector2.Lerp(P[5], P[6], 0.8f);
+                SetAlpha(sCuffF, alpha); SetAlpha(sCuffB, alpha);
+                for (int k = 0; k < 2; k++)
+                {
+                    var l = k == 0 ? lChainF : lChainB;
+                    Vector2 p = k == 0 ? (Vector2)sCuffF.transform.position : (Vector2)sCuffB.transform.position;
+                    for (int i = 0; i < 5; i++)
+                    {
+                        l.SetPosition(i, p);
+                        p += new Vector2(-vel.x * 0.012f - rf * 0.02f + Mathf.Sin(animT * 9f + i + k) * 0.03f, -0.1f * s);
+                    }
+                    SetAlpha(l, alpha);
+                }
+            }
+            if (lItemHand != null)
+            {
+                Vector2 h = P[6];
+                Vector2 bot = h - Vector2.up * 0.32f * s + new Vector2(-vel.x * 0.01f, 0);
+                Draw.Set(lItemHand, h, bot); SetAlpha(lItemHand, alpha);
+                sItemHand.transform.position = bot; SetAlpha(sItemHand, alpha);
+                sItemHandGlow.transform.position = bot; sItemHandGlow.enabled = alpha > 0.5f && !dead;
+            }
+            if (sItemBelt != null) { sItemBelt.transform.position = Vector2.Lerp(P[0], P[1], 0.08f) + new Vector2(rf * 0.15f * s, -0.05f * s); SetAlpha(sItemBelt, alpha); }
+        }
+
         void RenderGear(Vector2[] P, int rf, float alpha, Color c, Color cb)
         {
             float s = Size;
             Vector2 u = (P[1] - P[0]); float ul = u.magnitude; u = ul > 0.001f ? u / ul : Vector2.up;
             Vector2 perp = new Vector2(-u.y, u.x);
             Vector2 sh = P[1] - u * 0.06f * s;
+            RenderExtraGear(P, rf, alpha, u, perp);
             if (sAura != null)
             {
                 auraT += Time.deltaTime;

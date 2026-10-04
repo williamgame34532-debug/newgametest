@@ -8,7 +8,7 @@ namespace StickWars
     public enum WeaponKind { Fists, Blade, Blunt, Spear, Gun, Bow, Thrown, Chainsaw, Staff }
     public enum DmgType { Blunt, Blade, Pierce, Fire, Ice, Lightning, Poison, Shadow }
     public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon, Custom }
-    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie }
+    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie, Runes, Sheath, Cap, Glasses, Necklace, Backpack, ShieldProp, Scar, Bandages, Chains }
 
     [Serializable]
     public class Stroke
@@ -58,7 +58,11 @@ namespace StickWars
         public bool styleShift = true;   // рисовка меняется по ходу дуэли
         public bool tempoRamp = true;    // темп боя растёт
         public bool recordVideo = false; // записывать видео каждого боя
-        public bool classicStick = true; // классический стикман: контур, суставы, кисти-«яйца»
+        public bool classicStick = true; // (старое) классический стикман
+        public bool cine3d = true;
+        public bool grim = true;         // мрачная атмосфера: виньетка, пепел, тёмная цветокоррекция
+        public bool screenBlood = true;  // брызги крови на экран       // 3D-переходы камеры в эпичные моменты
+        public int stickLook = 0;        // 0 — Dojo (толстые силуэты), 1 — классический (контур, суставы), 2 — простой
     }
 
     [Serializable]
@@ -69,6 +73,8 @@ namespace StickWars
         public List<FighterDef> blue = new List<FighterDef>();
         public List<WeaponDef> weapons = new List<WeaponDef>();
         public bool twoPlayers = false;
+        public bool survival = false;   // режим «Один против всех»
+        public int survivalBest = 0;
         public bool p1Control = false;
         public bool p2Control = false;
         public bool drops = true;
@@ -87,7 +93,7 @@ namespace StickWars
         public float dmg = 10, range = 1.5f, rate = 1f, size = 1f, knock = 1f;
         public int ammo = 0;
         public int pellets = 1;
-        public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives, summon;
+        public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives, summon, katana, glowBlade;
         public string customTag, summonName;
         public Color color = Color.gray;
         public List<Stroke> drawing;
@@ -109,6 +115,14 @@ namespace StickWars
         public WeaponStats Copy() { return (WeaponStats)MemberwiseClone(); }
     }
 
+    // предмет из описания, которого нет в словаре: рисуется в своём месте тела
+    public class CustomItem
+    {
+        public string name;
+        public int slot; // 0 голова, 1 лицо, 2 шея/грудь, 3 спина, 4 рука, 5 пояс
+        public Color color;
+    }
+
     public class FighterBuild
     {
         public string name;
@@ -126,6 +140,9 @@ namespace StickWars
         public string customWeak, customWeakWord;      // новая, придуманная игроком слабость («соль», «музыка»...)
         public string customAbility, customAbilityTag; // новое умение из описания
         public string summonName = "Помощник";
+        public int auraKind;
+        public List<CustomItem> items = new List<CustomItem>(); // любые другие предметы из описания
+        // auraKind: 0 энергия, 1 огонь, 2 молния, 3 тьма, 4 лёд, 5 божественная (золотая)
         public string WeakText
         {
             get

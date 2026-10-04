@@ -11,12 +11,14 @@ namespace StickWars
     // Стили арены: бумага, арена, поле, город, киберпанк
     public class Theme : MonoBehaviour
     {
-        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние", "Дуэль", "Чистый лист" };
-        public const int Count = 9;
+        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние", "Дуэль", "Чистый лист", "Долина", "Закат", "Кровавая луна", "Пепелище" };
+        public const int Count = 13;
 
         public int id;
         public Color bg;
         public bool glow, outline, silhouette;
+        public Color groundCol = new Color(0.3f, 0.3f, 0.3f);
+        bool depthOn;
         public Color outlineCol = new Color(0.05f, 0.05f, 0.06f), ink = Color.white;
         public Color defaultRed, defaultBlue;
 
@@ -67,6 +69,20 @@ namespace StickWars
                     p.btn = new Color(0.1f, 0.1f, 0.1f, 0.92f); p.btnHover = new Color(0.35f, 0.05f, 0.05f, 1f); p.btnText = new Color(0.97f, 0.97f, 0.97f);
                     p.title = new Color(0.05f, 0.05f, 0.05f); p.titleShadow = new Color(0.85f, 0.05f, 0.05f, 0.9f);
                     break;
+                case 9: // долина
+                    p.panel = new Color(1f, 1f, 1f, 0.88f); p.panelEdge = new Color(0.2f, 0.3f, 0.5f, 1f);
+                    p.text = new Color(0.1f, 0.12f, 0.2f); p.sub = new Color(0.35f, 0.4f, 0.5f);
+                    p.accent = new Color(0.15f, 0.2f, 0.45f); p.accent2 = new Color(0.3f, 0.6f, 0.3f);
+                    p.btn = new Color(1f, 1f, 1f, 0.92f); p.btnHover = new Color(0.88f, 0.92f, 1f, 1f); p.btnText = new Color(0.1f, 0.12f, 0.2f);
+                    p.title = new Color(0.12f, 0.14f, 0.3f); p.titleShadow = new Color(1f, 1f, 1f, 0.9f);
+                    break;
+                case 10: // закат
+                    p.panel = new Color(0.12f, 0.05f, 0.05f, 0.85f); p.panelEdge = new Color(1f, 0.55f, 0.3f, 1f);
+                    p.text = new Color(1f, 0.93f, 0.85f); p.sub = new Color(0.9f, 0.65f, 0.55f);
+                    p.accent = new Color(0.95f, 0.4f, 0.2f); p.accent2 = new Color(0.25f, 0.35f, 0.8f);
+                    p.btn = new Color(0.2f, 0.08f, 0.07f, 0.95f); p.btnHover = new Color(0.45f, 0.15f, 0.1f, 1f); p.btnText = new Color(1f, 0.93f, 0.85f);
+                    p.title = new Color(0.1f, 0.12f, 0.35f); p.titleShadow = new Color(1f, 0.55f, 0.3f, 0.95f);
+                    break;
                 case 8: // чистый лист
                     p.panel = new Color(1f, 1f, 1f, 0.94f); p.panelEdge = new Color(0.08f, 0.08f, 0.09f, 1f);
                     p.text = new Color(0.07f, 0.07f, 0.08f); p.sub = new Color(0.4f, 0.4f, 0.42f);
@@ -87,6 +103,20 @@ namespace StickWars
                     p.accent = new Color(1f, 0.75f, 0.35f); p.accent2 = new Color(0.45f, 0.5f, 1f);
                     p.btn = new Color(0.2f, 0.17f, 0.32f, 0.95f); p.btnHover = new Color(0.38f, 0.3f, 0.55f, 1f); p.btnText = new Color(0.97f, 0.95f, 1f);
                     p.title = new Color(1f, 0.95f, 0.85f); p.titleShadow = new Color(0.6f, 0.4f, 1f, 0.9f);
+                    break;
+                case 11: // кровавая луна
+                    p.panel = new Color(0.07f, 0.01f, 0.02f, 0.9f); p.panelEdge = new Color(0.85f, 0.08f, 0.08f, 1f);
+                    p.text = new Color(0.96f, 0.9f, 0.88f); p.sub = new Color(0.7f, 0.5f, 0.5f);
+                    p.accent = new Color(0.9f, 0.1f, 0.1f); p.accent2 = new Color(0.5f, 0.55f, 0.75f);
+                    p.btn = new Color(0.12f, 0.02f, 0.03f, 0.95f); p.btnHover = new Color(0.4f, 0.03f, 0.05f, 1f); p.btnText = new Color(0.96f, 0.9f, 0.88f);
+                    p.title = new Color(0.04f, 0.0f, 0.01f); p.titleShadow = new Color(0.9f, 0.08f, 0.08f, 0.95f);
+                    break;
+                case 12: // пепелище
+                    p.panel = new Color(0.1f, 0.08f, 0.07f, 0.9f); p.panelEdge = new Color(1f, 0.45f, 0.1f, 1f);
+                    p.text = new Color(0.95f, 0.9f, 0.84f); p.sub = new Color(0.68f, 0.6f, 0.52f);
+                    p.accent = new Color(1f, 0.45f, 0.1f); p.accent2 = new Color(0.55f, 0.6f, 0.7f);
+                    p.btn = new Color(0.16f, 0.12f, 0.1f, 0.95f); p.btnHover = new Color(0.4f, 0.18f, 0.06f, 1f); p.btnText = new Color(0.95f, 0.9f, 0.84f);
+                    p.title = new Color(0.08f, 0.06f, 0.05f); p.titleShadow = new Color(1f, 0.45f, 0.1f, 0.95f);
                     break;
                 default: // киберпанк
                     p.panel = new Color(0.04f, 0.01f, 0.08f, 0.88f); p.panelEdge = new Color(0.1f, 0.95f, 1f, 1f);
@@ -128,12 +158,17 @@ namespace StickWars
                 case 6: BuildGlow(ext, rnd); break;
                 case 7: BuildDuel(ext); break;
                 case 8: BuildClean(ext); break;
+                case 9: BuildValley(ext, rnd); break;
+                case 10: BuildSunset(ext, rnd); break;
+                case 11: BuildBloodMoon(ext, rnd); break;
+                case 12: BuildAshes(ext, rnd); break;
                 default: BuildCyber(ext, rnd); break;
             }
         }
 
         void Ground(float ext, Color fill, Color line, float lineW)
         {
+            groundCol = fill;
             var g = NewLayer("ground", 0f);
             Draw.Rect(g, new Rect(-ext, -30f, ext * 2, 30f), fill, -10);
             var l = Draw.Line(g, "groundLine", lineW, line, -3, true, 0);
@@ -419,6 +454,200 @@ namespace StickWars
             Walls(new Color(0.9f, 0.9f, 0.9f, 0.6f), 0.3f);
         }
 
+        // скалы: колонки-трапеции с рваным верхом и светлой кромкой
+        void Cliffs(Transform layer, Color body, Color top, float baseH, float var, int order, System.Random rnd, float from, float to)
+        {
+            var tops = new List<Vector2>();
+            for (float x = from; x <= to; x += 1.5f)
+            {
+                float h = baseH + (float)rnd.NextDouble() * var + Mathf.Sin(x * 0.11f) * var * 0.6f;
+                tops.Add(new Vector2(x, h));
+            }
+            for (int i = 0; i < tops.Count - 1; i++)
+                Draw.Poly(layer, new[] { new Vector2(tops[i].x, -2), tops[i], tops[i + 1], new Vector2(tops[i + 1].x, -2) }, body, order);
+            var edge = Draw.Line(layer, "edge", 0.25f, top, order + 1, true, 1);
+            Draw.Set(edge, tops);
+            // вертикальные трещины-штрихи
+            for (int i = 0; i < tops.Count; i += 2)
+            {
+                var l = Draw.Line(layer, "crack", 0.08f, Draw.Mul(body, 0.88f), order + 1, true, 0);
+                Draw.Set(l, new Vector2(tops[i].x + 0.3f, tops[i].y - 0.4f), new Vector2(tops[i].x + 0.1f, tops[i].y * 0.3f));
+            }
+        }
+
+        // Долина: голубое небо, облака, сиреневые скалы, зелёные холмы и трава — живописный фон
+        void BuildValley(float ext, System.Random rnd)
+        {
+            bg = new Color(0.62f, 0.8f, 0.97f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.45f, 0.68f, 0.95f), new Color(0.88f, 0.94f, 1f), -60);
+            var cl = NewLayer("clouds", 0.85f);
+            for (int i = 0; i < 9; i++)
+            {
+                var c = Draw.Spr(cl, "cloud", Draw.Soft, new Color(1f, 1f, 1f, 0.85f), -58);
+                c.transform.localPosition = new Vector3(-40 + i * 10 + (float)rnd.NextDouble() * 5, 10 + (float)rnd.NextDouble() * 5, 0);
+                c.transform.localScale = new Vector3(7f + (float)rnd.NextDouble() * 4f, 1.1f, 1f);
+                clouds.Add(c.transform);
+            }
+            Cliffs(NewLayer("cliffsFar", 0.7f), new Color(0.66f, 0.63f, 0.75f), new Color(0.8f, 0.78f, 0.86f), 7f, 3f, -55, rnd, -90, 90);
+            Cliffs(NewLayer("cliffsNear", 0.5f), new Color(0.58f, 0.54f, 0.66f), new Color(0.55f, 0.75f, 0.45f), 4.5f, 3.5f, -53, rnd, -90, 90);
+            Hills(NewLayer("hills", 0.3f), new Color(0.45f, 0.7f, 0.38f), 1.5f, 1.2f, -50, rnd);
+            var wall = NewLayer("wall", 0.15f);
+            for (float x = -60; x < 60; x += 2.2f)
+                Draw.Rect(wall, new Rect(x, 0f, 2.1f, 1.0f + (float)rnd.NextDouble() * 0.15f), new Color(0.62f, 0.58f, 0.5f), -48);
+            var wl = Draw.Line(wall, "wallTop", 0.12f, new Color(0.45f, 0.62f, 0.35f), -47, true, 0);
+            Draw.Set(wl, new Vector2(-60, 1.1f), new Vector2(60, 1.1f));
+            Ground(ext, new Color(0.42f, 0.67f, 0.34f), new Color(0.33f, 0.55f, 0.27f), 0.1f);
+            var grass = NewLayer("grass", 0f);
+            for (float x = -ext; x < ext; x += 0.45f)
+            {
+                var g = Draw.Line(grass, "blade", 0.05f, new Color(0.35f, 0.6f, 0.28f), -2, true, 0);
+                Draw.Set(g, new Vector2(x, 0), new Vector2(x + (float)rnd.NextDouble() * 0.25f - 0.12f, 0.15f + (float)rnd.NextDouble() * 0.3f));
+            }
+            Walls(new Color(0.6f, 0.55f, 0.65f, 1f), 0.5f);
+        }
+
+        // Закат: оранжево-красное небо, руины города, столбы дыма — как в «One vs Many»
+        void BuildSunset(float ext, System.Random rnd)
+        {
+            bg = new Color(0.9f, 0.42f, 0.25f);
+            ink = new Color(1f, 0.9f, 0.75f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.75f, 0.25f, 0.18f), new Color(0.98f, 0.55f, 0.3f), -60);
+            var sun = Draw.Spr(sky, "sunGlow", Draw.Soft, new Color(1f, 0.85f, 0.5f, 0.7f), -59);
+            sun.transform.localPosition = new Vector3(-2, 3, 0); sun.transform.localScale = new Vector3(26f, 9f, 1f);
+            Skyline(NewLayer("ruinsFar", 0.7f), new Color(0.8f, 0.38f, 0.25f), 3f, 9f, -55, rnd, false);
+            Skyline(NewLayer("ruinsNear", 0.45f), new Color(0.65f, 0.27f, 0.2f), 1.5f, 5f, -52, rnd, false);
+            var smoke = NewLayer("smoke", 0.5f);
+            for (int i = 0; i < 10; i++)
+            {
+                float x = -40 + i * 8 + (float)rnd.NextDouble() * 4;
+                var sm = Draw.Line(smoke, "smoke", 1f, new Color(0.35f, 0.08f, 0.06f, 0.45f), -51, true, 2);
+                Draw.Set(sm, new List<Vector2> { new Vector2(x, 2), new Vector2(x + 0.5f, 7), new Vector2(x - 0.3f, 13) });
+                Draw.Taper(sm, 0.6f, 0.15f);
+            }
+            Ground(ext, new Color(0.62f, 0.26f, 0.19f), new Color(0.45f, 0.15f, 0.12f), 0.08f);
+            var debris = NewLayer("debris", 0f);
+            for (int i = 0; i < 26; i++)
+            {
+                var d = Draw.Spr(debris, "rubble", Draw.Soft, new Color(0.4f, 0.12f, 0.1f, 0.6f), -9);
+                d.transform.localPosition = new Vector3(-ext * 0.6f + i * 3.7f + (float)rnd.NextDouble() * 2f, -0.4f - (float)rnd.NextDouble(), 0);
+                d.transform.localScale = new Vector3(1.6f + (float)rnd.NextDouble() * 2f, 0.35f, 1f);
+            }
+            Walls(new Color(0.45f, 0.16f, 0.12f, 1f), 0.5f);
+        }
+
+        // Кровавая луна: багровое небо, огромная луна, чёрные мёртвые деревья, виселицы и туман
+        void BuildBloodMoon(float ext, System.Random rnd)
+        {
+            bg = new Color(0.4f, 0.04f, 0.05f);
+            ink = new Color(1f, 0.85f, 0.8f);
+            defaultRed = new Color(0.05f, 0.04f, 0.05f);
+            defaultBlue = new Color(0.25f, 0.28f, 0.38f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.62f, 0.08f, 0.07f), new Color(0.12f, 0.01f, 0.03f), -60);
+            var moonL = NewLayer("moon", 0.9f);
+            var halo = Draw.Spr(moonL, "halo", Draw.Soft, new Color(1f, 0.3f, 0.2f, 0.55f), -59);
+            halo.transform.localPosition = new Vector3(4f, 9f, 0); halo.transform.localScale = Vector3.one * 20f;
+            var moon = Draw.Spr(moonL, "moon", Draw.Circle, new Color(0.95f, 0.32f, 0.22f), -58);
+            moon.transform.localPosition = new Vector3(4f, 9f, 0); moon.transform.localScale = Vector3.one * 7.5f;
+            for (int i = 0; i < 5; i++)
+            {
+                var cr = Draw.Spr(moonL, "crater", Draw.Circle, new Color(0.8f, 0.2f, 0.15f, 0.6f), -57);
+                cr.transform.localPosition = new Vector3(4f + (float)rnd.NextDouble() * 4f - 2f, 9f + (float)rnd.NextDouble() * 4f - 2f, 0);
+                cr.transform.localScale = Vector3.one * (0.6f + (float)rnd.NextDouble() * 1.1f);
+            }
+            var cl = NewLayer("clouds", 0.85f);
+            for (int i = 0; i < 7; i++)
+            {
+                var c = Draw.Spr(cl, "cloud", Draw.Soft, new Color(0.08f, 0.0f, 0.02f, 0.7f), -56);
+                c.transform.localPosition = new Vector3(-40 + i * 12 + (float)rnd.NextDouble() * 5, 8 + (float)rnd.NextDouble() * 6, 0);
+                c.transform.localScale = new Vector3(9f + (float)rnd.NextDouble() * 5f, 1.2f, 1f);
+                clouds.Add(c.transform);
+            }
+            Hills(NewLayer("hillsFar", 0.6f), new Color(0.2f, 0.02f, 0.04f), 3f, 2f, -54, rnd);
+            var trees = NewLayer("trees", 0.35f);
+            Color tc = new Color(0.03f, 0.0f, 0.01f);
+            for (int i = 0; i < 14; i++)
+            {
+                float x = -55 + i * 8f + (float)rnd.NextDouble() * 4f;
+                float h = 4f + (float)rnd.NextDouble() * 4f;
+                var tr = Draw.Line(trees, "trunk", 1f, tc, -50, true, 1);
+                Draw.Set(tr, new List<Vector2> { new Vector2(x, -1), new Vector2(x + 0.3f, h * 0.5f), new Vector2(x - 0.2f, h) });
+                Draw.Taper(tr, 0.6f, 0.08f);
+                for (int b = 0; b < 5; b++)
+                {
+                    float y0 = h * (0.4f + b * 0.12f), dir = b % 2 == 0 ? 1 : -1;
+                    var br = Draw.Line(trees, "branch", 1f, tc, -50, true, 0);
+                    Draw.Set(br, new List<Vector2> { new Vector2(x, y0), new Vector2(x + dir * 1.2f, y0 + 0.9f), new Vector2(x + dir * 2.2f, y0 + 0.7f + (float)rnd.NextDouble() * 0.8f) });
+                    Draw.Taper(br, 0.2f, 0.01f);
+                }
+                if (i % 4 == 1)
+                {
+                    // висящая цепь с клеткой
+                    float bx = x + 1.6f, by = h * 0.62f;
+                    var ch = Draw.Line(trees, "chain", 0.05f, tc, -50, true, 0);
+                    Draw.Set(ch, new Vector2(bx, by + 0.5f), new Vector2(bx, by - 0.9f));
+                    Draw.Rect(trees, new Rect(bx - 0.35f, by - 1.8f, 0.7f, 0.9f), tc, -50);
+                }
+            }
+            var mist = NewLayer("mist", 0.2f);
+            for (int i = 0; i < 10; i++)
+            {
+                var m = Draw.Spr(mist, "mist", Draw.Soft, new Color(0.5f, 0.05f, 0.06f, 0.4f), -49);
+                m.transform.localPosition = new Vector3(-50 + i * 11f, 0.8f, 0); m.transform.localScale = new Vector3(16f, 2.6f, 1f);
+                clouds.Add(m.transform);
+            }
+            Ground(ext, new Color(0.04f, 0.0f, 0.01f), new Color(0.3f, 0.02f, 0.03f), 0.08f);
+            var graves = NewLayer("graves", 0f);
+            for (int i = 0; i < 16; i++)
+            {
+                float x = -ext * 0.5f + i * 4.6f + (float)rnd.NextDouble() * 2f;
+                if (Mathf.Abs(x) > W) continue;
+                var cr = Draw.Line(graves, "cross", 0.12f, new Color(0.1f, 0.01f, 0.02f), -8, true, 0);
+                Draw.Set(cr, new Vector2(x, 0), new Vector2(x + 0.05f, 0.9f));
+                var cb = Draw.Line(graves, "crossBar", 0.1f, new Color(0.1f, 0.01f, 0.02f), -8, true, 0);
+                Draw.Set(cb, new Vector2(x - 0.3f, 0.62f), new Vector2(x + 0.35f, 0.66f));
+            }
+            Walls(new Color(0.15f, 0.01f, 0.03f, 1f), 0.5f);
+        }
+
+        // Пепелище: горящий город, дым до неба, пепел и искры
+        void BuildAshes(float ext, System.Random rnd)
+        {
+            bg = new Color(0.3f, 0.25f, 0.23f);
+            ink = new Color(1f, 0.85f, 0.6f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.62f, 0.32f, 0.16f), new Color(0.16f, 0.14f, 0.15f), -60);
+            var glowL = NewLayer("fireGlow", 0.8f);
+            for (int i = 0; i < 6; i++)
+            {
+                var g = Draw.Spr(glowL, "fireGlow", Draw.Soft, new Color(1f, 0.45f, 0.1f, 0.5f), -58);
+                g.transform.localPosition = new Vector3(-40 + i * 16f + (float)rnd.NextDouble() * 6f, 1.5f, 0); g.transform.localScale = new Vector3(14f, 6f, 1f);
+                flicker.Add(g);
+            }
+            var smoke = NewLayer("smoke", 0.7f);
+            for (int i = 0; i < 12; i++)
+            {
+                float x = -50 + i * 9 + (float)rnd.NextDouble() * 4;
+                var sm = Draw.Line(smoke, "smoke", 1f, new Color(0.1f, 0.08f, 0.08f, 0.6f), -57, true, 3);
+                Draw.Set(sm, new List<Vector2> { new Vector2(x, 2), new Vector2(x + 1f, 8), new Vector2(x - 1f, 14), new Vector2(x + 2f, 22) });
+                Draw.Taper(sm, 1.2f, 4f);
+            }
+            Skyline(NewLayer("ruinsFar", 0.6f), new Color(0.2f, 0.15f, 0.14f), 2.5f, 8f, -55, rnd, false);
+            Skyline(NewLayer("ruinsNear", 0.4f), new Color(0.09f, 0.07f, 0.07f), 1.2f, 4.5f, -52, rnd, false);
+            Ground(ext, new Color(0.12f, 0.1f, 0.1f), new Color(0.35f, 0.18f, 0.08f), 0.08f);
+            var coals = NewLayer("coals", 0f);
+            for (int i = 0; i < 40; i++)
+            {
+                var c = Draw.Spr(coals, "coal", Draw.Soft, new Color(1f, 0.35f, 0.05f, 0.55f), -8);
+                c.transform.localPosition = new Vector3(-ext * 0.5f + i * 1.8f + (float)rnd.NextDouble(), -0.15f - (float)rnd.NextDouble() * 0.4f, 0);
+                c.transform.localScale = new Vector3(0.7f + (float)rnd.NextDouble(), 0.25f, 1f);
+                if (i % 3 == 0) flicker.Add(c);
+            }
+            Walls(new Color(0.15f, 0.12f, 0.11f, 1f), 0.5f);
+        }
+
         void BuildCyber(float ext, System.Random rnd)
         {
             glow = true;
@@ -468,8 +697,27 @@ namespace StickWars
             Walls(new Color(0.1f, 0.95f, 1f, 0.25f), 0.25f);
         }
 
+        // 3D-переход: слои фона уходят в глубину (с компенсацией масштаба), чтобы появился настоящий параллакс
+        public void SetDepth(bool on, Vector2 focus, float dist)
+        {
+            depthOn = on;
+            foreach (var l in layers)
+            {
+                if (!on || l.f <= 0.001f) { l.t.localScale = Vector3.one; var p0 = l.t.position; p0.z = 0; l.t.position = p0; continue; }
+                float z = l.f * 55f;
+                float k = (dist + z) / dist;
+                Vector3 p = l.t.position;
+                Vector3 c = new Vector3(focus.x, focus.y, 0);
+                Vector3 np = c + (new Vector3(p.x, p.y, 0) - c) * k;
+                np.z = z;
+                l.t.position = np;
+                l.t.localScale = Vector3.one * k;
+            }
+        }
+
         public void Follow(Vector3 cam)
         {
+            if (depthOn) return;
             foreach (var l in layers)
                 l.t.position = new Vector3(cam.x * l.f, cam.y * l.f, 0) + l.basePos;
         }
@@ -489,6 +737,24 @@ namespace StickWars
                 var col = f.color;
                 col.a = (Mathf.PerlinNoise(f.GetInstanceID() * 0.37f, time * 3f) > 0.25f) ? Mathf.Min(0.85f, col.a + dt * 4) : 0.05f;
                 f.color = col;
+            }
+            if ((id == 11 || id == 12) && fx != null && dt > 0)
+            {
+                // 11: падающий багровый пепел; 12: искры поднимаются от углей, сверху сыплется серый пепел
+                if (Random.value < dt * (id == 12 ? 22f : 10f))
+                {
+                    var pos = new Vector2(cam.x + Random.Range(-halfW, halfW) * 1.1f, id == 12 ? 0.1f : cam.y + halfH + 0.5f);
+                    if (id == 12) fx.Emit(pos, new Vector2(Random.Range(-0.6f, 0.6f), Random.Range(1.5f, 3.5f)), new Color(1f, Random.Range(0.4f, 0.7f), 0.1f, 1f), Random.Range(0.04f, 0.08f), Random.Range(1.5f, 3f), 0.3f, false, 0.4f, true, 1, 1, true);
+                    else fx.Emit(pos, new Vector2(Random.Range(-0.8f, 0.2f), -Random.Range(0.5f, 1.2f)), new Color(0.45f, 0.03f, 0.05f, 0.8f), Random.Range(0.05f, 0.1f), 6f, 0f, false, 0.1f, true);
+                }
+                if (id == 12 && Random.value < dt * 8f)
+                    fx.Emit(new Vector2(cam.x + Random.Range(-halfW, halfW) * 1.1f, cam.y + halfH + 0.5f), new Vector2(Random.Range(-0.5f, 0.5f), -Random.Range(0.4f, 0.9f)), new Color(0.6f, 0.58f, 0.56f, 0.7f), Random.Range(0.04f, 0.09f), 7f, 0f, false, 0.1f, true);
+            }
+            else if (Game.I != null && Game.I.S.grim && fx != null && dt > 0 && id != 4 && Random.value < dt * 5f)
+            {
+                // мрачная атмосфера: в воздухе медленно оседает пепел
+                var pos = new Vector2(cam.x + Random.Range(-halfW, halfW) * 1.1f, cam.y + halfH + 0.5f);
+                fx.Emit(pos, new Vector2(Random.Range(-0.6f, 0.3f), -Random.Range(0.4f, 0.9f)), new Color(0.15f, 0.12f, 0.12f, 0.55f), Random.Range(0.035f, 0.07f), 8f, 0f, false, 0.1f, true);
             }
             if (id == 4 && fx != null && dt > 0)
             {

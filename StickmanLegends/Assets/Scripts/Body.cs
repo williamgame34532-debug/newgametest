@@ -313,18 +313,65 @@ namespace StickWars
             {
                 case WeaponKind.Blade:
                     {
+                        Color metal = c, edge = Color.Lerp(c, Color.white, 0.75f);
                         if (w.axe)
                         {
-                            var h = Draw.Line(root, "handle", 0.07f * s, wood, order, false); Draw.Set(h, new Vector2(-0.2f, 0) * s, new Vector2(1.0f, 0) * s); list.Add(h);
-                            list.Add(Draw.Poly(root, new[] { new Vector2(0.65f, 0.05f) * s, new Vector2(0.95f, 0.05f) * s, new Vector2(1.1f, 0.38f) * s, new Vector2(0.55f, 0.38f) * s }, c, order + 1, "axeHead"));
+                            var h = Draw.Line(root, "handle", 0.08f * s, wood, order, false); Draw.Set(h, new Vector2(-0.25f, 0) * s, new Vector2(1.05f, 0) * s); list.Add(h);
+                            for (int k = 0; k < 3; k++) { var band = Draw.Line(root, "wrap", 0.1f * s, dark, order + 1, false, 0); Draw.Set(band, new Vector2(-0.18f + k * 0.08f, -0.0f) * s, new Vector2(-0.15f + k * 0.08f, 0f) * s); list.Add(band); }
+                            // двусторонний топор с режущей кромкой
+                            list.Add(Draw.Poly(root, new[] { new Vector2(0.72f, 0.04f) * s, new Vector2(0.98f, 0.04f) * s, new Vector2(1.12f, 0.42f) * s, new Vector2(0.85f, 0.3f) * s, new Vector2(0.58f, 0.42f) * s }, metal, order + 1, "axeHead"));
+                            list.Add(Draw.Poly(root, new[] { new Vector2(0.75f, -0.04f) * s, new Vector2(0.95f, -0.04f) * s, new Vector2(1.04f, -0.28f) * s, new Vector2(0.85f, -0.2f) * s, new Vector2(0.66f, -0.28f) * s }, Draw.Mul(metal, 0.85f), order + 1, "axeBack"));
+                            var ae = Draw.Line(root, "axeEdge", 0.04f * s, edge, order + 2, false, 1);
+                            Draw.Set(ae, new List<Vector2> { new Vector2(0.58f, 0.42f) * s, new Vector2(0.85f, 0.32f) * s, new Vector2(1.12f, 0.42f) * s });
+                            list.Add(ae);
                             break;
                         }
-                        var hd = Draw.Line(root, "handle", 0.07f * s, dark, order, false); Draw.Set(hd, new Vector2(-0.18f, 0) * s, new Vector2(0.1f, 0) * s); list.Add(hd);
-                        var g = Draw.Line(root, "guard", 0.06f * s, Draw.Mul(c, 0.6f), order + 1, false); Draw.Set(g, new Vector2(0.1f, -0.13f) * s, new Vector2(0.1f, 0.13f) * s); list.Add(g);
-                        var b = Draw.Line(root, "blade", 1f, c, order, false, 2);
-                        Draw.Set(b, new List<Vector2> { new Vector2(0.1f, 0) * s, new Vector2(0.6f, 0.02f) * s, new Vector2(1.05f, 0.07f) * s });
-                        Draw.Taper(b, 0.1f * s, 0.025f * s);
+                        bool great = w.size > 1.1f;
+                        float len = (great ? 1.25f : 1.05f);
+                        float bw = great ? 0.17f : w.katana ? 0.075f : 0.1f;
+                        // рукоять с обмоткой
+                        var hd = Draw.Line(root, "handle", 0.08f * s, dark, order, false); Draw.Set(hd, new Vector2(w.katana ? -0.32f : -0.2f, 0) * s, new Vector2(0.08f, 0) * s); list.Add(hd);
+                        for (int k = 0; k < (w.katana ? 4 : 2); k++)
+                        {
+                            var wr = Draw.Line(root, "wrap", 0.025f * s, new Color(0.85f, 0.85f, 0.8f), order + 1, false, 0);
+                            float x0 = (w.katana ? -0.28f : -0.16f) + k * 0.08f;
+                            Draw.Set(wr, new Vector2(x0, -0.04f) * s, new Vector2(x0 + 0.05f, 0.04f) * s); list.Add(wr);
+                        }
+                        // гарда / цуба
+                        if (w.katana)
+                        {
+                            var ts = Draw.Spr(root, "tsuba", Draw.Circle, new Color(0.75f, 0.6f, 0.2f), order + 2);
+                            ts.transform.localPosition = new Vector3(0.09f * s, 0, 0); ts.transform.localScale = new Vector3(0.07f * s, 0.24f * s, 1f);
+                            list.Add(ts);
+                        }
+                        else
+                        {
+                            var g = Draw.Line(root, "guard", 0.07f * s, Draw.Mul(metal, 0.6f), order + 2, false, 2); Draw.Set(g, new Vector2(0.1f, -0.17f) * s, new Vector2(0.1f, 0.17f) * s); list.Add(g);
+                        }
+                        // клинок (у катаны — изгиб), кромка-блик, дол у двуручника
+                        var pts = w.katana
+                            ? new List<Vector2> { new Vector2(0.12f, 0) * s, new Vector2(0.55f, 0.04f) * s, new Vector2(0.95f, 0.12f) * s, new Vector2(1.12f, 0.19f) * s }
+                            : new List<Vector2> { new Vector2(0.12f, 0) * s, new Vector2(0.6f, 0.0f) * s, new Vector2(len, 0.0f) * s };
+                        if (w.glowBlade)
+                        {
+                            var gl = Draw.Line(root, "bladeGlow", 1f, Draw.A(c, 0.45f), order - 1, false, 2);
+                            Draw.Set(gl, pts); Draw.Taper(gl, bw * 3.2f * s, bw * 1.5f * s); list.Add(gl);
+                            metal = Color.Lerp(c, Color.black, 0.55f); edge = Color.Lerp(c, Color.white, 0.55f);
+                        }
+                        var b = Draw.Line(root, "blade", 1f, metal, order, false, 2);
+                        Draw.Set(b, pts);
+                        Draw.Taper(b, bw * s, bw * 0.35f * s);
                         list.Add(b);
+                        var eg = Draw.Line(root, "edge", 1f, edge, order + 1, false, 1);
+                        var ep = new List<Vector2>();
+                        foreach (var p in pts) ep.Add(p + new Vector2(0, -bw * 0.32f * s));
+                        Draw.Set(eg, ep); Draw.Taper(eg, (w.glowBlade ? 0.05f : 0.025f) * s, 0.008f * s);
+                        list.Add(eg);
+                        if (great)
+                        {
+                            var fl = Draw.Line(root, "fuller", 0.03f * s, Draw.Mul(metal, 0.7f), order + 1, false, 0);
+                            Draw.Set(fl, new Vector2(0.2f, 0.01f) * s, new Vector2(len * 0.75f, 0.01f) * s); list.Add(fl);
+                        }
                         break;
                     }
                 case WeaponKind.Blunt:
@@ -337,8 +384,10 @@ namespace StickWars
                             list.Add(b);
                             break;
                         }
-                        var h = Draw.Line(root, "handle", 0.07f * s, wood, order, false); Draw.Set(h, new Vector2(-0.2f, 0) * s, new Vector2(0.8f, 0) * s); list.Add(h);
-                        var hh = Draw.Line(root, "head", 0.3f * s, c, order + 1, false, 1); Draw.Set(hh, new Vector2(0.8f, -0.2f) * s, new Vector2(0.8f, 0.2f) * s); list.Add(hh);
+                        var h = Draw.Line(root, "handle", 0.08f * s, wood, order, false); Draw.Set(h, new Vector2(-0.25f, 0) * s, new Vector2(0.85f, 0) * s); list.Add(h);
+                        var hh = Draw.Line(root, "head", 0.34f * s, c, order + 1, false, 1); Draw.Set(hh, new Vector2(0.85f, -0.24f) * s, new Vector2(0.85f, 0.24f) * s); list.Add(hh);
+                        for (int k = -1; k <= 1; k += 2) { var bnd = Draw.Line(root, "band", 0.36f * s, Draw.Mul(c, 0.6f), order + 2, false, 0); Draw.Set(bnd, new Vector2(0.85f + k * 0.13f, -0.25f) * s, new Vector2(0.85f + k * 0.13f, 0.25f) * s); bnd.widthMultiplier = 0.04f * s; list.Add(bnd); }
+                        var face = Draw.Line(root, "face", 0.05f * s, Color.Lerp(c, Color.white, 0.5f), order + 2, false, 0); Draw.Set(face, new Vector2(0.99f, -0.22f) * s, new Vector2(0.99f, 0.22f) * s); list.Add(face);
                         break;
                     }
                 case WeaponKind.Spear:
@@ -353,10 +402,12 @@ namespace StickWars
                         }
                         else
                         {
-                            var tip = Draw.Line(root, "tip", 1f, c, order + 1, false, 0);
-                            Draw.Set(tip, new Vector2(1.4f, 0) * s, new Vector2(1.8f, 0) * s);
-                            Draw.Taper(tip, 0.16f * s, 0.0f);
-                            list.Add(tip);
+                            // листовидный наконечник и кисточка
+                            list.Add(Draw.Poly(root, new[] { new Vector2(1.4f, 0) * s, new Vector2(1.58f, 0.1f) * s, new Vector2(1.9f, 0) * s, new Vector2(1.58f, -0.1f) * s }, c, order + 1, "tip"));
+                            var ridge = Draw.Line(root, "ridge", 0.02f * s, Color.Lerp(c, Color.white, 0.6f), order + 2, false, 0); Draw.Set(ridge, new Vector2(1.45f, 0) * s, new Vector2(1.85f, 0) * s); list.Add(ridge);
+                            var tas = Draw.Line(root, "tassel", 1f, new Color(0.85f, 0.12f, 0.1f), order, false, 2);
+                            Draw.Set(tas, new List<Vector2> { new Vector2(1.38f, 0) * s, new Vector2(1.3f, -0.18f) * s, new Vector2(1.2f, -0.34f) * s });
+                            Draw.Taper(tas, 0.07f * s, 0.12f * s); list.Add(tas);
                         }
                         break;
                     }
