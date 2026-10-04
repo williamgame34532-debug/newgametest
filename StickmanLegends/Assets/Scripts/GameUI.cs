@@ -402,7 +402,7 @@ namespace StickWars
             float by = VH - 115;
             if (Btn(new Rect(gap, by, 260, 80), "< НАЗАД", 30)) { Save(); scr = Scr.Main; }
             for (int i = 0; i < Theme.Count; i++)
-                if (Btn(new Rect(gap + 290 + i * 140, by + 10, 134, 60), Theme.Names[i], 15, false, data.theme == i)) { SetTheme(i); StartDemo(); }
+                if (Btn(new Rect(gap + 290 + i * 126, by + 10, 120, 60), Theme.Names[i], 14, false, data.theme == i)) { SetTheme(i); StartDemo(); }
             if (Btn(new Rect(VW - gap - 380, by, 380, 80), "К БОЮ!", 40, true)) StartBattle();
         }
 
@@ -842,7 +842,7 @@ namespace StickWars
         void SettingsScreen()
         {
             Box(new Rect(0, 0, VW, VH), Draw.A(Color.black, 0.35f), 0);
-            float w = 980, h = 1040;
+            float w = 980, h = 1076;
             Rect r = new Rect((VW - w) / 2, (VH - h) / 2, w, h);
             Panel(r);
             Txt(new Rect(r.x, r.y + 14, r.width, 60), "НАСТРОЙКИ", 46, P.text, TextAnchor.MiddleCenter, true);
@@ -875,6 +875,7 @@ namespace StickWars
             S.overheadBars = Toggle(new Rect(x + half + 20, y, half, 48), "Полоски HP над головой", S.overheadBars, 22); y += 56;
             S.styleShift = Toggle(new Rect(x, y, half, 48), "Рисовка меняется в бою", S.styleShift, 22);
             S.tempoRamp = Toggle(new Rect(x + half + 20, y, half, 48), "Темп боя растёт", S.tempoRamp, 22); y += 56;
+            S.classicStick = Toggle(new Rect(x, y, cw, 44), "Классический стикман (контур, суставы, тень) — со следующего боя", S.classicStick, 21); y += 50;
             S.recordVideo = Toggle(new Rect(x, y, half, 48), "Записывать видео каждого боя", S.recordVideo, 22);
             if (Btn(new Rect(x + half + 20, y + 2, 260, 44), "Папка с видео", 20) && VideoRecorder.I != null)
             {

@@ -58,6 +58,7 @@ namespace StickWars
         public bool styleShift = true;   // рисовка меняется по ходу дуэли
         public bool tempoRamp = true;    // темп боя растёт
         public bool recordVideo = false; // записывать видео каждого боя
+        public bool classicStick = true; // классический стикман: контур, суставы, кисти-«яйца»
     }
 
     [Serializable]

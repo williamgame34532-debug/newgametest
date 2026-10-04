@@ -97,6 +97,12 @@ namespace StickWars
         readonly Vector2[] disp = new Vector2[11], heldP = new Vector2[11], jit = new Vector2[11], jit2 = new Vector2[11];
         readonly Vector2[] g1 = new Vector2[3], g2 = new Vector2[3];
         bool g1ok, g2ok, heldOk;
+        // классический стикман: трубки с контуром, суставы, яйцевидные кисти/стопы, голова с тенью, отбрасываемая тень
+        bool classic;
+        LineRenderer[] segF, shadowL;
+        SpriteRenderer[] dotR, dotF;
+        SpriteRenderer sHeadOut, sHeadShade, hOutF, hOutB, hFilF, hFilB, fOutF, fOutB, fFilF, fFilB, shadowHead;
+        LineRenderer lNeckO, lNeckF;
         float boilT;
         int replayRF = 1;
         float replayAlpha = 1f;
@@ -189,6 +195,7 @@ namespace StickWars
             weaponRoot.SetParent(transform, false);
 
             BuildAccessories();
+            BuildClassic();
 
             lTrail = Draw.Line(transform, "trail", 1f, Color.white, baseOrder + 14, true, 2);
             sketch = new LineRenderer[5];
@@ -2329,6 +2336,8 @@ namespace StickWars
             Draw.Set(lArmB, sh, P[5], P[6]); Draw.Col(lArmB, cb);
             Draw.Set(lArmF, sh, P[3], P[4]); Draw.Col(lArmF, c);
             sHead.transform.position = P[2];
+            sHead.transform.rotation = Quaternion.identity;
+            sHead.transform.localScale = Vector3.one * Skel.HeadR * 2f * s;
             sHead.color = c;
 
             if (under != null)
@@ -2408,6 +2417,7 @@ namespace StickWars
 
             RenderGear(P, rf, alpha, c, cb);
             RenderSketch(P, sh, alpha);
+            RenderClassic(P, sh, c, cb, alpha, rf);
 
             bool shOn = shieldT > 0 && !dead;
             lShield.enabled = shOn; sShieldGlow.enabled = shOn;
@@ -2424,6 +2434,166 @@ namespace StickWars
                 sShieldGlow.transform.position = cen;
                 sShieldGlow.transform.localScale = new Vector3(r * 2.4f, r * 2.7f, 1);
             }
+        }
+
+        LineRenderer SegLine(string n, int order, float width)
+        {
+            var l = Draw.Line(transform, n, width, Color.white, order, true, 4);
+            l.positionCount = 2;
+            return l;
+        }
+
+        SpriteRenderer Oval(string n, int order, Color col)
+        {
+            return Draw.Spr(transform, n, Draw.Circle, col, order);
+        }
+
+        void BuildClassic()
+        {
+            classic = (Game.I == null || Game.I.S.classicStick) && !glow && !silhouette;
+            if (!classic) return;
+            float s = Size, fw = 0.095f * s;
+            // порядки: нога(з) 0, рука(з) 1, корпус 3, нога(п) 6, голова 8, рука(п) 12
+            int[] ord = { baseOrder + 3, baseOrder + 12, baseOrder + 12, baseOrder + 1, baseOrder + 1, baseOrder + 6, baseOrder + 6, baseOrder + 0, baseOrder + 0 };
+            segF = new LineRenderer[9];
+            for (int i = 0; i < 9; i++) segF[i] = SegLine("seg", ord[i], i == 0 ? fw * 1.15f : fw);
+            lNeckO = SegLine("neckO", baseOrder + 3, 0.075f * s);
+            lNeckF = SegLine("neckF", baseOrder + 3, 0.035f * s);
+            int[] dord = { baseOrder + 12, baseOrder + 1, baseOrder + 6, baseOrder + 0, baseOrder + 6, baseOrder + 12 };
+            dotR = new SpriteRenderer[6]; dotF = new SpriteRenderer[6];
+            for (int i = 0; i < 6; i++)
+            {
+                dotR[i] = Oval("dotR", dord[i], Color.black); dotR[i].transform.localScale = Vector3.one * 0.135f * s;
+                dotF[i] = Oval("dotF", dord[i], Color.white); dotF[i].transform.localScale = Vector3.one * 0.07f * s;
+            }
+            sHeadOut = Oval("headOut", baseOrder + 8, Color.black);
+            sHeadShade = Oval("headShade", baseOrder + 8, Color.gray);
+            hOutF = Oval("handOutF", baseOrder + 12, Color.black); hFilF = Oval("handF", baseOrder + 12, Color.white);
+            hOutB = Oval("handOutB", baseOrder + 1, Color.black); hFilB = Oval("handB", baseOrder + 1, Color.white);
+            fOutF = Oval("footOutF", baseOrder + 6, Color.black); fFilF = Oval("footF", baseOrder + 6, Color.white);
+            fOutB = Oval("footOutB", baseOrder + 0, Color.black); fFilB = Oval("footB", baseOrder + 0, Color.white);
+            shadowL = new LineRenderer[5];
+            for (int i = 0; i < 5; i++) { shadowL[i] = Draw.Line(transform, "castShadow", 0.12f * s, new Color(0, 0, 0, 0.15f), -1, true, 3); shadowL[i].positionCount = 3; }
+            shadowHead = Draw.Spr(transform, "castShadowHead", Draw.Circle, new Color(0, 0, 0, 0.15f), -1);
+            sShadow.enabled = false;
+        }
+
+        static void Z(Transform t, float z) { var p = t.position; p.z = z; t.position = p; }
+
+        void Seg(LineRenderer l, Vector2 a, Vector2 b, float gap, Color c, float z)
+        {
+            Vector2 d = b - a;
+            float len = d.magnitude;
+            if (len < gap * 2.2f) { l.enabled = false; return; }
+            l.enabled = true;
+            d /= len;
+            l.SetPosition(0, new Vector3(a.x + d.x * gap, a.y + d.y * gap, z));
+            l.SetPosition(1, new Vector3(b.x - d.x * gap, b.y - d.y * gap, z));
+            Draw.Col(l, c);
+        }
+
+        void PlaceOval(SpriteRenderer sr, Vector2 at, Vector2 axis, float w, float h, Color c, float z)
+        {
+            sr.transform.position = new Vector3(at.x, at.y, z);
+            sr.transform.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(axis.y, axis.x) * Mathf.Rad2Deg - 90f);
+            sr.transform.localScale = new Vector3(w, h, 1f);
+            sr.color = c;
+        }
+
+        void SetClassicVisible(bool on)
+        {
+            if (segF == null) return;
+            foreach (var l in segF) l.enabled = on;
+            foreach (var d in dotR) d.enabled = on;
+            foreach (var d in dotF) d.enabled = on;
+            foreach (var l in shadowL) l.enabled = on;
+            lNeckO.enabled = lNeckF.enabled = on;
+            sHeadOut.enabled = sHeadShade.enabled = on;
+            hOutF.enabled = hOutB.enabled = hFilF.enabled = hFilB.enabled = on;
+            fOutF.enabled = fOutB.enabled = fFilF.enabled = fFilB.enabled = on;
+            shadowHead.enabled = on;
+            sShadow.enabled = !on;
+            if (under != null) { foreach (var u in under) u.enabled = !on && styleMode == 0; sHeadUnder.enabled = !on && styleMode == 0; }
+            float w = Skel.Width * Size;
+            float ow = on ? 0.15f * Size : w;
+            lLegB.widthMultiplier = lLegF.widthMultiplier = lArmB.widthMultiplier = lArmF.widthMultiplier = ow;
+            lTorso.widthMultiplier = on ? 0.165f * Size : w * 1.12f;
+            if (sFistF != null) sFistF.enabled = sFistB.enabled = !on;
+            if (lFootF != null) lFootF.enabled = lFootB.enabled = !on;
+        }
+
+        // Классический стикман как в анимациях: сегменты-трубки, суставы, кисти и стопы «яйцом», голова с тенью
+        void RenderClassic(Vector2[] P, Vector2 sh, Color c, Color cb, float alpha, int rf)
+        {
+            bool on = classic && styleMode == 0;
+            SetClassicVisible(on);
+            if (!on) return;
+            float s = Size;
+            float lum = c.r * 0.3f + c.g * 0.59f + c.b * 0.11f;
+            Color ink = lum < 0.22f ? new Color(0.82f, 0.82f, 0.84f) : new Color(0.06f, 0.06f, 0.07f);
+            Color fill = flash > 0 ? Color.white : Color.Lerp(c, Color.white, lum < 0.22f ? 0.05f : 0.22f);
+            Color fillB = flash > 0 ? Color.white : Color.Lerp(cb, Color.white, 0.1f);
+            ink.a = fill.a = fillB.a = alpha;
+            foreach (var l in new[] { lLegB, lLegF, lTorso, lArmB, lArmF }) Draw.Col(l, ink);
+            float g = 0.045f * s, zf = -0.01f;
+            Vector2 neckTop = P[1] + (P[2] - P[1]).normalized * 0.06f * s;
+            // кости
+            Seg(segF[0], P[0], neckTop, g, fill, zf);
+            Seg(segF[1], sh, P[3], g, fill, zf); Seg(segF[2], P[3], P[4], g, fill, zf);
+            Seg(segF[3], sh, P[5], g, fillB, zf); Seg(segF[4], P[5], P[6], g, fillB, zf);
+            Seg(segF[5], P[0], P[7], g, fill, zf); Seg(segF[6], P[7], P[8], g, fill, zf);
+            Seg(segF[7], P[0], P[9], g, fillB, zf); Seg(segF[8], P[9], P[10], g, fillB, zf);
+            // шея
+            Vector2 hd = (P[2] - P[1]).normalized;
+            Vector2 headBottom = P[2] - hd * Skel.HeadR * s * 0.9f;
+            lNeckO.SetPosition(0, new Vector3(P[1].x, P[1].y, 0)); lNeckO.SetPosition(1, new Vector3(headBottom.x, headBottom.y, 0));
+            lNeckF.SetPosition(0, new Vector3(P[1].x, P[1].y, zf)); lNeckF.SetPosition(1, new Vector3(headBottom.x, headBottom.y, zf));
+            Draw.Col(lNeckO, ink); Draw.Col(lNeckF, fill);
+            // суставы
+            Vector2[] jp = { sh, sh, P[7], P[9], P[0], P[3] };
+            jp[0] = P[3]; jp[1] = P[5];
+            Color[] jc = { fill, fillB, fill, fillB, fill, fill };
+            for (int i = 0; i < 6; i++)
+            {
+                bool show = i < 4;
+                dotR[i].enabled = dotF[i].enabled = show;
+                if (!show) continue;
+                dotR[i].transform.position = new Vector3(jp[i].x, jp[i].y, -0.02f); dotR[i].color = ink;
+                dotF[i].transform.position = new Vector3(jp[i].x, jp[i].y, -0.03f); dotF[i].color = Color.Lerp(jc[i], ink, 0.2f);
+            }
+            // кисти и стопы «яйцом»
+            Vector2 fa = (P[4] - P[3]).normalized, fb = (P[6] - P[5]).normalized;
+            PlaceOval(hOutF, P[4] + fa * 0.05f * s, fa, 0.17f * s, 0.23f * s, ink, -0.02f);
+            PlaceOval(hFilF, P[4] + fa * 0.05f * s, fa, 0.115f * s, 0.175f * s, fill, -0.03f);
+            PlaceOval(hOutB, P[6] + fb * 0.05f * s, fb, 0.17f * s, 0.23f * s, ink, -0.02f);
+            PlaceOval(hFilB, P[6] + fb * 0.05f * s, fb, 0.115f * s, 0.175f * s, fillB, -0.03f);
+            Vector2 sa = (P[8] - P[7]).normalized, sb = (P[10] - P[9]).normalized;
+            Vector2 fdir = (sa + new Vector2(rf * 0.55f, 0)).normalized, bdir = (sb + new Vector2(rf * 0.55f, 0)).normalized;
+            PlaceOval(fOutF, P[8] + fdir * 0.06f * s, fdir, 0.17f * s, 0.27f * s, ink, -0.02f);
+            PlaceOval(fFilF, P[8] + fdir * 0.06f * s, fdir, 0.115f * s, 0.215f * s, fill, -0.03f);
+            PlaceOval(fOutB, P[10] + bdir * 0.06f * s, bdir, 0.17f * s, 0.27f * s, ink, -0.02f);
+            PlaceOval(fFilB, P[10] + bdir * 0.06f * s, bdir, 0.115f * s, 0.215f * s, fillB, -0.03f);
+            // голова: контур, тень-полумесяц сзади, заливка
+            float hr = Skel.HeadR * s;
+            PlaceOval(sHeadOut, P[2], hd, hr * 2f * 0.88f + 0.06f * s, hr * 2f + 0.06f * s, ink, 0f);
+            PlaceOval(sHeadShade, P[2], hd, hr * 2f * 0.88f, hr * 2f, Color.Lerp(fill, ink.grayscale < 0.5f ? Color.black : Color.white, 0.22f), -0.01f);
+            Vector2 fwd = new Vector2(hd.y, -hd.x) * -rf;
+            PlaceOval(sHead, P[2] + fwd * 0.05f * s, hd, hr * 2f * 0.8f, hr * 2f * 0.95f, fill, -0.02f);
+            // отбрасываемая тень на пол (свет слева сверху)
+            float sa2 = Mathf.Clamp01(1f - Mathf.Min(P[8].y, P[10].y) / 8f) * 0.17f * alpha;
+            int[][] ch = { new[] { 0, 9, 10 }, new[] { 0, 7, 8 }, new[] { 0, 1, 1 }, new[] { 1, 5, 6 }, new[] { 1, 3, 4 } };
+            for (int k = 0; k < 5; k++)
+            {
+                for (int i = 0; i < 3; i++)
+                {
+                    Vector2 p = P[ch[k][i]];
+                    shadowL[k].SetPosition(i, new Vector3(p.x + p.y * 0.6f, 0.02f + p.y * 0.05f, 0));
+                }
+                Draw.Col(shadowL[k], new Color(0, 0, 0, sa2));
+            }
+            shadowHead.transform.position = new Vector3(P[2].x + P[2].y * 0.6f, 0.02f + P[2].y * 0.05f, 0);
+            shadowHead.transform.localScale = new Vector3(hr * 2.2f, hr * 0.5f, 1);
+            shadowHead.color = new Color(0, 0, 0, sa2);
         }
 
         void RenderSketch(Vector2[] P, Vector2 sh, float alpha)

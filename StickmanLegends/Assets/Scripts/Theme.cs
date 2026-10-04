@@ -11,8 +11,8 @@ namespace StickWars
     // Стили арены: бумага, арена, поле, город, киберпанк
     public class Theme : MonoBehaviour
     {
-        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние", "Дуэль" };
-        public const int Count = 8;
+        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние", "Дуэль", "Чистый лист" };
+        public const int Count = 9;
 
         public int id;
         public Color bg;
@@ -67,6 +67,13 @@ namespace StickWars
                     p.btn = new Color(0.1f, 0.1f, 0.1f, 0.92f); p.btnHover = new Color(0.35f, 0.05f, 0.05f, 1f); p.btnText = new Color(0.97f, 0.97f, 0.97f);
                     p.title = new Color(0.05f, 0.05f, 0.05f); p.titleShadow = new Color(0.85f, 0.05f, 0.05f, 0.9f);
                     break;
+                case 8: // чистый лист
+                    p.panel = new Color(1f, 1f, 1f, 0.94f); p.panelEdge = new Color(0.08f, 0.08f, 0.09f, 1f);
+                    p.text = new Color(0.07f, 0.07f, 0.08f); p.sub = new Color(0.4f, 0.4f, 0.42f);
+                    p.accent = new Color(0.15f, 0.15f, 0.17f); p.accent2 = new Color(0.85f, 0.2f, 0.15f);
+                    p.btn = new Color(1f, 1f, 1f, 0.97f); p.btnHover = new Color(0.92f, 0.92f, 0.93f, 1f); p.btnText = new Color(0.07f, 0.07f, 0.08f);
+                    p.title = new Color(0.07f, 0.07f, 0.08f); p.titleShadow = new Color(0.75f, 0.75f, 0.77f, 0.9f);
+                    break;
                 case 7: // дуэль
                     p.panel = new Color(0.1f, 0.1f, 0.11f, 0.9f); p.panelEdge = new Color(0.86f, 0.4f, 0.37f, 1f);
                     p.text = new Color(0.95f, 0.95f, 0.95f); p.sub = new Color(0.62f, 0.62f, 0.65f);
@@ -120,6 +127,7 @@ namespace StickWars
                 case 5: BuildForest(ext, rnd); break;
                 case 6: BuildGlow(ext, rnd); break;
                 case 7: BuildDuel(ext); break;
+                case 8: BuildClean(ext); break;
                 default: BuildCyber(ext, rnd); break;
             }
         }
@@ -398,6 +406,17 @@ namespace StickWars
             s.transform.localPosition = new Vector3(0, 3, 0); s.transform.localScale = new Vector3(30f, 14f, 1f);
             Ground(ext, new Color(0.15f, 0.15f, 0.16f), new Color(0.05f, 0.05f, 0.05f), 0.08f);
             Walls(new Color(0.13f, 0.13f, 0.14f, 1f), 0.4f);
+        }
+
+        // Чистый лист: белый фон и мягкий пол — классический вид рисованного стикмена
+        void BuildClean(float ext)
+        {
+            bg = new Color(0.985f, 0.985f, 0.98f);
+            ink = new Color(0.08f, 0.08f, 0.09f);
+            defaultRed = new Color(0.93f, 0.93f, 0.93f);
+            defaultBlue = new Color(0.93f, 0.93f, 0.93f);
+            Ground(ext, new Color(0.96f, 0.96f, 0.955f), new Color(0.82f, 0.82f, 0.83f), 0.03f);
+            Walls(new Color(0.9f, 0.9f, 0.9f, 0.6f), 0.3f);
         }
 
         void BuildCyber(float ext, System.Random rnd)
