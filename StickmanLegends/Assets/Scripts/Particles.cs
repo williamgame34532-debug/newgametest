@@ -32,6 +32,8 @@ namespace StickWars
         Color[] pc, sc;
         public float W = 15f;
         public float groundY = 0f;
+        // запись для повтора: (тип, точка, вектор, число, цвет)
+        public System.Action<int, Vector2, Vector2, float, Color> Rec;
 
         void Awake()
         {
@@ -90,6 +92,7 @@ namespace StickWars
         // Брызги крови
         public void Blood(Vector2 at, Vector2 dir, float amount)
         {
+            if (Rec != null) Rec(1, at, dir, amount, Color.red);
             float mul = Game.I != null ? Game.I.S.blood : 1f;
             if (mul <= 0.01f) { Sparks(at, dir, 4, new Color(0.3f, 0.3f, 0.3f)); return; }
             int n = Mathf.Clamp((int)(amount * 2.2f * mul), 2, 160);
@@ -105,6 +108,7 @@ namespace StickWars
 
         public void Fountain(Vector2 at, Vector2 dir, int n)
         {
+            if (Rec != null) Rec(13, at, dir, n, Color.red);
             float mul = Game.I != null ? Game.I.S.blood : 1f;
             if (mul <= 0.01f) return;
             n = Mathf.Max(1, (int)(n * mul));
@@ -117,6 +121,7 @@ namespace StickWars
 
         public void Drip(Vector2 at)
         {
+            if (Rec != null) Rec(14, at, Vector2.zero, 0, Color.red);
             float mul = Game.I != null ? Game.I.S.blood : 1f;
             if (mul <= 0.01f) return;
             Emit(at, new Vector2(Random.Range(-0.3f, 0.3f), -0.5f), BloodColor(), Random.Range(0.04f, 0.08f), 3f, -18f, true, 0.2f, false);
@@ -124,6 +129,7 @@ namespace StickWars
 
         public void Sparks(Vector2 at, Vector2 dir, int n, Color c)
         {
+            if (Rec != null) Rec(12, at, dir, n, c);
             for (int i = 0; i < n; i++)
             {
                 Vector2 v = dir.normalized * Random.Range(3f, 10f) + Random.insideUnitCircle * 5f;
@@ -133,12 +139,14 @@ namespace StickWars
 
         public void Smoke(Vector2 at, int n, Color c, float spread = 0.4f, float size = 0.5f)
         {
+            if (Rec != null) Rec(9, at, new Vector2(spread, size), n, c);
             for (int i = 0; i < n; i++)
                 Emit(at + Random.insideUnitCircle * spread, Random.insideUnitCircle * 1.2f + Vector2.up * 0.6f, c, Random.Range(size * 0.6f, size * 1.3f), Random.Range(0.4f, 0.9f), 0.5f, false, 2f, true);
         }
 
         public void Dust(Vector2 at, int n)
         {
+            if (Rec != null) Rec(7, at, Vector2.zero, n, Color.white);
             for (int i = 0; i < n; i++)
             {
                 float sgn = Random.value < 0.5f ? -1 : 1;
@@ -148,6 +156,7 @@ namespace StickWars
 
         public void Fire(Vector2 at, int n, float spread = 0.2f)
         {
+            if (Rec != null) Rec(8, at, new Vector2(spread, 0), n, Color.white);
             for (int i = 0; i < n; i++)
             {
                 var c = Color.Lerp(new Color(1f, 0.85f, 0.2f), new Color(1f, 0.25f, 0.05f), Random.value);
@@ -157,6 +166,7 @@ namespace StickWars
 
         public void Explosion(Vector2 at, float r)
         {
+            if (Rec != null) Rec(10, at, Vector2.zero, r, Color.white);
             for (int i = 0; i < 40; i++)
             {
                 var c = Color.Lerp(new Color(1f, 0.9f, 0.3f), new Color(1f, 0.3f, 0.05f), Random.value);
@@ -178,6 +188,7 @@ namespace StickWars
 
         public void Pool(Vector2 at, float maxW)
         {
+            if (Rec != null) Rec(17, at, Vector2.zero, maxW, Color.red);
             if (Game.I != null && Game.I.S.blood <= 0.01f) return;
             Stain(new Vector2(at.x, groundY + 0.015f), 0.1f, 0.08f, new Color(0.42f, 0.0f, 0.02f, 0.95f), 0.5f, maxW * Game.I.S.blood);
         }

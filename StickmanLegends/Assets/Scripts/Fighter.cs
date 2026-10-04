@@ -81,9 +81,18 @@ namespace StickWars
         // --- визуал ---
         LineRenderer lTorso, lArmF, lArmB, lLegF, lLegB, lCape, lTails, lScarf, lShield, lLaser, lLaserGlow, lTrail;
         LineRenderer lArmor, lBelt, lBootF, lBootB, lTail;
+        LineRenderer lShirt, lSleeveF, lSleeveB, lPantsF, lPantsB, lRobe, lCoat, lTie, lFootF, lFootB;
+        SpriteRenderer sAura, sAura2, sFistF, sFistB;
+        Color auraCol;
+        float auraT;
         LineRenderer[] lWings;
         SpriteRenderer sGloveF, sGloveB, sPad;
         bool silhouette;
+        public int lastRF = 1, styleMode;
+        public float lastAlpha = 1f;
+        public bool replaying;
+        int replayRF = 1;
+        float replayAlpha = 1f;
         Color eyeCol = Color.red;
         LineRenderer[] under;
         SpriteRenderer sHead, sHeadUnder, sShieldGlow, sShadow;
@@ -97,8 +106,8 @@ namespace StickWars
         Color backCol, mainCol, underCol;
 
         public float Size { get { return B.size; } }
-        public Vector2 Center { get { return dead && rag != null ? (rag.p[0] + rag.p[1]) * 0.5f : (J[0] + J[1]) * 0.5f; } }
-        public Vector2 HeadPos { get { return dead && rag != null ? rag.p[2] : J[2]; } }
+        public Vector2 Center { get { return dead && rag != null && !replaying ? (rag.p[0] + rag.p[1]) * 0.5f : (J[0] + J[1]) * 0.5f; } }
+        public Vector2 HeadPos { get { return dead && rag != null && !replaying ? rag.p[2] : J[2]; } }
         public bool Invisible { get { return invisT > 0; } }
         public bool RageOn { get { return B.HasAb(Ability.Rage) && hp < maxHp * 0.45f; } }
         public bool Free { get { return act == Act.None && stun <= 0 && hurtT <= 0 && !dead && body == BodyS.Normal; } }
@@ -434,6 +443,66 @@ namespace StickWars
                             break;
                         }
                 }
+            }
+            if (B.acc.Contains(Acc.Aura))
+            {
+                auraCol = AccC(Acc.Aura, Color.Lerp(mainCol, Color.white, 0.4f));
+                sAura = Draw.Spr(transform, "aura", Draw.Soft, Draw.A(auraCol, 0.55f), baseOrder - 4);
+                sAura2 = Draw.Spr(transform, "aura2", Draw.Soft, Draw.A(Color.Lerp(auraCol, Color.white, 0.5f), 0.35f), baseOrder - 4);
+            }
+            if (B.acc.Contains(Acc.Shirt))
+            {
+                Color c = AccC(Acc.Shirt, new Color(0.92f, 0.92f, 0.9f));
+                lShirt = Draw.Line(transform, "shirt", w * 1.55f, c, baseOrder + 4, true, 2);
+                lSleeveF = Draw.Line(transform, "sleeveF", w * 1.3f, c, baseOrder + 13, true, 2);
+                lSleeveB = Draw.Line(transform, "sleeveB", w * 1.3f, Draw.Mul(c, 0.8f), baseOrder + 1, true, 2);
+            }
+            if (B.acc.Contains(Acc.Pants))
+            {
+                Color c = AccC(Acc.Pants, new Color(0.15f, 0.2f, 0.45f));
+                lPantsF = Draw.Line(transform, "pantsF", w * 1.3f, c, baseOrder + 7, true, 3);
+                lPantsB = Draw.Line(transform, "pantsB", w * 1.3f, Draw.Mul(c, 0.8f), baseOrder + 0, true, 3);
+                lPantsF.positionCount = lPantsB.positionCount = 3;
+            }
+            if (B.acc.Contains(Acc.Robe))
+            {
+                Color c = AccC(Acc.Robe, new Color(0.85f, 0.45f, 0.1f));
+                lRobe = Draw.Line(transform, "robe", 1f, c, baseOrder + 7, true, 2);
+                Draw.Taper(lRobe, 0.32f * s, 0.85f * s);
+                lRobe.positionCount = 3;
+                if (lShirt == null)
+                {
+                    lShirt = Draw.Line(transform, "robeTop", w * 1.6f, c, baseOrder + 4, true, 2);
+                    lSleeveF = Draw.Line(transform, "sleeveF", w * 1.6f, c, baseOrder + 13, true, 2);
+                    lSleeveB = Draw.Line(transform, "sleeveB", w * 1.6f, Draw.Mul(c, 0.8f), baseOrder + 1, true, 2);
+                }
+            }
+            if (B.acc.Contains(Acc.Coat))
+            {
+                Color c = AccC(Acc.Coat, new Color(0.12f, 0.12f, 0.14f));
+                lCoat = Draw.Line(transform, "coatTails", 1f, Draw.Mul(c, 0.9f), baseOrder + 2, true, 2);
+                Draw.Taper(lCoat, 0.3f * s, 0.42f * s);
+                lCoat.positionCount = 4;
+                if (lShirt == null) lShirt = Draw.Line(transform, "coat", w * 1.6f, c, baseOrder + 4, true, 2);
+                if (lSleeveF == null)
+                {
+                    lSleeveF = Draw.Line(transform, "sleeveF", w * 1.35f, c, baseOrder + 13, true, 2);
+                    lSleeveB = Draw.Line(transform, "sleeveB", w * 1.35f, Draw.Mul(c, 0.8f), baseOrder + 1, true, 2);
+                }
+            }
+            if (B.acc.Contains(Acc.Tie)) lTie = Draw.Line(transform, "tie", 1f, AccC(Acc.Tie, new Color(0.8f, 0.1f, 0.1f)), baseOrder + 5, true, 0);
+            if (lTie != null) Draw.Taper(lTie, 0.09f * s, 0.05f * s);
+            // крупные круглые кулаки и стопы, как в стикмен-анимациях
+            if (!B.acc.Contains(Acc.Gloves))
+            {
+                sFistF = Draw.Spr(transform, "fistF", Draw.Circle, mainCol, baseOrder + 12);
+                sFistB = Draw.Spr(transform, "fistB", Draw.Circle, backCol, baseOrder + 1);
+                sFistF.transform.localScale = sFistB.transform.localScale = Vector3.one * w * 1.35f;
+            }
+            if (!B.acc.Contains(Acc.Boots))
+            {
+                lFootF = Draw.Line(transform, "footF", w * 1.1f, mainCol, baseOrder + 6, true, 4);
+                lFootB = Draw.Line(transform, "footB", w * 1.1f, backCol, baseOrder + 0, true, 4);
             }
             if (eyes)
             {
@@ -1059,6 +1128,7 @@ namespace StickWars
             var h = new HitInfo();
             h.dmg = dmg * B.dmgMul * (RageOn ? 1.5f : 1f) * Random.Range(0.9f, 1.1f);
             h.type = type; h.elem = elem; h.knock = knock; h.stun = stun; h.attacker = this;
+            if (weapon != null) h.customTag = weapon.customTag;
             h.dir = new Vector2(facing, 0.25f).normalized;
             return h;
         }
@@ -1218,6 +1288,7 @@ namespace StickWars
                 case Ability.Telekinesis:
                 case Ability.Lightning:
                 case Ability.Summon:
+                case Ability.Custom:
                     if (a == Ability.Summon && (minion || battle.MinionCount(this) >= 3)) return false;
                     castAb = a;
                     castFromStaff = false;
@@ -1257,7 +1328,7 @@ namespace StickWars
                 default: return false;
             }
             cd[a] = Info.Cooldown(a);
-            battle.Popup(Info.Name(a).Replace(" (пассив)", "").ToUpper() + "!", J[2] + Vector2.up * 0.7f, Color.Lerp(mainCol, Color.white, 0.4f), 0.8f);
+            battle.Popup((a == Ability.Custom && B.customAbility != null ? B.customAbility : Info.Name(a).Replace(" (пассив)", "")).ToUpper() + "!", J[2] + Vector2.up * 0.7f, Color.Lerp(mainCol, Color.white, 0.4f), 0.8f);
             return true;
         }
 
@@ -1321,8 +1392,21 @@ namespace StickWars
                     }
                     break;
                 case Ability.Summon:
-                    battle.SpawnMinions(this, 2);
+                    battle.SpawnMinions(this, 2, weapon != null && weapon.summon ? weapon.summonName : (sec != null && sec.summon ? sec.summonName : B.summonName));
                     break;
+                case Ability.Custom:
+                    {
+                        // придуманное игроком умение: энергетический удар с его названием и уникальным цветом
+                        Color cc = Color.HSVToRGB(Mathf.Abs((B.customAbility ?? "x").GetHashCode() % 360) / 360f, 0.75f, 1f);
+                        var h = MakeHit(14f * pw, DmgType.Shadow, Element.None, 6f, 0.35f);
+                        h.extra |= HF.Magic;
+                        h.customTag = B.customAbilityTag;
+                        h.knockdown = true;
+                        battle.SpawnProjectile(Projectile.Kind.Bolt, hand + aim * 0.3f, aim * 15f, this, h, cc);
+                        battle.Shock(hand, 1.2f, cc);
+                        battle.audio.Sfx("zap", 0.7f);
+                        break;
+                    }
             }
         }
 
@@ -1349,6 +1433,7 @@ namespace StickWars
             Vector2 from = J[4];
             bool knife = sec.kind == WeaponKind.Thrown && !sec.explode;
             var h = MakeHit(sec.dmg * (sec.knives ? 1.2f : 1f), sec.kind == WeaponKind.Gun ? DmgType.Pierce : sec.explode ? DmgType.Blunt : DmgType.Blade, sec.element, 3f, 0.2f);
+            h.customTag = sec.customTag;
             Projectile pr;
             if (sec.explode) pr = battle.SpawnProjectile(Projectile.Kind.Grenade, from, new Vector2(facing * 9f, 7f), this, h, sec.color);
             else if (sec.kind == WeaponKind.Gun) pr = battle.SpawnProjectile(Projectile.Kind.Bullet, from + aim * 0.4f, aim * 32f, this, h, sec.color);
@@ -1447,7 +1532,9 @@ namespace StickWars
         // ===================== УРОН =====================
         int Flags(HitInfo h)
         {
-            return (int)HFInfo.FromType(h.type) | (int)HFInfo.FromElem(h.elem) | (int)h.extra;
+            int f = (int)HFInfo.FromType(h.type) | (int)HFInfo.FromElem(h.elem) | (int)h.extra;
+            if (TagMatch(h.customTag, B.customWeak)) f |= (int)HF.Custom;
+            return f;
         }
 
         bool Matches(int flags)
@@ -1662,9 +1749,16 @@ namespace StickWars
         }
 
         // подходит ли оружие под условие смерти цели
+        public static bool TagMatch(string a, string b)
+        {
+            if (string.IsNullOrEmpty(a) || string.IsNullOrEmpty(b)) return false;
+            return a.StartsWith(b) || b.StartsWith(a);
+        }
+
         public static bool Satisfies(WeaponStats w, Fighter t)
         {
             if (w == null || t == null) return false;
+            if (t.B.customWeak != null && TagMatch(w.customTag, t.B.customWeak)) return true;
             int f = (int)HFInfo.FromType(w.Type) | (int)HFInfo.FromElem(w.element) | (w.explode ? (int)HF.Explosion : 0);
             if (w.kind == WeaponKind.Blade) f |= (int)HF.Pierce; // выпад клинком = протыкание
             int pos = (int)(HF.Head | HF.Back | HF.Fall);
@@ -1749,10 +1843,13 @@ namespace StickWars
             if (act == Act.Saw && !g.Held(A)) actT = Mathf.Max(actT, actDur - 0.05f);
         }
 
+        public bool WeaponSummons { get { return (weapon != null && weapon.summon) || (sec != null && sec.summon); } }
+
         public List<Ability> ActiveAbilities()
         {
             var l = new List<Ability>();
             foreach (var a in B.abilities) if (!Info.Passive(a)) l.Add(a);
+            if (WeaponSummons && !l.Contains(Ability.Summon) && !minion) l.Add(Ability.Summon);
             return l;
         }
 
@@ -1851,7 +1948,7 @@ namespace StickWars
 
         void TryAbilities(float dist, Vector2 d)
         {
-            foreach (var a in B.abilities)
+            foreach (var a in ActiveAbilities())
             {
                 if (Info.Passive(a) || CooldownOf(a) > 0) continue;
                 bool use = false;
@@ -1875,6 +1972,7 @@ namespace StickWars
                     case Ability.Invisibility: use = hp < maxHp * 0.7f && Random.value < 0.25f; break;
                     case Ability.Telekinesis: use = dist < 10f && Random.value < 0.3f * need; break;
                     case Ability.Summon: use = Random.value < 0.5f; break;
+                    case Ability.Custom: use = dist < 12f && Random.value < 0.4f; break;
                 }
                 if (use && UseAbility(a)) return;
             }
@@ -2138,7 +2236,7 @@ namespace StickWars
         // ===================== ОТРИСОВКА =====================
         void Render()
         {
-            Vector2[] P = dead && rag != null ? rag.p : J;
+            Vector2[] P = dead && rag != null && !replaying ? rag.p : J;
             float s = Size;
             Color c = mainCol, cb = backCol;
             if (flash > 0) { c = Color.white; cb = Color.white; }
@@ -2151,6 +2249,9 @@ namespace StickWars
                 if (dead) { c = Color.Lerp(c, new Color(0.25f, 0.25f, 0.25f), Mathf.Clamp01(deadTime * 0.15f)); cb = Color.Lerp(cb, new Color(0.2f, 0.2f, 0.2f), Mathf.Clamp01(deadTime * 0.15f)); }
             }
             float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : (iframes > 0 && act == Act.GetUp ? 0.6f + 0.4f * Mathf.Sin(animT * 40f) : 1f);
+            if (replaying) alpha = replayAlpha;
+            if (styleMode != 0 && flash <= 0) StyleColors(ref c, ref cb);
+            lastAlpha = alpha;
             c.a = alpha; cb.a = alpha;
 
             Vector2 sh = P[1] + (P[0] - P[1]).normalized * 0.06f * s;
@@ -2186,7 +2287,8 @@ namespace StickWars
 
             Vector2 hd = P[2] - P[1];
             float ang = Mathf.Atan2(hd.y, hd.x) * Mathf.Rad2Deg - 90f;
-            int rf = dead ? facing : RenderFacing();
+            int rf = replaying ? replayRF : (dead ? facing : RenderFacing());
+            lastRF = rf;
             headRoot.position = P[2];
             headRoot.rotation = Quaternion.Euler(0, 0, ang);
             headRoot.localScale = new Vector3(rf, 1, 1);
@@ -2255,11 +2357,98 @@ namespace StickWars
             }
         }
 
+        // смена рисовки: 0 обычная, 1 чернила, 2 негатив, 3 кадр удара, 4 плоская дуэль
+        public void SetStyle(int st)
+        {
+            styleMode = st;
+            if (under != null) { foreach (var u in under) u.enabled = st == 0; sHeadUnder.enabled = st == 0; }
+        }
+
+        void StyleColors(ref Color c, ref Color cb)
+        {
+            switch (styleMode)
+            {
+                case 1: c = new Color(0.05f, 0.05f, 0.06f); cb = new Color(0.33f, 0.33f, 0.35f); break;
+                case 2: c = new Color(0.97f, 0.97f, 0.97f); cb = new Color(0.62f, 0.62f, 0.65f); break;
+                case 3: c = new Color(0.03f, 0.03f, 0.03f); cb = new Color(0.03f, 0.03f, 0.03f); break;
+                case 4:
+                    c = team == 0 ? new Color(0.86f, 0.39f, 0.36f) : new Color(0.42f, 0.56f, 0.86f);
+                    cb = Color.Lerp(c, Color.black, 0.18f);
+                    break;
+            }
+        }
+
+        // показ кадра записи (с интерполяцией)
+        public void ShowSnap(Battle.FSnap a, Battle.FSnap b, float k)
+        {
+            if (!gameObject.activeSelf) gameObject.SetActive(true);
+            for (int i = 0; i < 11; i++) J[i] = b != null ? Vector2.Lerp(a.P[i], b.P[i], k) : a.P[i];
+            replayRF = a.rf; replayAlpha = a.alpha;
+            if (a.w != weapon) SetWeapon(a.w, ammo);
+            animT += Time.unscaledDeltaTime;
+            lTrail.enabled = false; lLaser.enabled = lLaserGlow.enabled = false;
+            Render();
+        }
+
         void RenderGear(Vector2[] P, int rf, float alpha, Color c, Color cb)
         {
             float s = Size;
             Vector2 u = (P[1] - P[0]); float ul = u.magnitude; u = ul > 0.001f ? u / ul : Vector2.up;
             Vector2 perp = new Vector2(-u.y, u.x);
+            Vector2 sh = P[1] - u * 0.06f * s;
+            if (sAura != null)
+            {
+                auraT += Time.deltaTime;
+                bool on = !dead || deadTime < 1f;
+                sAura.enabled = sAura2.enabled = on && alpha > 0.5f;
+                Vector2 cen = Vector2.Lerp(P[0], P[1], 0.45f);
+                float pulse = 1f + Mathf.Sin(auraT * 6f) * 0.08f;
+                sAura.transform.position = cen; sAura.transform.localScale = new Vector3(2.3f * s * pulse, 3.4f * s * pulse, 1f);
+                sAura2.transform.position = cen + Vector2.up * 0.2f * s; sAura2.transform.localScale = new Vector3(1.4f * s / pulse, 2.6f * s / pulse, 1f);
+                if (on && Random.value < 0.5f)
+                    battle.fx.Emit(cen + new Vector2(Random.Range(-0.5f, 0.5f), Random.Range(-1f, 0.6f)) * s, Vector2.up * Random.Range(1f, 2.5f), Draw.A(auraCol, 0.7f), Random.Range(0.06f, 0.14f) * s, 0.5f, 0f, false, 1f, true, 1f, 2.5f, true);
+            }
+            if (lShirt != null) { Draw.Set(lShirt, Vector2.Lerp(P[0], P[1], 0.05f), Vector2.Lerp(P[0], P[1], 0.92f)); SetAlpha(lShirt, alpha); }
+            if (lSleeveF != null)
+            {
+                Draw.Set(lSleeveF, sh, Vector2.Lerp(sh, P[3], 0.75f)); Draw.Set(lSleeveB, sh, Vector2.Lerp(sh, P[5], 0.75f));
+                SetAlpha(lSleeveF, alpha); SetAlpha(lSleeveB, alpha);
+            }
+            if (lPantsF != null)
+            {
+                Draw.Set(lPantsF, P[0], P[7], Vector2.Lerp(P[7], P[8], 0.85f)); Draw.Set(lPantsB, P[0], P[9], Vector2.Lerp(P[9], P[10], 0.85f));
+                SetAlpha(lPantsF, alpha); SetAlpha(lPantsB, alpha);
+            }
+            if (lRobe != null)
+            {
+                Vector2 knees = (P[7] + P[9]) * 0.5f, feet = (P[8] + P[10]) * 0.5f;
+                Vector2 hem = Vector2.Lerp(knees, feet, 0.55f) - new Vector2(vel.x * 0.02f, 0) + new Vector2(Mathf.Sin(animT * 7f) * 0.04f, 0);
+                Draw.Set(lRobe, Vector2.Lerp(P[0], P[1], 0.15f), Vector2.Lerp(P[0], hem, 0.5f), hem);
+                SetAlpha(lRobe, alpha);
+            }
+            if (lCoat != null)
+            {
+                Vector2 p0 = Vector2.Lerp(P[0], P[1], 0.6f) - new Vector2(rf * 0.05f * s, 0);
+                lCoat.SetPosition(0, p0);
+                Vector2 p = p0;
+                for (int i = 1; i < 4; i++)
+                {
+                    p += new Vector2(-rf * 0.07f * s - vel.x * 0.01f, -0.3f * s + Mathf.Sin(animT * 8f + i) * 0.02f);
+                    lCoat.SetPosition(i, p);
+                }
+                SetAlpha(lCoat, alpha);
+            }
+            if (lTie != null) { Vector2 t0 = P[1] - u * 0.12f * s + perp * 0.0f + new Vector2(rf * 0.04f * s, 0); Draw.Set(lTie, t0, t0 - u * 0.38f * s); SetAlpha(lTie, alpha); }
+            if (sFistF != null)
+            {
+                sFistF.transform.position = P[4]; sFistB.transform.position = P[6];
+                sFistF.color = c; sFistB.color = cb;
+            }
+            if (lFootF != null)
+            {
+                Draw.Set(lFootF, P[8], P[8] + new Vector2(rf * 0.1f * s, 0)); Draw.Set(lFootB, P[10], P[10] + new Vector2(rf * 0.1f * s, 0));
+                Draw.Col(lFootF, c); Draw.Col(lFootB, cb);
+            }
             if (lArmor != null) { Draw.Set(lArmor, Vector2.Lerp(P[0], P[1], 0.12f), Vector2.Lerp(P[0], P[1], 0.9f)); SetAlpha(lArmor, alpha); }
             if (lBelt != null) { Vector2 bc = Vector2.Lerp(P[0], P[1], 0.1f); Draw.Set(lBelt, bc - perp * 0.15f * s, bc + perp * 0.15f * s); SetAlpha(lBelt, alpha); }
             if (sPad != null) { sPad.transform.position = P[1] - u * 0.1f * s; SetAlpha(sPad, alpha); }

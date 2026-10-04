@@ -207,6 +207,12 @@ namespace StickWars
             new AccKw(Acc.Gloves, "перчат", "рукавиц", "наруч", "gloves", "gauntlet"),
             new AccKw(Acc.Boots, "ботин", "сапог", "сапоги", "кроссов", "кед", "boots", "shoes"),
             new AccKw(Acc.ShoulderPads, "наплечник", "эполет", "pauldron", "shoulder pad"),
+            new AccKw(Acc.Aura, "аур", "сияни", "светится", "окутан", "пылает", "aura", "glowing"),
+            new AccKw(Acc.Shirt, "рубаш", "футболк", "майк", "свитер", "толстовк", "худи", "кофт", "жилет", "куртк", "shirt", "hoodie", "jacket", "vest", "sweater"),
+            new AccKw(Acc.Pants, "штан", "брюк", "джинс", "шорт", "трико", "pants", "jeans", "trousers", "shorts"),
+            new AccKw(Acc.Robe, "кимоно", "ряс", "халат", "юбк", "плать", "тог", "одеяни", "балахон", "kimono", "robe", "dress", "skirt", "gown"),
+            new AccKw(Acc.Coat, "пальто", "плащ-пальто", "тренч", "фрак", "смокинг", "камзол", "сюртук", "coat", "tuxedo", "trench"),
+            new AccKw(Acc.Tie, "галстук", "бабочк", "tie$", "necktie"),
         };
 
         struct ColKw { public Color c; public string[] k; public ColKw(Color c, params string[] k) { this.c = c; this.k = k; } }
@@ -340,12 +346,87 @@ namespace StickWars
                 }
                 else
                 {
-                    var words = new List<string>();
-                    for (int k = i; k < s1 && words.Count < 8; k++) if (t.w[k] != ",") words.Add(t.w[k]);
-                    b.notes.Add("Не понял условие «" + string.Join(" ", words.ToArray()) + "» — назови, чем именно (огонь, голова, проткнуть, в спину...)");
+                    // незнакомое слово — арена создаёт НОВУЮ слабость и оружие против неё
+                    string noun = ContentWord(t, i + len, s1);
+                    if (noun == null) for (int k = s0; k < i && noun == null; k++) noun = ContentWord(t, k, i);
+                    if (noun != null && b.customWeak == null)
+                    {
+                        b.customWeak = Stem(noun);
+                        b.customWeakWord = Lemma(noun);
+                        b.killMasks.Add((int)HF.Custom);
+                        if (only) b.killOnly = true;
+                        b.understood.Add("новая слабость: «" + noun + "» (арена создаст оружие против неё)");
+                    }
+                    else b.notes.Add("Не понял условие смерти — назови, чем именно (огонь, голова, проткнуть, в спину, соль...)");
                 }
                 i = Math.Max(i, s1 - 1);
             }
+        }
+
+        static readonly string[] STOP = { "его", "ее", "их", "он", "она", "оно", "они", "можно", "нельзя", "только", "лишь", "от", "к", "ко", "перед", "это", "является", "в", "во", "на", "с", "со", "из", "по", "при", "для", "и", "или", "но", "а", "же", "удар", "удары", "ударами", "ударом", "урон", "уроном", "боится", "слабость", "слабое", "место", "сильно", "очень", "всего", "всех", "все", "всё", "кроме", "ничем", "ничего", "помощью", "him", "her", "the", "a", "only", "by", "to", "of", "with", "убить", "победить", "умирает", "смерть", "его", "через", "если", "когда", "будет", "можно", "есть", "был", "была", "том", "тем", "этом", "этим" };
+
+        static bool IsStop(string w)
+        {
+            if (w.Length < 3) return true;
+            float v; if (IsNum(w, out v)) return true;
+            foreach (var s in STOP) if (w == s) return true;
+            foreach (var m in KILL_MARK) if (WordMatch(w, m.Split(' ')[0])) return true;
+            foreach (var m in WEAK_MARK) if (WordMatch(w, m.Split(' ')[0])) return true;
+            foreach (var m in ONLY) if (WordMatch(w, m)) return true;
+            return false;
+        }
+
+        static string ContentWord(Tx t, int from, int to)
+        {
+            for (int k = from; k < to && k < t.w.Count; k++)
+            {
+                string w = t.w[k];
+                if (w == "," || w == "-" || w == ":" || w == "/") continue;
+                if (IsStop(w)) continue;
+                return w;
+            }
+            return null;
+        }
+
+        public static string Stem(string w)
+        {
+            w = (w ?? "").ToLowerInvariant().Replace('ё', 'е');
+            int n = Math.Max(3, Math.Min(w.Length, w.Length > 5 ? w.Length - 2 : w.Length - 1));
+            return w.Substring(0, Math.Min(w.Length, n));
+        }
+
+        // простейшая начальная форма для названий: «гитарой» -> «гитара», «стулом» -> «стул»
+        static string Lemma(string w)
+        {
+            if (w.EndsWith("ью") && w.Length > 3) return w.Substring(0, w.Length - 1);
+            if (w.EndsWith("ой") && w.Length > 4) return w.Substring(0, w.Length - 2) + "а";
+            if (w.EndsWith("ей") && w.Length > 4) return w.Substring(0, w.Length - 2) + "я";
+            if ((w.EndsWith("ом") || w.EndsWith("ем")) && w.Length > 4) return w.Substring(0, w.Length - 2);
+            if (w.EndsWith("ами") && w.Length > 5) return w.Substring(0, w.Length - 3) + "ы";
+            if (w.EndsWith("ями") && w.Length > 5) return w.Substring(0, w.Length - 3) + "и";
+            if (w.EndsWith("ую") && w.Length > 4) return w.Substring(0, w.Length - 2) + "ая";
+            if (w.EndsWith("у") && w.Length > 4) return w.Substring(0, w.Length - 1) + "а";
+            return w;
+        }
+
+        static readonly string[] THROWABLE = { "камн", "камен", "кирпич", "бутыл", "тарелк", "карт", "монет", "соль", "соли", "песок", "песк", "чеснок", "гвозд", "яйц", "помидор", "снежк", "банан", "rock", "stone", "brick", "bottle", "card", "coin", "salt", "garlic" };
+        static readonly string[] SUMMON_KEYS = { "вызыва", "вызов", "призыв", "призва", "подчинен", "миньон", "помощник", "скелет", "нежит", "клон", "слуг", "армию", "армия", "фамильяр", "summon", "minion", "clone", "skeleton", "undead", "spawn" };
+
+        static string SummonName(Tx t, int from, int to)
+        {
+            for (int i = from; i < to && i < t.w.Count; i++)
+            {
+                string w = t.w[i];
+                if (WordMatch(w, "скелет") || WordMatch(w, "skelet")) return "Скелет";
+                if (WordMatch(w, "клон") || WordMatch(w, "clone") || WordMatch(w, "двойник") || WordMatch(w, "копи")) return "Клон";
+                if (WordMatch(w, "демон") || WordMatch(w, "бес") || WordMatch(w, "черт") || WordMatch(w, "demon")) return "Демон";
+                if (WordMatch(w, "зомби") || WordMatch(w, "мертвец") || WordMatch(w, "нежит") || WordMatch(w, "zomb")) return "Зомби";
+                if (WordMatch(w, "дух") || WordMatch(w, "призрак") || WordMatch(w, "spirit") || WordMatch(w, "ghost")) return "Дух";
+                if (WordMatch(w, "рыцар") || WordMatch(w, "солдат") || WordMatch(w, "воин") || WordMatch(w, "knight") || WordMatch(w, "soldier")) return "Воин";
+                if (WordMatch(w, "робот") || WordMatch(w, "дрон") || WordMatch(w, "robot") || WordMatch(w, "drone")) return "Дрон";
+                if (WordMatch(w, "ниндз") || WordMatch(w, "тен")) return "Тень";
+            }
+            return null;
         }
 
         static int SentStart(Tx t, int i) { int s = t.sent[i]; int k = i; while (k > 0 && t.sent[k - 1] == s) k--; return k; }
@@ -522,7 +603,7 @@ namespace StickWars
                     b.immuneMask &= ~b.killMasks[i];
                     b.notes.Add("Иммунитет к «" + HFInfo.Describe(b.killMasks[i]) + "» снят: это его слабость.");
                 }
-            b.understood.Insert(0, (b.killOnly ? "убить можно ТОЛЬКО: " : "слабость (урон x2): ") + string.Join(" или ", MaskNames(b.killMasks)));
+            b.understood.Insert(0, (b.killOnly ? "убить можно ТОЛЬКО: " : "слабость (урон x2): ") + string.Join(" или ", MaskNames(b.killMasks)).Replace("особое", "«" + (b.customWeakWord ?? "?") + "»"));
 
             // --- внешность и снаряжение (цвет берётся из слов рядом: «золотой шлем», «красные глаза»)
             foreach (var ac in ACC)
@@ -563,6 +644,16 @@ namespace StickWars
                 if (b.weapon.Ranged) { b.secondary = b.weapon; b.weapon = null; }
             }
             WeaponsFromDescription(t, b);
+            CustomWeapons(t, b);
+            CustomAbility(t, b);
+            string sn = SummonName(t, 0, t.w.Count);
+            if (sn != null) b.summonName = sn;
+            if ((b.weapon != null && b.weapon.summon) || (b.secondary != null && b.secondary.summon))
+            {
+                var sw = b.weapon != null && b.weapon.summon ? b.weapon : b.secondary;
+                if (sw.summonName != null && sw.summonName != "Помощник") b.summonName = sw.summonName;
+                b.understood.Add(sw.name + " призывает: " + b.summonName);
+            }
             if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name);
             if (b.secondary != null) b.understood.Add("в запасе: " + b.secondary.name + (b.secondary.ammo > 0 ? " x" + b.secondary.ammo : "") + (b.secondary.alwaysHead ? " (точно в голову)" : ""));
             if (b.HasAb(Ability.Summon)) b.understood.Add("призывает помощников");
@@ -619,6 +710,12 @@ namespace StickWars
                 case Acc.Visor: return "визор";
                 case Acc.Headband: return "повязка";
                 case Acc.Scarf: return "шарф";
+                case Acc.Aura: return "аура";
+                case Acc.Shirt: return "одежда (верх)";
+                case Acc.Pants: return "штаны";
+                case Acc.Robe: return "кимоно/мантия";
+                case Acc.Coat: return "пальто/фрак";
+                case Acc.Tie: return "галстук";
             }
             return null;
         }
@@ -686,6 +783,85 @@ namespace StickWars
                     if (b.secondary == null) b.secondary = w;
                 }
                 else if (b.weapon == null) b.weapon = w;
+            }
+        }
+
+        static readonly string[] WIELD = { "вооружен", "сражается", "дерется", "бьет", "колотит", "размахивает", "держит", "носит", "оружие", "орудует", "дубасит", "fights with", "wields", "armed with", "weapon" };
+
+        // Оружие из незнакомых слов: «сражается гитарой» -> оружие «Гитара»
+        static void CustomWeapons(Tx t, FighterBuild b)
+        {
+            var all = new List<int>(FindAll(t, WIELD));
+            var throwIdx = FindAll(t, THROW_VERB);
+            all.AddRange(throwIdx);
+            foreach (int i in all)
+            {
+                if (Negated(t, i)) continue;
+                bool viaThrow = throwIdx.Contains(i);
+                int s1 = SentEnd(t, i);
+                int from = i + 1;
+                if (from < s1 && (t.w[from] == "с" || t.w[from] == "собой" || t.w[from] == "в" || t.w[from] == "руках" || t.w[from] == "-" || t.w[from] == ":")) from++;
+                if (from < s1 && (t.w[from] == "собой" || t.w[from] == "руках")) from++;
+                string noun = ContentWord(t, from, Math.Min(s1, from + 3));
+                if (noun == null) continue;
+                bool known = false;
+                foreach (var wk in WKINDS) foreach (var k in wk.w) if (WordMatch(noun, k.Split(' ')[0].TrimEnd('$'))) known = true;
+                if (known) continue;
+                foreach (var ak in ABIL) foreach (var k in ak.k) if (WordMatch(noun, k.Split(' ')[0])) known = true;
+                if (known) continue;
+                string lemma = Lemma(noun);
+                var w = new WeaponStats();
+                w.name = Cap(lemma);
+                w.customTag = Stem(noun);
+                bool thr = viaThrow;
+                foreach (var k in THROWABLE) if (WordMatch(noun, k)) thr = true;
+                if (viaThrow && (noun.EndsWith("и") || noun.EndsWith("ы"))) w.name = Cap(noun);
+                if (thr) { w.kind = WeaponKind.Thrown; w.dmg = 9; w.range = 10; w.ammo = 8; w.rate = 1.1f; }
+                else { w.kind = WeaponKind.Blunt; w.dmg = 13; w.range = 1.5f; w.rate = 0.95f; w.knock = 1.5f; w.bat = true; }
+                w.color = Color.HSVToRGB((Hash(noun) % 360) / 360f, 0.6f, 0.75f);
+                if (thr) { if (b.secondary == null) b.secondary = w; else continue; }
+                else { if (b.weapon == null) b.weapon = w; else continue; }
+                b.understood.Add("новое оружие: «" + w.name + "»");
+            }
+        }
+
+        static readonly string[] CAN = { "умеет", "может", "способен", "способна", "способност", "владеет", "использует", "призывает", "колдует", "can$", "ability" };
+
+        // Умение из незнакомых слов: «умеет петь так, что враги глохнут» -> особое умение «Петь»
+        static void CustomAbility(Tx t, FighterBuild b)
+        {
+            foreach (int i in FindAll(t, CAN))
+            {
+                if (Negated(t, i)) continue;
+                int s1 = SentEnd(t, i);
+                bool known = false;
+                for (int k = i + 1; k < s1 && k < i + 5; k++)
+                {
+                    foreach (var ak in ABIL) foreach (var key in ak.k) if (MatchAt(t, k, key) > 0) known = true;
+                    foreach (var wk in WKINDS) foreach (var key in wk.w) if (MatchAt(t, k, key) > 0) known = true;
+                    foreach (var key in SUMMON_KEYS) if (WordMatch(t.w[k], key)) known = true;
+                }
+                if (known) continue;
+                var words = new List<string>();
+                for (int k = i + 1; k < s1 && words.Count < 3; k++)
+                {
+                    if (t.w[k] == ",") break;
+                    if (IsStop(t.w[k]) && words.Count == 0) continue;
+                    words.Add(t.w[k]);
+                }
+                if (words.Count == 0) continue;
+                string phrase = string.Join(" ", words.ToArray());
+                if (b.customAbility != null) continue;
+                b.customAbility = Cap(phrase);
+                b.customAbilityTag = Stem(words[0]);
+                if (!b.abilities.Contains(Ability.Custom))
+                {
+                    if (b.abilities.Count >= 4) b.abilities.RemoveAt(b.abilities.Count - 1);
+                    b.abilities.Add(Ability.Custom);
+                    b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
+                    if (b.abilities.Count > 1 && b.abilities[0] != Ability.Custom && b.understood.Count >= 0) { }
+                }
+                b.understood.Add("новое умение: «" + b.customAbility + "»");
             }
         }
 
@@ -847,6 +1023,11 @@ namespace StickWars
                 if (NumberNear(t, i, 1, out v, out o10, out times)) w.dmg = times ? w.dmg * Mathf.Clamp(v, 0.3f, 3f) : Mathf.Clamp(v, 1f, 60f);
             }
             w.dmg = Mathf.Min(w.dmg, 60f);
+            if (Any(t, SUMMON_KEYS))
+            {
+                w.summon = true;
+                w.summonName = SummonName(t, 0, t.w.Count) ?? "Помощник";
+            }
 
             Color c;
             if (FindColor(d.name + " " + d.description, out c)) w.color = c;
@@ -855,9 +1036,22 @@ namespace StickWars
         }
 
         // Оружие, которое гарантированно подходит под условие смерти (арена сбрасывает его, чтобы бой был честным)
-        public static WeaponStats KillerWeapon(int mask, string victim)
+        public static WeaponStats KillerWeapon(int mask, string victim, FighterBuild vb = null)
         {
             HF m = (HF)mask;
+            if ((m & HF.Custom) != 0 && vb != null && vb.customWeak != null)
+            {
+                var cw = new WeaponStats();
+                string word = vb.customWeakWord;
+                bool thr = false;
+                foreach (var k in THROWABLE) if (WordMatch(word, k)) thr = true;
+                cw.kind = thr ? WeaponKind.Thrown : WeaponKind.Blade;
+                cw.dmg = thr ? 10 : 13; cw.range = thr ? 10 : 1.6f; cw.rate = 1f; cw.ammo = thr ? 10 : 0; cw.knock = 1f;
+                cw.customTag = vb.customWeak;
+                cw.name = "«" + Cap(word) + "» против " + victim;
+                cw.color = Color.HSVToRGB((Hash(word) % 360) / 360f, 0.7f, 0.9f);
+                return cw;
+            }
             string desc;
             string el = (m & HF.Fire) != 0 ? "огненн" : (m & HF.Ice) != 0 ? "ледян" : (m & HF.Lightning) != 0 ? "электро" : (m & HF.Poison) != 0 ? "ядовит" : (m & HF.Shadow) != 0 ? "проклят" : "";
             if ((m & HF.Explosion) != 0) desc = "гранаты";

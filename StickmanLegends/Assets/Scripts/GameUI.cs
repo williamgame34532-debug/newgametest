@@ -217,6 +217,7 @@ namespace StickWars
                     else if (scr == Scr.Pause) Resume();
                     else if (scr == Scr.Settings) scr = settingsBack;
                     else if (scr == Scr.Help) scr = Scr.Main;
+                    else if (scr == Scr.Replay) { battle.StopReplay(); scr = Scr.Battle; }
                 }
             }
             if (e.type == EventType.KeyUp) held.Remove(e.keyCode);
@@ -238,6 +239,7 @@ namespace StickWars
                 case Scr.Battle: Hud(); break;
                 case Scr.Pause: Hud(); PauseMenu(); break;
                 case Scr.Help: Help(); break;
+                case Scr.Replay: ReplayScreen(); break;
             }
         }
 
@@ -278,6 +280,7 @@ namespace StickWars
         void WorldOverlay()
         {
             bool fight = scr == Scr.Battle || scr == Scr.Pause;
+            bool replay = scr == Scr.Replay;
             if (Event.current.type == EventType.Repaint)
             {
                 float va = data.theme == 0 ? 0.25f : data.theme == 4 ? 0.75f : 0.5f;
@@ -285,6 +288,7 @@ namespace StickWars
             }
             float want = fight ? Mathf.Clamp01(battle.SlowAmount / 0.6f) : 0f;
             if (fight && battle.phase == Battle.Phase.Intro && battle.mode == Battle.Mode.Fight) want = 1f;
+            if (replay) want = 1f;
             letterbox = Mathf.MoveTowards(letterbox, want, Time.unscaledDeltaTime * 3f);
             if (letterbox > 0.01f)
             {
@@ -869,6 +873,8 @@ namespace StickWars
             S.slowmo = Toggle(new Rect(x + half + 20, y, half, 48), "Замедление (slow-mo)", S.slowmo, 22); y += 56;
             S.damageNumbers = Toggle(new Rect(x, y, half, 48), "Цифры урона", S.damageNumbers, 22);
             S.overheadBars = Toggle(new Rect(x + half + 20, y, half, 48), "Полоски HP над головой", S.overheadBars, 22); y += 56;
+            S.styleShift = Toggle(new Rect(x, y, half, 48), "Рисовка меняется в бою", S.styleShift, 22);
+            S.tempoRamp = Toggle(new Rect(x + half + 20, y, half, 48), "Темп боя растёт", S.tempoRamp, 22); y += 56;
             S.keepBloodOnStop = Toggle(new Rect(x, y, cw, 48), "Оставлять кровь, когда бой останавливают и бойцы возвращаются", S.keepBloodOnStop, 22); y += 60;
 
             if (Btn(new Rect(r.x + (r.width - 360) / 2, r.yMax - 100, 360, 74), "ГОТОВО", 32, true)) { Save(); scr = settingsBack; }
@@ -975,7 +981,7 @@ namespace StickWars
             {
                 Fighter mvp = null;
                 foreach (var f in b.fighters) if (mvp == null || f.dmgDealt > mvp.dmgDealt) mvp = f;
-                Rect pr = new Rect(VW / 2 - 340, VH * 0.46f, 680, 410);
+                Rect pr = new Rect(VW / 2 - 340, VH * 0.36f, 680, 560);
                 Panel(pr);
                 if (mvp != null)
                 {
@@ -985,8 +991,15 @@ namespace StickWars
                     Txt(new Rect(pr.x + 110, pr.y + 58, pr.width - 130, 30), "урон " + Mathf.RoundToInt(mvp.dmgDealt) + "   •   убийств " + mvp.kills + "   •   лучшее комбо " + mvp.maxCombo, 21, P.sub);
                 }
                 if (Btn(new Rect(pr.x + 40, pr.y + 115, pr.width - 80, 76), "РЕВАНШ", 34, true)) RestartClean();
-                if (Btn(new Rect(pr.x + 40, pr.y + 205, pr.width - 80, 70), "ИЗМЕНИТЬ КОМАНДЫ", 28)) ToMenu(Scr.Teams);
-                if (Btn(new Rect(pr.x + 40, pr.y + 290, pr.width - 80, 70), "ГЛАВНОЕ МЕНЮ", 28)) ToMenu(Scr.Main);
+                if (b.HasRecording)
+                {
+                    float hw = (pr.width - 90) / 2f;
+                    if (Btn(new Rect(pr.x + 40, pr.y + 205, hw, 70), "ФИЛЬМ БИТВЫ", 26, false, true)) { b.StartReplay(); scr = Scr.Replay; audio.PlayMusic(true); }
+                    if (Btn(new Rect(pr.x + 50 + hw, pr.y + 205, hw, 70), "СОХРАНИТЬ КАДРЫ", 22)) { b.StartCapture(); scr = Scr.Replay; }
+                }
+                if (!string.IsNullOrEmpty(b.capStatus)) Txt(new Rect(pr.x + 30, pr.y + 280, pr.width - 60, 60), b.capStatus, 15, P.sub, TextAnchor.UpperLeft, false, true);
+                if (Btn(new Rect(pr.x + 40, pr.y + 350, pr.width - 80, 70), "ИЗМЕНИТЬ КОМАНДЫ", 28)) ToMenu(Scr.Teams);
+                if (Btn(new Rect(pr.x + 40, pr.y + 435, pr.width - 80, 70), "ГЛАВНОЕ МЕНЮ", 28)) ToMenu(Scr.Main);
             }
 
             // подсказки управления
@@ -1000,6 +1013,29 @@ namespace StickWars
                     Outline(hr, keys, 18, Color.white, new Color(0, 0, 0, 0.75f), f.pindex == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight, 1.5f);
                 }
             }
+        }
+
+        // Экран фильма битвы
+        void ReplayScreen()
+        {
+            var b = battle;
+            float t = Time.unscaledTime;
+            if (b.announceT > 0 && !string.IsNullOrEmpty(b.announce))
+            {
+                float age = Mathf.Max(0f, b.announceMax - b.announceT);
+                float pop = age < 0.15f ? Mathf.Lerp(2f, 1f, age / 0.15f) : 1f;
+                Outline(new Rect(0, VH * 0.2f, VW, 160), b.announce, (int)(96 * pop), b.announceCol, Color.black, TextAnchor.MiddleCenter, 5f);
+            }
+            if (b.capturing) return; // в сохраняемых кадрах — только картинка
+            if (Mathf.Repeat(t, 1f) < 0.6f) Outline(new Rect(40, 18, 400, 60), "● ПОВТОР", 34, new Color(1f, 0.2f, 0.2f), Color.black, TextAnchor.MiddleLeft, 2f);
+            Outline(new Rect(VW - 640, 18, 600, 60), "рисовка: " + Battle.StyleNames[b.curStyle] + "   скорость x" + b.replaySpeed.ToString("0.00"), 24, Color.white, Color.black, TextAnchor.MiddleRight, 2f);
+            Rect bar = new Rect(60, VH - 60, VW - 120, 12);
+            Box(bar, new Color(1, 1, 1, 0.25f), 6);
+            Box(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(b.replayT / Mathf.Max(0.01f, b.RecLength)), bar.height), P.accent, 6);
+            float by = VH - 170;
+            if (Btn(new Rect(VW / 2 - 470, by, 300, 64), b.replayDone ? "ЕЩЁ РАЗ" : "СНАЧАЛА", 24)) b.StartReplay();
+            if (Btn(new Rect(VW / 2 - 150, by, 300, 64), b.paused ? "▶ ДАЛЬШЕ" : "II ПАУЗА", 24)) b.paused = !b.paused;
+            if (Btn(new Rect(VW / 2 + 170, by, 300, 64), "ВЫЙТИ", 24, true)) { b.StopReplay(); scr = Scr.Battle; }
         }
 
         static string ComboWord(int n)

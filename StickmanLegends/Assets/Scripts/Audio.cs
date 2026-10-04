@@ -23,6 +23,7 @@ namespace StickWars
         bool wantBattle;
         public string urlStatus = "";
         public bool loadingUrl;
+        public System.Action<string, float> OnSfx;
         float duck = 1f;
 
         void Awake()
@@ -91,6 +92,7 @@ namespace StickWars
 
         public void Sfx(string name, float vol = 1f, float pitchVar = 0.08f)
         {
+            if (OnSfx != null) OnSfx(name, vol);
             AudioClip c;
             if (!clips.TryGetValue(name, out c)) return;
             var s = Game.I != null ? Game.I.S : null;

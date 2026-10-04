@@ -18,6 +18,7 @@ namespace StickWars
         bool stuck;
         Transform vis;
         Color col;
+        public Color Col { get { return col; } }
 
         public void Init(Kind k, Vector2 from, Vector2 v, Fighter o, HitInfo h, Color c)
         {

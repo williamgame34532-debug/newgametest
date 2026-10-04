@@ -11,9 +11,9 @@ namespace StickWars
         public float t, life, size;
     }
 
-    public class Battle : MonoBehaviour
+    public partial class Battle : MonoBehaviour
     {
-        public enum Mode { Fight, Demo, Showroom }
+        public enum Mode { Fight, Demo, Showroom, Replay }
         public enum Phase { Intro, Fight, Victory }
 
         public Mode mode;
@@ -103,10 +103,11 @@ namespace StickWars
             for (int i = 0; i < blue.Count; i++) Spawn(blue[i], 1, i, new Vector2(5f + i * 1.7f, 0), -1);
             foreach (var f in fighters)
             {
-                if (!f.B.killOnly) continue;
+                if (!f.B.killOnly && f.B.customWeak == null) continue;
                 foreach (var km in f.B.killMasks)
                 {
-                    var kw = Parser.KillerWeapon(km, f.B.name);
+                    if (!f.B.killOnly && (km & (int)HF.Custom) == 0) continue;
+                    var kw = Parser.KillerWeapon(km, f.B.name, f.B);
                     if (kw != null) { kw.killer = true; killerPool.Add(kw); }
                 }
             }
@@ -117,6 +118,7 @@ namespace StickWars
             }
             phase = Phase.Intro;
             phaseT = 0;
+            if (m == Mode.Fight) StartRecording();
             dropTimer = dropInterval * 0.6f;
             cam.Snap(new Vector2(0, 2.5f), 9f);
             if (m == Mode.Fight)
@@ -132,6 +134,7 @@ namespace StickWars
             go.transform.SetParent(world, false);
             var f = go.AddComponent<Fighter>();
             f.Init(b, team, slot, p, face, this, theme.glow);
+            if (curStyle != 0) f.SetStyle(curStyle);
             fighters.Add(f);
             return f;
         }
@@ -143,6 +146,10 @@ namespace StickWars
 
         public void Clear(bool keepStains)
         {
+            foreach (var f in removedFighters) if (f != null) Destroy(f.gameObject);
+            removedFighters.Clear();
+            StopRecording();
+            ResetStyle();
             foreach (var f in fighters) if (f != null) Destroy(f.gameObject);
             fighters.Clear();
             foreach (var p in projs) if (p != null) Destroy(p.gameObject);
@@ -167,15 +174,17 @@ namespace StickWars
             {
                 if (slowT > 0f) { slowT -= raw; slowScale = Mathf.MoveTowards(slowScale, 0.22f, raw * 5f); }
                 else slowScale = Mathf.MoveTowards(slowScale, 1f, raw * 1.5f);
-                dt = raw * slowScale;
+                dt = raw * slowScale * Tempo;
             }
             float praw = paused ? 0f : raw;
+            if (mode == Mode.Replay) { ReplayUpdate(raw); return; }
+            StyleTick(raw);
 
             if (!paused) PhaseLogic(praw, dt);
 
             for (int i = 0; i < fighters.Count; i++) fighters[i].Tick(dt);
             for (int i = fighters.Count - 1; i >= 0; i--)
-                if (fighters[i].remove) { Destroy(fighters[i].gameObject); fighters.RemoveAt(i); }
+                if (fighters[i].remove) { removedFighters.Add(fighters[i]); fighters.RemoveAt(i); }
             for (int i = projs.Count - 1; i >= 0; i--)
             {
                 var p = projs[i];
@@ -207,6 +216,7 @@ namespace StickWars
             float hh = cam.cam.orthographicSize;
             theme.Follow(cp);
             theme.Tick(dt, fx, cp, hh * cam.cam.aspect, hh);
+            if (!paused) RecordFrame(raw);
         }
 
         void PhaseLogic(float raw, float dt)
@@ -288,7 +298,7 @@ namespace StickWars
             }
         }
 
-        public void Announce(string s, Color c, float t) { announce = s; announceCol = c; announceT = t; announceMax = t; }
+        public void Announce(string s, Color c, float t) { RecEvent(15, Vector2.zero, Vector2.zero, t, c, s); announce = s; announceCol = c; announceT = t; announceMax = t; }
 
         // ===================== ЗАПРОСЫ =====================
         public Fighter FindTarget(Fighter me)
@@ -341,6 +351,8 @@ namespace StickWars
             cam.Shake(0.6f);
             cam.Kick(1f);
             Flash(0.12f, new Color(1f, 1f, 1f, 0.75f));
+            RecEvent(16, f.Center, Vector2.zero, 0, Color.white, null);
+            if (mode == Mode.Fight) ImpactFrame();
             Popup("K.O.", f.J[2] + Vector2.up * 0.8f, new Color(1f, 0.9f, 0.2f), 1.3f);
             audio.Duck(0.5f);
         }
@@ -362,6 +374,7 @@ namespace StickWars
 
         public void Popup(string text, Vector2 at, Color c, float size)
         {
+            RecEvent(2, at, Vector2.zero, size, c, text);
             popups.Add(new Popup { text = text, pos = at, col = c, life = 1.1f, size = size, vel = new Vector2(Random.Range(-0.3f, 0.3f), 1.6f) });
         }
 
@@ -370,6 +383,7 @@ namespace StickWars
             if (Game.I != null && !Game.I.S.damageNumbers) return;
             if (mode == Mode.Showroom) return;
             Color c = weak ? new Color(1f, 0.85f, 0.1f) : (head ? new Color(1f, 0.3f, 0.2f) : new Color(1f, 1f, 1f));
+            RecEvent(2, at, Vector2.zero, Mathf.Clamp(0.5f + d / 30f, 0.5f, 1.1f), c, Mathf.RoundToInt(d).ToString() + (head ? "!" : ""));
             popups.Add(new Popup { text = Mathf.RoundToInt(d).ToString() + (head ? "!" : ""), pos = at + Random.insideUnitCircle * 0.3f, col = c, life = 0.8f, size = Mathf.Clamp(0.5f + d / 30f, 0.5f, 1.1f), vel = new Vector2(Random.Range(-1f, 1f), 2.5f) });
         }
 
@@ -422,19 +436,34 @@ namespace StickWars
         }
 
         // Призыв помощников: магический круг, дым, маленькие бойцы на стороне хозяина
-        public void SpawnMinions(Fighter owner, int n)
+        public void SpawnMinions(Fighter owner, int n, string kind = "Помощник")
         {
             for (int i = 0; i < n; i++)
             {
                 var b = new FighterBuild();
-                b.name = "Помощник";
+                b.name = kind ?? "Помощник";
                 b.color = Color.Lerp(owner.B.color, Color.white, 0.35f);
                 b.hp = 30f + owner.B.hp * 0.05f; b.str = 0.7f; b.spd = 1.15f; b.def = 0.7f; b.agi = 1.1f; b.size = 0.7f;
                 b.killMasks.Add((int)HF.Blunt);
                 b.style = Style.Brute;
                 b.acc.Add(Acc.Eyes);
                 b.accCol[Acc.Eyes] = new Color(0.7f, 0.4f, 1f);
-                if (owner.weapon != null && owner.weapon.kind == WeaponKind.Staff) b.acc.Add(Acc.Hood);
+                switch (b.name)
+                {
+                    case "Скелет": b.color = new Color(0.93f, 0.91f, 0.85f); b.accCol[Acc.Eyes] = new Color(0.3f, 1f, 0.6f); b.style = Style.Balanced; break;
+                    case "Клон":
+                        b.color = owner.B.color; b.size = 0.85f; b.hp = owner.B.hp * 0.25f;
+                        foreach (var a in owner.B.acc) if (a != Acc.Wings && !b.acc.Contains(a)) b.acc.Add(a);
+                        foreach (var kv in owner.B.accCol) b.accCol[kv.Key] = kv.Value;
+                        b.style = owner.B.style; break;
+                    case "Демон": b.color = new Color(0.65f, 0.05f, 0.05f); b.acc.Add(Acc.Horns); b.acc.Add(Acc.Tail); b.accCol[Acc.Eyes] = new Color(1f, 0.85f, 0.1f); b.str = 1f; break;
+                    case "Зомби": b.color = new Color(0.4f, 0.6f, 0.3f); b.spd = 0.7f; b.hp *= 1.6f; break;
+                    case "Дух": b.color = new Color(0.55f, 0.9f, 1f); b.acc.Add(Acc.Aura); b.accCol[Acc.Aura] = new Color(0.5f, 0.9f, 1f); b.agi = 1.5f; break;
+                    case "Воин": b.color = new Color(0.45f, 0.45f, 0.5f); b.acc.Add(Acc.Helmet); b.acc.Add(Acc.Armor); b.def = 1.2f; break;
+                    case "Дрон": b.color = new Color(0.35f, 0.38f, 0.42f); b.acc.Add(Acc.Visor); break;
+                    case "Тень": b.color = new Color(0.05f, 0.05f, 0.06f); b.accCol[Acc.Eyes] = new Color(1f, 0.1f, 0.1f); b.style = Style.Acrobat; break;
+                }
+                if (owner.weapon != null && owner.weapon.kind == WeaponKind.Staff && b.name == "Помощник") b.acc.Add(Acc.Hood);
                 float x = Mathf.Clamp(owner.pos.x + owner.facing * (1.2f + i * 0.9f) * (i % 2 == 0 ? 1 : -1), -W + 1f, W - 1f);
                 var f = Spawn(b, owner.team, 4, new Vector2(x, 0), owner.facing);
                 f.SetupMinion(owner, 15f);
@@ -448,6 +477,7 @@ namespace StickWars
 
         public void Flash(float t, Color c)
         {
+            RecEvent(3, Vector2.zero, Vector2.zero, t, c, null);
             if (mode == Mode.Showroom) return;
             flashT = Mathf.Max(flashT, t); flashCol = c;
         }
@@ -455,6 +485,7 @@ namespace StickWars
         // Искра удара: вспышка, лучи, кольцо (как в стикмен-анимациях)
         public void HitSpark(Vector2 at, Vector2 dir, float power, Color c)
         {
+            RecEvent(0, at, dir, power, c, null);
             var go = new GameObject("spark");
             var core = Draw.Spr(go.transform, "core", Draw.Circle, Color.white, 352);
             core.transform.position = at;
@@ -503,6 +534,7 @@ namespace StickWars
         // Трещины в земле / стене после мощного удара
         public void Crack(Vector2 at, bool wall)
         {
+            RecEvent(6, at, Vector2.zero, wall ? 1 : 0, Color.black, null);
             var go = new GameObject("crack");
             var lines = new List<LineRenderer>();
             Color c = theme.id == 0 ? new Color(0.1f, 0.1f, 0.1f, 0.9f) : new Color(0.05f, 0.05f, 0.05f, 0.85f);
@@ -536,6 +568,7 @@ namespace StickWars
 
         public void Shock(Vector2 at, float radius, Color c)
         {
+            RecEvent(5, at, Vector2.zero, radius, c, null);
             var go = new GameObject("shock");
             var lr = Draw.Line(go.transform, "ring", 0.12f, c, 330, true, 0);
             lr.loop = true;
@@ -581,6 +614,24 @@ namespace StickWars
 
         public void LightningStrike(Vector2 at, Fighter caster, float dmg)
         {
+            LightningVisual(at);
+            fx.Sparks(at, Vector2.up, 20, new Color(1f, 1f, 0.5f));
+            audio.Sfx("zap", 1f);
+            cam.Shake(0.4f);
+            foreach (var e in fighters)
+            {
+                if (e.dead || e.team == caster.team) continue;
+                if (Mathf.Abs(e.pos.x - at.x) < 1.3f)
+                {
+                    var h = new HitInfo { dmg = dmg * Random.Range(0.9f, 1.1f), type = DmgType.Lightning, elem = Element.Lightning, attacker = caster, dir = new Vector2(Mathf.Sign(e.pos.x - at.x + 0.01f), 0.6f).normalized, point = e.Center, knock = 4f, stun = 0.7f };
+                    e.TakeHit(h);
+                }
+            }
+        }
+
+        public void LightningVisual(Vector2 at)
+        {
+            RecEvent(11, at, Vector2.zero, 0, Color.white, null);
             var go = new GameObject("lightning");
             var core = Draw.Line(go.transform, "bolt", 0.12f, new Color(1f, 1f, 0.85f), 345, true, 0);
             var glowL = Draw.Line(go.transform, "boltGlow", 0.5f, new Color(1f, 0.95f, 0.4f, 0.35f), 344, true, 0);
@@ -605,18 +656,6 @@ namespace StickWars
                 Draw.Col(glowL, new Color(1f, 0.95f, 0.4f, 0.35f * a));
                 flashS.color = new Color(1f, 1f, 0.7f, 0.8f * (1f - k));
             });
-            fx.Sparks(at, Vector2.up, 20, new Color(1f, 1f, 0.5f));
-            audio.Sfx("zap", 1f);
-            cam.Shake(0.4f);
-            foreach (var e in fighters)
-            {
-                if (e.dead || e.team == caster.team) continue;
-                if (Mathf.Abs(e.pos.x - at.x) < 1.3f)
-                {
-                    var h = new HitInfo { dmg = dmg * Random.Range(0.9f, 1.1f), type = DmgType.Lightning, elem = Element.Lightning, attacker = caster, dir = new Vector2(Mathf.Sign(e.pos.x - at.x + 0.01f), 0.6f).normalized, point = e.Center, knock = 4f, stun = 0.7f };
-                    e.TakeHit(h);
-                }
-            }
         }
 
         public void Explosion(Vector2 at, float radius, HitInfo baseHit, int team)

@@ -7,8 +7,8 @@ namespace StickWars
     public enum Element { None, Fire, Ice, Lightning, Poison, Shadow }
     public enum WeaponKind { Fists, Blade, Blunt, Spear, Gun, Bow, Thrown, Chainsaw, Staff }
     public enum DmgType { Blunt, Blade, Pierce, Fire, Ice, Lightning, Poison, Shadow }
-    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon }
-    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads }
+    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon, Custom }
+    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie }
 
     [Serializable]
     public class Stroke
@@ -55,6 +55,8 @@ namespace StickWars
         public bool damageNumbers = true;
         public bool keepBloodOnStop = true;
         public bool overheadBars = true;
+        public bool styleShift = true;   // рисовка меняется по ходу дуэли
+        public bool tempoRamp = true;    // темп боя растёт
     }
 
     [Serializable]
@@ -83,7 +85,8 @@ namespace StickWars
         public float dmg = 10, range = 1.5f, rate = 1f, size = 1f, knock = 1f;
         public int ammo = 0;
         public int pellets = 1;
-        public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives;
+        public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives, summon;
+        public string customTag, summonName;
         public Color color = Color.gray;
         public List<Stroke> drawing;
 
@@ -118,13 +121,16 @@ namespace StickWars
         public Style style = Style.Balanced;
         public List<string> understood = new List<string>();
         public Element affinity = Element.None;
+        public string customWeak, customWeakWord;      // новая, придуманная игроком слабость («соль», «музыка»...)
+        public string customAbility, customAbilityTag; // новое умение из описания
+        public string summonName = "Помощник";
         public string WeakText
         {
             get
             {
                 if (killMasks.Count == 0) return "—";
                 var parts = new List<string>();
-                foreach (var m in killMasks) parts.Add(HFInfo.Describe(m));
+                foreach (var m in killMasks) parts.Add(HFInfo.Describe(m).Replace("особое", "«" + (customWeakWord ?? "?") + "»"));
                 return (killOnly ? "ТОЛЬКО " : "") + string.Join(" или ", parts.ToArray());
             }
         }
@@ -160,6 +166,7 @@ namespace StickWars
                 case Ability.Laser: return "Лазер из глаз";
                 case Ability.Telekinesis: return "Телекинез";
                 case Ability.Summon: return "Призыв помощников";
+                case Ability.Custom: return "Особое умение";
             }
             return a.ToString();
         }
@@ -179,6 +186,7 @@ namespace StickWars
                 case Ability.Laser: return 8f;
                 case Ability.Telekinesis: return 9f;
                 case Ability.Summon: return 14f;
+                case Ability.Custom: return 5f;
             }
             return 999f;
         }
@@ -267,7 +275,7 @@ namespace StickWars
     public enum HF
     {
         None = 0, Blunt = 1 << 0, Blade = 1 << 1, Pierce = 1 << 2, Fire = 1 << 3, Ice = 1 << 4, Lightning = 1 << 5,
-        Poison = 1 << 6, Shadow = 1 << 7, Head = 1 << 8, Back = 1 << 9, Explosion = 1 << 10, Fall = 1 << 11, Magic = 1 << 12, Unarmed = 1 << 13
+        Poison = 1 << 6, Shadow = 1 << 7, Head = 1 << 8, Back = 1 << 9, Explosion = 1 << 10, Fall = 1 << 11, Magic = 1 << 12, Unarmed = 1 << 13, Custom = 1 << 14
     }
 
     public static class HFInfo
@@ -316,6 +324,7 @@ namespace StickWars
             new KeyValuePair<HF, string>(HF.Explosion, "взрывы"),
             new KeyValuePair<HF, string>(HF.Fall, "удар об стену/землю"),
             new KeyValuePair<HF, string>(HF.Magic, "магия"),
+            new KeyValuePair<HF, string>(HF.Custom, "особое"),
         };
 
         public static string Describe(int mask)
@@ -342,6 +351,7 @@ namespace StickWars
         public HF extra;               // голова/спина/взрыв/падение/магия/без оружия
         public bool launcher, slam, knockdown;
         public float lift;
+        public string customTag;
         public HitInfo Copy() { return (HitInfo)MemberwiseClone(); }
     }
 }

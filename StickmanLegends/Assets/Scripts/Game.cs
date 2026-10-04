@@ -15,7 +15,7 @@ namespace StickWars
         public Battle battle;
         Camera cam;
 
-        public enum Scr { Main, Teams, EditFighter, EditWeapon, Settings, Battle, Pause, Help }
+        public enum Scr { Main, Teams, EditFighter, EditWeapon, Settings, Battle, Pause, Help, Replay }
         public Scr scr = Scr.Main;
         Scr settingsBack = Scr.Main;
 
