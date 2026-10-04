@@ -14,23 +14,33 @@ namespace StickWars
         public Vector2 pos, vel;
         public int facing = 1;
         public bool grounded = true;
-        public float hp, maxHp;
+        public float hp, maxHp, hpTrail;
         public bool dead;
         public float deadTime;
         public WeaponStats weapon;
         public int ammo;
         public readonly Vector2[] J = new Vector2[11];
-        public int kills;
+        public int kills, maxCombo;
         public float dmgDealt;
+        public int combo;
+        public float comboT;
 
-        public enum Act { None, Punch, Kick, Slash, Stab, Smash, Shoot, Throw, Cast, Block, Dash, Saw, Laser }
+        public enum Act { None, Move, Shoot, Throw, Cast, Block, Dash, Saw, Laser, Roll, Flip, GetUp }
+        public enum BodyS { Normal, Tumble, Down }
         public Act act;
+        public BodyS body;
         float actT, actDur;
-        bool actFired, alt;
+        bool actFired;
+        public Move mv;
+        bool mvHit;
+        readonly List<Fighter> mvHitList = new List<Fighter>();
+        Move queued;
+        int comboLeft;
+        bool followAir;
         Ability castAb;
         bool castFromStaff;
         float staffCd;
-        float atkCd, stun, hurtT, flash;
+        float atkCd, stun, hurtT, flash, iframes, landT, turnT;
         readonly Dictionary<Ability, float> cd = new Dictionary<Ability, float>();
         int jumps;
         public float shieldT, invisT, burnT, poisonT, slowT, bleedT, regenBlock;
@@ -40,40 +50,49 @@ namespace StickWars
         Fighter tkBy;
         float animT, runPhase;
         Pose cur = Pose.Guard;
+        Pose hurtPose = Pose.Hurt;
         Fighter target;
-        float think, aiMove, dodgeT, demoT;
+        float think, aiMove, dodgeT, demoT, tauntT;
         int demoStep;
         Pickup pickupTarget;
         public Ragdoll rag;
-        float fountainT, dripT, sawTick, laserTick, ghostT, fxT;
+        float fountainT, dripT, sawTick, laserTick, ghostT, fxT, dustT, popupCd;
         bool pooled, headPooled;
         Vector2 aim = Vector2.right;
         readonly List<Fighter> dashHit = new List<Fighter>();
         float dotAcc;
+        // кувырки / нокдаун
+        float tumbleSpin, spinVel, downT, flipT = -1f, flipDur = 0.6f, flipDir = 1f, getUpFrom;
+        bool bounced;
+        int juggle, rollDir = 1;
 
         // --- визуал ---
-        LineRenderer lTorso, lArmF, lArmB, lLegF, lLegB, lCape, lTails, lScarf, lShield, lLaser, lLaserGlow;
-        LineRenderer[] glowLines;
-        SpriteRenderer sHead, sHeadGlow, sShieldGlow;
+        LineRenderer lTorso, lArmF, lArmB, lLegF, lLegB, lCape, lTails, lScarf, lShield, lLaser, lLaserGlow, lTrail;
+        LineRenderer[] under;
+        SpriteRenderer sHead, sHeadUnder, sShieldGlow, sShadow;
         Transform headRoot, weaponRoot;
         readonly List<Renderer> headRends = new List<Renderer>();
         List<Renderer> weaponRends = new List<Renderer>();
+        readonly List<Vector3> trailPts = new List<Vector3>();
+        readonly List<float> trailAge = new List<float>();
         int baseOrder;
-        bool glow;
-        Color backCol, mainCol;
+        bool glow, outline;
+        Color backCol, mainCol, underCol;
 
         public float Size { get { return B.size; } }
         public Vector2 Center { get { return dead && rag != null ? (rag.p[0] + rag.p[1]) * 0.5f : (J[0] + J[1]) * 0.5f; } }
         public Vector2 HeadPos { get { return dead && rag != null ? rag.p[2] : J[2]; } }
         public bool Invisible { get { return invisT > 0; } }
         public bool RageOn { get { return B.HasAb(Ability.Rage) && hp < maxHp * 0.45f; } }
-        public bool Free { get { return act == Act.None && stun <= 0 && hurtT <= 0 && !dead; } }
+        public bool Free { get { return act == Act.None && stun <= 0 && hurtT <= 0 && !dead && body == BodyS.Normal; } }
+        public bool Active { get { return act == Act.Move && mv != null && actT / actDur >= mv.hitAt && actT / actDur <= mv.hitAt + 0.15f; } }
         public bool WindingUp
         {
             get
             {
-                if (act == Act.None || act == Act.Block || act == Act.Cast || act == Act.Shoot) return false;
-                return actT / actDur < 0.45f;
+                if (act == Act.Move && mv != null) return actT / actDur < mv.hitAt;
+                if (act == Act.Dash) return true;
+                return false;
             }
         }
         public float CooldownOf(Ability a) { float v; return cd.TryGetValue(a, out v) ? Mathf.Max(0, v) : 0; }
@@ -82,7 +101,8 @@ namespace StickWars
         public void Init(FighterBuild b, int team, int slot, Vector2 start, int face, Battle battle, bool glow)
         {
             B = b; this.team = team; this.slot = slot; this.battle = battle; this.glow = glow;
-            hp = maxHp = b.hp;
+            outline = battle.theme.outline;
+            hp = maxHp = hpTrail = b.hp;
             pos = start; facing = face;
             foreach (var a in b.abilities) cd[a] = Random.Range(0.5f, 2f);
             jumps = b.HasAb(Ability.DoubleJump) ? 1 : 0;
@@ -101,25 +121,30 @@ namespace StickWars
             float lum = mainCol.r * 0.3f + mainCol.g * 0.59f + mainCol.b * 0.11f;
             backCol = lum < 0.15f ? Color.Lerp(mainCol, new Color(0.45f, 0.45f, 0.47f), 0.45f) : Color.Lerp(mainCol, Color.black, 0.3f);
 
+            sShadow = Draw.Spr(transform, "shadow", Draw.Soft, new Color(0, 0, 0, 0.35f), -1);
+
+            if (glow || outline)
+            {
+                underCol = glow ? Draw.A(Color.Lerp(mainCol, Color.white, 0.3f), 0.22f) : battle.theme.outlineCol;
+                if (outline && lum < 0.12f) underCol = new Color(0.95f, 0.95f, 0.95f, 0.9f);
+                float uw = glow ? w * 2.8f : w + 0.07f * s;
+                under = new LineRenderer[5];
+                for (int i = 0; i < 5; i++)
+                {
+                    under[i] = Draw.Line(transform, "under", uw, underCol, baseOrder - 1, true, 6);
+                    under[i].positionCount = 3;
+                }
+                sHeadUnder = Draw.Spr(transform, "headUnder", glow ? Draw.Soft : Draw.Circle, underCol, baseOrder - 1);
+                sHeadUnder.transform.localScale = Vector3.one * (glow ? Skel.HeadR * 5f * s : (Skel.HeadR * 2f + 0.07f) * s);
+            }
+
             lLegB = Draw.Line(transform, "legB", w, backCol, baseOrder + 0, true, 6);
             lArmB = Draw.Line(transform, "armB", w, backCol, baseOrder + 1, true, 6);
-            lTorso = Draw.Line(transform, "torso", w * 1.05f, mainCol, baseOrder + 3, true, 6);
+            lTorso = Draw.Line(transform, "torso", w * 1.08f, mainCol, baseOrder + 3, true, 6);
             lLegF = Draw.Line(transform, "legF", w, mainCol, baseOrder + 5, true, 6);
             lArmF = Draw.Line(transform, "armF", w, mainCol, baseOrder + 8, true, 6);
             sHead = Draw.Spr(transform, "head", Draw.Circle, mainCol, baseOrder + 4);
             sHead.transform.localScale = Vector3.one * Skel.HeadR * 2f * s;
-
-            if (glow)
-            {
-                glowLines = new LineRenderer[5];
-                for (int i = 0; i < 5; i++)
-                {
-                    glowLines[i] = Draw.Line(transform, "glow", w * 2.8f, Draw.A(Color.Lerp(mainCol, Color.white, 0.3f), 0.22f), baseOrder - 1, true, 6);
-                    glowLines[i].positionCount = 3;
-                }
-                sHeadGlow = Draw.Spr(transform, "headGlow", Draw.Soft, Draw.A(mainCol, 0.5f), baseOrder - 1);
-                sHeadGlow.transform.localScale = Vector3.one * Skel.HeadR * 5f * s;
-            }
 
             headRoot = new GameObject("headRoot").transform;
             headRoot.SetParent(transform, false);
@@ -127,6 +152,9 @@ namespace StickWars
             weaponRoot.SetParent(transform, false);
 
             BuildAccessories();
+
+            lTrail = Draw.Line(transform, "trail", 1f, Color.white, baseOrder + 9, true, 2);
+            lTrail.enabled = false;
 
             lShield = Draw.Line(transform, "shield", 0.06f, new Color(0.4f, 0.9f, 1f, 0.8f), baseOrder + 12, true, 0);
             lShield.loop = true;
@@ -271,9 +299,12 @@ namespace StickWars
         {
             if (dt <= 0f) { Render(); return; }
             animT += dt;
+            hpTrail = Mathf.MoveTowards(hpTrail, hp, dt * maxHp * (hpTrail - hp > maxHp * 0.3f ? 0.9f : 0.35f));
             if (dead) { DeadTick(dt); Render(); return; }
 
             flash -= dt; hurtT -= dt; stun -= dt; atkCd -= dt; shieldT -= dt; invisT -= dt; regenBlock -= dt; slowT -= dt; staffCd -= dt;
+            iframes -= dt; landT -= dt; popupCd -= dt; comboT -= dt;
+            if (comboT <= 0f) combo = 0;
             foreach (var k in B.abilities) cd[k] = CooldownOf(k) - dt;
 
             Status(dt);
@@ -283,27 +314,54 @@ namespace StickWars
             float move = 0; bool jump = false;
             bool free = Free;
             if (battle.mode == Battle.Mode.Showroom) move = Showroom(dt);
-            else if (battle.phase == Battle.Phase.Fight)
+            else if (battle.phase == Battle.Phase.Fight && body == BodyS.Normal)
             {
                 if (human) HumanInput(ref move, ref jump, free);
                 else AI(ref move, ref jump, free, dt);
             }
 
-            if (act == Act.None && stun <= 0 && hurtT <= 0 && battle.mode != Battle.Mode.Showroom)
+            if (body == BodyS.Down) DownTick(dt);
+            if (body == BodyS.Tumble) tumbleSpin += spinVel * dt;
+
+            // разворот: человек — мгновенно, ИИ — с небольшой задержкой (можно зайти за спину!)
+            if (act == Act.None && stun <= 0 && hurtT <= 0 && body == BodyS.Normal && battle.mode != Battle.Mode.Showroom)
             {
                 if (human && Mathf.Abs(move) > 0.1f) facing = move > 0 ? 1 : -1;
-                else if (target != null) facing = target.pos.x >= pos.x ? 1 : -1;
+                else if (target != null)
+                {
+                    int want = target.pos.x >= pos.x ? 1 : -1;
+                    if (want != facing)
+                    {
+                        turnT += dt;
+                        if (human || turnT > 0.2f / Mathf.Sqrt(B.agi)) { facing = want; turnT = 0; }
+                    }
+                    else turnT = 0;
+                }
             }
 
             Physics(dt, move, jump);
             ActTick(dt);
-            TryPickup();
+            if (body == BodyS.Normal) TryPickup();
+            MotionFx(dt);
 
             Pose tgt = TargetPose(dt);
-            float rate = (act != Act.None && act != Act.Block) ? 40f : 15f;
+            float rate = (act == Act.Move || act == Act.Shoot || act == Act.Throw) ? 45f : (body != BodyS.Normal || act == Act.Roll || act == Act.Flip || act == Act.GetUp) ? 30f : 16f;
+            float spin = tgt.spin;
             cur = Pose.Lerp(cur, tgt, 1f - Mathf.Exp(-rate * dt));
-            Skel.Compute(cur, pos, Size, facing, J);
+            cur.spin = spin;
+            Skel.Compute(cur, pos, Size, RenderFacing(), J, grounded);
+            TrailTick(dt);
             Render();
+        }
+
+        int RenderFacing()
+        {
+            if (act == Act.Move && mv != null && mv.flip)
+            {
+                float u = actT / actDur;
+                if (u > 0.1f && u < mv.hitAt - 0.04f) return -facing; // разворот спиной — вертушка
+            }
+            return facing;
         }
 
         void Status(float dt)
@@ -349,40 +407,56 @@ namespace StickWars
 
         void Physics(float dt, float move, bool jump)
         {
-            float spd = 5.3f * B.spd * (slowT > 0 ? 0.5f : 1f) * (RageOn ? 1.25f : 1f);
-            if (act == Act.Dash) vel.x = facing * 21f;
-            else if (stun > 0 || hurtT > 0) vel.x = Mathf.MoveTowards(vel.x, 0, (grounded ? 14f : 3f) * dt);
+            float spd = 7f * B.spd * (slowT > 0 ? 0.5f : 1f) * (RageOn ? 1.25f : 1f);
+            float u = act != Act.None ? actT / Mathf.Max(0.01f, actDur) : 0f;
+            if (body == BodyS.Tumble) vel.x *= 1f - dt * 0.4f;
+            else if (body == BodyS.Down) vel.x = Mathf.MoveTowards(vel.x, 0, 18f * dt);
+            else if (act == Act.Dash) vel.x = facing * 24f;
+            else if (act == Act.Roll) vel.x = rollDir * 11f * Mathf.Sqrt(B.agi);
+            else if (act == Act.Flip) { }
+            else if (stun > 0 || hurtT > 0) vel.x = Mathf.MoveTowards(vel.x, 0, (grounded ? 14f : 2f) * dt);
+            else if (act == Act.Move && mv != null)
+            {
+                float w0 = mv.hitAt * 0.7f;
+                if (grounded && mv.hopX == 0)
+                {
+                    float lunge = (u > w0 && u < mv.hitAt + 0.08f) ? facing * mv.lunge * Mathf.Sqrt(B.spd) : 0f;
+                    vel.x = Mathf.MoveTowards(vel.x, lunge, 60f * dt);
+                }
+            }
             else if (act != Act.None && act != Act.Saw)
             {
-                float u = actT / Mathf.Max(0.01f, actDur);
-                float lunge = (u > 0.33f && u < 0.5f && (act == Act.Punch || act == Act.Stab || act == Act.Slash || act == Act.Smash)) ? facing * 4f : 0f;
-                if (grounded) vel.x = Mathf.MoveTowards(vel.x, lunge, 40f * dt);
+                if (grounded) vel.x = Mathf.MoveTowards(vel.x, 0, 40f * dt);
             }
             else
             {
                 float t = move * spd;
-                vel.x = Mathf.MoveTowards(vel.x, t, (grounded ? 55f : 25f) * dt);
+                vel.x = Mathf.MoveTowards(vel.x, t, (grounded ? 70f : 32f) * dt);
             }
 
-            if (jump && stun <= 0 && hurtT <= 0 && (act == Act.None || act == Act.Block))
+            if (jump && stun <= 0 && hurtT <= 0 && body == BodyS.Normal && (act == Act.None || act == Act.Block))
             {
-                float jv = 12.5f * Mathf.Sqrt(B.agi);
+                float jv = 15f * Mathf.Sqrt(B.agi);
                 if (grounded)
                 {
                     vel.y = jv; grounded = false; act = Act.None;
-                    battle.fx.Dust(pos, 4);
+                    battle.fx.Dust(pos, 5);
+                    if (B.style == Style.Acrobat || Random.value < 0.25f * B.agi) StartAirFlip(Mathf.Abs(vel.x) > 2f && Mathf.Sign(vel.x) == facing ? -1f : 1f);
                 }
                 else if (jumps > 0)
                 {
                     jumps--;
                     vel.y = jv * 0.95f;
-                    battle.Shock(pos, 0.8f, new Color(1, 1, 1, 0.6f));
+                    battle.Shock(pos, 0.9f, Draw.A(battle.theme.ink, 0.6f));
                     battle.audio.Sfx("whoosh", 0.4f);
+                    StartAirFlip(-1f);
                 }
             }
 
-            float g = -32f;
+            float g = -38f;
+            if (body == BodyS.Tumble) g *= 0.72f + 0.12f * juggle;
             if (act == Act.Laser || (act == Act.Cast && !grounded)) g *= 0.25f;
+            if (act == Act.Move && mv != null && mv.air && !mv.slam && u < mv.hitAt + 0.1f) g *= 0.35f; // зависание в воздухе на ударе
             if (tkSlam && vel.y < 0) g *= 2.5f;
             if (slamPending && vel.y < 0) g *= 2f;
             vel.y += g * dt;
@@ -390,31 +464,40 @@ namespace StickWars
 
             if (pos.y <= 0f)
             {
-                if (!grounded) Land();
+                bool was = grounded;
                 pos.y = 0f;
-                if (vel.y < 0) vel.y = 0;
-                grounded = true;
+                if (!was) Land();
+                if (vel.y > 0.01f) { grounded = false; pos.y = 0.01f; }
+                else { vel.y = 0; grounded = true; }
             }
             else grounded = false;
 
             float lim = battle.W - 0.3f;
             if (Mathf.Abs(pos.x) > lim)
             {
-                if (Mathf.Abs(vel.x) > 9f && hurtT > 0)
+                if (Mathf.Abs(vel.x) > 8f && (body == BodyS.Tumble || hurtT > 0))
                 {
-                    RawDamage(Mathf.Abs(vel.x) * 0.7f, DmgType.Blunt, null, true);
-                    battle.fx.Blood(new Vector2(Mathf.Sign(pos.x) * lim, Center.y), new Vector2(Mathf.Sign(pos.x), 0.3f), 18);
-                    battle.cam.Shake(0.3f);
-                    battle.audio.Sfx("thud", 0.8f);
+                    // удар об стену — отскок
+                    float sp = Mathf.Abs(vel.x);
+                    vel.x = -vel.x * 0.45f;
+                    vel.y = Mathf.Max(vel.y, 5f);
+                    body = BodyS.Tumble; bounced = false;
+                    Vector2 wp = new Vector2(Mathf.Sign(pos.x) * (battle.W + 0.2f), Center.y);
+                    battle.fx.Blood(wp, new Vector2(Mathf.Sign(pos.x), 0.3f), 14);
+                    battle.Crack(wp, true);
+                    battle.HitSpark(wp, new Vector2(-Mathf.Sign(pos.x), 0), 1.2f, battle.theme.ink);
+                    battle.cam.Shake(0.4f);
+                    battle.audio.Sfx("thud", 0.9f);
+                    RawDamage(sp * 0.6f, DmgType.Blunt, null, true, HF.Fall);
                 }
+                else vel.x *= -0.2f;
                 pos.x = Mathf.Sign(pos.x) * lim;
-                vel.x *= -0.3f;
             }
 
-            // враги не проходят сквозь друг друга
+            if (act == Act.Roll || body != BodyS.Normal) return;
             foreach (var e in battle.fighters)
             {
-                if (e == this || e.dead || e.team == team) continue;
+                if (e == this || e.dead || e.team == team || e.body != BodyS.Normal || e.act == Act.Roll) continue;
                 float dx = pos.x - e.pos.x;
                 float min = 0.42f * (Size + e.Size);
                 if (Mathf.Abs(dx) < min && Mathf.Abs(pos.y - e.pos.y) < 1.4f)
@@ -425,80 +508,170 @@ namespace StickWars
             }
         }
 
+        void StartAirFlip(float dir)
+        {
+            flipT = 0f; flipDir = dir;
+            flipDur = Mathf.Clamp(vel.y / 38f * 1.6f, 0.4f, 0.75f);
+        }
+
         void Land()
         {
-            if (vel.y < -10f)
-            {
-                battle.fx.Dust(pos, 8);
-                battle.audio.Sfx("thud", 0.35f);
-            }
-            jumps = B.HasAb(Ability.DoubleJump) ? 1 : 0;
-            if (slamPending) { slamPending = false; DoSlam(); }
+            flipT = -1f;
             if (tkSlam)
             {
                 tkSlam = false;
-                var h = new HitInfo { dmg = 18f, type = DmgType.Blunt, attacker = tkBy, dir = Vector2.down, point = pos + Vector2.up * 0.3f, knock = 3f, stun = 0.5f, heavy = true };
+                var h = new HitInfo { dmg = 18f, type = DmgType.Blunt, attacker = tkBy, dir = Vector2.down, point = pos + Vector2.up * 0.3f, knock = 2f, stun = 0.5f, heavy = true, knockdown = true, extra = HF.Fall | HF.Magic };
                 battle.Shock(pos, 2.2f, new Color(0.7f, 0.4f, 1f, 0.8f));
+                battle.Crack(pos, false);
                 battle.fx.Dust(pos, 20);
                 TakeHit(h);
+                if (dead) return;
+            }
+            if (body == BodyS.Tumble)
+            {
+                if (vel.y < -10f && !bounced)
+                {
+                    bounced = true;
+                    float vy = vel.y;
+                    vel.y = Mathf.Min(8f, -vy * 0.42f);
+                    battle.fx.Dust(pos, 16);
+                    battle.cam.Shake(0.35f);
+                    battle.audio.Sfx("thud", 0.9f);
+                    if (vy < -17f) { battle.Crack(pos, false); battle.HitSpark(pos + Vector2.up * 0.1f, Vector2.up, 1.3f, battle.theme.ink); }
+                    RawDamage(2f + Mathf.Abs(vy) * 0.25f, DmgType.Blunt, null, true, HF.Fall);
+                    return;
+                }
+                body = BodyS.Down;
+                downT = human ? 0.55f : Random.Range(0.45f, 0.9f) / Mathf.Sqrt(B.agi);
+                float sp = Mathf.Repeat(tumbleSpin + 180f, 360f) - 180f;
+                tumbleSpin = sp >= 0 ? 90f : -90f;
+                vel.y = 0;
+                battle.fx.Dust(pos, 10);
+                battle.audio.Sfx("thud", 0.6f);
+                juggle = 0;
+                return;
+            }
+            if (vel.y < -10f)
+            {
+                battle.fx.Dust(pos, 8);
+                battle.audio.Sfx("thud", 0.3f);
+                landT = 0.12f;
+            }
+            jumps = B.HasAb(Ability.DoubleJump) ? 1 : 0;
+            if (slamPending) { slamPending = false; DoSlam(); }
+            if (act == Act.Move && mv != null && mv.air) { act = Act.None; landT = 0.15f; battle.fx.Dust(pos, 6); }
+        }
+
+        void DownTick(float dt)
+        {
+            downT -= dt;
+            if (downT > 0f || !grounded) return;
+            body = BodyS.Normal;
+            act = Act.GetUp;
+            actT = 0;
+            getUpFrom = tumbleSpin;
+            actDur = B.style == Style.Acrobat ? 0.3f : 0.4f;
+            iframes = actDur + 0.25f;
+            if (B.style == Style.Acrobat || B.agi > 1.3f) { vel.y = 7f; grounded = false; } // подъём разгибом
+            hurtT = 0; stun = 0;
+        }
+
+        void MotionFx(float dt)
+        {
+            float sp = vel.magnitude;
+            if (sp > 13f && (body == BodyS.Tumble || act == Act.Dash || act == Act.Roll || hurtT > 0 || (act == Act.Move && mv != null && mv.hopX > 0)))
+            {
+                int n = Mathf.Max(1, (int)(dt * 60));
+                for (int i = 0; i < n; i++)
+                {
+                    Vector2 p = Center + new Vector2(Random.Range(-0.6f, 0.6f), Random.Range(-1f, 1f)) * Size - vel.normalized * 0.8f;
+                    battle.fx.Emit(p, Vector2.zero, Draw.A(battle.theme.ink, 0.45f), 0.06f, 0.14f, 0f, false, 0f, true, 16f, 0.5f);
+                }
+            }
+            if (grounded && Mathf.Abs(vel.x) > 6f && body == BodyS.Normal)
+            {
+                dustT -= dt;
+                if (dustT <= 0f) { dustT = 0.12f; battle.fx.Dust(pos, 1); }
             }
         }
 
-        // ===================== ДЕЙСТВИЯ =====================
+        // ===================== ПРИЁМЫ =====================
         void StartAct(Act a, float dur)
         {
             act = a; actT = 0; actDur = Mathf.Max(0.08f, dur); actFired = false;
-            if (a != Act.Block) battle.OnAttackStart(this);
+            if (a != Act.Block && a != Act.Roll && a != Act.Flip && a != Act.GetUp) battle.OnAttackStart(this);
         }
 
         public float Reach()
         {
             if (weapon != null && !weapon.Ranged) return weapon.range * Size;
-            return 0.95f * Size;
+            return 1.05f * Size;
+        }
+
+        bool MeleeWeapon { get { return weapon != null && !weapon.Ranged && weapon.kind != WeaponKind.Chainsaw; } }
+
+        public void StartMove(Move m)
+        {
+            if (m == null) return;
+            if (m.weapon && !MeleeWeapon) return;
+            mv = m;
+            act = Act.Move; actT = 0; actFired = false;
+            float sp = Mathf.Sqrt(B.spd) * (RageOn ? 1.2f : 1f);
+            float r = (m.weapon && weapon != null) ? Mathf.Sqrt(weapon.rate) : 1f;
+            actDur = Mathf.Max(0.12f, m.dur / (sp * r) * (B.style == Style.Brute ? 1.1f : 1f));
+            mvHit = false; mvHitList.Clear(); queued = null;
+            if (m.hopX != 0 || m.hopY != 0)
+            {
+                vel = new Vector2(facing * m.hopX, Mathf.Max(vel.y, m.hopY));
+                if (m.hopY > 0) grounded = false;
+            }
+            if (m.air && !grounded && vel.y < 2f) vel.y = 2f;
+            ClearTrail();
+            battle.OnAttackStart(this);
+            if (m.heavy || m.flip) battle.audio.Sfx("whoosh", 0.5f);
         }
 
         public void Attack(bool kick)
         {
             if (!Free) return;
             float sp = Mathf.Sqrt(B.spd) * (RageOn ? 1.2f : 1f);
-            if (kick) { StartAct(Act.Kick, 0.48f / sp); atkCd = Random.Range(0.15f, 0.45f) / sp; return; }
-            if (weapon != null)
+            if (weapon != null && !kick)
             {
-                float r = weapon.rate * sp;
                 switch (weapon.kind)
                 {
-                    case WeaponKind.Blade: StartAct(Act.Slash, 0.48f / r); break;
-                    case WeaponKind.Blunt: StartAct(Act.Smash, 0.62f / r); break;
-                    case WeaponKind.Spear: StartAct(Act.Stab, 0.5f / r); break;
-                    case WeaponKind.Chainsaw: StartAct(Act.Saw, 0.9f); sawTick = 0; break;
+                    case WeaponKind.Chainsaw: StartAct(Act.Saw, 0.9f); sawTick = 0; atkCd = 0.2f; return;
                     case WeaponKind.Staff:
                         if (target != null && Mathf.Abs(target.pos.x - pos.x) > 3f && staffCd <= 0f)
                         {
                             castAb = Ability.Fireball; castFromStaff = true; staffCd = 1.6f;
                             aim = AimAt(target); StartAct(Act.Cast, 0.45f);
+                            return;
                         }
-                        else StartAct(Act.Slash, 0.5f / r);
                         break;
                     case WeaponKind.Gun:
-                        if (ammo <= 0) { StartAct(Act.Punch, 0.32f / sp); break; }
+                        if (ammo <= 0) break;
                         aim = AimAt(target);
                         StartAct(Act.Shoot, (weapon.rifle ? 0.13f : 0.3f) / weapon.rate);
-                        break;
+                        atkCd = 0.05f;
+                        return;
                     case WeaponKind.Bow:
-                        if (ammo <= 0) { StartAct(Act.Punch, 0.32f / sp); break; }
+                        if (ammo <= 0) break;
                         aim = AimAt(target);
                         if (target != null) aim = (aim + Vector2.up * Mathf.Abs(target.pos.x - pos.x) * 0.012f).normalized;
                         StartAct(Act.Shoot, 0.65f / weapon.rate);
-                        break;
+                        return;
                     case WeaponKind.Thrown:
-                        if (ammo <= 0) { StartAct(Act.Punch, 0.32f / sp); break; }
+                        if (ammo <= 0) break;
                         aim = AimAt(target);
                         StartAct(Act.Throw, 0.4f / weapon.rate);
-                        break;
+                        return;
                 }
             }
-            else { alt = !alt; StartAct(Act.Punch, 0.32f / sp); }
-            atkCd = Random.Range(0.12f, 0.45f) / sp;
+            bool wantHigh = target != null && target.B.Needs(HF.Head) && Random.value < 0.7f;
+            bool wantLow = target != null && target.body == BodyS.Down;
+            StartMove(Move.Starter(B.style, kick, MeleeWeapon && !kick, weapon != null ? weapon.kind : WeaponKind.Fists, !grounded, wantHigh, wantLow));
+            comboLeft = Random.Range(2, 5) + (B.agi > 1.3f ? 1 : 0);
+            atkCd = Random.Range(0.1f, 0.35f) / sp;
         }
 
         Vector2 AimAt(Fighter t)
@@ -516,6 +689,27 @@ namespace StickWars
             StartAct(Act.Block, 0.45f);
         }
 
+        public void StartRoll(int dir)
+        {
+            if (!Free || !grounded) return;
+            rollDir = dir;
+            StartAct(Act.Roll, 0.42f);
+            iframes = 0.42f;
+            battle.fx.Dust(pos, 6);
+            battle.audio.Sfx("whoosh", 0.5f);
+        }
+
+        public void StartBackflip()
+        {
+            if (!Free || !grounded) return;
+            StartAct(Act.Flip, 0.55f);
+            vel = new Vector2(-facing * 6f, 12f);
+            grounded = false;
+            iframes = 0.3f;
+            battle.fx.Dust(pos, 6);
+            battle.audio.Sfx("whoosh", 0.5f);
+        }
+
         void ActTick(float dt)
         {
             if (act == Act.None) return;
@@ -523,19 +717,37 @@ namespace StickWars
             float u = actT / actDur;
             switch (act)
             {
+                case Act.Move:
+                    if (mv == null) { act = Act.None; break; }
+                    if (mv.slam && mv.air && !grounded && u >= mv.hitAt * 0.7f && vel.y > -18f) vel = new Vector2(facing * 6f, -20f);
+                    if (u >= mv.hitAt && u <= mv.hitAt + 0.15f) MoveHit();
+                    // отмена восстановления в следующий приём (комбо)
+                    if (mvHit && u >= mv.hitAt + 0.1f)
+                    {
+                        Move nx = null;
+                        if (human) nx = queued;
+                        else if (comboLeft > 0 && mv.next.Length > 0 && target != null && !target.dead && Random.value < 0.75f + 0.1f * B.agi)
+                            nx = PickNext(mv);
+                        if (nx != null && (!nx.air || !grounded) && (!nx.weapon || MeleeWeapon) && (nx.air || grounded))
+                        {
+                            comboLeft--;
+                            if (mv.launcher && !human) followAir = true;
+                            StartMove(nx);
+                            return;
+                        }
+                    }
+                    break;
                 case Act.Saw:
                     sawTick -= dt;
                     if (sawTick <= 0f)
                     {
                         sawTick = 0.09f;
                         battle.audio.Sfx("saw", 0.5f);
-                        Melee(weapon != null ? weapon.range : 1.4f, weapon != null ? weapon.dmg : 4f, DmgType.Blade, weapon != null ? weapon.element : Element.None, 0.8f, 0.12f, J[4], false, true);
+                        SawHit();
                         battle.fx.Sparks(J[4] + new Vector2(facing * 0.6f, 0), new Vector2(facing, 0.5f), 2, new Color(1f, 0.8f, 0.3f));
                     }
                     break;
-                case Act.Laser:
-                    LaserTick(dt);
-                    break;
+                case Act.Laser: LaserTick(dt); break;
                 case Act.Dash:
                     ghostT -= dt;
                     if (ghostT <= 0) { ghostT = 0.04f; battle.AfterImage(this, Draw.A(mainCol, 0.5f)); }
@@ -545,12 +757,18 @@ namespace StickWars
                         if (Mathf.Abs(e.pos.x - pos.x) < 0.9f * Size && Mathf.Abs(e.pos.y - pos.y) < 1.3f)
                         {
                             dashHit.Add(e);
-                            var h = MakeHit(14f, weapon != null && !weapon.Ranged ? weapon.Type : DmgType.Blunt, weapon != null ? weapon.element : B.affinity, 7f, 0.3f);
-                            h.point = e.Center; h.dir = new Vector2(facing, 0.4f).normalized;
+                            var h = MakeHit(14f, MeleeWeapon ? weapon.Type : DmgType.Blunt, weapon != null ? weapon.element : B.affinity, 8f, 0.3f);
+                            h.point = e.Center; h.dir = new Vector2(facing, 0.4f).normalized; h.knockdown = true; h.lift = 5f;
+                            if (!MeleeWeapon) h.extra |= HF.Unarmed;
                             e.TakeHit(h);
                             battle.audio.Sfx("kick");
                         }
                     }
+                    break;
+                case Act.Roll:
+                    if (Random.value < 0.3f) battle.fx.Dust(pos, 1);
+                    break;
+                case Act.GetUp:
                     break;
                 default:
                     if (!actFired && u >= 0.45f) { actFired = true; Fire(); }
@@ -559,83 +777,162 @@ namespace StickWars
             if (actT >= actDur)
             {
                 if (act == Act.Laser) { lLaser.enabled = lLaserGlow.enabled = false; }
+                if (act == Act.Move && !human && followAir) { }
                 act = Act.None;
+                mv = null;
             }
+        }
+
+        Move PickNext(Move m)
+        {
+            if (m.next.Length == 0) return null;
+            bool needHead = target != null && target.B.Needs(HF.Head);
+            if (needHead)
+                foreach (var n in m.next) if (n.high && Random.value < 0.7f) return n;
+            if (target != null && target.body == BodyS.Tumble)
+                foreach (var n in m.next) if (n.launcher || n.air) return n;
+            Move pick = m.next[Random.Range(0, m.next.Length)];
+            if (B.style == Style.Kicker) foreach (var n in m.next) if (n.limb >= 2 && Random.value < 0.6f) { pick = n; break; }
+            if (B.style == Style.Boxer) foreach (var n in m.next) if (n.limb < 2 && Random.value < 0.6f) { pick = n; break; }
+            return pick;
+        }
+
+        Vector2 Tip(int limb)
+        {
+            switch (limb)
+            {
+                case 0: return J[4];
+                case 1: return J[6];
+                case 2: return J[8];
+                case 3: return J[10];
+            }
+            if (weapon == null) return J[4];
+            return weaponRoot.TransformPoint(new Vector3(TipLen(), 0, 0));
+        }
+
+        float TipLen()
+        {
+            if (weapon == null) return 0.2f;
+            float s = Size * weapon.size;
+            switch (weapon.kind)
+            {
+                case WeaponKind.Blade: return 1.05f * s;
+                case WeaponKind.Blunt: return (weapon.bat ? 1f : 0.85f) * s;
+                case WeaponKind.Spear: return 1.8f * s;
+                case WeaponKind.Staff: return 1.1f * s;
+                case WeaponKind.Chainsaw: return 1.1f * s;
+            }
+            return 0.4f * s;
         }
 
         HitInfo MakeHit(float dmg, DmgType type, Element elem, float knock, float stun)
         {
             var h = new HitInfo();
-            h.dmg = dmg * (RageOn ? 1.5f : 1f) * Random.Range(0.9f, 1.1f);
+            h.dmg = dmg * B.dmgMul * (RageOn ? 1.5f : 1f) * Random.Range(0.9f, 1.1f);
             h.type = type; h.elem = elem; h.knock = knock; h.stun = stun; h.attacker = this;
             h.dir = new Vector2(facing, 0.25f).normalized;
             return h;
+        }
+
+        void MoveHit()
+        {
+            float reach = mv.reach * (mv.weapon && weapon != null ? weapon.range : 1f) * Size;
+            Vector2 c = Center;
+            Vector2 tip = Tip(mv.limb);
+            foreach (var e in battle.fighters)
+            {
+                if (e.team == team || e.dead || mvHitList.Contains(e)) continue;
+                if (e.iframes > 0) continue;
+                Vector2 rel = e.Center - c;
+                float fx = rel.x * facing;
+                float hy = 1.0f * Size + 0.6f * e.Size;
+                if (e.body == BodyS.Down) hy = mv.low || mv.slam || mv.weapon ? hy : 0.4f;
+                if (!(fx > -0.4f && fx < reach + 0.35f * e.Size && Mathf.Abs(rel.y) < hy)) continue;
+                if (mv.low && !e.grounded) continue;
+
+                // встречный удар — столкновение
+                if (e.Active && e.facing == -facing && e.mv != null && !e.mvHit && Random.value < 0.45f)
+                {
+                    Clash(e);
+                    return;
+                }
+
+                mvHitList.Add(e);
+                bool wpn = mv.weapon && weapon != null;
+                float dmg = wpn ? weapon.dmg * mv.dmg * (0.6f + 0.4f * B.str) : mv.dmg * B.str;
+                DmgType type = wpn ? (mv.stab && weapon.kind == WeaponKind.Blade ? DmgType.Pierce : weapon.Type) : DmgType.Blunt;
+                Element el = wpn ? weapon.element : B.affinity;
+                var h = MakeHit(dmg, type, el, mv.knock.x * (wpn ? weapon.knock : 1f) * Mathf.Pow(B.str, 0.3f), mv.stun);
+                h.lift = mv.knock.y;
+                h.launcher = mv.launcher; h.slam = mv.slam; h.knockdown = mv.knockdown; h.heavy = mv.heavy;
+                h.dir = new Vector2(facing, 0.2f).normalized;
+                if (!wpn) h.extra |= HF.Unarmed;
+                Vector2 headP = e.J[2];
+                bool head = (mv.high && e.body == BodyS.Normal && Random.value < 0.85f) || Mathf.Abs(tip.y - headP.y) < Skel.HeadR * e.Size * 1.6f;
+                if (e.body == BodyS.Down) head = Random.value < 0.25f;
+                if (head) h.extra |= HF.Head;
+                h.point = head ? headP - new Vector2(facing * Skel.HeadR * e.Size, 0) : new Vector2(e.pos.x - facing * 0.12f * e.Size, Mathf.Clamp(tip.y, e.pos.y + 0.4f * e.Size, e.J[1].y));
+                if (wpn && weapon.bleed) { e.bleedT = Mathf.Max(e.bleedT, 3f); e.bleedBy = this; }
+                e.TakeHit(h);
+                OnLanded(h);
+                if (!mv.cleave && !wpn) break;
+            }
+        }
+
+        void OnLanded(HitInfo h)
+        {
+            mvHit = true;
+            combo++;
+            comboT = 1.2f;
+            if (combo > maxCombo) maxCombo = combo;
+            if (combo >= 3) battle.Popup(combo + " HITS!", J[2] + new Vector2(-facing * 0.6f, 1.1f), Color.Lerp(mainCol, Color.white, 0.5f), 0.7f + Mathf.Min(0.6f, combo * 0.05f));
+            atkCd = Mathf.Min(atkCd, 0.05f);
+            if (h.type == DmgType.Blade || h.type == DmgType.Pierce) { battle.audio.Sfx("cut", 0.8f); battle.audio.Sfx("splat", 0.5f); }
+            else battle.audio.Sfx(mv != null ? mv.sfx : "punch", 0.9f);
+        }
+
+        void Clash(Fighter e)
+        {
+            Vector2 mid = (Tip(mv.limb) + e.Tip(e.mv.limb)) * 0.5f;
+            vel.x = -facing * 9f; e.vel.x = -e.facing * 9f;
+            act = Act.None; e.act = Act.None; mv = null; e.mv = null;
+            stun = 0.25f; e.stun = 0.25f;
+            battle.HitSpark(mid, Vector2.up, 2f, new Color(1f, 0.9f, 0.4f));
+            battle.fx.Sparks(mid, Vector2.up, 24, new Color(1f, 0.9f, 0.5f));
+            battle.Popup("CLASH!", mid + Vector2.up * 0.8f, new Color(1f, 0.9f, 0.3f), 1.1f);
+            battle.audio.Sfx("clang", 1f);
+            battle.Impact(20f, mid, true);
+            battle.Flash(0.06f, new Color(1, 1, 1, 0.5f));
+        }
+
+        void SawHit()
+        {
+            Vector2 c = Center;
+            float r = (weapon != null ? weapon.range : 1.4f) * Size;
+            foreach (var e in battle.fighters)
+            {
+                if (e.team == team || e.dead || e.iframes > 0) continue;
+                Vector2 rel = e.Center - c;
+                float fx = rel.x * facing;
+                if (fx > -0.35f && fx < r + 0.3f * e.Size && Mathf.Abs(rel.y) < 1.2f * Size)
+                {
+                    var h = MakeHit(weapon != null ? weapon.dmg : 4f, DmgType.Blade, weapon != null ? weapon.element : Element.None, 0.8f, 0.12f);
+                    h.point = new Vector2(e.pos.x - facing * 0.12f * e.Size, J[4].y);
+                    e.bleedT = Mathf.Max(e.bleedT, 3f); e.bleedBy = this;
+                    e.TakeHit(h);
+                    combo++; comboT = 1.2f; if (combo > maxCombo) maxCombo = combo;
+                }
+            }
         }
 
         void Fire()
         {
             switch (act)
             {
-                case Act.Punch:
-                    Melee(0.95f, 7f, DmgType.Blunt, B.affinity, 3.5f, 0.15f, alt ? J[6] : J[4], false, false);
-                    break;
-                case Act.Kick:
-                    Melee(1.15f, 10f, DmgType.Blunt, B.affinity, 6.5f, 0.25f, J[8], false, false);
-                    break;
-                case Act.Slash:
-                    if (weapon == null) break;
-                    battle.audio.Sfx("slash", 0.7f);
-                    Melee(weapon.range, weapon.dmg, weapon.Type, weapon.element, 4.5f * weapon.knock, 0.2f, J[4], true, weapon.bleed);
-                    break;
-                case Act.Smash:
-                    if (weapon == null) break;
-                    battle.audio.Sfx("whoosh", 0.7f);
-                    if (Melee(weapon.range, weapon.dmg, DmgType.Blunt, weapon.element, 8f * weapon.knock, 0.35f, J[4], true, false)) battle.cam.Kick(0.6f);
-                    if (grounded) battle.fx.Dust(new Vector2(pos.x + facing * weapon.range * 0.8f, 0), 5);
-                    break;
-                case Act.Stab:
-                    if (weapon == null) break;
-                    battle.audio.Sfx("slash", 0.5f);
-                    Melee(weapon.range, weapon.dmg, weapon.Type, weapon.element, 5f * weapon.knock, 0.2f, J[4], false, weapon.bleed);
-                    break;
                 case Act.Shoot: FireGun(); break;
                 case Act.Throw: FireThrown(); break;
                 case Act.Cast: DoCast(); break;
             }
-        }
-
-        bool Melee(float reach, float dmg, DmgType type, Element elem, float knock, float stunT, Vector2 from, bool cleave, bool bleed)
-        {
-            float r = reach * Size;
-            Vector2 c = Center;
-            bool any = false;
-            foreach (var e in battle.fighters)
-            {
-                if (e.team == team || e.dead) continue;
-                Vector2 rel = e.Center - c;
-                float fx = rel.x * facing;
-                if (fx > -0.35f && fx < r + 0.3f * e.Size && Mathf.Abs(rel.y) < 1.0f * Size + 0.5f * e.Size)
-                {
-                    float str = (weapon != null && weapon.Ranged) ? 1f : B.str;
-                    var h = MakeHit(dmg * str, type, elem, knock, stunT);
-                    h.point = new Vector2(e.pos.x - facing * 0.12f * e.Size, Mathf.Clamp(from.y, e.pos.y + 0.5f * e.Size, e.J[2].y));
-                    h.headshot = type == DmgType.Blade && Mathf.Abs(h.point.y - e.J[2].y) < Skel.HeadR * e.Size * 1.5f && Random.value < 0.25f;
-                    h.heavy = knock > 7f;
-                    if (bleed) e.bleedT = Mathf.Max(e.bleedT, 3f);
-                    if (bleed) e.bleedBy = this;
-                    e.TakeHit(h);
-                    any = true;
-                    if (!cleave) break;
-                }
-            }
-            if (any)
-            {
-                atkCd = Mathf.Min(atkCd, 0.06f);
-                if (type == DmgType.Blade) { battle.audio.Sfx("cut", 0.8f); battle.audio.Sfx("splat", 0.5f); }
-                else battle.audio.Sfx(act == Act.Kick || act == Act.Smash ? "kick" : "punch", 0.9f);
-            }
-            else if (act != Act.Saw) battle.audio.Sfx("whoosh", 0.35f);
-            return any;
         }
 
         void FireGun()
@@ -717,8 +1014,8 @@ namespace StickWars
                     break;
                 case Ability.GroundSlam:
                     slamPending = true;
-                    if (grounded) { vel.y = 14f; grounded = false; }
-                    else vel.y = -20f;
+                    if (grounded) { vel.y = 15f; grounded = false; StartAirFlip(1f); }
+                    else vel.y = -22f;
                     battle.audio.Sfx("whoosh", 0.8f);
                     break;
                 case Ability.Invisibility:
@@ -762,6 +1059,7 @@ namespace StickWars
                     {
                         Element el = (castFromStaff && weapon != null) ? weapon.element : Element.Fire;
                         var h = MakeHit(16f * pw, Info.ToType(el == Element.None ? Element.Fire : el), el == Element.None ? Element.Fire : el, 5f, 0.2f);
+                        h.extra |= HF.Magic;
                         var kind = el == Element.Fire || el == Element.None ? Projectile.Kind.Fireball : Projectile.Kind.Bolt;
                         if (kind == Projectile.Kind.Bolt) h.dmg = 11f * pw;
                         battle.SpawnProjectile(kind, hand + aim * 0.3f, aim * 13f, this, h, Info.ElemColor(el == Element.None ? Element.Fire : el));
@@ -772,6 +1070,7 @@ namespace StickWars
                     for (int i = -1; i <= 1; i++)
                     {
                         var h = MakeHit(7.5f * pw, DmgType.Ice, Element.Ice, 2.5f, 0.15f);
+                        h.extra |= HF.Magic;
                         Vector2 d = Quaternion.Euler(0, 0, i * 8f) * aim;
                         battle.SpawnProjectile(Projectile.Kind.Ice, hand, d * 17f, this, h, Info.ElemColor(Element.Ice));
                     }
@@ -795,9 +1094,10 @@ namespace StickWars
 
         public void Lift(Fighter by)
         {
-            if (dead) return;
-            stun = 1.2f;
-            act = Act.None;
+            if (dead || iframes > 0) return;
+            if (act == Act.Laser) { lLaser.enabled = lLaserGlow.enabled = false; }
+            act = Act.None; mv = null;
+            body = BodyS.Tumble; bounced = true; spinVel = 180f;
             vel = new Vector2((by.pos.x - pos.x) * 0.25f, 14f);
             grounded = false;
             tkSlam = true;
@@ -819,6 +1119,7 @@ namespace StickWars
                 if (Mathf.Abs(e.pos.x - pos.x) < 3.8f * Size && e.pos.y < 1.5f)
                 {
                     var h = MakeHit(18f * pw, DmgType.Blunt, B.affinity, 8f, 0.4f);
+                    h.extra |= HF.Magic;
                     h.dir = new Vector2(Mathf.Sign(e.pos.x - pos.x), 1.2f).normalized;
                     h.point = e.pos + Vector2.up * 0.4f;
                     h.heavy = true;
@@ -865,6 +1166,7 @@ namespace StickWars
                     if (perp < 0.55f * e.Size)
                     {
                         var h = MakeHit(2.6f * (0.7f + 0.3f * B.str), DmgType.Fire, Element.Fire, 0.6f, 0.05f);
+                        h.extra |= HF.Magic;
                         h.point = eye + dir * along; h.dir = dir; h.noFlinch = true;
                         e.TakeHit(h);
                         battle.fx.Sparks(h.point, -dir, 3, new Color(1f, 0.6f, 0.3f));
@@ -874,36 +1176,86 @@ namespace StickWars
         }
 
         // ===================== УРОН =====================
+        int Flags(HitInfo h)
+        {
+            return (int)HFInfo.FromType(h.type) | (int)HFInfo.FromElem(h.elem) | (int)h.extra;
+        }
+
+        bool Matches(int flags)
+        {
+            foreach (var m in B.killMasks) if ((flags & m) == m) return true;
+            return false;
+        }
+
+        bool KillOnly { get { return B.killOnly && !battle.suddenDeath; } }
+
+        float ApplyRules(float d, int flags, Vector2 at, out bool match)
+        {
+            match = Matches(flags);
+            if (match)
+            {
+                d *= KillOnly ? 2.5f : 2f;
+                regenBlock = 4f;
+                if (popupCd <= 0) { popupCd = 0.6f; battle.Popup(KillOnly ? "СЛАБОЕ МЕСТО!" : "СЛАБОСТЬ!", at + Vector2.up * 0.9f, new Color(1f, 0.85f, 0.1f), 0.85f); }
+            }
+            else
+            {
+                if ((flags & B.immuneMask) != 0)
+                {
+                    if (popupCd <= 0) { popupCd = 0.8f; battle.Popup("ИММУНИТЕТ", at + Vector2.up * 0.9f, new Color(0.7f, 0.85f, 1f), 0.7f); }
+                    return 0f;
+                }
+                if (KillOnly) d *= 0.15f;
+            }
+            return d;
+        }
+
         public void TakeHit(HitInfo h)
         {
             if (dead) return;
+            if (iframes > 0 && !h.extra.HasFlag(HF.Fall))
+            {
+                if (popupCd <= 0) { popupCd = 0.4f; battle.Popup("ПРОМАХ", J[2] + Vector2.up * 0.6f, new Color(0.8f, 0.8f, 0.8f), 0.6f); }
+                return;
+            }
+            if (h.attacker != null && h.attacker != this && body == BodyS.Normal && Mathf.Sign(h.attacker.pos.x - pos.x) == -facing && Mathf.Abs(h.attacker.pos.x - pos.x) > 0.05f)
+                h.extra |= HF.Back;
             float d = h.dmg;
-            bool blocked = act == Act.Block && Mathf.Sign(h.dir.x) == -facing && h.type != DmgType.Lightning;
+            bool blocked = act == Act.Block && Mathf.Sign(h.dir.x) == -facing && h.type != DmgType.Lightning && (h.extra & HF.Back) == 0;
             if (blocked)
             {
-                d *= 0.2f; h.knock *= 0.35f;
-                battle.fx.Sparks(h.point, -h.dir, 10, new Color(1f, 0.9f, 0.5f));
-                battle.audio.Sfx("clang", 0.6f);
+                if (h.heavy)
+                {
+                    d *= 0.45f; h.knock *= 0.6f; blocked = false;
+                    battle.Popup("БЛОК ПРОБИТ!", J[2] + Vector2.up * 0.8f, new Color(1f, 0.5f, 0.2f), 0.8f);
+                    stun = 0.5f;
+                }
+                else
+                {
+                    d *= 0.15f; h.knock *= 0.35f;
+                    battle.fx.Sparks(h.point, -h.dir, 12, new Color(1f, 0.9f, 0.5f));
+                    battle.HitSpark(h.point, -h.dir, 0.7f, new Color(1f, 0.9f, 0.5f));
+                    battle.audio.Sfx("clang", 0.6f);
+                    h.launcher = h.knockdown = h.slam = false;
+                }
             }
-            bool weak = h.type == B.weakness || (h.elem != Element.None && Info.ToType(h.elem) == B.weakness);
-            if (weak)
-            {
-                d *= 2f;
-                regenBlock = 4f;
-                if (Random.value < 0.6f) battle.Popup("СЛАБОСТЬ!", J[2] + Vector2.up * 0.9f, new Color(1f, 0.85f, 0.1f), 0.8f);
-            }
-            else if (h.elem != Element.None && h.elem == B.affinity) d *= 0.5f;
+            int flags = Flags(h);
+            bool match;
+            d = ApplyRules(d, flags, J[2], out match);
+            if (!match && (flags & B.resistMask) != 0) d *= 0.4f;
+            if (h.elem != Element.None && h.elem == B.affinity && !match) d *= 0.5f;
             d /= Mathf.Sqrt(B.def);
-            if (shieldT > 0 && !weak)
-            {
-                d *= 0.25f; h.knock *= 0.3f;
-                battle.fx.Sparks(h.point, -h.dir, 6, new Color(0.4f, 0.9f, 1f));
-            }
-            if (h.headshot) { d *= 1.4f; }
-            if (h.attacker != null && h.attacker.RageOn) d *= 1f; // ярость уже в MakeHit
-            d = Mathf.Max(0.5f, d);
+            if (shieldT > 0 && !match) { d *= 0.25f; h.knock *= 0.3f; battle.fx.Sparks(h.point, -h.dir, 6, new Color(0.4f, 0.9f, 1f)); }
+            if ((h.extra & HF.Head) != 0) d *= 1.35f;
+            if (body == BodyS.Down) { d *= 0.6f; }
+            if (d > 0) d = Mathf.Max(0.5f, d);
 
             hp -= d;
+            if (KillOnly && !match && hp < 1f)
+            {
+                hp = 1f;
+                if (popupCd <= 0) { popupCd = 1f; battle.Popup("ЕГО ТАК НЕ УБИТЬ!", J[2] + Vector2.up * 1.1f, new Color(1f, 0.4f, 0.3f), 0.8f); }
+            }
             invisT = 0;
             if (h.attacker != null)
             {
@@ -911,17 +1263,21 @@ namespace StickWars
                 if (h.attacker.B.HasAb(Ability.Vampire) && !h.attacker.dead) h.attacker.hp = Mathf.Min(h.attacker.maxHp, h.attacker.hp + d * 0.3f);
                 if (h.elem == Element.Shadow && !h.attacker.dead) h.attacker.hp = Mathf.Min(h.attacker.maxHp, h.attacker.hp + d * 0.25f);
             }
-            battle.DamageNumber(d, J[2] + Vector2.up * 0.5f, weak, h.headshot);
+            if (d > 0) battle.DamageNumber(d, J[2] + Vector2.up * 0.5f, match, (h.extra & HF.Head) != 0);
 
-            if (!blocked)
+            if (!blocked && d > 0)
             {
                 float amt = d * (h.type == DmgType.Blade || h.type == DmgType.Pierce ? 2.2f : 1.3f);
                 if (h.type == DmgType.Fire || h.type == DmgType.Lightning || h.type == DmgType.Ice) amt *= 0.4f;
-                battle.fx.Blood(h.point, h.dir, amt);
+                Vector2 bdir = (h.extra & HF.Head) != 0 ? (h.dir + Vector2.up * 0.8f) : h.dir;
+                battle.fx.Blood(h.point, bdir, amt);
                 if (h.type == DmgType.Fire) battle.fx.Fire(h.point, 6, 0.2f);
                 if (h.type == DmgType.Ice) battle.fx.Sparks(h.point, h.dir, 8, new Color(0.6f, 0.95f, 1f));
                 if (h.type == DmgType.Lightning) battle.fx.Sparks(h.point, Vector2.up, 10, new Color(1f, 1f, 0.5f));
-                flash = 0.08f;
+                float pw = Mathf.Clamp(d / 10f, 0.5f, 2.2f) * (h.heavy ? 1.3f : 1f);
+                Color sc = h.elem != Element.None ? Info.ElemColor(h.elem) : battle.theme.ink;
+                battle.HitSpark(h.point, h.dir, pw, sc);
+                flash = 0.07f;
             }
 
             switch (h.elem)
@@ -932,32 +1288,58 @@ namespace StickWars
                 case Element.Poison: poisonT = Mathf.Max(poisonT, 5f); poisonBy = h.attacker; break;
             }
 
-            bool superArmor = Size >= 1.25f && d < 9f && !h.heavy;
-            if (!h.noFlinch && !superArmor)
+            bool superArmor = Size >= 1.25f && d < 9f && !h.heavy && !h.launcher && body == BodyS.Normal;
+            float kn = h.knock / Mathf.Sqrt(Size);
+            if (body == BodyS.Down)
             {
-                float kn = h.knock / Mathf.Sqrt(Size);
-                vel += new Vector2(h.dir.x * kn, Mathf.Max(kn * 0.35f, h.dir.y * kn));
-                if (vel.y > 0.5f) grounded = false;
-                if (act != Act.Block || !blocked) { if (act != Act.Laser) act = Act.None; }
-                hurtT = blocked ? 0.08f : 0.22f;
-                stun = Mathf.Max(stun, blocked ? 0f : h.stun);
-                if (act == Act.Laser) { act = Act.None; lLaser.enabled = lLaserGlow.enabled = false; }
+                vel.y = 3f; grounded = false; downT = Mathf.Max(downT, 0.35f);
+                body = BodyS.Tumble; spinVel = 0; bounced = true;
             }
-            battle.Impact(d, h.point, h.heavy);
+            else if (!h.noFlinch && !superArmor && !blocked && (h.launcher || h.knockdown || h.slam || d >= 20f || body == BodyS.Tumble || (!grounded && kn > 3f)))
+            {
+                bool wasAir = !grounded || body == BodyS.Tumble;
+                body = BodyS.Tumble;
+                if (act == Act.Laser) { lLaser.enabled = lLaserGlow.enabled = false; }
+                act = Act.None; mv = null; ClearTrail();
+                float lift = h.lift != 0 ? h.lift : Mathf.Max(4f, kn * 0.5f);
+                if (h.slam && wasAir) vel = new Vector2(h.dir.x * kn * 0.4f, -20f);
+                else vel = new Vector2(h.dir.x * kn, Mathf.Max(lift, 2f));
+                grounded = false;
+                if (wasAir) juggle++;
+                bounced = false;
+                float sgn = Mathf.Sign(h.dir.x) == facing ? -1f : 1f; // удар в спину — кувырок вперёд
+                spinVel = sgn * (h.launcher ? 260f : Mathf.Clamp(kn * 70f, 300f, 900f));
+                if (Mathf.Abs(Mathf.Repeat(tumbleSpin + 180f, 360f) - 180f) > 120f) tumbleSpin = 0;
+                stun = Mathf.Max(stun, 0.3f);
+                hurtT = 0;
+            }
+            else if (!h.noFlinch && !superArmor)
+            {
+                vel += new Vector2(h.dir.x * kn, Mathf.Max(kn * 0.2f, h.dir.y * kn));
+                if (vel.y > 0.5f) grounded = false;
+                if (!blocked) { if (act == Act.Laser) { lLaser.enabled = lLaserGlow.enabled = false; } act = Act.None; mv = null; ClearTrail(); }
+                hurtT = blocked ? 0.08f : 0.26f;
+                stun = Mathf.Max(stun, blocked ? 0f : h.stun);
+                hurtPose = (h.extra & HF.Head) != 0 ? Pose.HurtHigh : (Random.value < 0.5f ? Pose.HurtBody : Pose.Hurt);
+            }
+            battle.Impact(d, h.point, h.heavy || h.launcher);
 
             if (hp <= 0) Die(h);
         }
 
-        void RawDamage(float d, DmgType type, Fighter src, bool show)
+        void RawDamage(float d, DmgType type, Fighter src, bool show, HF extra = HF.None)
         {
             if (dead) return;
-            if (type == B.weakness) { d *= 2f; regenBlock = 4f; }
+            int flags = (int)HFInfo.FromType(type) | (int)extra;
+            bool match;
+            d = ApplyRules(d, flags, J[2], out match);
             hp -= d;
+            if (KillOnly && !match && hp < 1f) hp = 1f;
             if (src != null) src.dmgDealt += d;
-            if (show) battle.DamageNumber(d, J[2] + Vector2.up * 0.5f, false, false);
+            if (show && d > 0) battle.DamageNumber(d, J[2] + Vector2.up * 0.5f, match, false);
             if (hp <= 0)
             {
-                var h = new HitInfo { dmg = d, type = type, attacker = src, dir = new Vector2(-facing, 0.5f).normalized, point = Center, knock = 2f };
+                var h = new HitInfo { dmg = d, type = type, attacker = src, dir = new Vector2(-facing, 0.5f).normalized, point = Center, knock = 2f, extra = extra };
                 Die(h);
             }
         }
@@ -965,23 +1347,25 @@ namespace StickWars
         void Die(HitInfo h)
         {
             if (dead) return;
-            dead = true; hp = 0; act = Act.None; deadTime = 0;
+            dead = true; hp = 0; act = Act.None; deadTime = 0; mv = null;
             shieldT = 0; invisT = 0;
+            ClearTrail();
             lLaser.enabled = lLaserGlow.enabled = false;
             if (weapon != null && (!weapon.Ranged || ammo > 0))
                 battle.SpawnPickup(weapon, ammo, J[4], vel + new Vector2(Random.Range(-3f, 3f), 6f), false);
             SetWeapon(null, 0);
-            Vector2 v = vel + h.dir * h.knock * 1.4f + Vector2.up * 2f;
+            Vector2 v = vel + h.dir * h.knock * 1.4f + Vector2.up * 3f;
             rag = new Ragdoll(J, v, Size);
             float bloodMul = Game.I != null ? Game.I.S.blood : 1f;
-            bool decap = bloodMul > 0.01f && ((h.type == DmgType.Blade && (h.heavy || h.dmg > 14f || Random.value < 0.35f)) || h.headshot);
+            bool head = (h.extra & HF.Head) != 0;
+            bool decap = bloodMul > 0.01f && ((h.type == DmgType.Blade && (h.heavy || h.dmg > 14f || head || Random.value < 0.35f)) || (head && h.heavy) || h.headshot);
             if (decap)
             {
-                rag.BreakNeck(new Vector2(h.dir.x * 6f + Random.Range(-1f, 1f), 7f));
+                rag.BreakNeck(new Vector2(h.dir.x * 6f + Random.Range(-1f, 1f), 8f));
                 fountainT = 2.5f;
                 battle.Popup("ГОЛОВА С ПЛЕЧ!", J[2] + Vector2.up * 1.2f, new Color(1f, 0.2f, 0.15f), 1.1f);
             }
-            battle.fx.Blood(h.point, h.dir, 55);
+            battle.fx.Blood(h.point, h.dir, 60);
             battle.audio.Sfx("splat", 1f);
             battle.audio.Sfx("thud", 0.8f);
             if (h.attacker != null && h.attacker != this) h.attacker.kills++;
@@ -1004,20 +1388,36 @@ namespace StickWars
             if (rag.headOff && !headPooled && rag.rest > 0.3f) { headPooled = true; battle.fx.Pool(rag.p[2], 1.1f * Size); }
         }
 
+        // подходит ли оружие под условие смерти цели
+        public static bool Satisfies(WeaponStats w, Fighter t)
+        {
+            if (w == null || t == null) return false;
+            int f = (int)HFInfo.FromType(w.Type) | (int)HFInfo.FromElem(w.element) | (w.explode ? (int)HF.Explosion : 0);
+            if (w.kind == WeaponKind.Blade) f |= (int)HF.Pierce; // выпад клинком = протыкание
+            int pos = (int)(HF.Head | HF.Back | HF.Fall);
+            foreach (var m in t.B.killMasks) { int need = m & ~pos; if (need != 0 && (f & need) == need) return true; }
+            return false;
+        }
+
         void TryPickup()
         {
-            if (weapon != null || dead) return;
+            if (dead) return;
+            bool armed = weapon != null && (!weapon.Ranged || ammo > 0);
             foreach (var pk in battle.pickups)
             {
                 if (!pk.landed && pk.pos.y > 1.8f) continue;
-                if (Mathf.Abs(pk.pos.x - pos.x) < 0.8f && Mathf.Abs(pk.pos.y - pos.y) < 1.8f)
+                if (Mathf.Abs(pk.pos.x - pos.x) > 0.8f || Mathf.Abs(pk.pos.y - pos.y) > 1.8f) continue;
+                if (armed)
                 {
-                    SetWeapon(pk.w.Copy(), pk.ammo);
-                    battle.RemovePickup(pk);
-                    battle.audio.Sfx("pickup", 0.7f);
-                    battle.Popup(weapon.name, J[2] + Vector2.up * 0.8f, Color.Lerp(weapon.color, Color.white, 0.3f), 0.8f);
-                    return;
+                    // поменять оружие можно на "убийцу", если текущее не подходит против цели
+                    if (human || !pk.w.killer || target == null || Satisfies(weapon, target) || !Satisfies(pk.w, target)) continue;
+                    battle.SpawnPickup(weapon, ammo, J[4], new Vector2(-facing * 3f, 5f), false);
                 }
+                SetWeapon(pk.w.Copy(), pk.ammo);
+                battle.RemovePickup(pk);
+                battle.audio.Sfx("pickup", 0.7f);
+                battle.Popup(weapon.name, J[2] + Vector2.up * 0.8f, Color.Lerp(weapon.color, Color.white, 0.3f), 0.8f);
+                return;
             }
         }
 
@@ -1029,19 +1429,39 @@ namespace StickWars
             KeyCode L, R, U, D, A, K, Q1, Q2, Q3;
             if (pindex == 0) { L = KeyCode.A; R = KeyCode.D; U = KeyCode.W; D = KeyCode.S; A = KeyCode.F; K = KeyCode.G; Q1 = KeyCode.R; Q2 = KeyCode.T; Q3 = KeyCode.Y; }
             else { L = KeyCode.LeftArrow; R = KeyCode.RightArrow; U = KeyCode.UpArrow; D = KeyCode.DownArrow; A = KeyCode.K; K = KeyCode.L; Q1 = KeyCode.I; Q2 = KeyCode.O; Q3 = KeyCode.P; }
-            if (g.Held(L)) move -= 1;
-            if (g.Held(R)) move += 1;
-            if (g.Pressed(U)) jump = true;
             if (pindex == 1)
             {
                 if (g.Pressed(KeyCode.Keypad1)) A = KeyCode.Keypad1;
                 if (g.Pressed(KeyCode.Keypad2)) K = KeyCode.Keypad2;
             }
+            if (g.Held(L)) move -= 1;
+            if (g.Held(R)) move += 1;
+            bool atk = g.Pressed(A), kick = g.Pressed(K);
+            if (g.Pressed(U) && !atk && !kick) jump = true;
+
+            // буфер комбо: нажатие во время приёма ставит следующий удар в очередь
+            if (act == Act.Move && mv != null && (atk || kick))
+            {
+                Move nx = null;
+                foreach (var n in mv.next) if ((kick ? n.limb >= 2 : n.limb < 2 || n.weapon) && (n.air == !grounded)) { nx = n; break; }
+                if (nx == null) foreach (var n in mv.next) if (n.air == !grounded) { nx = n; break; }
+                if (g.Held(U)) foreach (var n in mv.next) if (n.launcher) { nx = n; break; }
+                queued = nx;
+            }
+
             if (free)
             {
-                if (g.Held(D)) StartBlock();
-                else if (g.Pressed(A)) Attack(false);
-                else if (g.Pressed(K)) Attack(true);
+                if (g.Held(D) && (g.Pressed(L) || g.Pressed(R))) StartRoll(g.Pressed(L) ? -1 : 1);
+                else if (g.Held(D) && kick && grounded) StartMove(Move.Sweep);
+                else if (g.Held(U) && atk && grounded) StartMove(MeleeWeapon ? Move.Rise : Move.Upper);
+                else if (!grounded && kick) StartMove(MeleeWeapon ? Move.AirSmash : Move.DiveKick);
+                else if (g.Held(D) && !atk && !kick) StartBlock();
+                else if (atk) Attack(false);
+                else if (kick)
+                {
+                    if (Mathf.Abs(vel.x) > 5f && grounded) StartMove(Move.FlyKick);
+                    else Attack(true);
+                }
                 else
                 {
                     var acts = ActiveAbilities();
@@ -1065,51 +1485,93 @@ namespace StickWars
         void AI(ref float move, ref bool jump, bool free, float dt)
         {
             think -= dt;
+            tauntT -= dt;
             if (target == null) { move = 0; return; }
             Vector2 d = target.pos - pos;
             float dist = Mathf.Abs(d.x);
             int dir = d.x >= 0 ? 1 : -1;
             bool ranged = weapon != null && weapon.Ranged && ammo > 0;
             float reach = Reach();
+            bool wantBack = target.B.Needs(HF.Back);
+
+            // добивание в воздухе после подброса
+            if (followAir && free && grounded && target.body == BodyS.Tumble && target.pos.y > 0.6f && dist < 3.5f)
+            {
+                jump = true; followAir = false;
+                vel.x = dir * 4f;
+            }
+            if (free && !grounded && target.body == BodyS.Tumble && dist < 1.9f * Size && Mathf.Abs(target.Center.y - Center.y) < 1.7f && atkCd <= 0)
+            {
+                StartMove(MeleeWeapon ? Move.AirSlash : (Random.value < 0.6f ? Move.AirPunch : Move.AirKick));
+                comboLeft = 3;
+                return;
+            }
 
             if (think <= 0f)
             {
-                think = Random.Range(0.12f, 0.3f);
+                think = Random.Range(0.08f, 0.2f);
                 pickupTarget = null;
-                if (weapon == null)
+                var pk = battle.NearestPickup(pos.x);
+                if (pk != null && (pk.landed || pk.pos.y < 3f))
                 {
-                    var pk = battle.NearestPickup(pos.x);
-                    if (pk != null && (pk.landed || pk.pos.y < 3f) && Mathf.Abs(pk.pos.x - pos.x) < dist + 3f) pickupTarget = pk;
+                    bool killerNeed = pk.w.killer && !Satisfies(weapon, target) && Satisfies(pk.w, target);
+                    if ((weapon == null && Mathf.Abs(pk.pos.x - pos.x) < dist + 3f) || killerNeed) pickupTarget = pk;
                 }
                 if (free) TryAbilities(dist, d);
-                if (grounded && Random.value < 0.05f * B.agi) jump = true;
-                if (d.y > 1.2f && dist < 4f && grounded) jump = true;
 
                 if (ranged) aiMove = dist < 3.5f ? -dir : (dist > 9f ? dir : (dist < 5f ? -dir * 0.7f : 0f));
-                else if (dist > reach * 0.85f) aiMove = dir;
+                else if (target.body == BodyS.Down)
+                {
+                    // противник лежит: добить или подразнить
+                    if (dist < reach * 0.9f && free && atkCd <= 0 && Random.value < 0.5f) { StartMove(MeleeWeapon ? Move.Overhead : Move.Sweep); }
+                    aiMove = dist > reach ? dir : (Random.value < 0.5f ? -dir * 0.6f : 0f);
+                    if (free && dist > 2f && tauntT <= 0 && Random.value < 0.15f) tauntT = 0.8f;
+                }
+                else if (dist > reach * 0.9f)
+                {
+                    aiMove = dir;
+                    // рывок в атаку с середины дистанции
+                    if (free && grounded && dist > 2.6f && dist < 5.5f && Random.value < 0.18f * B.agi * (B.style == Style.Kicker || B.style == Style.Acrobat ? 1.8f : 1f))
+                    {
+                        facing = dir;
+                        StartMove(MeleeWeapon ? Move.Thrust : Move.FlyKick);
+                    }
+                    else if (free && grounded && dist > 2f && dist < 4.5f && Random.value < 0.06f * B.agi) StartRoll(dir);
+                }
+                else if (wantBack && free && grounded && dist < 2.4f && Random.value < 0.35f)
+                {
+                    StartRoll(dir); // прокат под противником — за спину
+                }
                 else if (dist < reach * 0.35f && Random.value < 0.4f) aiMove = -dir;
                 else aiMove = Random.value < 0.15f ? -dir * 0.5f : 0f;
                 if (pickupTarget != null) aiMove = Mathf.Sign(pickupTarget.pos.x - pos.x);
                 if (Mathf.Abs(pos.x) > battle.W - 1.5f && aiMove != 0 && Mathf.Sign(aiMove) == Mathf.Sign(pos.x))
                 {
                     aiMove = 0;
-                    if (ranged && grounded) jump = true;
+                    if (grounded && free) { if (Random.value < 0.5f) jump = true; else StartRoll(-(int)Mathf.Sign(pos.x)); }
                 }
+                if (grounded && free && Random.value < 0.03f * B.agi) jump = true;
+                if (d.y > 1.2f && dist < 4f && grounded) jump = true;
+                if (free && hp < maxHp * 0.35f && dist < 2f && Random.value < 0.08f * B.agi) StartBackflip();
             }
-            move = aiMove;
+            move = tauntT > 0 ? 0 : aiMove;
             if (dodgeT > 0f)
             {
                 dodgeT -= dt;
-                if (dodgeT <= 0f && grounded) jump = true;
+                if (dodgeT <= 0f && grounded) { if (Random.value < 0.5f) jump = true; else StartRoll(Random.value < 0.5f ? dir : -dir); }
             }
 
-            if (free && atkCd <= 0f && Mathf.Abs(d.y) < 1.6f * Size + 0.4f && battle.phase == Battle.Phase.Fight)
+            if (!Free || atkCd > 0f || battle.phase != Battle.Phase.Fight || target.iframes > 0.1f) return;
+            if (Mathf.Abs(d.y) > 1.6f * Size + 0.4f && target.body != BodyS.Tumble) return;
+            if (ranged && dist > 2.2f && dist < weapon.range) Attack(false);
+            else if (weapon != null && weapon.kind == WeaponKind.Staff && dist > 3f && dist < 12f && staffCd <= 0f) Attack(false);
+            else if (!ranged && dist <= reach && target.body != BodyS.Down)
             {
-                if (ranged && dist > 2.2f && dist < weapon.range) Attack(false);
-                else if (weapon != null && weapon.kind == WeaponKind.Staff && dist > 3f && dist < 12f && staffCd <= 0f) Attack(false);
-                else if (!ranged && dist <= reach) Attack(weapon == null ? Random.value < 0.35f : Random.value < 0.12f);
-                else if (ranged && dist <= 1.3f) Attack(true);
+                if (wantBack && (target.facing == dir)) { Attack(false); return; } // уже за спиной!
+                float kickChance = B.style == Style.Kicker ? 0.7f : B.style == Style.Boxer ? 0.1f : weapon != null ? 0.12f : 0.35f;
+                Attack(Random.value < kickChance);
             }
+            else if (ranged && dist <= 1.3f) Attack(true);
         }
 
         void TryAbilities(float dist, Vector2 d)
@@ -1118,18 +1580,25 @@ namespace StickWars
             {
                 if (Info.Passive(a) || CooldownOf(a) > 0) continue;
                 bool use = false;
+                float need = 1f;
+                // способность подходит под слабость цели — используем охотнее
+                if ((a == Ability.Fireball || a == Ability.Laser) && target.B.Needs(HF.Fire)) need = 2.5f;
+                if (a == Ability.Lightning && target.B.Needs(HF.Lightning)) need = 2.5f;
+                if (a == Ability.IceShard && target.B.Needs(HF.Ice)) need = 2.5f;
+                if (a == Ability.Teleport && target.B.Needs(HF.Back)) need = 3f;
+                if (a == Ability.Telekinesis && target.B.Needs(HF.Fall)) need = 3f;
                 switch (a)
                 {
                     case Ability.Fireball:
-                    case Ability.IceShard: use = dist > 3f && dist < 13f && Mathf.Abs(d.y) < 2f && Random.value < 0.5f; break;
-                    case Ability.Lightning: use = Random.value < 0.4f; break;
-                    case Ability.Laser: use = dist > 2f && dist < 12f && Mathf.Abs(d.y) < 2.5f && Random.value < 0.4f; break;
-                    case Ability.Teleport: use = (dist > 6f && Random.value < 0.4f) || (hp < maxHp * 0.3f && dist < 2f && Random.value < 0.3f); break;
+                    case Ability.IceShard: use = dist > 3f && dist < 13f && Mathf.Abs(d.y) < 2f && Random.value < 0.45f * need; break;
+                    case Ability.Lightning: use = Random.value < 0.35f * need; break;
+                    case Ability.Laser: use = dist > 2f && dist < 12f && Mathf.Abs(d.y) < 2.5f && Random.value < 0.35f * need; break;
+                    case Ability.Teleport: use = (dist > 5f && Random.value < 0.35f * need) || (hp < maxHp * 0.3f && dist < 2f && Random.value < 0.3f) || (need > 1f && dist < 3f && Random.value < 0.3f); break;
                     case Ability.Dash: use = dist > 2.5f && dist < 8f && Mathf.Abs(d.y) < 1f && Random.value < 0.5f; break;
-                    case Ability.Shield: use = (hp < maxHp * 0.6f || (target != null && target.WindingUp)) && dist < 5f && Random.value < 0.5f; break;
+                    case Ability.Shield: use = (hp < maxHp * 0.6f || target.WindingUp) && dist < 5f && Random.value < 0.5f; break;
                     case Ability.GroundSlam: use = dist < 3.5f && grounded && Random.value < 0.4f; break;
                     case Ability.Invisibility: use = hp < maxHp * 0.7f && Random.value < 0.25f; break;
-                    case Ability.Telekinesis: use = dist < 10f && Random.value < 0.35f; break;
+                    case Ability.Telekinesis: use = dist < 10f && Random.value < 0.3f * need; break;
                 }
                 if (use && UseAbility(a)) return;
             }
@@ -1141,23 +1610,38 @@ namespace StickWars
             if (Random.value < 0.3f * B.agi) dodgeT = Mathf.Max(0.02f, delay);
         }
 
-        // Витрина в редакторе: персонаж показывает приёмы
+        // реакция ИИ на начало атаки врага: блок, перекат, сальто назад
+        public void React(Fighter attacker)
+        {
+            if (human || !Free || dead) return;
+            float r = Random.value;
+            if (r < 0.16f * B.def) StartBlock();
+            else if (r < 0.16f * B.def + 0.12f * B.agi && grounded)
+            {
+                if (Random.value < 0.5f) StartRoll(attacker.pos.x > pos.x ? 1 : -1); // под атакой — за спину
+                else if (Random.value < 0.5f) StartBackflip();
+                else StartRoll(attacker.pos.x > pos.x ? -1 : 1);
+            }
+        }
+
         float Showroom(float dt)
         {
             facing = -1;
             demoT -= dt;
             float back = (Free && Mathf.Abs(pos.x) > 0.4f) ? -Mathf.Sign(pos.x) * 0.6f : 0f;
             if (demoT > 0f || !Free) return back;
-            demoT = 2.2f;
+            demoT = 1.7f;
             var acts = ActiveAbilities();
-            int n = 2 + acts.Count;
+            int n = 4 + acts.Count;
             int k = demoStep % n;
             demoStep++;
-            if (k == 0) Attack(false);
-            else if (k == 1) Attack(true);
+            if (k == 0) { Attack(false); comboLeft = 0; }
+            else if (k == 1) StartMove(MeleeWeapon ? Move.SpinSlash : Move.SpinKick);
+            else if (k == 2) StartMove(MeleeWeapon ? Move.Rise : Move.Upper);
+            else if (k == 3) { if (B.style == Style.Acrobat || Random.value < 0.5f) StartBackflip(); else StartMove(Move.FlyKick); }
             else
             {
-                var a = acts[k - 2];
+                var a = acts[k - 4];
                 cd[a] = 0;
                 if (a == Ability.Teleport || a == Ability.Telekinesis) { castAb = Ability.Telekinesis; StartAct(Act.Cast, 0.5f); cd[a] = 0; battle.fx.Smoke(Center, 10, new Color(0.5f, 0.3f, 0.8f, 0.6f), 0.5f, 0.5f); }
                 else { aim = new Vector2(facing, 0); UseAbility(a); }
@@ -1179,29 +1663,47 @@ namespace StickWars
                     case WeaponKind.Blade: case WeaponKind.Blunt: case WeaponKind.Chainsaw: p = Pose.GuardBlade; break;
                 }
             }
-            p.lean += Mathf.Sin(animT * 3f) * 2f;
-            p.a2 += Mathf.Sin(animT * 3f + 1f) * 3f;
+            // пружинистая боевая стойка
+            float bob = Mathf.Sin(animT * 7f * Mathf.Sqrt(B.spd));
+            p.lean += bob * 2f;
+            p.f1 += 6f + bob * 6f; p.f2 -= 8f + bob * 8f;
+            p.k1 -= 2f + bob * 5f; p.k2 -= 10f + bob * 8f;
+            p.a2 += Mathf.Sin(animT * 7f + 1f) * 4f;
+            if (B.style == Style.Boxer) { p.a1 = 50f; p.a2 = 165f; p.b1 = 40f; p.b2 = 160f; }
             return p;
         }
 
         Pose TargetPose(float dt)
         {
+            if (body == BodyS.Tumble)
+            {
+                Pose p = Pose.Tumble;
+                p.a1 += Mathf.Sin(animT * 18f) * 30f; p.b1 += Mathf.Cos(animT * 15f) * 30f;
+                p.f1 += Mathf.Sin(animT * 12f) * 25f; p.k1 += Mathf.Cos(animT * 13f) * 25f;
+                p.spin = tumbleSpin;
+                return p;
+            }
+            if (body == BodyS.Down)
+            {
+                Pose p = Pose.Lying;
+                p.a2 += Mathf.Sin(animT * 3f) * 5f;
+                p.spin = tumbleSpin;
+                return p;
+            }
             if (hurtT > 0 || stun > 0)
             {
-                Pose h = Pose.Hurt;
-                h.a1 += Mathf.Sin(animT * 20f) * 25f; h.b1 += Mathf.Cos(animT * 17f) * 25f;
+                Pose h = hurtPose;
+                h.a1 += Mathf.Sin(animT * 20f) * 20f; h.b1 += Mathf.Cos(animT * 17f) * 20f;
                 if (tkSlam) { h.f1 += Mathf.Sin(animT * 15f) * 30f; h.k1 += Mathf.Cos(animT * 13f) * 30f; }
                 return h;
             }
-            Pose rest = RestPose();
+            Pose rest = grounded ? RestPose() : (vel.y > 0 ? Pose.AirUp : Pose.AirDown);
             float u = act != Act.None ? Mathf.Clamp01(actT / actDur) : 0f;
             switch (act)
             {
-                case Act.Punch: return alt ? Pose.Attack(rest, Pose.Punch2W, Pose.Punch2S, u) : Pose.Attack(rest, Pose.PunchW, Pose.PunchS, u);
-                case Act.Kick: return Pose.Attack(rest, Pose.KickW, Pose.KickS, u);
-                case Act.Slash: return Pose.Attack(rest, Pose.SlashW, Pose.SlashS, u);
-                case Act.Smash: return Pose.Attack(rest, Pose.SmashW, Pose.SmashS, u);
-                case Act.Stab: return Pose.Attack(rest, Pose.StabW, Pose.StabS, u);
+                case Act.Move:
+                    if (mv != null) return Pose.Attack(rest, mv.w, mv.s, u, mv.hitAt);
+                    break;
                 case Act.Throw: return Pose.Attack(rest, Pose.ThrowW, Pose.ThrowS, u);
                 case Act.Shoot:
                     {
@@ -1209,7 +1711,7 @@ namespace StickWars
                         float ang = Mathf.Atan2(aim.x * facing, -aim.y) * Mathf.Rad2Deg;
                         p.a1 = ang; p.a2 = ang;
                         if (weapon != null && weapon.kind == WeaponKind.Bow) { p.b1 = ang - 5f; p.b2 = ang + 160f * (1f - u * 0.5f); }
-                        else if (u > 0.45f && u < 0.65f) { p.a2 += 10f; p.a1 += 5f; }
+                        else if (u > 0.45f && u < 0.65f) { p.a2 += 12f; p.a1 += 6f; p.lean -= 4f; }
                         return p;
                     }
                 case Act.Cast: return castAb == Ability.Lightning ? Pose.CastUp : Pose.Cast;
@@ -1222,28 +1724,106 @@ namespace StickWars
                         p.a1 += Mathf.Sin(animT * 70f) * 3f; p.lean += Mathf.Sin(animT * 50f) * 2f;
                         return p;
                     }
+                case Act.Roll:
+                    {
+                        Pose p = Pose.Tuck;
+                        p.spin = (rollDir == facing ? -360f : 360f) * u;
+                        return p;
+                    }
+                case Act.Flip:
+                    {
+                        Pose p = Pose.Lerp(Pose.Tuck, Pose.AirDown, Mathf.Max(0f, u * 2f - 1f));
+                        p.spin = 360f * Mathf.Min(1f, u * 1.3f);
+                        return p;
+                    }
+                case Act.GetUp:
+                    {
+                        float k = u * u * (3 - 2 * u);
+                        Pose p = Pose.Lerp(Pose.Lying, Pose.Crouch, k);
+                        p.spin = Mathf.Lerp(getUpFrom, 0f, k);
+                        if (B.style == Style.Acrobat) p.spin = Mathf.Lerp(getUpFrom, getUpFrom > 0 ? 360f : -360f, k) % 360f;
+                        return p;
+                    }
             }
             if (!grounded)
             {
                 if (slamPending) return vel.y > 0 ? Pose.AirUp : Pose.SmashW;
-                return vel.y > 0 ? Pose.AirUp : Pose.AirDown;
+                Pose p = vel.y > 0 ? Pose.AirUp : Pose.AirDown;
+                if (flipT >= 0f)
+                {
+                    flipT += dt;
+                    float k = Mathf.Clamp01(flipT / flipDur);
+                    p = Pose.Lerp(p, Pose.Tuck, Mathf.Sin(k * Mathf.PI));
+                    p.spin = 360f * (k * k * (3 - 2 * k)) * flipDir;
+                    if (k >= 1f) flipT = -1f;
+                }
+                return p;
             }
+            if (landT > 0f) return Pose.Land;
             if (battle.phase == Battle.Phase.Victory && battle.winner == team)
             {
                 Pose v = Pose.Victory;
                 v.a2 += Mathf.Sin(animT * 8f) * 10f; v.b2 += Mathf.Cos(animT * 8f) * 10f;
                 return v;
             }
+            if (tauntT > 0f)
+            {
+                Pose t = Pose.Taunt;
+                t.a2 += Mathf.Sin(animT * 14f) * 25f;
+                return t;
+            }
             if (Mathf.Abs(vel.x) > 0.6f)
             {
-                runPhase += dt * Mathf.Abs(vel.x) * 2.1f / Size;
-                bool ninja = (weapon == null || weapon.kind == WeaponKind.Blade) && B.spd > 1.2f;
+                runPhase += dt * Mathf.Abs(vel.x) * 1.9f / Size;
+                bool ninja = (weapon == null || weapon.kind == WeaponKind.Blade) && (B.spd > 1.2f || B.style == Style.Acrobat);
                 Pose r = Pose.Run(runPhase, ninja);
                 if (weapon != null && !ninja) { r.a1 = 35f; r.a2 = weapon.kind == WeaponKind.Gun ? 80f : 95f; }
                 if (Mathf.Sign(vel.x) != facing) { r = Pose.Lerp(r, rest, 0.4f); r.lean = -5f; }
                 return r;
             }
             return rest;
+        }
+
+        // ===================== СЛЕДЫ УДАРОВ =====================
+        void ClearTrail()
+        {
+            trailPts.Clear(); trailAge.Clear();
+            if (lTrail != null) lTrail.enabled = false;
+        }
+
+        void TrailTick(float dt)
+        {
+            for (int i = 0; i < trailAge.Count; i++) trailAge[i] += dt;
+            while (trailAge.Count > 0 && trailAge[0] > 0.1f) { trailAge.RemoveAt(0); trailPts.RemoveAt(0); }
+            if (act == Act.Move && mv != null)
+            {
+                float u = actT / actDur;
+                if (u > mv.hitAt * 0.6f && u < mv.hitAt + 0.18f)
+                {
+                    Vector2 tip = Tip(mv.limb);
+                    if (trailPts.Count == 0 || Vector2.Distance(trailPts[trailPts.Count - 1], tip) > 0.04f)
+                    {
+                        trailPts.Add(tip); trailAge.Add(0f);
+                        if (trailPts.Count == 1)
+                        {
+                            bool w = mv.limb == 4 && weapon != null;
+                            Color c = w ? (weapon.element != Element.None ? Info.ElemColor(weapon.element) : Color.Lerp(weapon.color, Color.white, 0.6f)) : (glow ? Color.Lerp(mainCol, Color.white, 0.5f) : Color.Lerp(mainCol, battle.theme.ink, 0.4f));
+                            var g = new Gradient();
+                            g.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) }, new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(w ? 0.75f : 0.55f, 1f) });
+                            lTrail.colorGradient = g;
+                            lTrail.widthMultiplier = 1f;
+                            lTrail.widthCurve = AnimationCurve.Linear(0f, 0.01f, 1f, (w ? 0.34f : 0.2f) * Size);
+                        }
+                    }
+                }
+            }
+            if (trailPts.Count >= 2)
+            {
+                lTrail.enabled = true;
+                lTrail.positionCount = trailPts.Count;
+                lTrail.SetPositions(trailPts.ToArray());
+            }
+            else lTrail.enabled = false;
         }
 
         // ===================== ОТРИСОВКА =====================
@@ -1261,7 +1841,7 @@ namespace StickWars
                 if (RageOn) { float k = 0.25f + 0.15f * Mathf.Sin(animT * 12f); c = Color.Lerp(c, Color.red, k); }
                 if (dead) { c = Color.Lerp(c, new Color(0.25f, 0.25f, 0.25f), Mathf.Clamp01(deadTime * 0.15f)); cb = Color.Lerp(cb, new Color(0.2f, 0.2f, 0.2f), Mathf.Clamp01(deadTime * 0.15f)); }
             }
-            float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : 1f;
+            float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : (iframes > 0 && act == Act.GetUp ? 0.6f + 0.4f * Mathf.Sin(animT * 40f) : 1f);
             c.a = alpha; cb.a = alpha;
 
             Vector2 sh = P[1] + (P[0] - P[1]).normalized * 0.06f * s;
@@ -1273,42 +1853,51 @@ namespace StickWars
             sHead.transform.position = P[2];
             sHead.color = c;
 
-            if (glowLines != null)
+            if (under != null)
             {
-                Color gc = Draw.A(Color.Lerp(mainCol, Color.white, 0.3f), 0.22f * alpha * (dead ? 0.3f : 1f));
-                Draw.Set(glowLines[0], P[0], P[9], P[10]);
-                Draw.Set(glowLines[1], P[0], P[7], P[8]);
-                Draw.Set(glowLines[2], P[0], (P[0] + P[1]) * 0.5f, P[1]);
-                Draw.Set(glowLines[3], sh, P[5], P[6]);
-                Draw.Set(glowLines[4], sh, P[3], P[4]);
-                foreach (var g in glowLines) Draw.Col(g, gc);
-                sHeadGlow.transform.position = P[2];
-                sHeadGlow.color = Draw.A(mainCol, 0.45f * alpha * (dead ? 0.3f : 1f));
+                Color gc = underCol; gc.a *= alpha * (dead && glow ? 0.3f : 1f);
+                Draw.Set(under[0], P[0], P[9], P[10]);
+                Draw.Set(under[1], P[0], P[7], P[8]);
+                Draw.Set(under[2], P[0], (P[0] + P[1]) * 0.5f, P[1]);
+                Draw.Set(under[3], sh, P[5], P[6]);
+                Draw.Set(under[4], sh, P[3], P[4]);
+                foreach (var g in under) Draw.Col(g, gc);
+                sHeadUnder.transform.position = P[2];
+                Color hc = glow ? Draw.A(mainCol, 0.45f * alpha * (dead ? 0.3f : 1f)) : gc;
+                sHeadUnder.color = hc;
             }
+
+            // тень
+            float minY = Mathf.Min(P[8].y, P[10].y);
+            float hgt = Mathf.Max(0f, (dead ? Center.y - 0.3f : minY));
+            float shK = Mathf.Clamp01(1f - hgt / 7f);
+            sShadow.transform.position = new Vector3(Center.x, 0.02f, 0);
+            sShadow.transform.localScale = new Vector3(1.7f * s * (0.6f + 0.4f * shK) * (dead ? 1.4f : 1f), 0.32f * s, 1f);
+            sShadow.color = new Color(0, 0, 0, 0.3f * shK * alpha);
 
             Vector2 hd = P[2] - P[1];
             float ang = Mathf.Atan2(hd.y, hd.x) * Mathf.Rad2Deg - 90f;
-            if (dead && rag != null && rag.headOff) ang += deadTime * 0f;
+            int rf = dead ? facing : RenderFacing();
             headRoot.position = P[2];
             headRoot.rotation = Quaternion.Euler(0, 0, ang);
-            headRoot.localScale = new Vector3(facing, 1, 1);
+            headRoot.localScale = new Vector3(rf, 1, 1);
             foreach (var r in headRends) SetAlpha(r, alpha);
 
             Vector2 fd = P[4] - P[3];
             weaponRoot.position = P[4];
             weaponRoot.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(fd.y, fd.x) * Mathf.Rad2Deg);
-            weaponRoot.localScale = new Vector3(1, facing, 1);
+            weaponRoot.localScale = new Vector3(1, rf, 1);
             foreach (var r in weaponRends) SetAlpha(r, alpha);
 
             float t = animT;
-            float wind = -facing * 0.2f * s - vel.x * 0.012f;
+            float wind = -rf * 0.2f * s - vel.x * 0.012f;
             if (lCape != null)
             {
-                Vector2 p = P[1] - new Vector2(facing * 0.06f * s, 0.02f);
+                Vector2 p = P[1] - new Vector2(rf * 0.06f * s, 0.02f);
                 lCape.SetPosition(0, p);
                 for (int i = 1; i < 6; i++)
                 {
-                    p += new Vector2(wind * (dead ? 0.3f : 1f), -0.17f * s + Mathf.Sin(t * 9f + i) * 0.03f);
+                    p += new Vector2(wind * (dead ? 0.3f : 1f), -0.17f * s + Mathf.Sin(t * 9f + i) * 0.03f - vel.y * 0.004f);
                     if (p.y < 0.03f) p.y = 0.03f;
                     lCape.SetPosition(i, p);
                 }
@@ -1338,9 +1927,9 @@ namespace StickWars
                 var sc = lScarf.startColor; sc.a = alpha; Draw.Col(lScarf, sc);
             }
 
-            bool sh_on = shieldT > 0 && !dead;
-            lShield.enabled = sh_on; sShieldGlow.enabled = sh_on;
-            if (sh_on)
+            bool shOn = shieldT > 0 && !dead;
+            lShield.enabled = shOn; sShieldGlow.enabled = shOn;
+            if (shOn)
             {
                 Vector2 cen = Center;
                 float r = 1.15f * s * (1f + Mathf.Sin(t * 10f) * 0.03f);

@@ -251,30 +251,75 @@ namespace StickWars
         }
 
         // всплывающие цифры урона, надписи, полоски над головами
+        Texture2D vignette;
+        float letterbox;
+
+        Texture2D Vignette()
+        {
+            if (vignette != null) return vignette;
+            int n = 128;
+            vignette = new Texture2D(n, n, TextureFormat.RGBA32, false);
+            vignette.wrapMode = TextureWrapMode.Clamp;
+            var px = new Color[n * n];
+            for (int y = 0; y < n; y++)
+                for (int x = 0; x < n; x++)
+                {
+                    float dx = (x + 0.5f) / n * 2f - 1f, dy = (y + 0.5f) / n * 2f - 1f;
+                    float d = Mathf.Sqrt(dx * dx * 0.8f + dy * dy);
+                    float a = Mathf.Clamp01((d - 0.55f) / 0.6f);
+                    px[y * n + x] = new Color(0, 0, 0, a * a);
+                }
+            vignette.SetPixels(px);
+            vignette.Apply();
+            return vignette;
+        }
+
+        // поверх мира: виньетка, кинематографичные полосы, вспышка удара, полоски HP, всплывающие надписи
         void WorldOverlay()
         {
-            if (scr == Scr.Battle || scr == Scr.Pause)
+            bool fight = scr == Scr.Battle || scr == Scr.Pause;
+            if (Event.current.type == EventType.Repaint)
             {
-                if (S.overheadBars)
-                    foreach (var f in battle.fighters)
-                    {
-                        if (f.dead || (f.Invisible && !f.human)) continue;
-                        Vector2 g = W2G(f.HeadPos + Vector2.up * (0.55f * f.Size + 0.25f));
-                        Rect bar = new Rect(g.x - 40, g.y, 80, 9);
-                        Box(new Rect(bar.x - 2, bar.y - 2, bar.width + 4, bar.height + 4), new Color(0, 0, 0, 0.55f), 4);
-                        Box(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(f.hp / f.maxHp), bar.height), f.team == 0 ? new Color(0.95f, 0.25f, 0.2f) : new Color(0.3f, 0.55f, 1f), 3);
-                        string nm = f.human ? (f.pindex == 0 ? "P1 " : "P2 ") + f.B.name : f.B.name;
-                        Outline(new Rect(g.x - 150, g.y - 30, 300, 26), nm, 18, Color.white, new Color(0, 0, 0, 0.8f), TextAnchor.MiddleCenter, 1.5f);
-                    }
+                float va = data.theme == 0 ? 0.25f : data.theme == 4 ? 0.75f : 0.5f;
+                GUI.DrawTexture(new Rect(0, 0, VW, VH), Vignette(), ScaleMode.StretchToFill, true, 0, new Color(data.theme == 0 ? 0.35f : 0f, data.theme == 0 ? 0.25f : 0f, data.theme == 0 ? 0.1f : 0f, va), 0, 0);
             }
+            float want = fight ? Mathf.Clamp01(battle.SlowAmount / 0.6f) : 0f;
+            if (fight && battle.phase == Battle.Phase.Intro && battle.mode == Battle.Mode.Fight) want = 1f;
+            letterbox = Mathf.MoveTowards(letterbox, want, Time.unscaledDeltaTime * 3f);
+            if (letterbox > 0.01f)
+            {
+                float h = 95f * letterbox;
+                Box(new Rect(0, 0, VW, h), Color.black, 0);
+                Box(new Rect(0, VH - h, VW, h), Color.black, 0);
+            }
+            if (battle.flashT > 0f)
+            {
+                Color fc = battle.flashCol; fc.a *= Mathf.Clamp01(battle.flashT / 0.06f);
+                Box(new Rect(0, 0, VW, VH), fc, 0);
+            }
+
+            if (fight && S.overheadBars)
+                foreach (var f in battle.fighters)
+                {
+                    if (f.dead || (f.Invisible && !f.human)) continue;
+                    Vector2 g = W2G(f.HeadPos + Vector2.up * (0.55f * f.Size + 0.25f));
+                    Rect bar = new Rect(g.x - 42, g.y, 84, 9);
+                    Color tc = f.team == 0 ? new Color(0.95f, 0.25f, 0.2f) : new Color(0.3f, 0.55f, 1f);
+                    Box(new Rect(bar.x - 2, bar.y - 2, bar.width + 4, bar.height + 4), new Color(0, 0, 0, 0.6f), 4);
+                    Box(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(f.hpTrail / f.maxHp), bar.height), new Color(1f, 0.95f, 0.8f, 0.9f), 3);
+                    Box(new Rect(bar.x, bar.y, bar.width * Mathf.Clamp01(f.hp / f.maxHp), bar.height), tc, 3);
+                    string nm = f.human ? (f.pindex == 0 ? "P1 " : "P2 ") + f.B.name : f.B.name;
+                    Outline(new Rect(g.x - 150, g.y - 30, 300, 26), nm, 18, Color.white, new Color(0, 0, 0, 0.8f), TextAnchor.MiddleCenter, 1.5f);
+                    if (f.body == Fighter.BodyS.Down) Outline(new Rect(g.x - 100, g.y + 12, 200, 24), "НОКДАУН", 16, new Color(1f, 0.8f, 0.3f), Color.black, TextAnchor.MiddleCenter, 1.5f);
+                }
             foreach (var p in battle.popups)
             {
                 Vector2 g = W2G(p.pos);
                 float k = p.t / p.life;
-                float pop = k < 0.12f ? Mathf.Lerp(1.6f, 1f, k / 0.12f) : 1f;
-                int size = (int)(40 * p.size * pop * (scr == Scr.Battle || scr == Scr.Pause ? 1f : 0.8f));
+                float pop = k < 0.1f ? Mathf.Lerp(1.8f, 1f, k / 0.1f) : 1f;
+                int size = (int)(42 * p.size * pop * (fight ? 1f : 0.8f));
                 Color c = p.col; c.a = 1f - Mathf.Clamp01((k - 0.6f) / 0.4f);
-                Outline(new Rect(g.x - 300, g.y - 40, 600, 80), p.text, size, c, new Color(0, 0, 0, c.a * 0.85f), TextAnchor.MiddleCenter, 2.5f);
+                Outline(new Rect(g.x - 300, g.y - 40, 600, 80), p.text, size, c, new Color(0, 0, 0, c.a * 0.9f), TextAnchor.MiddleCenter, 3f);
             }
         }
 
@@ -379,7 +424,7 @@ namespace StickWars
                 string ab = "";
                 foreach (var a in b.abilities) ab += (ab.Length > 0 ? ", " : "") + Info.Name(a).Replace(" (пассив)", "");
                 Txt(new Rect(row.x + 62, row.y + 46, row.width - 80, 28), ab, 18, P.sub);
-                Txt(new Rect(row.x + 62, row.y + 74, row.width - 80, 28), (b.weapon != null ? b.weapon.name : "Кулаки") + "  •  слабость: " + Info.Name(b.weakness), 18, P.sub);
+                Txt(new Rect(row.x + 62, row.y + 74, row.width - 80, 28), (b.weapon != null ? b.weapon.name : "Кулаки") + "  •  смерть: " + b.WeakText.ToLower(), 18, P.sub);
                 if (Btn(new Rect(row.xMax - 180, row.y + 14, 110, 44), "Изменить", 19)) OpenFighterEditor(team, i);
                 if (Btn(new Rect(row.xMax - 60, row.y + 14, 46, 44), "X", 22)) { list.RemoveAt(i); Save(); break; }
                 y += 122;
@@ -612,7 +657,15 @@ namespace StickWars
             Txt(new Rect(x, y, w, 28), "Способности:", 20, P.text, TextAnchor.MiddleLeft, true); y += 28;
             foreach (var a in b.abilities) { Txt(new Rect(x + 14, y, w - 14, 26), "• " + Info.Name(a), 19, P.text); y += 25; }
             y += 4;
-            Txt(new Rect(x, y, w, 28), "Слабость: " + Info.Name(b.weakness) + " (урон x2)", 20, new Color(1f, 0.6f, 0.15f), TextAnchor.MiddleLeft, true); y += 30;
+            Txt(new Rect(x, y, w, 44), (b.killOnly ? "Убить можно ТОЛЬКО: " : "Слабость (урон x2): ") + b.WeakText.Replace("ТОЛЬКО ", ""), 19, new Color(1f, 0.55f, 0.15f), TextAnchor.UpperLeft, true, true); y += 46;
+            if (b.immuneMask != 0) { Txt(new Rect(x, y, w, 26), "Иммунитет: " + HFInfo.Describe(b.immuneMask), 18, new Color(0.5f, 0.75f, 1f), TextAnchor.MiddleLeft, true); y += 26; }
+            if (b.style != Style.Balanced) { Txt(new Rect(x, y, w, 26), "Стиль: " + Parser.StyleName(b.style), 18, P.text); y += 26; }
+            if (b.understood.Count > 0)
+            {
+                string u = "";
+                for (int i = 1; i < b.understood.Count; i++) u += (u.Length > 0 ? ", " : "") + b.understood[i];
+                if (u.Length > 0) { Txt(new Rect(x, y, w, 46), "Понял: " + u, 16, new Color(0.3f, 0.75f, 0.35f), TextAnchor.UpperLeft, false, true); y += 44; }
+            }
             string wpn = b.weapon != null ? b.weapon.name + " (" + Info.Name(b.weapon.kind) + (b.weapon.element != Element.None ? ", " + Info.Name(b.weapon.element) : "") + ")" : "Кулаки";
             Txt(new Rect(x, y, w, 28), "Оружие: " + wpn, 19, P.text); y += 28;
             if (b.size != 1f) { Txt(new Rect(x, y, w, 26), b.size > 1f ? "Размер: великан" : "Размер: малыш", 19, P.sub); y += 26; }
@@ -830,19 +883,21 @@ namespace StickWars
             Panel(r);
             Txt(new Rect(r.x, r.y + 14, r.width, 60), "КАК ИГРАТЬ", 46, P.text, TextAnchor.MiddleCenter, true);
             string left =
-                "1. Открой «Бойцы и оружие» и создай героев (до 4 за сторону).\n" +
-                "2. Опиши героя словами: «огромный рогатый демон, очень сильный, бьёт по земле и кидает огненные шары, боится льда». Арена сама сгенерирует внешность, характеристики и способности.\n" +
-                "3. Нарисуй ему что-нибудь на голове в планшете — рисунок появится на бойце.\n" +
-                "4. Укажи оружие словами («ледяное копьё», «бензопила», «дробовик»…) или опиши новое в арсенале — оно будет падать с неба.\n" +
-                "5. Бессмертия нет: у каждого есть слабость, урон по ней удваивается и выключает регенерацию.\n" +
-                "6. Выбери стиль арены и жми «В БОЙ!». Esc — пауза: можно остановить бой и вернуть всех на исходные.";
-            Txt(new Rect(r.x + 50, r.y + 100, w * 0.55f - 60, h - 220), left, 23, P.text, TextAnchor.UpperLeft, false, true);
+                "1. «Бойцы и оружие» → создай героев (до 4 за сторону).\n" +
+                "2. Опиши героя как угодно — арена понимает:\n" +
+                "   • числа: «здоровье 500», «сила 9/10», «в 2 раза быстрее», «урон x2», «рост 2.5 метра»;\n" +
+                "   • отрицания: «не умеет летать», «не боится огня» (= иммунитет);\n" +
+                "   • условия смерти: «убить можно только ударом в голову», «победить только проткнув молнией», «боится льда или яда», «слабое место — спина»;\n" +
+                "   • стиль: боксёр, каратист/кикбоксер, акробат/ниндзя, громила.\n" +
+                "3. Внизу редактора видно, что арена «поняла». Бессмертия нет — если герой умирает только от чего-то особенного, арена сбросит подходящее оружие, а через 100 сек начнётся внезапная смерть.\n" +
+                "4. Нарисуй что-нибудь на голове и опиши оружие. Esc — пауза.";
+            Txt(new Rect(r.x + 50, r.y + 100, w * 0.56f - 60, h - 220), left, 21, P.text, TextAnchor.UpperLeft, false, true);
             string right =
                 "УПРАВЛЕНИЕ (если включено)\n\n" +
-                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  F — удар/оружие,  G — пинок\n  R, T, Y — способности\n\n" +
-                "Игрок 2 (синие):\n  ← / → — бег,  ↑ — прыжок,  ↓ — блок\n  K — удар/оружие,  L — пинок\n  I, O, P — способности\n\n" +
-                "Подбор оружия — просто пробеги по нему.\nОстальные бойцы сражаются сами.";
-            Txt(new Rect(r.x + w * 0.55f + 10, r.y + 100, w * 0.45f - 60, h - 220), right, 23, P.text, TextAnchor.UpperLeft, false, true);
+                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  S + A/D — перекат (неуязвимость)\n  F — удары руками/оружием, жми ещё — комбо\n  W + F — апперкот (подброс)\n  G — пинки,  S + G — подсечка\n  G на бегу — удар в прыжке\n  G в воздухе — удар вниз\n  R, T, Y — способности\n\n" +
+                "Игрок 2 (синие): стрелки, ↓ — блок,\n  K — удар, L — пинок, I O P — умения\n\n" +
+                "Удар в спину, в голову и по лежачему считаются отдельно — это важно для условий смерти.";
+            Txt(new Rect(r.x + w * 0.56f + 10, r.y + 100, w * 0.44f - 60, h - 220), right, 20, P.text, TextAnchor.UpperLeft, false, true);
             if (Btn(new Rect(r.x + (r.width - 360) / 2, r.yMax - 100, 360, 74), "ПОНЯТНО", 32, true)) scr = Scr.Main;
         }
 
@@ -850,40 +905,68 @@ namespace StickWars
         void Hud()
         {
             var b = battle;
-            // счёт
-            Rect score = new Rect(VW / 2 - 200, 14, 400, 64);
-            Box(score, Draw.A(P.panel, 0.75f), 14);
-            Txt(new Rect(score.x, score.y, 170, 64), b.wins[0].ToString(), 44, new Color(0.95f, 0.3f, 0.25f), TextAnchor.MiddleRight, true);
-            Txt(score, ":", 44, P.text, TextAnchor.MiddleCenter, true);
-            Txt(new Rect(score.x + 230, score.y, 170, 64), b.wins[1].ToString(), 44, new Color(0.35f, 0.6f, 1f), TextAnchor.MiddleLeft, true);
-            if (scr == Scr.Battle && Btn(new Rect(VW / 2 - 32, 86, 64, 48), "II", 24)) Pause();
+            float t = Time.unscaledTime;
+            // таймер и счёт по центру
+            Rect mid = new Rect(VW / 2 - 110, 10, 220, 92);
+            Box(mid, new Color(0, 0, 0, 0.72f), 14);
+            Border(mid, Draw.A(P.accent, 0.8f), 2, 14);
+            int sec = Mathf.FloorToInt(b.fightTime);
+            Txt(new Rect(mid.x, mid.y + 2, mid.width, 50), (sec / 60) + ":" + (sec % 60).ToString("00"), 42, b.suddenDeath ? new Color(1f, 0.3f, 0.25f) : Color.white, TextAnchor.MiddleCenter, true);
+            Txt(new Rect(mid.x, mid.y + 50, mid.width / 2 - 14, 36), b.wins[0].ToString(), 30, new Color(1f, 0.35f, 0.3f), TextAnchor.MiddleRight, true);
+            Txt(new Rect(mid.x, mid.y + 50, mid.width, 36), "—", 24, new Color(0.8f, 0.8f, 0.8f), TextAnchor.MiddleCenter, true);
+            Txt(new Rect(mid.x + mid.width / 2 + 14, mid.y + 50, mid.width / 2 - 14, 36), b.wins[1].ToString(), 30, new Color(0.4f, 0.65f, 1f), TextAnchor.MiddleLeft, true);
+            if (b.suddenDeath) Outline(new Rect(mid.x - 100, mid.yMax + 2, mid.width + 200, 28), "ВНЕЗАПНАЯ СМЕРТЬ", 20, new Color(1f, 0.3f, 0.25f), Color.black, TextAnchor.MiddleCenter, 2f);
+            if (scr == Scr.Battle && Btn(new Rect(VW / 2 - 28, mid.yMax + (b.suddenDeath ? 34 : 8), 56, 42), "II", 22)) Pause();
 
+            float barW = Mathf.Min(680f, VW / 2 - 150f);
             int ri = 0, bi = 0;
             foreach (var f in b.fighters)
             {
-                if (f.team == 0) TeamBar(new Rect(20, 16 + ri++ * 74, 520, 66), f, false);
-                else TeamBar(new Rect(VW - 540, 16 + bi++ * 74, 520, 66), f, true);
+                bool right = f.team == 1;
+                int idx = right ? bi++ : ri++;
+                bool lead = idx == 0;
+                float h = lead ? 92f : 50f;
+                float y = lead ? 12f : 12f + 100f + (idx - 1) * 56f;
+                float w = lead ? barW : barW * 0.72f;
+                Rect r = right ? new Rect(VW - 16 - w, y, w, h) : new Rect(16, y, w, h);
+                TeamBar(r, f, right, lead);
+            }
+
+            // счётчики комбо
+            foreach (var f in b.fighters)
+            {
+                if (f.combo < 2 || f.dead) continue;
+                bool right = f.team == 1;
+                float pop = 1f + Mathf.Max(0f, 1.2f - f.comboT) * 0f + Mathf.Clamp01((f.comboT - 1.05f) / 0.15f) * 0.4f;
+                Rect cr = right ? new Rect(VW - 360, VH * 0.36f, 330, 120) : new Rect(30, VH * 0.36f, 330, 120);
+                Color cc = f.team == 0 ? new Color(1f, 0.4f, 0.3f) : new Color(0.45f, 0.7f, 1f);
+                Outline(new Rect(cr.x, cr.y, cr.width, 90), f.combo.ToString(), (int)(96 * pop), cc, Color.black, right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, 4f);
+                Outline(new Rect(cr.x, cr.y + 82, cr.width, 34), "HITS  " + ComboWord(f.combo), 26, Color.white, Color.black, right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, 2.5f);
             }
 
             // интро
-            if (b.phase == Battle.Phase.Intro)
+            if (b.phase == Battle.Phase.Intro && b.mode == Battle.Mode.Fight)
             {
                 float k = b.phaseT / Battle.IntroTime;
-                string rn = b.fighters.Count > 0 ? TeamName(0) : "";
-                string bn = TeamName(1);
-                float slide = Mathf.Clamp01(k * 3f);
-                Outline(new Rect(-VW * (1 - slide) * 0.5f, VH * 0.35f, VW / 2 - 80, 100), rn, 52, new Color(1f, 0.35f, 0.3f), Color.black, TextAnchor.MiddleRight, 3f);
-                Outline(new Rect(VW / 2 + 80 + VW * (1 - slide) * 0.5f, VH * 0.35f, VW / 2 - 80, 100), bn, 52, new Color(0.4f, 0.65f, 1f), Color.black, TextAnchor.MiddleLeft, 3f);
-                Outline(new Rect(0, VH * 0.35f, VW, 100), "VS", (int)(80 + Mathf.Sin(Time.unscaledTime * 10f) * 6f), Color.white, Color.black, TextAnchor.MiddleCenter, 4f);
+                float slide = 1f - Mathf.Pow(1f - Mathf.Clamp01(k * 2.5f), 3f);
+                Box(new Rect(0, VH * 0.33f, VW, 130), new Color(0, 0, 0, 0.55f * slide), 0);
+                Box(new Rect(-VW * (1 - slide), VH * 0.33f, VW / 2, 6), new Color(1f, 0.3f, 0.25f), 0);
+                Box(new Rect(VW / 2 + VW * (1 - slide), VH * 0.33f + 124, VW / 2, 6), new Color(0.35f, 0.6f, 1f), 0);
+                Outline(new Rect(-VW * (1 - slide) * 0.5f, VH * 0.33f + 15, VW / 2 - 90, 100), TeamName(0), 50, new Color(1f, 0.4f, 0.35f), Color.black, TextAnchor.MiddleRight, 3f);
+                Outline(new Rect(VW / 2 + 90 + VW * (1 - slide) * 0.5f, VH * 0.33f + 15, VW / 2 - 90, 100), TeamName(1), 50, new Color(0.45f, 0.7f, 1f), Color.black, TextAnchor.MiddleLeft, 3f);
+                Outline(new Rect(0, VH * 0.33f + 15, VW, 100), "VS", (int)(90 + Mathf.Sin(t * 12f) * 6f), Color.white, P.accent, TextAnchor.MiddleCenter, 4f);
             }
 
-            // крупные объявления
+            // крупные объявления с полосой
             if (b.announceT > 0 && !string.IsNullOrEmpty(b.announce))
             {
                 float age = Mathf.Max(0f, b.announceMax - b.announceT);
-                float pop = age < 0.15f ? Mathf.Lerp(2.2f, 1f, age / 0.15f) : 1f;
-                int size = (int)(110 * pop);
-                Outline(new Rect(0, VH * 0.18f, VW, 180), b.announce, size, b.announceCol, Color.black, TextAnchor.MiddleCenter, 5f);
+                float pop = age < 0.15f ? Mathf.Lerp(2.4f, 1f, age / 0.15f) : 1f;
+                float band = Mathf.Clamp01(age / 0.12f);
+                float fade = Mathf.Clamp01(b.announceT / 0.25f);
+                Box(new Rect(0, VH * 0.17f, VW * band, 170), new Color(0, 0, 0, 0.6f * fade), 0);
+                Box(new Rect(VW * (1 - band), VH * 0.17f + 166, VW, 4), Draw.A(b.announceCol, fade), 0);
+                Outline(new Rect(0, VH * 0.17f - 5, VW, 180), b.announce, (int)(110 * pop), Draw.A(b.announceCol, fade), new Color(0, 0, 0, fade), TextAnchor.MiddleCenter, 5f);
             }
 
             // победа
@@ -891,16 +974,18 @@ namespace StickWars
             {
                 Fighter mvp = null;
                 foreach (var f in b.fighters) if (mvp == null || f.dmgDealt > mvp.dmgDealt) mvp = f;
-                Rect pr = new Rect(VW / 2 - 330, VH * 0.48f, 660, 380);
+                Rect pr = new Rect(VW / 2 - 340, VH * 0.46f, 680, 410);
                 Panel(pr);
                 if (mvp != null)
                 {
-                    Txt(new Rect(pr.x, pr.y + 16, pr.width, 40), "MVP: " + mvp.B.name, 32, P.accent, TextAnchor.MiddleCenter, true);
-                    Txt(new Rect(pr.x, pr.y + 56, pr.width, 30), "урон: " + Mathf.RoundToInt(mvp.dmgDealt) + "   убийств: " + mvp.kills, 22, P.sub, TextAnchor.MiddleCenter);
+                    Box(new Rect(pr.x + 30, pr.y + 22, 60, 60), mvp.B.color, 30);
+                    Border(new Rect(pr.x + 30, pr.y + 22, 60, 60), P.text, 3, 30);
+                    Txt(new Rect(pr.x + 110, pr.y + 16, pr.width - 130, 44), "MVP: " + mvp.B.name, 34, P.accent, TextAnchor.MiddleLeft, true);
+                    Txt(new Rect(pr.x + 110, pr.y + 58, pr.width - 130, 30), "урон " + Mathf.RoundToInt(mvp.dmgDealt) + "   •   убийств " + mvp.kills + "   •   лучшее комбо " + mvp.maxCombo, 21, P.sub);
                 }
-                if (Btn(new Rect(pr.x + 40, pr.y + 110, pr.width - 80, 70), "РЕВАНШ", 32, true)) RestartClean();
-                if (Btn(new Rect(pr.x + 40, pr.y + 195, pr.width - 80, 70), "ИЗМЕНИТЬ КОМАНДЫ", 28)) ToMenu(Scr.Teams);
-                if (Btn(new Rect(pr.x + 40, pr.y + 280, pr.width - 80, 70), "ГЛАВНОЕ МЕНЮ", 28)) ToMenu(Scr.Main);
+                if (Btn(new Rect(pr.x + 40, pr.y + 115, pr.width - 80, 76), "РЕВАНШ", 34, true)) RestartClean();
+                if (Btn(new Rect(pr.x + 40, pr.y + 205, pr.width - 80, 70), "ИЗМЕНИТЬ КОМАНДЫ", 28)) ToMenu(Scr.Teams);
+                if (Btn(new Rect(pr.x + 40, pr.y + 290, pr.width - 80, 70), "ГЛАВНОЕ МЕНЮ", 28)) ToMenu(Scr.Main);
             }
 
             // подсказки управления
@@ -909,12 +994,20 @@ namespace StickWars
                 foreach (var f in b.fighters)
                 {
                     if (!f.human || f.dead) continue;
-                    string keys = f.pindex == 0 ? "A D бег • W прыжок • S блок • F удар • G пинок • R T Y умения" : "← → бег • ↑ прыжок • ↓ блок • K удар • L пинок • I O P умения";
-                    Rect hr = f.pindex == 0 ? new Rect(20, VH - 50, 800, 36) : new Rect(VW - 820, VH - 50, 800, 36);
-                    Outline(hr, keys, 19, Color.white, new Color(0, 0, 0, 0.7f), f.pindex == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight, 1.5f);
+                    string keys = f.pindex == 0 ? "A D бег • W прыжок • S блок • S+A/D перекат • F удар (W+F апперкот) • G пинок (S+G подсечка) • R T Y умения" : "← → бег • ↑ прыжок • ↓ блок • ↓+←/→ перекат • K удар • L пинок • I O P умения";
+                    Rect hr = f.pindex == 0 ? new Rect(20, VH - 46 - letterbox * 95f, 1000, 34) : new Rect(VW - 1020, VH - 46 - letterbox * 95f, 1000, 34);
+                    Outline(hr, keys, 18, Color.white, new Color(0, 0, 0, 0.75f), f.pindex == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight, 1.5f);
                 }
-                Txt(new Rect(0, VH - 40, VW, 30), "Esc — пауза", 18, Draw.A(P.sub, 0.8f), TextAnchor.MiddleCenter);
             }
+        }
+
+        static string ComboWord(int n)
+        {
+            if (n >= 12) return "НЕВЕРОЯТНО!";
+            if (n >= 8) return "БЕЗУМИЕ!";
+            if (n >= 5) return "ОТЛИЧНО!";
+            if (n >= 3) return "ХОРОШО";
+            return "";
         }
 
         string TeamName(int team)
@@ -931,39 +1024,64 @@ namespace StickWars
             return s;
         }
 
-        void TeamBar(Rect r, Fighter f, bool right)
+        // Полоса бойца в стиле файтингов: портрет, имя, HP со «следом» урона, умения, условие смерти
+        void TeamBar(Rect r, Fighter f, bool right, bool lead)
         {
             Color tc = f.team == 0 ? new Color(0.95f, 0.28f, 0.22f) : new Color(0.33f, 0.58f, 1f);
-            Box(r, Draw.A(P.panel, f.dead ? 0.45f : 0.78f), 10);
-            Rect sw = right ? new Rect(r.xMax - 46, r.y + 12, 34, 34) : new Rect(r.x + 12, r.y + 12, 34, 34);
-            Box(sw, f.B.color, 17);
-            Border(sw, Draw.A(P.text, 0.5f), 2, 17);
-            float tx = right ? r.x + 12 : r.x + 56;
-            string nm = (f.human ? (f.pindex == 0 ? "[P1] " : "[P2] ") : "") + f.B.name + (f.dead ? "  — ПАЛ" : "");
-            Txt(new Rect(tx, r.y + 2, r.width - 70, 30), nm, 21, f.dead ? P.sub : P.text, right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft, true);
-            Rect bar = new Rect(tx, r.y + 36, r.width - 70, 18);
-            Box(bar, new Color(0, 0, 0, 0.45f), 6);
-            float k = Mathf.Clamp01(f.hp / f.maxHp);
-            Rect fill = right ? new Rect(bar.xMax - bar.width * k, bar.y, bar.width * k, bar.height) : new Rect(bar.x, bar.y, bar.width * k, bar.height);
-            if (k > 0) Box(fill, k < 0.3f ? Color.Lerp(tc, Color.white, Mathf.PingPong(Time.unscaledTime * 3f, 0.5f)) : tc, 6);
-            // иконки статусов и перезарядки умений
+            float a = f.dead ? 0.5f : 1f;
+            Box(r, new Color(0, 0, 0, 0.62f * a), 12);
+            Box(right ? new Rect(r.xMax - 6, r.y, 6, r.height) : new Rect(r.x, r.y, 6, r.height), Draw.A(tc, a), 3);
+            float ps = lead ? r.height - 16 : r.height - 12;
+            Rect por = right ? new Rect(r.xMax - ps - 14, r.y + (r.height - ps) / 2, ps, ps) : new Rect(r.x + 14, r.y + (r.height - ps) / 2, ps, ps);
+            Box(por, new Color(0.12f, 0.12f, 0.14f, a), ps / 2);
+            Rect head = new Rect(por.x + ps * 0.22f, por.y + ps * 0.16f, ps * 0.56f, ps * 0.56f);
+            Box(head, f.dead ? new Color(0.35f, 0.35f, 0.35f) : f.B.color, ps * 0.28f);
+            Box(new Rect(por.center.x - ps * 0.07f, head.yMax - 2, ps * 0.14f, ps * 0.22f), f.dead ? new Color(0.35f, 0.35f, 0.35f) : f.B.color, 3);
+            Border(por, Draw.A(tc, 0.9f * a), 3, ps / 2);
+            if (f.dead) Outline(por, "X", (int)(ps * 0.7f), new Color(1f, 0.2f, 0.2f), Color.black, TextAnchor.MiddleCenter, 2f);
+
+            float x0 = right ? r.x + 14 : por.xMax + 12;
+            float x1 = right ? por.x - 12 : r.xMax - 14;
+            float w = x1 - x0;
+            string nm = (f.human ? (f.pindex == 0 ? "P1 • " : "P2 • ") : "") + f.B.name;
+            TextAnchor an = right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+            Txt(new Rect(x0, r.y + 2, w, lead ? 30 : 22), nm, lead ? 23 : 17, f.dead ? new Color(0.6f, 0.6f, 0.6f) : Color.white, an, true);
+            float bh = lead ? 22f : 12f;
+            Rect bar = new Rect(x0, r.y + (lead ? 34 : 25), w, bh);
+            Box(bar, new Color(0.15f, 0.15f, 0.15f, 0.9f), 5);
+            float k = Mathf.Clamp01(f.hp / f.maxHp), kt = Mathf.Clamp01(f.hpTrail / f.maxHp);
+            Rect trail = right ? new Rect(bar.xMax - bar.width * kt, bar.y, bar.width * kt, bh) : new Rect(bar.x, bar.y, bar.width * kt, bh);
+            if (kt > 0) Box(trail, new Color(1f, 0.92f, 0.7f, 0.95f), 5);
+            Rect fill = right ? new Rect(bar.xMax - bar.width * k, bar.y, bar.width * k, bh) : new Rect(bar.x, bar.y, bar.width * k, bh);
+            Color fc = k < 0.25f ? Color.Lerp(tc, Color.white, Mathf.PingPong(Time.unscaledTime * 4f, 0.6f)) : tc;
+            if (k > 0) { Box(fill, fc, 5); Box(new Rect(fill.x, fill.y, fill.width, bh * 0.35f), new Color(1, 1, 1, 0.25f), 4); }
+            if (lead) Txt(bar, Mathf.CeilToInt(f.hp) + " / " + Mathf.RoundToInt(f.maxHp), 15, Color.white, TextAnchor.MiddleCenter, true);
+
+            if (!lead) return;
+            // умения (перезарядка) и статусы
+            float iy = bar.yMax + 6;
             int idx = 0;
-            foreach (var a in f.ActiveAbilities())
+            foreach (var ab in f.ActiveAbilities())
             {
-                float c = f.CooldownOf(a) / Info.Cooldown(a);
-                Rect ir = right ? new Rect(bar.x + idx * 22, r.y + 8, 18, 18) : new Rect(bar.xMax - 18 - idx * 22, r.y + 8, 18, 18);
-                Box(ir, c <= 0 ? new Color(1f, 0.85f, 0.2f) : new Color(0.4f, 0.4f, 0.4f, 0.8f), 9);
+                float c = f.CooldownOf(ab) / Info.Cooldown(ab);
+                Rect ir = right ? new Rect(bar.xMax - 20 - idx * 26, iy, 20, 20) : new Rect(bar.x + idx * 26, iy, 20, 20);
+                Box(ir, new Color(0.25f, 0.25f, 0.25f, 0.9f), 10);
+                if (c <= 0) Box(ir, new Color(1f, 0.85f, 0.2f), 10);
+                else Box(new Rect(ir.x, ir.y + ir.height * c, ir.width, ir.height * (1 - c)), new Color(1f, 0.85f, 0.2f, 0.6f), 6);
                 idx++;
             }
             string st = "";
             if (f.burnT > 0) st += "горит ";
             if (f.poisonT > 0) st += "яд ";
-            if (f.bleedT > 0) st += "кровоточит ";
-            if (f.slowT > 0) st += "заморожен ";
+            if (f.bleedT > 0) st += "кровь ";
+            if (f.slowT > 0) st += "лёд ";
             if (f.shieldT > 0) st += "щит ";
             if (f.RageOn) st += "ЯРОСТЬ ";
-            if (f.weapon != null) st += "[" + f.weapon.name + (f.weapon.Ranged ? " " + f.ammo : "") + "]";
-            if (st.Length > 0) Txt(new Rect(tx, r.y + 52, r.width - 70, 16), st, 14, P.sub, right ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft);
+            if (f.weapon != null) st += "[" + f.weapon.name + (f.weapon.Ranged ? " " + f.ammo : "") + "] ";
+            st += "смерть: " + f.B.WeakText.ToLower();
+            float sx = idx * 26 + 8;
+            Rect sr = right ? new Rect(bar.x, iy - 1, bar.width - sx, 22) : new Rect(bar.x + sx, iy - 1, bar.width - sx, 22);
+            Txt(sr, st, 15, new Color(0.85f, 0.85f, 0.85f), an);
         }
 
         // ===================== ПАУЗА =====================

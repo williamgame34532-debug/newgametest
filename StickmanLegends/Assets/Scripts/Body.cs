@@ -3,15 +3,16 @@ using UnityEngine;
 
 namespace StickWars
 {
-    // Поза: абсолютные углы конечностей (0 = вниз, + = вперёд по направлению взгляда)
+    // Поза: абсолютные углы конечностей (0 = вниз, + = вперёд по направлению взгляда).
+    // spin — поворот всего тела (+ = назад, как сальто назад), применяется вокруг центра корпуса.
     public struct Pose
     {
-        public float lean, a1, a2, b1, b2, f1, f2, k1, k2;
+        public float lean, a1, a2, b1, b2, f1, f2, k1, k2, spin;
 
-        public Pose(float lean, float a1, float a2, float b1, float b2, float f1, float f2, float k1, float k2)
+        public Pose(float lean, float a1, float a2, float b1, float b2, float f1, float f2, float k1, float k2, float spin = 0f)
         {
             this.lean = lean; this.a1 = a1; this.a2 = a2; this.b1 = b1; this.b2 = b2;
-            this.f1 = f1; this.f2 = f2; this.k1 = k1; this.k2 = k2;
+            this.f1 = f1; this.f2 = f2; this.k1 = k1; this.k2 = k2; this.spin = spin;
         }
 
         public static Pose Lerp(Pose x, Pose y, float t)
@@ -21,17 +22,21 @@ namespace StickWars
                 Mathf.LerpUnclamped(x.a1, y.a1, t), Mathf.LerpUnclamped(x.a2, y.a2, t),
                 Mathf.LerpUnclamped(x.b1, y.b1, t), Mathf.LerpUnclamped(x.b2, y.b2, t),
                 Mathf.LerpUnclamped(x.f1, y.f1, t), Mathf.LerpUnclamped(x.f2, y.f2, t),
-                Mathf.LerpUnclamped(x.k1, y.k1, t), Mathf.LerpUnclamped(x.k2, y.k2, t));
+                Mathf.LerpUnclamped(x.k1, y.k1, t), Mathf.LerpUnclamped(x.k2, y.k2, t),
+                Mathf.LerpUnclamped(x.spin, y.spin, t));
         }
 
-        // три ключа: стойка -> замах -> удар -> стойка
-        public static Pose Attack(Pose rest, Pose wind, Pose strike, float u)
+        static float Ease(float k) { return k * k * (3 - 2 * k); }
+
+        // стойка -> замах -> удар (резкий, как "смаз") -> удержание -> стойка
+        public static Pose Attack(Pose rest, Pose wind, Pose strike, float u, float hitAt = 0.45f)
         {
-            if (u < 0.33f) { float k = u / 0.33f; return Lerp(rest, wind, k * k * (3 - 2 * k)); }
-            if (u < 0.48f) return Lerp(wind, strike, (u - 0.33f) / 0.15f);
-            if (u < 0.7f) return strike;
-            float q = (u - 0.7f) / 0.3f;
-            return Lerp(strike, rest, q * q * (3 - 2 * q));
+            float w0 = hitAt * 0.7f;
+            if (u < w0) return Lerp(rest, wind, Ease(u / w0));
+            if (u < hitAt) { float k = (u - w0) / (hitAt - w0); return Lerp(wind, strike, 1f - (1f - k) * (1f - k) * (1f - k)); }
+            float hold = hitAt + (1f - hitAt) * 0.4f;
+            if (u < hold) return strike;
+            return Lerp(strike, rest, Ease((u - hold) / (1f - hold)));
         }
 
         public static readonly Pose Guard = new Pose(8, 40, 155, 25, 140, 24, 4, -20, -8);
@@ -40,18 +45,45 @@ namespace StickWars
         public static readonly Pose GuardSpear = new Pose(5, 45, 95, 60, 100, 24, 4, -20, -8);
         public static readonly Pose Block = new Pose(-6, 60, 175, 50, 168, 20, 0, -25, -12);
         public static readonly Pose Hurt = new Pose(-25, -30, 10, -50, -20, 15, 10, -30, -15);
+        public static readonly Pose HurtHigh = new Pose(-38, -20, 25, -45, -5, 18, 10, -28, -12);
+        public static readonly Pose HurtBody = new Pose(32, 45, 100, 35, 90, 20, -8, -25, -18);
+        public static readonly Pose Tumble = new Pose(-10, 140, 170, -140, -170, 40, -30, -35, -60);
+        public static readonly Pose Lying = new Pose(0, 35, 60, -30, -10, 8, 4, -8, -4);
+        public static readonly Pose Tuck = new Pose(40, 70, 150, 60, 140, 115, -25, 100, -35);
         public static readonly Pose Victory = new Pose(-4, 150, 165, -150, -165, 14, 4, -14, -4);
         public static readonly Pose Cast = new Pose(10, 88, 88, 80, 82, 25, 5, -22, -8);
         public static readonly Pose CastUp = new Pose(-5, 170, 175, 165, 178, 15, 0, -15, 0);
+        public static readonly Pose Taunt = new Pose(-6, 100, 160, 30, 150, 10, 2, -12, -4);
 
         public static readonly Pose PunchW = new Pose(0, 20, 130, 30, 150, 24, 4, -20, -8);
         public static readonly Pose PunchS = new Pose(22, 92, 90, 20, 150, 40, 10, -30, -10);
         public static readonly Pose Punch2W = new Pose(4, 40, 155, 5, 110, 24, 4, -20, -8);
         public static readonly Pose Punch2S = new Pose(25, 40, 150, 92, 90, 40, 10, -30, -10);
+        public static readonly Pose JabW = new Pose(5, 30, 150, 25, 140, 24, 4, -20, -8);
+        public static readonly Pose JabS = new Pose(16, 90, 90, 25, 145, 30, 6, -24, -8);
+        public static readonly Pose HookW = new Pose(0, 70, 175, 25, 140, 24, 4, -20, -8);
+        public static readonly Pose HookS = new Pose(22, 108, 118, 25, 140, 35, 8, -28, -10);
+        public static readonly Pose UpperW = new Pose(28, 15, 60, 30, 150, 50, 10, -35, -35);
+        public static readonly Pose UpperS = new Pose(-14, 165, 172, 30, 150, 12, 0, -15, -5);
+        public static readonly Pose KneeW = new Pose(5, 60, 170, 40, 160, 40, -40, -20, -8);
+        public static readonly Pose KneeS = new Pose(15, 70, 170, 50, 165, 100, -30, -20, -8);
         public static readonly Pose KickW = new Pose(0, 50, 160, 20, 140, 80, -20, -15, -5);
         public static readonly Pose KickS = new Pose(-22, 60, 170, -20, 40, 98, 95, -10, -5);
+        public static readonly Pose RoundW = new Pose(5, 50, 160, 20, 140, 85, -25, -15, -5);
+        public static readonly Pose RoundS = new Pose(-38, 70, 170, -25, 30, 125, 118, -12, -5);
+        public static readonly Pose SweepW = new Pose(25, 50, 150, 30, 140, 60, -40, 60, -70);
+        public static readonly Pose SweepS = new Pose(20, 60, 150, 30, 140, 82, 92, 70, -75);
+        public static readonly Pose FlyKickW = new Pose(5, 110, 140, -40, -10, 70, -20, -10, -50);
+        public static readonly Pose FlyKickS = new Pose(-28, 60, 170, -30, 40, 95, 95, 30, -90);
+        public static readonly Pose DiveW = new Pose(-15, 170, 190, 160, 185, 160, 170, -10, -60);
+        public static readonly Pose DiveS = new Pose(30, 60, 80, 50, 70, 25, 15, -30, -70);
+        public static readonly Pose AirPunchS = new Pose(15, 95, 92, -30, 30, 50, -20, -10, -60);
         public static readonly Pose SlashW = new Pose(-8, 175, 200, 40, 130, 20, 0, -22, -8);
         public static readonly Pose SlashS = new Pose(25, 45, 25, 30, 120, 45, 20, -30, -15);
+        public static readonly Pose RiseW = new Pose(25, 40, 20, 30, 120, 45, 20, -30, -15);
+        public static readonly Pose RiseS = new Pose(-12, 170, 195, 30, 120, 20, 0, -22, -8);
+        public static readonly Pose SpinSlashW = new Pose(10, 120, 140, 30, 120, 30, 8, -25, -10);
+        public static readonly Pose SpinSlashS = new Pose(22, 90, 88, 60, 100, 45, 15, -30, -15);
         public static readonly Pose StabW = new Pose(-6, 30, 60, 50, 90, 15, 0, -25, -10);
         public static readonly Pose StabS = new Pose(25, 88, 90, 85, 92, 50, 30, -35, -20);
         public static readonly Pose SmashW = new Pose(-15, 190, 210, 185, 205, 15, 0, -20, -5);
@@ -63,14 +95,15 @@ namespace StickWars
         public static readonly Pose AirUp = new Pose(5, 110, 140, -40, -10, 60, -10, -10, -50);
         public static readonly Pose AirDown = new Pose(0, 120, 160, 100, 150, 25, 10, -25, -20);
         public static readonly Pose Crouch = new Pose(20, 50, 150, 30, 140, 70, -30, -10, -70);
+        public static readonly Pose Land = new Pose(25, 60, 140, 40, 120, 75, -35, -15, -75);
 
         public static Pose Run(float p, bool ninja)
         {
             float s = Mathf.Sin(p), c = Mathf.Cos(p);
-            float th1 = 42f * s + 5f, th2 = -42f * s + 5f;
-            float kb1 = 20f + 55f * Mathf.Max(0f, -c), kb2 = 20f + 55f * Mathf.Max(0f, c);
-            if (ninja) return new Pose(28, -70, -55, -75, -60, th1, th1 - kb1, th2, th2 - kb2);
-            return new Pose(15, -35f * s + 25f, -35f * s + 105f, 35f * s + 25f, 35f * s + 105f, th1, th1 - kb1, th2, th2 - kb2);
+            float th1 = 45f * s + 8f, th2 = -45f * s + 8f;
+            float kb1 = 20f + 70f * Mathf.Max(0f, -c), kb2 = 20f + 70f * Mathf.Max(0f, c);
+            if (ninja) return new Pose(30, -72, -55, -78, -60, th1, th1 - kb1, th2, th2 - kb2);
+            return new Pose(18, -40f * s + 30f, -40f * s + 115f, 40f * s + 30f, 40f * s + 115f, th1, th1 - kb1, th2, th2 - kb2);
         }
     }
 
@@ -85,7 +118,7 @@ namespace StickWars
         }
 
         // J: 0 таз, 1 шея, 2 голова, 3 локоть(перед), 4 кисть(перед), 5 локоть(зад), 6 кисть(зад), 7 колено(п), 8 стопа(п), 9 колено(з), 10 стопа(з)
-        public static void Compute(Pose p, Vector2 feet, float s, int f, Vector2[] J)
+        public static void Compute(Pose p, Vector2 feet, float s, int f, Vector2[] J, bool grounded = true)
         {
             Vector2 t1 = Down(p.f1, f) * Thigh * s, t2 = Down(p.f2, f) * Shin * s;
             Vector2 u1 = Down(p.k1, f) * Thigh * s, u2 = Down(p.k2, f) * Shin * s;
@@ -104,6 +137,31 @@ namespace StickWars
             J[5] = sh + Down(p.b1, f) * Upper * s; J[6] = J[5] + Down(p.b2, f) * Fore * s;
             J[7] = hip + t1; J[8] = J[7] + t2;
             J[9] = hip + u1; J[10] = J[9] + u2;
+
+            if (Mathf.Abs(p.spin) > 0.5f)
+            {
+                // вращение вокруг центра корпуса (+spin = назад)
+                Vector2 c = (J[0] + J[1]) * 0.5f;
+                float a = p.spin * f * Mathf.Deg2Rad;
+                float cs = Mathf.Cos(a), sn = Mathf.Sin(a);
+                for (int i = 0; i < J.Length; i++)
+                {
+                    Vector2 v = J[i] - c;
+                    J[i] = c + new Vector2(v.x * cs - v.y * sn, v.x * sn + v.y * cs);
+                }
+                if (grounded)
+                {
+                    // самая низкая точка тела ложится на землю
+                    float min = float.MaxValue;
+                    for (int i = 0; i < J.Length; i++)
+                    {
+                        float r = i == 2 ? HeadR * s : Width * 0.5f * s;
+                        min = Mathf.Min(min, J[i].y - r);
+                    }
+                    float shift = feet.y - min;
+                    for (int i = 0; i < J.Length; i++) J[i].y += shift;
+                }
+            }
         }
     }
 

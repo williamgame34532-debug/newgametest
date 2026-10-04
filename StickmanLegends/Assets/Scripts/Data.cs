@@ -83,7 +83,7 @@ namespace StickWars
         public float dmg = 10, range = 1.5f, rate = 1f, size = 1f, knock = 1f;
         public int ammo = 0;
         public int pellets = 1;
-        public bool bleed, axe, bat, rifle, explode, scythe;
+        public bool bleed, axe, bat, rifle, explode, scythe, killer;
         public Color color = Color.gray;
         public List<Stroke> drawing;
 
@@ -110,8 +110,25 @@ namespace StickWars
         public Color color;
         public float hp = 100, str = 1, spd = 1, def = 1, agi = 1, size = 1;
         public List<Ability> abilities = new List<Ability>();
-        public DmgType weakness = DmgType.Fire;
+        // Условия смерти: список альтернатив (ИЛИ), каждая — маска признаков удара (И)
+        public List<int> killMasks = new List<int>();
+        public bool killOnly;          // true = умирает ТОЛЬКО от этих ударов
+        public int resistMask, immuneMask;
+        public float dmgMul = 1f;
+        public Style style = Style.Balanced;
+        public List<string> understood = new List<string>();
         public Element affinity = Element.None;
+        public string WeakText
+        {
+            get
+            {
+                if (killMasks.Count == 0) return "—";
+                var parts = new List<string>();
+                foreach (var m in killMasks) parts.Add(HFInfo.Describe(m));
+                return (killOnly ? "ТОЛЬКО " : "") + string.Join(" или ", parts.ToArray());
+            }
+        }
+        public bool Needs(HF f) { foreach (var m in killMasks) if ((m & (int)f) != 0) return true; return false; }
         public List<Acc> acc = new List<Acc>();
         public List<string> notes = new List<string>();
         public WeaponStats weapon;
@@ -239,6 +256,71 @@ namespace StickWars
         }
     }
 
+    public enum Style { Balanced, Boxer, Kicker, Acrobat, Brute }
+
+    [Flags]
+    public enum HF
+    {
+        None = 0, Blunt = 1 << 0, Blade = 1 << 1, Pierce = 1 << 2, Fire = 1 << 3, Ice = 1 << 4, Lightning = 1 << 5,
+        Poison = 1 << 6, Shadow = 1 << 7, Head = 1 << 8, Back = 1 << 9, Explosion = 1 << 10, Fall = 1 << 11, Magic = 1 << 12, Unarmed = 1 << 13
+    }
+
+    public static class HFInfo
+    {
+        public static HF FromType(DmgType t)
+        {
+            switch (t)
+            {
+                case DmgType.Blunt: return HF.Blunt;
+                case DmgType.Blade: return HF.Blade;
+                case DmgType.Pierce: return HF.Pierce;
+                case DmgType.Fire: return HF.Fire;
+                case DmgType.Ice: return HF.Ice;
+                case DmgType.Lightning: return HF.Lightning;
+                case DmgType.Poison: return HF.Poison;
+                default: return HF.Shadow;
+            }
+        }
+
+        public static HF FromElem(Element e)
+        {
+            switch (e)
+            {
+                case Element.Fire: return HF.Fire;
+                case Element.Ice: return HF.Ice;
+                case Element.Lightning: return HF.Lightning;
+                case Element.Poison: return HF.Poison;
+                case Element.Shadow: return HF.Shadow;
+            }
+            return HF.None;
+        }
+
+        static readonly KeyValuePair<HF, string>[] NAMES =
+        {
+            new KeyValuePair<HF, string>(HF.Head, "удар в голову"),
+            new KeyValuePair<HF, string>(HF.Back, "удар в спину"),
+            new KeyValuePair<HF, string>(HF.Pierce, "протыкание"),
+            new KeyValuePair<HF, string>(HF.Blade, "клинки"),
+            new KeyValuePair<HF, string>(HF.Blunt, "дробящие удары"),
+            new KeyValuePair<HF, string>(HF.Unarmed, "голые руки"),
+            new KeyValuePair<HF, string>(HF.Fire, "огонь"),
+            new KeyValuePair<HF, string>(HF.Ice, "лёд"),
+            new KeyValuePair<HF, string>(HF.Lightning, "молния"),
+            new KeyValuePair<HF, string>(HF.Poison, "яд"),
+            new KeyValuePair<HF, string>(HF.Shadow, "тьма"),
+            new KeyValuePair<HF, string>(HF.Explosion, "взрывы"),
+            new KeyValuePair<HF, string>(HF.Fall, "удар об стену/землю"),
+            new KeyValuePair<HF, string>(HF.Magic, "магия"),
+        };
+
+        public static string Describe(int mask)
+        {
+            var l = new List<string>();
+            foreach (var kv in NAMES) if ((mask & (int)kv.Key) != 0) l.Add(kv.Value);
+            return l.Count == 0 ? "?" : string.Join(" + ", l.ToArray());
+        }
+    }
+
     public class HitInfo
     {
         public float dmg;
@@ -252,6 +334,9 @@ namespace StickWars
         public bool headshot;
         public bool heavy;
         public bool noFlinch;
+        public HF extra;               // голова/спина/взрыв/падение/магия/без оружия
+        public bool launcher, slam, knockdown;
+        public float lift;
         public HitInfo Copy() { return (HitInfo)MemberwiseClone(); }
     }
 }

@@ -16,7 +16,8 @@ namespace StickWars
 
         public int id;
         public Color bg;
-        public bool glow;
+        public bool glow, outline;
+        public Color outlineCol = new Color(0.05f, 0.05f, 0.06f), ink = Color.white;
         public Color defaultRed, defaultBlue;
 
         class Layer { public Transform t; public float f; public Vector3 basePos; }
@@ -83,7 +84,7 @@ namespace StickWars
             id = themeId; W = w;
             foreach (Transform c in transform) Destroy(c.gameObject);
             layers.Clear(); clouds.Clear(); flicker.Clear();
-            glow = false;
+            glow = false; outline = false; ink = Color.white; outlineCol = new Color(0.05f, 0.05f, 0.06f);
             defaultRed = new Color(0.82f, 0.08f, 0.08f);
             defaultBlue = new Color(0.1f, 0.25f, 0.85f);
             var rnd = new System.Random(12345 + themeId);
@@ -119,6 +120,7 @@ namespace StickWars
 
         void BuildPaper(float ext)
         {
+            outline = true; ink = new Color(0.08f, 0.08f, 0.1f);
             bg = new Color(0.95f, 0.94f, 0.9f);
             var grid = NewLayer("grid", 0f);
             var gc = new Color(0.9f, 0.55f, 0.55f, 0.45f);
@@ -192,6 +194,7 @@ namespace StickWars
 
         void BuildField(float ext, System.Random rnd)
         {
+            outline = true; outlineCol = new Color(0.1f, 0.12f, 0.08f);
             bg = new Color(0.55f, 0.78f, 0.97f);
             var sky = NewLayer("sky", 0.95f);
             Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.3f, 0.55f, 0.92f), new Color(0.85f, 0.93f, 1f), -60);
@@ -251,6 +254,7 @@ namespace StickWars
 
         void BuildCity(float ext, System.Random rnd)
         {
+            outline = true; outlineCol = new Color(0.12f, 0.12f, 0.13f);
             bg = new Color(0.62f, 0.62f, 0.62f);
             var sky = NewLayer("sky", 0.95f);
             Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.5f, 0.5f, 0.52f), new Color(0.78f, 0.77f, 0.76f), -60);

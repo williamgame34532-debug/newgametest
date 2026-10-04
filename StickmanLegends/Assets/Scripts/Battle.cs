@@ -39,7 +39,12 @@ namespace StickWars
         public float announceT, announceMax;
         public Color announceCol = Color.white;
 
-        float freeze, slowT, slowScale = 1f, dropTimer;
+        float freeze, slowT, slowScale = 1f, dropTimer, killerT;
+        public bool suddenDeath;
+        public float fightTime, flashT;
+        public Color flashCol = Color.white;
+        public float SlowAmount { get { return 1f - slowScale; } }
+        readonly List<WeaponStats> killerPool = new List<WeaponStats>();
         List<FighterBuild> redB, blueB;
         List<WeaponStats> dropPool;
         bool dropsOn, p1, p2;
@@ -82,6 +87,8 @@ namespace StickWars
             p1 = p1Control; p2 = p2Control;
             winner = -2;
             paused = false;
+            suddenDeath = false; fightTime = 0; flashT = 0; killerT = 7f;
+            killerPool.Clear();
             freeze = 0; slowT = 0; slowScale = 1f;
 
             if (m == Mode.Showroom)
@@ -94,6 +101,15 @@ namespace StickWars
 
             for (int i = 0; i < red.Count; i++) Spawn(red[i], 0, i, new Vector2(-5f - i * 1.7f, 0), 1);
             for (int i = 0; i < blue.Count; i++) Spawn(blue[i], 1, i, new Vector2(5f + i * 1.7f, 0), -1);
+            foreach (var f in fighters)
+            {
+                if (!f.B.killOnly) continue;
+                foreach (var km in f.B.killMasks)
+                {
+                    var kw = Parser.KillerWeapon(km, f.B.name);
+                    if (kw != null) { kw.killer = true; killerPool.Add(kw); }
+                }
+            }
             foreach (var f in fighters)
             {
                 if (f.team == 0 && f.slot == 0 && p1) { f.human = true; f.pindex = 0; }
@@ -182,6 +198,7 @@ namespace StickWars
                 if (p.t >= p.life) popups.RemoveAt(i);
             }
             if (announceT > 0) announceT -= praw;
+            if (flashT > 0) flashT -= raw;
 
             cam.Tick(praw, this);
             var cp = cam.cam.transform.position;
@@ -210,6 +227,31 @@ namespace StickWars
                     }
                     break;
                 case Phase.Fight:
+                    fightTime += dt;
+                    if (killerPool.Count > 0)
+                    {
+                        bool onGround = false;
+                        foreach (var p in pickups) if (p.w.killer) onGround = true;
+                        foreach (var f in fighters) if (!f.dead && f.weapon != null && f.weapon.killer) onGround = true;
+                        if (!onGround) killerT -= dt;
+                        if (killerT <= 0f)
+                        {
+                            killerT = 12f;
+                            var kw = killerPool[Random.Range(0, killerPool.Count)];
+                            SpawnPickup(kw, kw.ammo, new Vector2(Random.Range(-W + 2f, W - 2f), 15f), Vector2.zero, true);
+                            if (mode == Mode.Fight) Announce("ОРУЖИЕ " + kw.name.ToUpper() + "!", new Color(1f, 0.8f, 0.2f), 1.6f);
+                        }
+                    }
+                    if (!suddenDeath && fightTime > 100f)
+                    {
+                        bool any = false;
+                        foreach (var f in fighters) if (!f.dead && f.B.killOnly) any = true;
+                        if (any)
+                        {
+                            suddenDeath = true;
+                            if (mode == Mode.Fight) { Announce("ВНЕЗАПНАЯ СМЕРТЬ!", new Color(1f, 0.2f, 0.2f), 2f); audio.Sfx("gong", 0.8f, 0f); }
+                        }
+                    }
                     if (dropsOn && dropPool != null && dropPool.Count > 0 && pickups.Count < 3)
                     {
                         dropTimer -= dt;
@@ -280,7 +322,7 @@ namespace StickWars
             foreach (var e in fighters)
             {
                 if (e.dead || e.team == a.team || e.human) continue;
-                if (Mathf.Abs(e.pos.x - a.pos.x) < a.Reach() + 1.2f && Random.value < 0.2f * e.B.def) e.StartBlock();
+                if (Mathf.Abs(e.pos.x - a.pos.x) < a.Reach() + 1.4f) e.React(a);
             }
         }
 
@@ -296,6 +338,7 @@ namespace StickWars
             }
             cam.Shake(0.6f);
             cam.Kick(1f);
+            Flash(0.12f, new Color(1f, 1f, 1f, 0.75f));
             Popup("K.O.", f.J[2] + Vector2.up * 0.8f, new Color(1f, 0.9f, 0.2f), 1.3f);
             audio.Duck(0.5f);
         }
@@ -306,6 +349,7 @@ namespace StickWars
             freeze = Mathf.Max(freeze, Mathf.Min(0.12f, 0.025f + dmg * 0.003f + (heavy ? 0.03f : 0f)));
             cam.Shake(Mathf.Min(0.6f, dmg * 0.018f + (heavy ? 0.25f : 0f)));
             if (dmg > 12f || heavy) cam.Kick(Mathf.Min(1f, dmg / 25f));
+            if (heavy && dmg > 10f) Flash(0.05f, new Color(1f, 1f, 1f, 0.3f));
         }
 
         public void SlowMo(float dur)
@@ -366,6 +410,94 @@ namespace StickWars
             var t = new TimedFx { go = go, life = life, update = upd };
             timed.Add(t);
             return t;
+        }
+
+        public void Flash(float t, Color c)
+        {
+            if (mode == Mode.Showroom) return;
+            flashT = Mathf.Max(flashT, t); flashCol = c;
+        }
+
+        // Искра удара: вспышка, лучи, кольцо (как в стикмен-анимациях)
+        public void HitSpark(Vector2 at, Vector2 dir, float power, Color c)
+        {
+            var go = new GameObject("spark");
+            var core = Draw.Spr(go.transform, "core", Draw.Circle, Color.white, 352);
+            core.transform.position = at;
+            var glowS = Draw.Spr(go.transform, "glow", Draw.Soft, Draw.A(c, 0.8f), 350);
+            glowS.transform.position = at;
+            int n = 6 + (int)(power * 3);
+            var rays = new List<LineRenderer>();
+            var dirs = new List<Vector2>();
+            var lens = new List<float>();
+            float baseAng = Mathf.Atan2(dir.y, dir.x);
+            for (int i = 0; i < n; i++)
+            {
+                var lr = Draw.Line(go.transform, "ray", 1f, c, 351, true, 0);
+                Draw.Taper(lr, 0.11f * power, 0f);
+                rays.Add(lr);
+                float a = (i < n / 2) ? baseAng + Random.Range(-0.9f, 0.9f) : Random.Range(0f, Mathf.PI * 2f);
+                dirs.Add(new Vector2(Mathf.Cos(a), Mathf.Sin(a)));
+                lens.Add(Random.Range(0.5f, 1.2f) * power);
+            }
+            var ring = Draw.Line(go.transform, "ring", 0.06f, Draw.A(c, 0.8f), 351, true, 0);
+            ring.loop = true; ring.positionCount = 20;
+            AddFx(go, 0.16f + power * 0.03f, (t, k) =>
+            {
+                float e = 1f - (1f - k) * (1f - k);
+                core.transform.localScale = Vector3.one * Mathf.Lerp(0.55f, 0f, k) * power;
+                glowS.transform.localScale = Vector3.one * (1.6f + e) * power;
+                glowS.color = Draw.A(c, 0.7f * (1f - k));
+                for (int i = 0; i < rays.Count; i++)
+                {
+                    Vector2 s0 = at + dirs[i] * (0.15f + lens[i] * e * 0.6f);
+                    Vector2 s1 = at + dirs[i] * (0.3f + lens[i] * e * 1.4f);
+                    Draw.Set(rays[i], s1, s0);
+                    Draw.Col(rays[i], Draw.A(c, 1f - k));
+                }
+                float r = Mathf.Lerp(0.2f, 1.1f, e) * power;
+                for (int i = 0; i < 20; i++)
+                {
+                    float a = i / 20f * Mathf.PI * 2f;
+                    ring.SetPosition(i, at + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r);
+                }
+                Draw.Col(ring, Draw.A(c, 0.7f * (1f - k)));
+                ring.widthMultiplier = 0.08f * (1f - k) * power + 0.01f;
+            });
+        }
+
+        // Трещины в земле / стене после мощного удара
+        public void Crack(Vector2 at, bool wall)
+        {
+            var go = new GameObject("crack");
+            var lines = new List<LineRenderer>();
+            Color c = theme.id == 0 ? new Color(0.1f, 0.1f, 0.1f, 0.9f) : new Color(0.05f, 0.05f, 0.05f, 0.85f);
+            if (theme.id == 4) c = new Color(0.1f, 0.95f, 1f, 0.9f);
+            int n = Random.Range(3, 6);
+            for (int i = 0; i < n; i++)
+            {
+                var lr = Draw.Line(go.transform, "c", 0.05f, c, -1, true, 0);
+                var pts = new List<Vector2>();
+                Vector2 p = wall ? new Vector2(at.x, at.y) : new Vector2(at.x, -0.02f);
+                pts.Add(p);
+                float ang = wall ? (Mathf.PI * 0.5f + Random.Range(-1.3f, 1.3f) + (i % 2 == 0 ? 0 : Mathf.PI)) : Random.Range(-Mathf.PI * 0.95f, -Mathf.PI * 0.05f);
+                int segs = Random.Range(3, 6);
+                for (int k = 0; k < segs; k++)
+                {
+                    ang += Random.Range(-0.5f, 0.5f);
+                    p += new Vector2(Mathf.Cos(ang), Mathf.Sin(ang)) * Random.Range(0.15f, 0.35f);
+                    if (!wall) p.y = Mathf.Min(p.y, -0.02f);
+                    pts.Add(p);
+                }
+                Draw.Set(lr, pts);
+                Draw.Taper(lr, 0.07f, 0.01f);
+                lines.Add(lr);
+            }
+            AddFx(go, 7f, (t, k) =>
+            {
+                float a = k < 0.8f ? 1f : 1f - (k - 0.8f) / 0.2f;
+                foreach (var l in lines) Draw.Col(l, Draw.A(c, c.a * a));
+            });
         }
 
         public void Shock(Vector2 at, float radius, Color c)
@@ -467,6 +599,8 @@ namespace StickWars
                 if (d.magnitude < radius + 0.4f * e.Size)
                 {
                     var h = baseHit.Copy();
+                    h.extra |= HF.Explosion;
+                    h.knockdown = true;
                     h.dir = (d.normalized + Vector2.up * 0.6f).normalized;
                     h.point = e.Center;
                     h.knock = Mathf.Max(h.knock, 8f);
