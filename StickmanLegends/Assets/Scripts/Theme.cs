@@ -11,8 +11,8 @@ namespace StickWars
     // Стили арены: бумага, арена, поле, город, киберпанк
     public class Theme : MonoBehaviour
     {
-        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние" };
-        public const int Count = 7;
+        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние", "Дуэль" };
+        public const int Count = 8;
 
         public int id;
         public Color bg;
@@ -67,6 +67,13 @@ namespace StickWars
                     p.btn = new Color(0.1f, 0.1f, 0.1f, 0.92f); p.btnHover = new Color(0.35f, 0.05f, 0.05f, 1f); p.btnText = new Color(0.97f, 0.97f, 0.97f);
                     p.title = new Color(0.05f, 0.05f, 0.05f); p.titleShadow = new Color(0.85f, 0.05f, 0.05f, 0.9f);
                     break;
+                case 7: // дуэль
+                    p.panel = new Color(0.1f, 0.1f, 0.11f, 0.9f); p.panelEdge = new Color(0.86f, 0.4f, 0.37f, 1f);
+                    p.text = new Color(0.95f, 0.95f, 0.95f); p.sub = new Color(0.62f, 0.62f, 0.65f);
+                    p.accent = new Color(0.86f, 0.4f, 0.37f); p.accent2 = new Color(0.42f, 0.56f, 0.86f);
+                    p.btn = new Color(0.16f, 0.16f, 0.17f, 0.95f); p.btnHover = new Color(0.3f, 0.17f, 0.16f, 1f); p.btnText = new Color(0.95f, 0.95f, 0.95f);
+                    p.title = new Color(0.95f, 0.95f, 0.95f); p.titleShadow = new Color(0.42f, 0.56f, 0.86f, 0.9f);
+                    break;
                 case 6: // сияние
                     p.panel = new Color(0.12f, 0.1f, 0.2f, 0.88f); p.panelEdge = new Color(0.85f, 0.75f, 1f, 1f);
                     p.text = new Color(0.97f, 0.95f, 1f); p.sub = new Color(0.75f, 0.7f, 0.88f);
@@ -112,6 +119,7 @@ namespace StickWars
                 case 3: BuildCity(ext, rnd); break;
                 case 5: BuildForest(ext, rnd); break;
                 case 6: BuildGlow(ext, rnd); break;
+                case 7: BuildDuel(ext); break;
                 default: BuildCyber(ext, rnd); break;
             }
         }
@@ -377,6 +385,19 @@ namespace StickWars
             var disk = Draw.Spr(stage, "disk", Draw.Soft, new Color(0.85f, 0.8f, 1f, 0.35f), -9);
             disk.transform.localPosition = new Vector3(0, -0.4f, 0); disk.transform.localScale = new Vector3(36f, 2.2f, 1f);
             Walls(new Color(0.2f, 0.18f, 0.28f, 1f), 0.5f);
+        }
+
+        // Дуэль: чистый тёмный фон и тонкая линия пола — как в классических стикмен-анимациях
+        void BuildDuel(float ext)
+        {
+            bg = new Color(0.17f, 0.17f, 0.18f);
+            defaultRed = new Color(0.86f, 0.39f, 0.36f);
+            defaultBlue = new Color(0.42f, 0.56f, 0.86f);
+            var g = NewLayer("glowFloor", 0.2f);
+            var s = Draw.Spr(g, "spot", Draw.Soft, new Color(1f, 1f, 1f, 0.05f), -50);
+            s.transform.localPosition = new Vector3(0, 3, 0); s.transform.localScale = new Vector3(30f, 14f, 1f);
+            Ground(ext, new Color(0.15f, 0.15f, 0.16f), new Color(0.05f, 0.05f, 0.05f), 0.08f);
+            Walls(new Color(0.13f, 0.13f, 0.14f, 1f), 0.4f);
         }
 
         void BuildCyber(float ext, System.Random rnd)

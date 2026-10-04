@@ -91,6 +91,13 @@ namespace StickWars
         public int lastRF = 1, styleMode;
         public float lastAlpha = 1f;
         public bool replaying;
+        // рисованные стили: «дрожащая» линия, анимация на двойках, скетч/контур, призраки конечностей
+        LineRenderer[] sketch;
+        LineRenderer sketchHead, ghostA, ghostB;
+        readonly Vector2[] disp = new Vector2[11], heldP = new Vector2[11], jit = new Vector2[11], jit2 = new Vector2[11];
+        readonly Vector2[] g1 = new Vector2[3], g2 = new Vector2[3];
+        bool g1ok, g2ok, heldOk;
+        float boilT;
         int replayRF = 1;
         float replayAlpha = 1f;
         Color eyeCol = Color.red;
@@ -184,6 +191,12 @@ namespace StickWars
             BuildAccessories();
 
             lTrail = Draw.Line(transform, "trail", 1f, Color.white, baseOrder + 14, true, 2);
+            sketch = new LineRenderer[5];
+            for (int i = 0; i < 5; i++) { sketch[i] = Draw.Line(transform, "sketch", 0.04f, Color.black, baseOrder + 15, true, 3); sketch[i].positionCount = 3; sketch[i].enabled = false; }
+            sketchHead = Draw.Line(transform, "sketchHead", 0.04f, Color.black, baseOrder + 15, true, 0);
+            sketchHead.loop = true; sketchHead.positionCount = 18; sketchHead.enabled = false;
+            ghostA = Draw.Line(transform, "ghostA", w, mainCol, baseOrder + 10, true, 5); ghostA.positionCount = 3; ghostA.enabled = false;
+            ghostB = Draw.Line(transform, "ghostB", w, mainCol, baseOrder + 10, true, 5); ghostB.positionCount = 3; ghostB.enabled = false;
             lTrail.enabled = false;
 
             lShield = Draw.Line(transform, "shield", 0.06f, new Color(0.4f, 0.9f, 1f, 0.8f), baseOrder + 17, true, 0);
@@ -723,6 +736,17 @@ namespace StickWars
                     battle.fx.Dust(pos, 5);
                     if (B.style == Style.Acrobat || Random.value < 0.25f * B.agi) StartAirFlip(Mathf.Abs(vel.x) > 2f && Mathf.Sign(vel.x) == facing ? -1f : 1f);
                 }
+                else if (Mathf.Abs(pos.x) > battle.W - 0.55f)
+                {
+                    // отскок от стены
+                    float side = Mathf.Sign(pos.x);
+                    vel = new Vector2(-side * 11f, jv * 0.95f);
+                    facing = -(int)side;
+                    battle.fx.Dust(new Vector2(side * (battle.W - 0.2f), pos.y + 0.5f), 6);
+                    battle.audio.Sfx("whoosh", 0.5f);
+                    StartAirFlip(1f);
+                    jumps = B.HasAb(Ability.DoubleJump) ? 1 : 0;
+                }
                 else if (jumps > 0)
                 {
                     jumps--;
@@ -1184,6 +1208,7 @@ namespace StickWars
             combo++;
             comboT = 1.2f;
             if (combo > maxCombo) maxCombo = combo;
+            if (combo == 5 || combo == 10) battle.FlashStyle(2, 0.09f);
             if (combo >= 3) battle.Popup(combo + " HITS!", J[2] + new Vector2(-facing * 0.6f, 1.1f), Color.Lerp(mainCol, Color.white, 0.5f), 0.7f + Mathf.Min(0.6f, combo * 0.05f));
             atkCd = Mathf.Min(atkCd, 0.05f);
             if (h.type == DmgType.Blade || h.type == DmgType.Pierce) { battle.audio.Sfx("cut", 0.8f); battle.audio.Sfx("splat", 0.5f); }
@@ -1926,6 +1951,7 @@ namespace StickWars
                 if (free && hp < maxHp * 0.35f && dist < 2f && Random.value < 0.08f * B.agi) StartBackflip();
             }
             move = tauntT > 0 ? 0 : aiMove;
+            if (!grounded && Mathf.Abs(pos.x) > battle.W - 0.7f && vel.y < 3f && body == BodyS.Normal && Random.value < 0.2f) jump = true;
             if (dodgeT > 0f)
             {
                 dodgeT -= dt;
@@ -2185,6 +2211,27 @@ namespace StickWars
 
         void TrailTick(float dt)
         {
+            // призраки бьющей конечности (многократный «смаз», как в рисованных драках)
+            bool ghost = false;
+            if (act == Act.Move && mv != null)
+            {
+                float uu = actT / actDur;
+                if (uu > mv.hitAt - 0.16f && uu < mv.hitAt + 0.08f)
+                {
+                    ghost = true;
+                    int limb = mv.limb == 4 ? 0 : mv.limb;
+                    int r0 = limb < 2 ? 1 : 0, m0 = limb == 0 ? 3 : limb == 1 ? 5 : limb == 2 ? 7 : 9;
+                    Vector2 a0 = J[r0], a1 = J[m0], a2 = J[m0 + 1];
+                    Color gc = Color.Lerp(mainCol, Color.white, 0.25f);
+                    if (styleMode == 1 || styleMode == 3 || styleMode == 7 || silhouette) gc = new Color(0.1f, 0.1f, 0.1f);
+                    if (g2ok) { Draw.Set(ghostB, g2[0], g2[1], g2[2]); Draw.Col(ghostB, Draw.A(gc, 0.18f)); ghostB.enabled = true; }
+                    if (g1ok) { Draw.Set(ghostA, g1[0], g1[1], g1[2]); Draw.Col(ghostA, Draw.A(gc, 0.38f)); ghostA.enabled = true; }
+                    for (int i = 0; i < 3; i++) g2[i] = g1[i];
+                    g2ok = g1ok;
+                    g1[0] = a0; g1[1] = a1; g1[2] = a2; g1ok = true;
+                }
+            }
+            if (!ghost) { ghostA.enabled = ghostB.enabled = false; g1ok = g2ok = false; }
             for (int i = 0; i < trailAge.Count; i++) trailAge[i] += dt;
             while (trailAge.Count > 0 && trailAge[0] > 0.1f) { trailAge.RemoveAt(0); trailPts.RemoveAt(0); }
             if (act == Act.Move && mv != null)
@@ -2236,8 +2283,29 @@ namespace StickWars
         // ===================== ОТРИСОВКА =====================
         void Render()
         {
-            Vector2[] P = dead && rag != null && !replaying ? rag.p : J;
+            Vector2[] src = dead && rag != null && !replaying ? rag.p : J;
             float s = Size;
+            bool drawn = styleMode == 5 || styleMode == 6 || styleMode == 7;
+            if (drawn)
+            {
+                // рисованная анимация: поза «на двойках» (12 кадров/с) и дрожание линий
+                boilT += Time.unscaledDeltaTime;
+                bool hold = styleMode != 6;
+                if (!heldOk || boilT >= 1f / 12f)
+                {
+                    boilT = 0f; heldOk = true;
+                    float jm = styleMode == 5 ? 0.035f : styleMode == 7 ? 0.02f : 0.012f;
+                    for (int i = 0; i < 11; i++) { heldP[i] = src[i]; jit[i] = Random.insideUnitCircle * jm * s; jit2[i] = Random.insideUnitCircle * jm * 1.6f * s; }
+                }
+                for (int i = 0; i < 11; i++) disp[i] = (hold ? heldP[i] : src[i]) + jit[i];
+            }
+            else for (int i = 0; i < 11; i++) disp[i] = src[i];
+            if (battle.Frozen && flash > 0f)
+            {
+                Vector2 sh0 = Random.insideUnitCircle * 0.07f * s; // дрожь от удара в стоп-кадре
+                for (int i = 0; i < 11; i++) disp[i] += sh0;
+            }
+            Vector2[] P = disp;
             Color c = mainCol, cb = backCol;
             if (flash > 0) { c = Color.white; cb = Color.white; }
             else
@@ -2339,6 +2407,7 @@ namespace StickWars
             }
 
             RenderGear(P, rf, alpha, c, cb);
+            RenderSketch(P, sh, alpha);
 
             bool shOn = shieldT > 0 && !dead;
             lShield.enabled = shOn; sShieldGlow.enabled = shOn;
@@ -2357,11 +2426,56 @@ namespace StickWars
             }
         }
 
+        void RenderSketch(Vector2[] P, Vector2 sh, float alpha)
+        {
+            if (!sketch[0].enabled) return;
+            bool comic = styleMode == 6;
+            int[][] ch = { new[] { 0, 9, 10 }, new[] { 0, 7, 8 }, new[] { 0, 1, 1 }, new[] { 1, 5, 6 }, new[] { 1, 3, 4 } };
+            for (int k = 0; k < 5; k++)
+            {
+                var l = sketch[k];
+                for (int i = 0; i < 3; i++)
+                {
+                    int j = ch[k][i];
+                    Vector2 p = (k >= 3 && i == 0) ? sh : P[j];
+                    if (k == 2 && i == 1) p = (P[0] + P[1]) * 0.5f;
+                    if (!comic) p += jit2[j] + (k % 2 == 0 ? Vector2.one : -Vector2.one) * 0.02f * Size;
+                    l.SetPosition(i, p);
+                }
+                var cc = l.startColor; cc.a = (comic ? 1f : 0.7f) * alpha; Draw.Col(l, cc);
+            }
+            float r = Skel.HeadR * Size * (comic ? 1.12f : 1.04f);
+            for (int i = 0; i < 18; i++)
+            {
+                float a = i / 18f * Mathf.PI * 2f;
+                Vector2 o = comic ? Vector2.zero : jit2[i % 11] * 0.6f;
+                sketchHead.SetPosition(i, P[2] + new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * r + o);
+            }
+            var hc = sketchHead.startColor; hc.a = (comic ? 1f : 0.75f) * alpha; Draw.Col(sketchHead, hc);
+        }
+
         // смена рисовки: 0 обычная, 1 чернила, 2 негатив, 3 кадр удара, 4 плоская дуэль
         public void SetStyle(int st)
         {
             styleMode = st;
             if (under != null) { foreach (var u in under) u.enabled = st == 0; sHeadUnder.enabled = st == 0; }
+            bool sk = st == 5 || st == 6;
+            float w = Skel.Width * Size;
+            foreach (var l in sketch)
+            {
+                l.enabled = sk;
+                l.widthMultiplier = st == 6 ? w + 0.13f * Size : 0.035f;
+                l.sortingOrder = st == 6 ? baseOrder - 1 : baseOrder + 15;
+                Draw.Col(l, st == 6 ? new Color(0.02f, 0.02f, 0.02f) : new Color(0.12f, 0.12f, 0.14f, 0.7f));
+            }
+            sketchHead.enabled = sk;
+            sketchHead.widthMultiplier = st == 6 ? 0.12f * Size : 0.035f;
+            sketchHead.sortingOrder = st == 6 ? baseOrder - 1 : baseOrder + 15;
+            Draw.Col(sketchHead, st == 6 ? new Color(0.02f, 0.02f, 0.02f) : new Color(0.12f, 0.12f, 0.14f, 0.75f));
+            // тушь: конечности как мазки кисти — толстые у основания, тонкие к концу
+            var curve = st == 7 ? new AnimationCurve(new Keyframe(0f, 1.35f), new Keyframe(0.5f, 0.95f), new Keyframe(1f, 0.5f)) : AnimationCurve.Constant(0f, 1f, 1f);
+            foreach (var l in new[] { lArmF, lArmB, lLegF, lLegB, lTorso }) l.widthCurve = curve;
+            heldOk = false;
         }
 
         void StyleColors(ref Color c, ref Color cb)
@@ -2375,6 +2489,12 @@ namespace StickWars
                     c = team == 0 ? new Color(0.86f, 0.39f, 0.36f) : new Color(0.42f, 0.56f, 0.86f);
                     cb = Color.Lerp(c, Color.black, 0.18f);
                     break;
+                case 5: c = new Color(0.25f, 0.25f, 0.27f); cb = new Color(0.55f, 0.55f, 0.57f); break;
+                case 6:
+                    c = team == 0 ? new Color(0.95f, 0.18f, 0.12f) : new Color(0.12f, 0.4f, 0.95f);
+                    cb = Color.Lerp(c, Color.white, 0.25f);
+                    break;
+                case 7: c = new Color(0.04f, 0.04f, 0.05f); cb = new Color(0.3f, 0.29f, 0.28f); break;
             }
         }
 

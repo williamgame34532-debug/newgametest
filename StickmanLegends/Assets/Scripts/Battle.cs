@@ -216,6 +216,7 @@ namespace StickWars
             float hh = cam.cam.orthographicSize;
             theme.Follow(cp);
             theme.Tick(dt, fx, cp, hh * cam.cam.aspect, hh);
+            DecorFollow();
             if (!paused) RecordFrame(raw);
         }
 
@@ -293,6 +294,7 @@ namespace StickWars
                     }
                     break;
                 case Phase.Victory:
+                    if (mode == Mode.Fight && phaseT > 3f && VideoRecorder.I != null && VideoRecorder.I.Active && !capturing) VideoRecorder.I.End();
                     if (mode == Mode.Demo && phaseT > 4f && Game.I != null) Game.I.NextDemo();
                     break;
             }
@@ -364,6 +366,7 @@ namespace StickWars
             cam.Shake(Mathf.Min(0.6f, dmg * 0.018f + (heavy ? 0.25f : 0f)));
             if (dmg > 12f || heavy) cam.Kick(Mathf.Min(1f, dmg / 25f));
             if (heavy && dmg > 10f) Flash(0.05f, new Color(1f, 1f, 1f, 0.3f));
+            if (mode == Mode.Fight && (heavy || dmg > 14f) && Random.value < 0.35f) cam.Cut(at + Vector2.up * 0.4f, Random.Range(2.6f, 3.4f), Random.Range(0.35f, 0.6f));
         }
 
         public void SlowMo(float dur)
@@ -483,9 +486,17 @@ namespace StickWars
         }
 
         // Искра удара: вспышка, лучи, кольцо (как в стикмен-анимациях)
+        static readonly string[] ONO = { "БАМ!", "ХРЯСЬ!", "БУМ!", "ПАФ!", "ТРАХ!", "КРАК!", "ВЖУХ!", "БАЦ!" };
+
         public void HitSpark(Vector2 at, Vector2 dir, float power, Color c)
         {
             RecEvent(0, at, dir, power, c, null);
+            if (mode != Mode.Showroom && (power >= 1.6f || (curStyle == 6 && power >= 0.8f)))
+            {
+                FocusLines(at, Mathf.Min(1.5f, power * 0.7f));
+                if (curStyle == 6 || Random.value < 0.45f)
+                    popups.Add(new Popup { text = ONO[Random.Range(0, ONO.Length)], pos = at + new Vector2(Random.Range(-0.6f, 0.6f), 0.9f), col = curStyle == 6 ? Color.white : new Color(1f, 0.88f, 0.2f), life = 0.7f, size = 1.1f + power * 0.25f, vel = new Vector2(Random.Range(-1f, 1f), 2.2f) });
+            }
             var go = new GameObject("spark");
             var core = Draw.Spr(go.transform, "core", Draw.Circle, Color.white, 352);
             core.transform.position = at;
@@ -704,7 +715,11 @@ namespace StickWars
             cam.farClipPlane = 100f;
         }
 
-        public void Snap(Vector2 center, float s) { c = center; size = s; trauma = 0; kick = 0; focusT = 0; }
+        public void Snap(Vector2 center, float s) { c = center; size = s; trauma = 0; kick = 0; focusT = 0; cutT = 0; }
+        float cutT, cutS;
+        Vector2 cutC;
+        // монтажная склейка: камера мгновенно «режет» на крупный план, как в анимации
+        public void Cut(Vector2 at, float s, float dur) { cutC = at; cutS = s; cutT = dur; c = at; size = s; }
         public void Shake(float a) { if (Game.I != null && !Game.I.S.shake) return; trauma = Mathf.Min(1f, trauma + a); }
         public void Kick(float k) { kick = Mathf.Max(kick, k); }
         public void Focus(Vector2 p, float dur) { focusP = p; focusT = dur; }
@@ -750,8 +765,12 @@ namespace StickWars
                     ts = 3.4f;
                 }
             }
-            size = Mathf.Lerp(size, ts, 1f - Mathf.Exp(-raw * 3.2f));
-            c = Vector2.Lerp(c, tc, 1f - Mathf.Exp(-raw * 4.5f));
+            if (cutT > 0f && b.mode != Battle.Mode.Showroom) { cutT -= raw; tc = cutC; ts = cutS; c = Vector2.Lerp(c, cutC, 1f - Mathf.Exp(-raw * 2f)); size = cutS; }
+            else
+            {
+                size = Mathf.Lerp(size, ts, 1f - Mathf.Exp(-raw * 3.2f));
+                c = Vector2.Lerp(c, tc, 1f - Mathf.Exp(-raw * 4.5f));
+            }
             kick = Mathf.MoveTowards(kick, 0f, raw * 3f);
             float half = size * (1f - kick * 0.07f);
             Vector2 cc = c;

@@ -53,6 +53,7 @@ namespace StickWars
             DontDestroyOnLoad(cam.gameObject);
 
             audio = gameObject.AddComponent<Audio>();
+            gameObject.AddComponent<VideoRecorder>();
             var bgo = new GameObject("Battle");
             bgo.transform.SetParent(transform, false);
             battle = bgo.AddComponent<Battle>();
@@ -144,9 +145,11 @@ namespace StickWars
             foreach (var d in data.blue) blue.Add(Parser.BuildFighter(d, data.weapons));
             bool p1 = data.p1Control;
             bool p2 = data.twoPlayers && data.p2Control;
+            if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.End();
             battle.Setup(Battle.Mode.Fight, red, blue, DropPool(), data.drops, data.dropInterval, p1, p2, false);
             scr = Scr.Battle;
             audio.PlayMusic(true);
+            if (S.recordVideo && VideoRecorder.I != null) VideoRecorder.I.Begin(false, "fight");
             Save();
         }
 
@@ -173,6 +176,7 @@ namespace StickWars
 
         public void RestartClean()
         {
+            if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.End();
             battle.Restart(false);
             battle.paused = false;
             scr = Scr.Battle;
@@ -180,6 +184,7 @@ namespace StickWars
 
         public void ToMenu(Scr s)
         {
+            if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.End();
             battle.paused = false;
             scr = s;
             StartDemo();

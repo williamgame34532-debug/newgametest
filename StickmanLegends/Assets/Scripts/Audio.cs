@@ -71,6 +71,10 @@ namespace StickWars
             }
         }
 
+        public AudioClip MusicClip { get { return music.clip; } }
+        public float MusicTime { get { return music.clip != null ? music.time : 0f; } }
+        public AudioClip Clip(string n) { AudioClip c; return clips.TryGetValue(n, out c) ? c : null; }
+
         public void Duck(float v) { duck = Mathf.Min(duck, v); }
 
         public void PlayMusic(bool battle)
@@ -93,6 +97,7 @@ namespace StickWars
         public void Sfx(string name, float vol = 1f, float pitchVar = 0.08f)
         {
             if (OnSfx != null) OnSfx(name, vol);
+            if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.Sfx(name, vol);
             AudioClip c;
             if (!clips.TryGetValue(name, out c)) return;
             var s = Game.I != null ? Game.I.S : null;

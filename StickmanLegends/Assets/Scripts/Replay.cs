@@ -93,11 +93,12 @@ namespace StickWars
 
         // ===================== СТИЛИ РИСОВКИ =====================
         // 0 — стиль арены, 1 — чернила (чёрные силуэты на светлом), 2 — негатив, 3 — красный кадр удара, 4 — плоская дуэль (красный/синий на тёмном)
-        public static readonly string[] StyleNames = { "Арена", "Чернила", "Негатив", "Кадр удара", "Дуэль" };
+        public static readonly string[] StyleNames = { "Арена", "Чернила", "Негатив", "Кадр удара", "Дуэль", "Карандаш", "Комикс", "Тушь" };
         public int curStyle, baseStyle;
         float impactT;
         int styleStep, tempoAnn;
-        Transform styleGround;
+        Transform styleGround, decorPencil, decorComic, decorSumi;
+        readonly List<LineRenderer> comicRays = new List<LineRenderer>();
         SpriteRenderer sgFill;
         LineRenderer sgLine;
 
@@ -118,6 +119,43 @@ namespace StickWars
             sgFill = Draw.Rect(styleGround, new Rect(-80, -30, 160, 30), Color.gray, -10);
             sgLine = Draw.Line(styleGround, "line", 0.1f, Color.black, -3, true, 0);
             Draw.Set(sgLine, new Vector2(-80, -0.03f), new Vector2(80, -0.03f));
+            var rnd = new System.Random(77);
+            // карандаш: тетрадная штриховка и каракули
+            decorPencil = new GameObject("pencil").transform; decorPencil.SetParent(styleGround, false);
+            for (int i = 0; i < 70; i++)
+            {
+                float x = -40 + i * 1.2f + (float)rnd.NextDouble() * 0.5f;
+                var l = Draw.Line(decorPencil, "hatch", 0.025f, new Color(0.35f, 0.35f, 0.38f, 0.35f), -8, true, 0);
+                Draw.Set(l, new Vector2(x, -0.2f), new Vector2(x - 0.9f, -1.4f));
+            }
+            for (int k = 0; k < 3; k++)
+            {
+                var hz = Draw.Line(decorPencil, "horizon", 0.03f, new Color(0.3f, 0.3f, 0.33f, 0.4f), -40, true, 0);
+                var pts = new List<Vector2>();
+                for (int i = 0; i <= 60; i++) pts.Add(new Vector2(-40 + i * 1.33f, 3f + k * 2.5f + Mathf.Sin(i * 0.4f + k) * 0.5f + (float)rnd.NextDouble() * 0.15f));
+                Draw.Set(hz, pts);
+            }
+            // комикс: лучи из центра
+            decorComic = new GameObject("comic").transform; decorComic.SetParent(styleGround, false);
+            for (int i = 0; i < 24; i++)
+            {
+                var r = Draw.Line(decorComic, "ray", 1f, new Color(1f, 0.93f, 0.55f, 0.8f), -45, true, 0);
+                float a = i / 24f * Mathf.PI * 2f;
+                Draw.Set(r, Vector2.zero, new Vector2(Mathf.Cos(a), Mathf.Sin(a)) * 40f);
+                Draw.Taper(r, 0f, 3.5f);
+                comicRays.Add(r);
+            }
+            // тушь: красное солнце и горы мазками кисти
+            decorSumi = new GameObject("sumi").transform; decorSumi.SetParent(styleGround, false);
+            var sun = Draw.Spr(decorSumi, "sun", Draw.Circle, new Color(0.8f, 0.12f, 0.1f), -45);
+            sun.transform.localPosition = new Vector3(4f, 8f, 0); sun.transform.localScale = Vector3.one * 5f;
+            for (int i = 0; i < 6; i++)
+            {
+                var m = Draw.Line(decorSumi, "mount", 1f, new Color(0.15f, 0.15f, 0.16f, 0.5f - i * 0.05f), -44, true, 2);
+                float x = -30 + i * 11 + (float)rnd.NextDouble() * 4;
+                Draw.Set(m, new List<Vector2> { new Vector2(x - 6, 0), new Vector2(x, 4f + (float)rnd.NextDouble() * 3f), new Vector2(x + 6, 0) });
+                Draw.Taper(m, 0.6f, 0.05f);
+            }
             styleGround.gameObject.SetActive(false);
         }
 
@@ -135,11 +173,66 @@ namespace StickWars
                 case 2: bg = new Color(0.02f, 0.02f, 0.03f); fill = new Color(0.07f, 0.07f, 0.08f); line = new Color(0.95f, 0.95f, 0.95f); break;
                 case 3: bg = new Color(0.78f, 0.04f, 0.04f); fill = new Color(0.5f, 0.02f, 0.02f); line = new Color(0.02f, 0.02f, 0.02f); break;
                 case 4: bg = new Color(0.17f, 0.17f, 0.18f); fill = new Color(0.12f, 0.12f, 0.13f); line = new Color(0.85f, 0.85f, 0.85f); break;
+                case 5: bg = new Color(0.96f, 0.95f, 0.91f); fill = new Color(0.91f, 0.9f, 0.86f); line = new Color(0.2f, 0.2f, 0.22f); break;
+                case 6: bg = new Color(1f, 0.82f, 0.25f); fill = new Color(0.95f, 0.5f, 0.12f); line = new Color(0.02f, 0.02f, 0.02f); break;
+                case 7: bg = new Color(0.93f, 0.89f, 0.8f); fill = new Color(0.86f, 0.81f, 0.7f); line = new Color(0.05f, 0.05f, 0.05f); break;
             }
+            decorPencil.gameObject.SetActive(st == 5);
+            decorComic.gameObject.SetActive(st == 6);
+            decorSumi.gameObject.SetActive(st == 7);
+            sgLine.widthMultiplier = st == 7 ? 0.22f : st == 6 ? 0.16f : 0.1f;
+            Particles.InkMode = st == 7 || st == 1 ? 1 : st == 5 ? 2 : 0;
             cam.cam.backgroundColor = bg;
             sgFill.color = fill; Draw.Col(sgLine, line);
             foreach (var f in fighters) f.SetStyle(st);
             foreach (var f in removedFighters) if (f != null) f.SetStyle(st);
+        }
+
+        public bool Frozen { get { return freeze > 0f; } }
+
+        public void FlashStyle(int st, float t)
+        {
+            if (Game.I != null && !Game.I.S.styleShift) return;
+            if (mode != Mode.Fight && mode != Mode.Replay) return;
+            ApplyStyle(st);
+            impactT = Mathf.Max(impactT, t);
+        }
+
+        void DecorFollow()
+        {
+            if (styleGround == null || !styleGround.gameObject.activeSelf) return;
+            var cp = cam.cam.transform.position;
+            decorComic.position = new Vector3(cp.x, cp.y, 0);
+            decorComic.rotation = Quaternion.Euler(0, 0, Time.unscaledTime * 6f);
+            decorSumi.position = new Vector3(cp.x * 0.85f, cp.y * 0.6f, 0);
+            decorPencil.position = new Vector3(cp.x * 0.1f, 0, 0);
+        }
+
+        // Манга-линии фокуса: полосы со всех сторон сходятся к точке удара
+        public void FocusLines(Vector2 at, float power)
+        {
+            var go = new GameObject("focus");
+            var lines = new List<LineRenderer>();
+            var dirs = new List<Vector2>();
+            Color c = curStyle == 2 || curStyle == 4 || theme.id == 1 || theme.id == 4 ? new Color(1f, 1f, 1f, 0.55f) : new Color(0.05f, 0.05f, 0.05f, 0.55f);
+            int n = 26;
+            for (int i = 0; i < n; i++)
+            {
+                var l = Draw.Line(go.transform, "f", 1f, c, 320, true, 0);
+                Draw.Taper(l, 0.16f * power, 0f);
+                lines.Add(l);
+                float a = (i + Random.value * 0.6f) / n * Mathf.PI * 2f;
+                dirs.Add(new Vector2(Mathf.Cos(a), Mathf.Sin(a)));
+            }
+            AddFx(go, 0.28f, (t, k) =>
+            {
+                float r0 = Mathf.Lerp(3.2f, 1.8f, k) * power, r1 = 14f;
+                for (int i = 0; i < lines.Count; i++)
+                {
+                    Draw.Set(lines[i], at + dirs[i] * r1, at + dirs[i] * (r0 + (i % 3) * 0.6f));
+                    Draw.Col(lines[i], Draw.A(c, c.a * (1f - k)));
+                }
+            });
         }
 
         void ResetStyle()
@@ -165,9 +258,8 @@ namespace StickWars
             }
             if (mode != Mode.Fight || phase != Phase.Fight || Game.I == null || !Game.I.S.styleShift) return;
             // рисовка меняется по ходу дуэли, как в анимациях
-            int[] seq = { 4, 1, 0, 4, 2, 0 };
-            float[] at = { 22f, 45f, 65f, 85f, 105f, 125f };
-            if (styleStep < at.Length && fightTime >= at[styleStep])
+            int[] seq = { 4, 5, 0, 6, 7, 1, 0, 4, 5, 6, 7, 0 };
+            if (styleStep < seq.Length && fightTime >= 12f * (styleStep + 1))
             {
                 baseStyle = seq[styleStep];
                 styleStep++;
@@ -185,8 +277,6 @@ namespace StickWars
         // ===================== ПОВТОР =====================
         public float replayT, replaySpeed = 1f;
         public bool replayDone, capturing;
-        int capFrame;
-        string capDir;
         float replayStyleT;
         int evCursor, replayStyleIdx;
         readonly List<LineRenderer> ghostPool = new List<LineRenderer>();
@@ -229,18 +319,19 @@ namespace StickWars
 
         public void StartCapture()
         {
-            capDir = System.IO.Path.Combine(Application.persistentDataPath, "Duels", System.DateTime.Now.ToString("yyyy-MM-dd_HH-mm-ss"));
-            try { System.IO.Directory.CreateDirectory(capDir); } catch (System.Exception e) { capStatus = "Ошибка: " + e.Message; return; }
-            capturing = true; capFrame = 0;
+            if (VideoRecorder.I == null) return;
+            if (VideoRecorder.I.Active) VideoRecorder.I.End();
             StartReplay();
-            capStatus = "Запись кадров в: " + capDir;
+            capturing = true;
+            VideoRecorder.I.Begin(true, "film");
+            capStatus = VideoRecorder.I.status;
         }
 
         void StopCapture()
         {
             if (!capturing) return;
             capturing = false;
-            capStatus = "Сохранено " + capFrame + " кадров (30 fps) в " + capDir + ". Склеить в видео: ffmpeg -framerate 30 -i frame_%05d.png duel.mp4";
+            if (VideoRecorder.I != null) { VideoRecorder.I.End(); capStatus = VideoRecorder.I.status; }
         }
 
         float NextEventGap(float t)
@@ -290,10 +381,10 @@ namespace StickWars
             // смена рисовки по ходу фильма
             replayStyleT += dt;
             if (impactT > 0f) { impactT -= raw; if (impactT <= 0f) ApplyStyle(baseStyle); }
-            else if (replayStyleT > 6.5f && pw < 1f)
+            else if (replayStyleT > 5f && pw < 1f)
             {
                 replayStyleT = 0;
-                int[] seq = { 4, 1, 0, 2, 4, 0 };
+                int[] seq = { 4, 5, 6, 0, 7, 1, 2, 4 };
                 baseStyle = seq[replayStyleIdx % seq.Length];
                 replayStyleIdx++;
                 Flash(0.08f, new Color(1, 1, 1, 0.7f));
@@ -362,12 +453,9 @@ namespace StickWars
             var cp = cam.cam.transform.position;
             theme.Follow(cp);
             theme.Tick(dt, fx, cp, size * cam.cam.aspect, size);
+            DecorFollow();
 
-            if (capturing && !replayDone)
-            {
-                ScreenCapture.CaptureScreenshot(System.IO.Path.Combine(capDir, "frame_" + capFrame.ToString("00000") + ".png"));
-                capFrame++;
-            }
+
         }
 
         void PlayEvent(RecEv e)

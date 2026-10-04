@@ -57,6 +57,7 @@ namespace StickWars
         public bool overheadBars = true;
         public bool styleShift = true;   // рисовка меняется по ходу дуэли
         public bool tempoRamp = true;    // темп боя растёт
+        public bool recordVideo = false; // записывать видео каждого боя
     }
 
     [Serializable]

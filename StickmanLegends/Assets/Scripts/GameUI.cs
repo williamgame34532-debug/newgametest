@@ -402,7 +402,7 @@ namespace StickWars
             float by = VH - 115;
             if (Btn(new Rect(gap, by, 260, 80), "< НАЗАД", 30)) { Save(); scr = Scr.Main; }
             for (int i = 0; i < Theme.Count; i++)
-                if (Btn(new Rect(gap + 290 + i * 150, by + 10, 142, 60), Theme.Names[i], 16, false, data.theme == i)) { SetTheme(i); StartDemo(); }
+                if (Btn(new Rect(gap + 290 + i * 140, by + 10, 134, 60), Theme.Names[i], 15, false, data.theme == i)) { SetTheme(i); StartDemo(); }
             if (Btn(new Rect(VW - gap - 380, by, 380, 80), "К БОЮ!", 40, true)) StartBattle();
         }
 
@@ -842,7 +842,7 @@ namespace StickWars
         void SettingsScreen()
         {
             Box(new Rect(0, 0, VW, VH), Draw.A(Color.black, 0.35f), 0);
-            float w = 980, h = 1000;
+            float w = 980, h = 1040;
             Rect r = new Rect((VW - w) / 2, (VH - h) / 2, w, h);
             Panel(r);
             Txt(new Rect(r.x, r.y + 14, r.width, 60), "НАСТРОЙКИ", 46, P.text, TextAnchor.MiddleCenter, true);
@@ -875,6 +875,14 @@ namespace StickWars
             S.overheadBars = Toggle(new Rect(x + half + 20, y, half, 48), "Полоски HP над головой", S.overheadBars, 22); y += 56;
             S.styleShift = Toggle(new Rect(x, y, half, 48), "Рисовка меняется в бою", S.styleShift, 22);
             S.tempoRamp = Toggle(new Rect(x + half + 20, y, half, 48), "Темп боя растёт", S.tempoRamp, 22); y += 56;
+            S.recordVideo = Toggle(new Rect(x, y, half, 48), "Записывать видео каждого боя", S.recordVideo, 22);
+            if (Btn(new Rect(x + half + 20, y + 2, 260, 44), "Папка с видео", 20) && VideoRecorder.I != null)
+            {
+                VideoRecorder.I.lastDir = System.IO.Path.Combine(Application.persistentDataPath, "Duels");
+                try { System.IO.Directory.CreateDirectory(VideoRecorder.I.lastDir); } catch { }
+                VideoRecorder.I.OpenFolder();
+            }
+            y += 56;
             S.keepBloodOnStop = Toggle(new Rect(x, y, cw, 48), "Оставлять кровь, когда бой останавливают и бойцы возвращаются", S.keepBloodOnStop, 22); y += 60;
 
             if (Btn(new Rect(r.x + (r.width - 360) / 2, r.yMax - 100, 360, 74), "ГОТОВО", 32, true)) { Save(); scr = settingsBack; }
@@ -923,6 +931,8 @@ namespace StickWars
             Txt(new Rect(mid.x + mid.width / 2 + 14, mid.y + 50, mid.width / 2 - 14, 36), b.wins[1].ToString(), 30, new Color(0.4f, 0.65f, 1f), TextAnchor.MiddleLeft, true);
             if (b.suddenDeath) Outline(new Rect(mid.x - 100, mid.yMax + 2, mid.width + 200, 28), "ВНЕЗАПНАЯ СМЕРТЬ", 20, new Color(1f, 0.3f, 0.25f), Color.black, TextAnchor.MiddleCenter, 2f);
             if (scr == Scr.Battle && Btn(new Rect(VW / 2 - 28, mid.yMax + (b.suddenDeath ? 34 : 8), 56, 42), "II", 22)) Pause();
+            if (VideoRecorder.I != null && VideoRecorder.I.Active && Mathf.Repeat(t, 1f) < 0.65f)
+                Outline(new Rect(mid.xMax + 16, mid.y + 4, 200, 40), "● REC", 26, new Color(1f, 0.2f, 0.2f), Color.black, TextAnchor.MiddleLeft, 2f);
 
             float barW = Mathf.Min(680f, VW / 2 - 150f);
             int ri = 0, bi = 0;
@@ -995,9 +1005,14 @@ namespace StickWars
                 {
                     float hw = (pr.width - 90) / 2f;
                     if (Btn(new Rect(pr.x + 40, pr.y + 205, hw, 70), "ФИЛЬМ БИТВЫ", 26, false, true)) { b.StartReplay(); scr = Scr.Replay; audio.PlayMusic(true); }
-                    if (Btn(new Rect(pr.x + 50 + hw, pr.y + 205, hw, 70), "СОХРАНИТЬ КАДРЫ", 22)) { b.StartCapture(); scr = Scr.Replay; }
+                    if (Btn(new Rect(pr.x + 50 + hw, pr.y + 205, hw, 70), "СОХРАНИТЬ ВИДЕО", 22)) { b.StartCapture(); scr = Scr.Replay; audio.PlayMusic(true); }
                 }
-                if (!string.IsNullOrEmpty(b.capStatus)) Txt(new Rect(pr.x + 30, pr.y + 280, pr.width - 60, 60), b.capStatus, 15, P.sub, TextAnchor.UpperLeft, false, true);
+                string vs = VideoRecorder.I != null && !VideoRecorder.I.Active ? VideoRecorder.I.status : b.capStatus;
+                if (!string.IsNullOrEmpty(vs))
+                {
+                    Txt(new Rect(pr.x + 30, pr.y + 280, pr.width - 200, 64), vs, 15, P.sub, TextAnchor.UpperLeft, false, true);
+                    if (VideoRecorder.I != null && !string.IsNullOrEmpty(VideoRecorder.I.lastDir) && Btn(new Rect(pr.xMax - 160, pr.y + 284, 130, 50), "Папка", 18)) VideoRecorder.I.OpenFolder();
+                }
                 if (Btn(new Rect(pr.x + 40, pr.y + 350, pr.width - 80, 70), "ИЗМЕНИТЬ КОМАНДЫ", 28)) ToMenu(Scr.Teams);
                 if (Btn(new Rect(pr.x + 40, pr.y + 435, pr.width - 80, 70), "ГЛАВНОЕ МЕНЮ", 28)) ToMenu(Scr.Main);
             }

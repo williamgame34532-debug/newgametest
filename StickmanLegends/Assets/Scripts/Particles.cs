@@ -84,8 +84,11 @@ namespace StickWars
             pHead = (pHead + 1) % MAXP;
         }
 
+        public static int InkMode; // 0 кровь, 1 чёрная тушь, 2 графит
         public static Color BloodColor()
         {
+            if (InkMode == 1) return new Color(Random.Range(0.02f, 0.1f), Random.Range(0.02f, 0.08f), Random.Range(0.02f, 0.08f), 1f);
+            if (InkMode == 2) return new Color(Random.Range(0.25f, 0.4f), Random.Range(0.25f, 0.4f), Random.Range(0.27f, 0.42f), 1f);
             return new Color(Random.Range(0.45f, 0.72f), Random.Range(0f, 0.04f), Random.Range(0f, 0.03f), 1f);
         }
 
