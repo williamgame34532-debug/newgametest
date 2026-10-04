@@ -11,12 +11,12 @@ namespace StickWars
     // Стили арены: бумага, арена, поле, город, киберпанк
     public class Theme : MonoBehaviour
     {
-        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк" };
-        public const int Count = 5;
+        public static readonly string[] Names = { "Лист бумаги", "Тёмная арена", "Поле", "Город", "Киберпанк", "Туманный лес", "Сияние" };
+        public const int Count = 7;
 
         public int id;
         public Color bg;
-        public bool glow, outline;
+        public bool glow, outline, silhouette;
         public Color outlineCol = new Color(0.05f, 0.05f, 0.06f), ink = Color.white;
         public Color defaultRed, defaultBlue;
 
@@ -60,6 +60,20 @@ namespace StickWars
                     p.btn = new Color(0.82f, 0.38f, 0.38f, 0.95f); p.btnHover = new Color(0.95f, 0.5f, 0.5f, 1f); p.btnText = new Color(1f, 1f, 1f);
                     p.title = new Color(0.85f, 0.92f, 1f); p.titleShadow = new Color(0.2f, 0.45f, 0.95f, 0.9f);
                     break;
+                case 5: // туманный лес
+                    p.panel = new Color(0.95f, 0.95f, 0.95f, 0.9f); p.panelEdge = new Color(0.08f, 0.08f, 0.08f, 1f);
+                    p.text = new Color(0.06f, 0.06f, 0.07f); p.sub = new Color(0.35f, 0.35f, 0.37f);
+                    p.accent = new Color(0.85f, 0.05f, 0.05f); p.accent2 = new Color(0.2f, 0.5f, 0.95f);
+                    p.btn = new Color(0.1f, 0.1f, 0.1f, 0.92f); p.btnHover = new Color(0.35f, 0.05f, 0.05f, 1f); p.btnText = new Color(0.97f, 0.97f, 0.97f);
+                    p.title = new Color(0.05f, 0.05f, 0.05f); p.titleShadow = new Color(0.85f, 0.05f, 0.05f, 0.9f);
+                    break;
+                case 6: // сияние
+                    p.panel = new Color(0.12f, 0.1f, 0.2f, 0.88f); p.panelEdge = new Color(0.85f, 0.75f, 1f, 1f);
+                    p.text = new Color(0.97f, 0.95f, 1f); p.sub = new Color(0.75f, 0.7f, 0.88f);
+                    p.accent = new Color(1f, 0.75f, 0.35f); p.accent2 = new Color(0.45f, 0.5f, 1f);
+                    p.btn = new Color(0.2f, 0.17f, 0.32f, 0.95f); p.btnHover = new Color(0.38f, 0.3f, 0.55f, 1f); p.btnText = new Color(0.97f, 0.95f, 1f);
+                    p.title = new Color(1f, 0.95f, 0.85f); p.titleShadow = new Color(0.6f, 0.4f, 1f, 0.9f);
+                    break;
                 default: // киберпанк
                     p.panel = new Color(0.04f, 0.01f, 0.08f, 0.88f); p.panelEdge = new Color(0.1f, 0.95f, 1f, 1f);
                     p.text = new Color(0.9f, 0.97f, 1f); p.sub = new Color(0.65f, 0.6f, 0.85f);
@@ -84,7 +98,7 @@ namespace StickWars
             id = themeId; W = w;
             foreach (Transform c in transform) Destroy(c.gameObject);
             layers.Clear(); clouds.Clear(); flicker.Clear();
-            glow = false; outline = false; ink = Color.white; outlineCol = new Color(0.05f, 0.05f, 0.06f);
+            glow = false; outline = false; silhouette = false; ink = Color.white; outlineCol = new Color(0.05f, 0.05f, 0.06f);
             defaultRed = new Color(0.82f, 0.08f, 0.08f);
             defaultBlue = new Color(0.1f, 0.25f, 0.85f);
             var rnd = new System.Random(12345 + themeId);
@@ -96,6 +110,8 @@ namespace StickWars
                 case 1: BuildArena(ext, rnd); break;
                 case 2: BuildField(ext, rnd); break;
                 case 3: BuildCity(ext, rnd); break;
+                case 5: BuildForest(ext, rnd); break;
+                case 6: BuildGlow(ext, rnd); break;
                 default: BuildCyber(ext, rnd); break;
             }
         }
@@ -287,6 +303,80 @@ namespace StickWars
                 }
                 x += w + (float)rnd.NextDouble() * 0.6f;
             }
+        }
+
+        // Туманный лес: серые силуэты деревьев, чёрные бойцы со светящимися глазами
+        void BuildForest(float ext, System.Random rnd)
+        {
+            silhouette = true; ink = new Color(0.08f, 0.08f, 0.08f);
+            bg = new Color(0.86f, 0.86f, 0.86f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.72f, 0.72f, 0.73f), new Color(0.92f, 0.92f, 0.92f), -60);
+            Trees(NewLayer("treesFar", 0.7f), new Color(0.78f, 0.78f, 0.79f), 9f, 2.2f, -56, rnd);
+            var fog = NewLayer("fog", 0.6f);
+            for (int i = 0; i < 12; i++)
+            {
+                var f = Draw.Spr(fog, "fog", Draw.Soft, new Color(1f, 1f, 1f, 0.5f), -54);
+                f.transform.localPosition = new Vector3(-45 + i * 8 + (float)rnd.NextDouble() * 4, 1.5f + (float)rnd.NextDouble() * 2f, 0);
+                f.transform.localScale = new Vector3(14f, 3.5f, 1);
+                clouds.Add(f.transform);
+            }
+            Trees(NewLayer("treesNear", 0.4f), new Color(0.66f, 0.66f, 0.67f), 12f, 3.2f, -52, rnd);
+            Ground(ext, new Color(0.55f, 0.55f, 0.56f), new Color(0.3f, 0.3f, 0.31f), 0.1f);
+            var twigs = NewLayer("twigs", 0f);
+            for (int i = 0; i < 18; i++)
+            {
+                float x = -ext * 0.5f + i * 5.3f + (float)rnd.NextDouble() * 2f;
+                Branch(twigs, new Vector2(x, 0), 90f + (float)(rnd.NextDouble() * 30 - 15), 0.7f + (float)rnd.NextDouble() * 0.6f, 0.06f, new Color(0.08f, 0.08f, 0.08f), -3, rnd, 3);
+            }
+            Walls(new Color(0.4f, 0.4f, 0.41f, 1f), 0.5f);
+        }
+
+        void Trees(Transform layer, Color c, float h, float w, int order, System.Random rnd)
+        {
+            for (float x = -90; x < 90; x += 6f + (float)rnd.NextDouble() * 5f)
+            {
+                float th = h * (0.7f + (float)rnd.NextDouble() * 0.6f);
+                var trunk = Draw.Line(layer, "trunk", 1f, c, order, true, 2);
+                Draw.Set(trunk, new List<Vector2> { new Vector2(x, -1), new Vector2(x + (float)(rnd.NextDouble() - 0.5), th * 0.5f), new Vector2(x + (float)(rnd.NextDouble() - 0.5) * 2f, th) });
+                Draw.Taper(trunk, w * 0.35f, w * 0.08f);
+                for (int b = 0; b < 4; b++)
+                    Branch(layer, new Vector2(x, th * (0.45f + b * 0.14f)), 90f + (b % 2 == 0 ? 40f : -40f) + (float)(rnd.NextDouble() * 20 - 10), th * 0.3f, w * 0.12f, c, order, rnd, 2);
+            }
+        }
+
+        void Branch(Transform layer, Vector2 at, float ang, float len, float width, Color c, int order, System.Random rnd, int depth)
+        {
+            if (depth <= 0 || len < 0.1f) return;
+            Vector2 end = at + new Vector2(Mathf.Cos(ang * Mathf.Deg2Rad), Mathf.Sin(ang * Mathf.Deg2Rad)) * len;
+            var l = Draw.Line(layer, "branch", 1f, c, order, true, 0);
+            Draw.Set(l, at, end);
+            Draw.Taper(l, width, width * 0.4f);
+            Branch(layer, end, ang + 25f + (float)rnd.NextDouble() * 15f, len * 0.6f, width * 0.6f, c, order, rnd, depth - 1);
+            Branch(layer, end, ang - 25f - (float)rnd.NextDouble() * 15f, len * 0.55f, width * 0.6f, c, order, rnd, depth - 1);
+        }
+
+        // Сияние: мягкий фиолетовый градиент, вспышка света за бойцами, сцена-диск
+        void BuildGlow(float ext, System.Random rnd)
+        {
+            bg = new Color(0.3f, 0.28f, 0.42f);
+            ink = new Color(1f, 0.95f, 0.85f);
+            var sky = NewLayer("sky", 0.95f);
+            Draw.Gradient(sky, new Rect(-80, -10, 160, 60), new Color(0.2f, 0.18f, 0.32f), new Color(0.55f, 0.53f, 0.68f), -60);
+            var lightL = NewLayer("light", 0.85f);
+            var halo = Draw.Spr(lightL, "halo", Draw.Soft, new Color(1f, 0.97f, 0.9f, 0.75f), -58);
+            halo.transform.localPosition = new Vector3(0, 4.5f, 0); halo.transform.localScale = Vector3.one * 16f;
+            var core = Draw.Spr(lightL, "core", Draw.Soft, new Color(1f, 1f, 1f, 0.9f), -57);
+            core.transform.localPosition = new Vector3(0, 4.5f, 0); core.transform.localScale = Vector3.one * 4f;
+            var flareH = Draw.Spr(lightL, "flareH", Draw.Soft, new Color(1f, 0.9f, 0.75f, 0.7f), -56);
+            flareH.transform.localPosition = new Vector3(0, 4.5f, 0); flareH.transform.localScale = new Vector3(40f, 0.35f, 1f);
+            var flareV = Draw.Spr(lightL, "flareV", Draw.Soft, new Color(1f, 0.9f, 0.75f, 0.5f), -56);
+            flareV.transform.localPosition = new Vector3(0, 4.5f, 0); flareV.transform.localScale = new Vector3(0.3f, 10f, 1f);
+            Ground(ext, new Color(0.24f, 0.22f, 0.32f), new Color(0.75f, 0.7f, 0.9f), 0.05f);
+            var stage = NewLayer("stage", 0f);
+            var disk = Draw.Spr(stage, "disk", Draw.Soft, new Color(0.85f, 0.8f, 1f, 0.35f), -9);
+            disk.transform.localPosition = new Vector3(0, -0.4f, 0); disk.transform.localScale = new Vector3(36f, 2.2f, 1f);
+            Walls(new Color(0.2f, 0.18f, 0.28f, 1f), 0.5f);
         }
 
         void BuildCyber(float ext, System.Random rnd)

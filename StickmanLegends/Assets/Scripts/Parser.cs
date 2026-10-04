@@ -177,6 +177,7 @@ namespace StickWars
             new AbKw(Ability.Rage, "ярост", "берсерк", "гнев", "бешен", "звере", "rage", "berserk", "fury", "frenzy"),
             new AbKw(Ability.Vampire, "вампир", "кровосос", "пьет кров", "пьет кровь", "высасыв", "кровопий", "vampir", "lifesteal", "drain"),
             new AbKw(Ability.Laser, "лазер", "луч", "из глаз", "laser", "beam", "eye beam"),
+            new AbKw(Ability.Summon, "вызыва помощ", "вызывать помощ", "вызывает помощ", "призыв", "помощник", "миньон", "клон", "скелет", "нежит", "армию", "армия", "слуг", "фамильяр", "summon", "minion", "clone", "skeleton", "undead"),
             new AbKw(Ability.Telekinesis, "телекинез", "силой мысли", "поднима врагов", "псионик", "психокинез", "telekines", "psychic", "psionic"),
         };
         static readonly string[] MAGE = { "маг$", "мага$", "магом$", "колдун", "волшеб", "чародей", "ведьм", "wizard", "mage$", "sorcer", "witch" };
@@ -193,6 +194,19 @@ namespace StickWars
             new AccKw(Acc.Cape, "плащ", "накидк", "мантия", "мантией", "супергер", "дракул", "cape", "cloak", "superhero", "mantle"),
             new AccKw(Acc.Visor, "кибер", "робот", "киборг", "андроид", "визор", "очки", "cyber", "robot", "cyborg", "android", "visor", "goggles"),
             new AccKw(Acc.Scarf, "шарф", "scarf"),
+            new AccKw(Acc.Helmet, "шлем", "каск", "забрал", "helmet", "helm$"),
+            new AccKw(Acc.Armor, "брон", "доспех", "латы", "латах", "кольчуг", "нагрудник", "кирас", "armor", "armour", "plate$"),
+            new AccKw(Acc.Mask, "маск", "респиратор", "противогаз", "mask"),
+            new AccKw(Acc.Hood, "капюшон", "hood"),
+            new AccKw(Acc.Hair, "волос", "причес", "ирокез", "шевелюр", "косичк", "hair", "mohawk"),
+            new AccKw(Acc.Beard, "бород", "усы$", "усами", "beard", "mustache"),
+            new AccKw(Acc.Eyes, "глаз", "взгляд", "eyes", "eye$"),
+            new AccKw(Acc.Wings, "крыл", "wings", "wing$"),
+            new AccKw(Acc.Tail, "хвост", "tail"),
+            new AccKw(Acc.Belt, "пояс", "ремень", "кушак", "belt", "sash"),
+            new AccKw(Acc.Gloves, "перчат", "рукавиц", "наруч", "gloves", "gauntlet"),
+            new AccKw(Acc.Boots, "ботин", "сапог", "сапоги", "кроссов", "кед", "boots", "shoes"),
+            new AccKw(Acc.ShoulderPads, "наплечник", "эполет", "pauldron", "shoulder pad"),
         };
 
         struct ColKw { public Color c; public string[] k; public ColKw(Color c, params string[] k) { this.c = c; this.k = k; } }
@@ -451,7 +465,7 @@ namespace StickWars
             }
             found.Sort((x, y) => x.Key.CompareTo(y.Key));
             foreach (var kv in found) if (!b.abilities.Contains(kv.Value) && b.abilities.Count < 4) b.abilities.Add(kv.Value);
-            if (First(t, MAGE) >= 0 && !b.abilities.Contains(Ability.Fireball) && b.abilities.Count < 4) b.abilities.Add(Ability.Fireball);
+            if (b.abilities.Count == 0 && First(t, MAGE) >= 0) { b.abilities.Add(Ability.Fireball); b.notes.Add("Маг без описанных умений — арена дала огненный шар."); }
             if (b.abilities.Count == 0)
             {
                 Ability[] pool = { Ability.Dash, Ability.Fireball, Ability.Teleport, Ability.GroundSlam, Ability.Shield, Ability.IceShard, Ability.Lightning };
@@ -510,13 +524,33 @@ namespace StickWars
                 }
             b.understood.Insert(0, (b.killOnly ? "убить можно ТОЛЬКО: " : "слабость (урон x2): ") + string.Join(" или ", MaskNames(b.killMasks)));
 
-            // --- внешность
+            // --- внешность и снаряжение (цвет берётся из слов рядом: «золотой шлем», «красные глаза»)
             foreach (var ac in ACC)
-                foreach (int i in FindAll(t, ac.k)) { if (!Negated(t, i) && !b.acc.Contains(ac.a)) b.acc.Add(ac.a); break; }
+                foreach (int i in FindAll(t, ac.k))
+                {
+                    if (Negated(t, i) || b.acc.Contains(ac.a)) continue;
+                    if (ac.a == Acc.Eyes && !NearAny(t, i, 3, "красн", "светящ", "горящ", "сверка", "злы", "злой", "демонич", "огненн", "син", "зелен", "желт", "фиолет", "бел", "glow", "red", "evil")) continue;
+                    if (ac.a == Acc.Tail && NearAny(t, i, 2, "волос", "конск")) { b.acc.Add(Acc.Hair); break; }
+                    if (ac.a == Acc.CowboyHat && (b.acc.Contains(Acc.WizardHat) || NearAny(t, i, 2, "чародей", "волшеб", "маг", "ведьм", "колдун", "wizard"))) { if (!b.acc.Contains(Acc.WizardHat)) { b.acc.Add(Acc.WizardHat); b.understood.Add("шляпа мага"); } break; }
+                    b.acc.Add(ac.a);
+                    Color cc;
+                    if (ColorNear(t, i, out cc)) b.accCol[ac.a] = cc;
+                    string nm = AccName(ac.a);
+                    if (nm != null) b.understood.Add(nm);
+                    break;
+                }
+            if (Any(t, "рыцар", "knight", "паладин", "paladin") && !b.acc.Contains(Acc.Helmet)) { b.acc.Add(Acc.Helmet); b.understood.Add("шлем"); }
+            if (Any(t, "рыцар", "knight", "паладин", "спартан", "легионер")) b.knightHelm = true;
+            if (Any(t, "рыцар", "knight", "паладин", "paladin", "робот", "киборг") && !b.acc.Contains(Acc.Armor)) b.acc.Add(Acc.Armor);
+            if (b.acc.Contains(Acc.Armor) && !b.acc.Contains(Acc.ShoulderPads)) b.acc.Add(Acc.ShoulderPads);
+            if (Any(t, "ангел", "angel") && !b.acc.Contains(Acc.Wings)) b.acc.Add(Acc.Wings);
+            if (Any(t, "демон", "дьявол", "тень", "убийц", "evil", "demon") && !b.acc.Contains(Acc.Eyes)) b.acc.Add(Acc.Eyes);
+            if (b.acc.Contains(Acc.Helmet)) { b.acc.Remove(Acc.WizardHat); b.acc.Remove(Acc.CowboyHat); b.acc.Remove(Acc.Hair); }
+            if (b.acc.Contains(Acc.Hood)) b.acc.Remove(Acc.Hair);
             if (b.acc.Contains(Acc.WizardHat) && b.acc.Contains(Acc.CowboyHat)) b.acc.Remove(Acc.CowboyHat);
             if (b.acc.Contains(Acc.Crown)) { b.acc.Remove(Acc.WizardHat); b.acc.Remove(Acc.CowboyHat); }
 
-            // --- оружие
+            // --- оружие: поле «Оружие» + всё, что упомянуто в описании
             b.weapon = null;
             string wd = (d.weaponDesc ?? "").Trim();
             if (wd.Length > 0)
@@ -526,9 +560,136 @@ namespace StickWars
                     foreach (var w in library)
                         if (w != null && string.Equals(w.name.Trim(), wd, StringComparison.OrdinalIgnoreCase)) { fromLib = w; break; }
                 b.weapon = fromLib != null ? BuildWeapon(fromLib) : BuildWeapon(new WeaponDef { name = wd, description = wd });
+                if (b.weapon.Ranged) { b.secondary = b.weapon; b.weapon = null; }
             }
+            WeaponsFromDescription(t, b);
+            if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name);
+            if (b.secondary != null) b.understood.Add("в запасе: " + b.secondary.name + (b.secondary.ammo > 0 ? " x" + b.secondary.ammo : "") + (b.secondary.alwaysHead ? " (точно в голову)" : ""));
+            if (b.HasAb(Ability.Summon)) b.understood.Add("призывает помощников");
             return b;
         }
+
+        static bool NearAny(Tx t, int i, int range, params string[] keys)
+        {
+            for (int k = Math.Max(0, i - range); k <= i + range && k < t.w.Count; k++)
+            {
+                if (k == i || t.sent[k] != t.sent[i]) continue;
+                foreach (var key in keys) if (WordMatch(t.w[k], key)) return true;
+            }
+            return false;
+        }
+
+        static bool ColorNear(Tx t, int i, out Color c)
+        {
+            c = Color.white;
+            for (int off = 1; off <= 2; off++)
+                foreach (int k in new[] { i - off, i + off })
+                {
+                    if (k < 0 || k >= t.w.Count || t.sent[k] != t.sent[i]) continue;
+                    foreach (var ck in COLORS) foreach (var key in ck.k) if (WordMatch(t.w[k], key)) { c = ck.c; return true; }
+                    if (WordMatch(t.w[k], "стальн") || WordMatch(t.w[k], "железн") || WordMatch(t.w[k], "металл")) { c = new Color(0.62f, 0.65f, 0.7f); return true; }
+                    if (WordMatch(t.w[k], "кожан")) { c = new Color(0.4f, 0.25f, 0.12f); return true; }
+                }
+            return false;
+        }
+
+        static string AccName(Acc a)
+        {
+            switch (a)
+            {
+                case Acc.Helmet: return "шлем";
+                case Acc.Armor: return "броня";
+                case Acc.Mask: return "маска";
+                case Acc.Hood: return "капюшон";
+                case Acc.Hair: return "причёска";
+                case Acc.Beard: return "борода";
+                case Acc.Eyes: return "светящиеся глаза";
+                case Acc.Wings: return "крылья";
+                case Acc.Tail: return "хвост";
+                case Acc.Belt: return "пояс";
+                case Acc.Gloves: return "перчатки";
+                case Acc.Boots: return "сапоги";
+                case Acc.ShoulderPads: return "наплечники";
+                case Acc.WizardHat: return "шляпа мага";
+                case Acc.CowboyHat: return "шляпа";
+                case Acc.Horns: return "рога";
+                case Acc.Crown: return "корона";
+                case Acc.Halo: return "нимб";
+                case Acc.Cape: return "плащ";
+                case Acc.Visor: return "визор";
+                case Acc.Headband: return "повязка";
+                case Acc.Scarf: return "шарф";
+            }
+            return null;
+        }
+
+        static readonly string[] THROW_VERB = { "кида", "кинуть", "броса", "бросок", "метает", "метат", "мечет", "запуска", "попада", "летят", "летит", "швыря", "throw", "toss", "hurl" };
+
+        // Каждое предложение с оружием превращается в оружие; метательное/дальнобойное — во «второе» оружие
+        static readonly string[][] WNAMES =
+        {
+            new[] { "меч", "Меч" }, new[] { "катан", "Катана" }, new[] { "нож", "Нож" }, new[] { "топор", "Топор" }, new[] { "секир", "Секира" },
+            new[] { "кинжал", "Кинжал" }, new[] { "сабл", "Сабля" }, new[] { "посох", "Посох" }, new[] { "жезл", "Жезл" }, new[] { "копь", "Копьё" },
+            new[] { "копье", "Копьё" }, new[] { "молот", "Молот" }, new[] { "кувалд", "Кувалда" }, new[] { "дубин", "Дубина" }, new[] { "бит", "Бита" },
+            new[] { "лук", "Лук" }, new[] { "арбалет", "Арбалет" }, new[] { "пистол", "Пистолет" }, new[] { "револьв", "Револьвер" }, new[] { "автомат", "Автомат" },
+            new[] { "дробов", "Дробовик" }, new[] { "винтов", "Винтовка" }, new[] { "бласт", "Бластер" }, new[] { "сюрикен", "Сюрикены" }, new[] { "гранат", "Гранаты" },
+            new[] { "бомб", "Бомбы" }, new[] { "бензопил", "Бензопила" }, new[] { "коса", "Коса" }, new[] { "кос", "Коса" }, new[] { "алебард", "Алебарда" },
+            new[] { "трезуб", "Трезубец" }, new[] { "клинок", "Клинок" }, new[] { "клинк", "Клинок" }, new[] { "дротик", "Дротики" },
+        };
+
+        static string WeaponName(string tok)
+        {
+            foreach (var n in WNAMES) if (WordMatch(tok, n[0])) return n[1];
+            return Cap(tok);
+        }
+
+        // Каждое упоминание оружия в описании превращается в оружие; метательное/дальнобойное — во «второе» оружие
+        static void WeaponsFromDescription(Tx t, FighterBuild b)
+        {
+            // все упоминания оружия
+            var hits = new List<int>();
+            for (int i = 0; i < t.w.Count; i++)
+                foreach (var wk in WKINDS)
+                {
+                    bool hit = false;
+                    foreach (var k in wk.w) if (MatchAt(t, i, k) > 0) { hit = true; break; }
+                    if (hit && !Negated(t, i) && !InKillClause(t, i)) { hits.Add(i); break; }
+                }
+            for (int h = 0; h < hits.Count; h++)
+            {
+                int wi = hits[h];
+                int s0 = SentStart(t, wi), s1 = SentEnd(t, wi);
+                int from = s0;
+                if (h > 0 && hits[h - 1] >= s0) from = hits[h - 1] + 1;
+                int to = s1;
+                if (h + 1 < hits.Count && hits[h + 1] < s1) to = hits[h + 1];
+                var words = new List<string>();
+                for (int i = from; i < to; i++) if (t.w[i] != ",") words.Add(t.w[i]);
+                string chunk = string.Join(" ", words.ToArray());
+                string tok = t.w[wi];
+                var w = BuildWeapon(new WeaponDef { name = WeaponName(tok), description = chunk });
+                bool plural = tok.EndsWith("и") || tok.EndsWith("ы") || tok.EndsWith("ей") || tok.EndsWith("ов") || tok.EndsWith("ами") || tok.EndsWith("ями");
+                bool throwVerb = First(t, THROW_VERB, from, to) >= 0;
+                float cnt = -1;
+                for (int i = from; i < to; i++) { float v; if (IsNum(t.w[i], out v) && v >= 1 && v <= 99) { cnt = v; break; } }
+                bool thrown = w.kind == WeaponKind.Thrown || ((w.kind == WeaponKind.Blade || w.kind == WeaponKind.Spear) && (throwVerb || (plural && cnt > 0)));
+                if (thrown && w.kind != WeaponKind.Thrown)
+                {
+                    w.kind = WeaponKind.Thrown; w.knives = true; w.dmg = Mathf.Max(9f, w.dmg * 0.8f); w.range = 12f; w.rate = 1f; w.bleed = true; w.ammo = 6;
+                    w.name = "Метательные " + (WordMatch(tok, "кинжал") ? "кинжалы" : WordMatch(tok, "копь") ? "копья" : "ножи");
+                }
+                if (thrown || w.Ranged)
+                {
+                    if (cnt > 0) w.ammo = (int)cnt;
+                    bool head = First(t, new[] { "голов", "башк", "head", "лоб" }, from, to) >= 0;
+                    if (head) { w.alwaysHead = true; w.homing = true; }
+                    if (b.secondary == null) b.secondary = w;
+                }
+                else if (b.weapon == null) b.weapon = w;
+            }
+        }
+
+        static string Cap(string s) { return string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s.Substring(1); }
 
         static string[] MaskNames(List<int> masks)
         {

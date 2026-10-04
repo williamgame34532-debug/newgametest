@@ -25,7 +25,7 @@ namespace StickWars
         public int combo;
         public float comboT;
 
-        public enum Act { None, Move, Shoot, Throw, Cast, Block, Dash, Saw, Laser, Roll, Flip, GetUp }
+        public enum Act { None, Move, Shoot, Throw, Cast, Block, Dash, Saw, Laser, Roll, Flip, GetUp, ThrowSec }
         public enum BodyS { Normal, Tumble, Down }
         public Act act;
         public BodyS body;
@@ -61,6 +61,18 @@ namespace StickWars
         Vector2 aim = Vector2.right;
         readonly List<Fighter> dashHit = new List<Fighter>();
         float dotAcc;
+        // пружинная анимация
+        readonly float[] pv = new float[9];
+        Vector2 prevTip;
+        // второе оружие (ножи и т.п.), помощники
+        public WeaponStats sec;
+        public int secAmmo;
+        float secCd;
+        public bool minion, remove;
+        public float life;
+        Fighter owner;
+        float downTarget, slideDustT;
+        bool kipJumped;
         // кувырки / нокдаун
         float tumbleSpin, spinVel, downT, flipT = -1f, flipDur = 0.6f, flipDir = 1f, getUpFrom;
         bool bounced;
@@ -68,6 +80,11 @@ namespace StickWars
 
         // --- визуал ---
         LineRenderer lTorso, lArmF, lArmB, lLegF, lLegB, lCape, lTails, lScarf, lShield, lLaser, lLaserGlow, lTrail;
+        LineRenderer lArmor, lBelt, lBootF, lBootB, lTail;
+        LineRenderer[] lWings;
+        SpriteRenderer sGloveF, sGloveB, sPad;
+        bool silhouette;
+        Color eyeCol = Color.red;
         LineRenderer[] under;
         SpriteRenderer sHead, sHeadUnder, sShieldGlow, sShadow;
         Transform headRoot, weaponRoot;
@@ -107,9 +124,13 @@ namespace StickWars
             foreach (var a in b.abilities) cd[a] = Random.Range(0.5f, 2f);
             jumps = b.HasAb(Ability.DoubleJump) ? 1 : 0;
             Skel.Compute(cur, pos, Size, facing, J);
-            baseOrder = 100 + (team * 5 + slot) * 14;
+            baseOrder = 100 + (team * 5 + Mathf.Min(slot, 4)) * 20;
+            silhouette = battle.theme.silhouette;
+            if (b.accCol.ContainsKey(Acc.Eyes)) eyeCol = b.accCol[Acc.Eyes];
+            if (silhouette) eyeCol = team == 0 ? new Color(1f, 0.15f, 0.1f) : new Color(0.2f, 0.7f, 1f);
             BuildVisual();
             SetWeapon(b.weapon != null ? b.weapon.Copy() : null, b.weapon != null ? b.weapon.ammo : 0);
+            if (b.secondary != null) { sec = b.secondary.Copy(); secAmmo = Mathf.Max(1, sec.ammo); }
             Render();
         }
 
@@ -117,13 +138,13 @@ namespace StickWars
         {
             float s = Size;
             float w = Skel.Width * s;
-            mainCol = B.color;
+            mainCol = silhouette ? new Color(0.05f, 0.05f, 0.06f) : B.color;
             float lum = mainCol.r * 0.3f + mainCol.g * 0.59f + mainCol.b * 0.11f;
-            backCol = lum < 0.15f ? Color.Lerp(mainCol, new Color(0.45f, 0.45f, 0.47f), 0.45f) : Color.Lerp(mainCol, Color.black, 0.3f);
+            backCol = silhouette ? new Color(0.3f, 0.3f, 0.32f) : lum < 0.15f ? Color.Lerp(mainCol, new Color(0.45f, 0.45f, 0.47f), 0.45f) : Color.Lerp(mainCol, Color.black, 0.3f);
 
             sShadow = Draw.Spr(transform, "shadow", Draw.Soft, new Color(0, 0, 0, 0.35f), -1);
 
-            if (glow || outline)
+            if ((glow || outline) && !silhouette)
             {
                 underCol = glow ? Draw.A(Color.Lerp(mainCol, Color.white, 0.3f), 0.22f) : battle.theme.outlineCol;
                 if (outline && lum < 0.12f) underCol = new Color(0.95f, 0.95f, 0.95f, 0.9f);
@@ -140,10 +161,10 @@ namespace StickWars
 
             lLegB = Draw.Line(transform, "legB", w, backCol, baseOrder + 0, true, 6);
             lArmB = Draw.Line(transform, "armB", w, backCol, baseOrder + 1, true, 6);
-            lTorso = Draw.Line(transform, "torso", w * 1.08f, mainCol, baseOrder + 3, true, 6);
-            lLegF = Draw.Line(transform, "legF", w, mainCol, baseOrder + 5, true, 6);
-            lArmF = Draw.Line(transform, "armF", w, mainCol, baseOrder + 8, true, 6);
-            sHead = Draw.Spr(transform, "head", Draw.Circle, mainCol, baseOrder + 4);
+            lTorso = Draw.Line(transform, "torso", w * 1.12f, mainCol, baseOrder + 3, true, 6);
+            lLegF = Draw.Line(transform, "legF", w, mainCol, baseOrder + 6, true, 6);
+            lArmF = Draw.Line(transform, "armF", w, mainCol, baseOrder + 12, true, 6);
+            sHead = Draw.Spr(transform, "head", Draw.Circle, mainCol, baseOrder + 8);
             sHead.transform.localScale = Vector3.one * Skel.HeadR * 2f * s;
 
             headRoot = new GameObject("headRoot").transform;
@@ -153,14 +174,14 @@ namespace StickWars
 
             BuildAccessories();
 
-            lTrail = Draw.Line(transform, "trail", 1f, Color.white, baseOrder + 9, true, 2);
+            lTrail = Draw.Line(transform, "trail", 1f, Color.white, baseOrder + 14, true, 2);
             lTrail.enabled = false;
 
-            lShield = Draw.Line(transform, "shield", 0.06f, new Color(0.4f, 0.9f, 1f, 0.8f), baseOrder + 12, true, 0);
+            lShield = Draw.Line(transform, "shield", 0.06f, new Color(0.4f, 0.9f, 1f, 0.8f), baseOrder + 17, true, 0);
             lShield.loop = true;
             lShield.positionCount = 24;
             lShield.enabled = false;
-            sShieldGlow = Draw.Spr(transform, "shieldGlow", Draw.Soft, new Color(0.4f, 0.9f, 1f, 0.2f), baseOrder + 11);
+            sShieldGlow = Draw.Spr(transform, "shieldGlow", Draw.Soft, new Color(0.4f, 0.9f, 1f, 0.2f), baseOrder + 16);
             sShieldGlow.enabled = false;
 
             lLaserGlow = Draw.Line(transform, "laserGlow", 0.45f, new Color(1f, 0.1f, 0.1f, 0.35f), 340, true, 2);
@@ -171,7 +192,7 @@ namespace StickWars
         void BuildAccessories()
         {
             float s = Size;
-            int o = baseOrder + 6;
+            int o = baseOrder + 9;
             Color contrast = (mainCol.r + mainCol.g + mainCol.b) < 0.9f ? new Color(0.9f, 0.1f, 0.1f) : new Color(0.12f, 0.12f, 0.14f);
             if (B.color.r > 0.6f && B.color.g < 0.3f && B.color.b < 0.3f) contrast = new Color(0.1f, 0.1f, 0.12f);
             float hr = Skel.HeadR * s;
@@ -269,6 +290,8 @@ namespace StickWars
                 }
             }
 
+            BuildGear();
+
             // нарисованное игроком (координаты планшета: голова радиусом 0.4)
             if (B.drawing != null)
             {
@@ -285,13 +308,152 @@ namespace StickWars
             }
         }
 
+        Color AccC(Acc a, Color def) { Color c; return B.accCol.TryGetValue(a, out c) ? c : def; }
+
+        // Снаряжение из описания: шлем, броня, маска, капюшон, волосы, борода, глаза, крылья, хвост, пояс, перчатки, сапоги
+        void BuildGear()
+        {
+            float s = Size, hr = Skel.HeadR * s, w = Skel.Width * s;
+            int o = baseOrder + 9;
+            Color steel = new Color(0.62f, 0.65f, 0.7f);
+            bool eyes = B.acc.Contains(Acc.Eyes) || silhouette;
+            foreach (var a in B.acc)
+            {
+                switch (a)
+                {
+                    case Acc.Helmet:
+                        {
+                            Color c = AccC(a, steel);
+                            var pts = new List<Vector2>();
+                            float r = hr * 1.14f;
+                            if (B.knightHelm)
+                            {
+                                for (int i = 0; i <= 16; i++) { float ang = Mathf.Lerp(-80f, 260f, i / 16f) * Mathf.Deg2Rad; pts.Add(new Vector2(Mathf.Cos(ang) * r, Mathf.Sin(ang) * r)); }
+                                headRends.Add(Draw.Poly(headRoot, pts.ToArray(), c, o, "helm"));
+                                var slit = Draw.Line(headRoot, "slit", 0.05f * s, new Color(0.05f, 0.05f, 0.05f), o + 1, false, 0);
+                                Draw.Set(slit, new Vector2(hr * 0.15f, hr * 0.12f), new Vector2(r, hr * 0.12f));
+                                headRends.Add(slit);
+                                var crest = Draw.Line(headRoot, "crest", 1f, AccC(Acc.Helmet, new Color(0.8f, 0.1f, 0.1f)) == c ? new Color(0.8f, 0.1f, 0.1f) : c, o - 1, false, 2);
+                                Draw.Set(crest, new List<Vector2> { new Vector2(hr * 0.5f, r * 0.9f), new Vector2(-hr * 0.2f, r * 1.35f), new Vector2(-hr * 1.2f, r * 1.1f) });
+                                Draw.Taper(crest, 0.1f * s, 0.02f * s);
+                                headRends.Add(crest);
+                            }
+                            else
+                            {
+                                for (int i = 0; i <= 12; i++) { float ang = Mathf.Lerp(-5f, 185f, i / 12f) * Mathf.Deg2Rad; pts.Add(new Vector2(Mathf.Cos(ang) * r, Mathf.Sin(ang) * r + hr * 0.08f)); }
+                                headRends.Add(Draw.Poly(headRoot, pts.ToArray(), c, o, "helm"));
+                                var rim = Draw.Line(headRoot, "rim", 0.07f * s, Draw.Mul(c, 0.7f), o + 1, false, 2);
+                                Draw.Set(rim, new Vector2(-r * 1.05f, hr * 0.05f), new Vector2(r * 1.1f, hr * 0.05f));
+                                headRends.Add(rim);
+                            }
+                            break;
+                        }
+                    case Acc.Mask:
+                        {
+                            Color c = AccC(a, new Color(0.1f, 0.1f, 0.12f));
+                            var pts = new List<Vector2> { new Vector2(hr * 0.05f, hr * 0.02f) };
+                            for (int i = 0; i <= 8; i++) { float ang = Mathf.Lerp(10f, -85f, i / 8f) * Mathf.Deg2Rad; pts.Add(new Vector2(Mathf.Cos(ang) * hr * 1.05f, Mathf.Sin(ang) * hr * 1.05f)); }
+                            pts.Add(new Vector2(hr * 0.05f, -hr * 0.9f));
+                            headRends.Add(Draw.Poly(headRoot, pts.ToArray(), c, o, "mask"));
+                            break;
+                        }
+                    case Acc.Hood:
+                        {
+                            Color c = AccC(a, Draw.Mul(mainCol.grayscale < 0.1f ? new Color(0.25f, 0.22f, 0.3f) : mainCol, 0.6f));
+                            var hood = Draw.Spr(headRoot, "hood", Draw.Circle, c, baseOrder + 7);
+                            hood.transform.localPosition = new Vector3(-hr * 0.22f, hr * 0.12f, 0);
+                            hood.transform.localScale = Vector3.one * hr * 2.7f;
+                            headRends.Add(hood);
+                            var tip = Draw.Line(headRoot, "hoodTip", 1f, c, baseOrder + 7, false, 2);
+                            Draw.Set(tip, new List<Vector2> { new Vector2(-hr * 0.6f, hr * 0.9f), new Vector2(-hr * 1.3f, hr * 0.7f), new Vector2(-hr * 1.8f, hr * 0.1f) });
+                            Draw.Taper(tip, 0.25f * s, 0.02f);
+                            headRends.Add(tip);
+                            break;
+                        }
+                    case Acc.Hair:
+                        {
+                            Color c = AccC(a, new Color(0.18f, 0.12f, 0.08f));
+                            for (int i = 0; i < 5; i++)
+                            {
+                                float ang = Mathf.Lerp(70f, 190f, i / 4f) * Mathf.Deg2Rad;
+                                Vector2 d = new Vector2(Mathf.Cos(ang), Mathf.Sin(ang));
+                                var sp = Draw.Line(headRoot, "hair", 1f, c, baseOrder + 7, false, 1);
+                                Vector2 bend = new Vector2(-0.3f, 0.1f) * hr;
+                                Draw.Set(sp, new List<Vector2> { d * hr * 0.6f, d * hr * 1.25f + bend * 0.5f, d * hr * (1.6f + (i % 2) * 0.25f) + bend });
+                                Draw.Taper(sp, 0.18f * s, 0.01f);
+                                headRends.Add(sp);
+                            }
+                            break;
+                        }
+                    case Acc.Beard:
+                        {
+                            Color c = AccC(a, new Color(0.35f, 0.22f, 0.1f));
+                            headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(hr * 0.1f, -hr * 0.45f), new Vector2(hr * 1.0f, -hr * 0.2f), new Vector2(hr * 0.75f, -hr * 1.25f), new Vector2(hr * 0.2f, -hr * 0.95f) }, c, o, "beard"));
+                            break;
+                        }
+                    case Acc.Wings:
+                        {
+                            Color c = AccC(a, B.acc.Contains(Acc.Horns) ? new Color(0.25f, 0.05f, 0.08f) : new Color(0.97f, 0.97f, 1f));
+                            lWings = new LineRenderer[2];
+                            for (int i = 0; i < 2; i++)
+                            {
+                                lWings[i] = Draw.Line(transform, "wing", 1f, i == 0 ? c : Draw.Mul(c, 0.8f), baseOrder - 3 + i, true, 3);
+                                Draw.Taper(lWings[i], 0.45f * s, 0.05f * s);
+                                lWings[i].positionCount = 4;
+                            }
+                            break;
+                        }
+                    case Acc.Tail:
+                        lTail = Draw.Line(transform, "tail", 1f, AccC(a, backCol), baseOrder - 1, true, 3);
+                        Draw.Taper(lTail, 0.14f * s, 0.02f * s);
+                        lTail.positionCount = 5;
+                        break;
+                    case Acc.Armor:
+                        lArmor = Draw.Line(transform, "armor", w * 1.85f, AccC(a, steel), baseOrder + 4, true, 2);
+                        break;
+                    case Acc.ShoulderPads:
+                        sPad = Draw.Spr(transform, "pad", Draw.Circle, AccC(a, AccC(Acc.Armor, steel)), baseOrder + 13);
+                        sPad.transform.localScale = Vector3.one * 0.34f * s;
+                        break;
+                    case Acc.Belt:
+                        lBelt = Draw.Line(transform, "belt", 0.09f * s, AccC(a, new Color(0.35f, 0.2f, 0.08f)), baseOrder + 5, true, 0);
+                        break;
+                    case Acc.Gloves:
+                        {
+                            Color c = AccC(a, new Color(0.15f, 0.15f, 0.15f));
+                            sGloveF = Draw.Spr(transform, "gloveF", Draw.Circle, c, baseOrder + 13);
+                            sGloveB = Draw.Spr(transform, "gloveB", Draw.Circle, Draw.Mul(c, 0.75f), baseOrder + 2);
+                            sGloveF.transform.localScale = sGloveB.transform.localScale = Vector3.one * w * 1.55f;
+                            break;
+                        }
+                    case Acc.Boots:
+                        {
+                            Color c = AccC(a, new Color(0.2f, 0.13f, 0.07f));
+                            lBootF = Draw.Line(transform, "bootF", w * 1.35f, c, baseOrder + 7, true, 2);
+                            lBootB = Draw.Line(transform, "bootB", w * 1.35f, Draw.Mul(c, 0.75f), baseOrder + 1, true, 2);
+                            break;
+                        }
+                }
+            }
+            if (eyes)
+            {
+                var e = Draw.Line(headRoot, "eye", 1f, eyeCol, o + 2, false, 1);
+                Draw.Set(e, new Vector2(hr * 0.28f, hr * 0.22f), new Vector2(hr * 0.85f, hr * 0.08f));
+                Draw.Taper(e, 0.07f * s, 0.035f * s);
+                var g = Draw.Spr(headRoot, "eyeGlow", Draw.Soft, Draw.A(eyeCol, 0.7f), o + 1);
+                g.transform.localPosition = new Vector3(hr * 0.6f, hr * 0.15f, 0);
+                g.transform.localScale = new Vector3(hr * 2.4f, hr * 1.2f, 1);
+                headRends.Add(e); headRends.Add(g);
+            }
+        }
+
         public void SetWeapon(WeaponStats w, int am)
         {
             foreach (Transform c in weaponRoot) Destroy(c.gameObject);
             weaponRends.Clear();
             weapon = w;
             ammo = am;
-            if (w != null) weaponRends = WeaponVisual.Build(weaponRoot, w, Size, baseOrder + 7, glow);
+            if (w != null) weaponRends = WeaponVisual.Build(weaponRoot, w, Size, baseOrder + 11, glow);
         }
 
         // ===================== ОБНОВЛЕНИЕ =====================
@@ -303,7 +465,18 @@ namespace StickWars
             if (dead) { DeadTick(dt); Render(); return; }
 
             flash -= dt; hurtT -= dt; stun -= dt; atkCd -= dt; shieldT -= dt; invisT -= dt; regenBlock -= dt; slowT -= dt; staffCd -= dt;
-            iframes -= dt; landT -= dt; popupCd -= dt; comboT -= dt;
+            iframes -= dt; landT -= dt; popupCd -= dt; comboT -= dt; secCd -= dt;
+            if (minion)
+            {
+                life -= dt;
+                if (life <= 0f || owner == null || owner.dead)
+                {
+                    battle.fx.Smoke(Center, 16, new Color(0.5f, 0.4f, 0.7f, 0.6f), 0.5f, 0.6f);
+                    remove = true; dead = true;
+                    gameObject.SetActive(false);
+                    return;
+                }
+            }
             if (comboT <= 0f) combo = 0;
             foreach (var k in B.abilities) cd[k] = CooldownOf(k) - dt;
 
@@ -321,7 +494,7 @@ namespace StickWars
             }
 
             if (body == BodyS.Down) DownTick(dt);
-            if (body == BodyS.Tumble) tumbleSpin += spinVel * dt;
+            if (body == BodyS.Tumble) { spinVel *= 1f - Mathf.Min(1f, dt * 0.9f); tumbleSpin += spinVel * dt; }
 
             // разворот: человек — мгновенно, ИИ — с небольшой задержкой (можно зайти за спину!)
             if (act == Act.None && stun <= 0 && hurtT <= 0 && body == BodyS.Normal && battle.mode != Battle.Mode.Showroom)
@@ -345,13 +518,51 @@ namespace StickWars
             MotionFx(dt);
 
             Pose tgt = TargetPose(dt);
-            float rate = (act == Act.Move || act == Act.Shoot || act == Act.Throw) ? 45f : (body != BodyS.Normal || act == Act.Roll || act == Act.Flip || act == Act.GetUp) ? 30f : 16f;
-            float spin = tgt.spin;
-            cur = Pose.Lerp(cur, tgt, 1f - Mathf.Exp(-rate * dt));
-            cur.spin = spin;
+            // пружинная анимация: резкий удар с небольшим «перелётом» и отдачей
+            float sk, sz;
+            if (act == Act.Move || act == Act.Shoot || act == Act.Throw || act == Act.ThrowSec) { sk = 2600f; sz = 0.48f; }
+            else if (hurtT > 0 || stun > 0) { sk = 1100f; sz = 0.32f; }
+            else if (body != BodyS.Normal || act == Act.Roll || act == Act.Flip || act == Act.GetUp) { sk = 1500f; sz = 0.7f; }
+            else if (!grounded) { sk = 900f; sz = 0.6f; }
+            else { sk = 650f; sz = 0.62f; }
+            SpringPose(tgt, dt, sk, sz);
             Skel.Compute(cur, pos, Size, RenderFacing(), J, grounded);
+            Stretch();
             TrailTick(dt);
             Render();
+        }
+
+        void SpringPose(Pose tgt, float dt, float k, float zeta)
+        {
+            float c = 2f * zeta * Mathf.Sqrt(k);
+            int n = Mathf.Clamp(Mathf.CeilToInt(dt / 0.006f), 1, 12);
+            float h = dt / n;
+            for (int step = 0; step < n; step++)
+                for (int i = 0; i < 9; i++)
+                {
+                    float x = cur[i];
+                    float a = (tgt[i] - x) * k - pv[i] * c;
+                    pv[i] += a * h;
+                    cur[i] = x + pv[i] * h;
+                }
+            cur.spin = tgt.spin;
+        }
+
+        // растяжение бьющей конечности в момент удара (squash & stretch)
+        void Stretch()
+        {
+            if (act != Act.Move || mv == null) return;
+            float u = actT / actDur;
+            float d = (u - mv.hitAt) / 0.1f;
+            float st = Mathf.Exp(-d * d) * 0.3f;
+            if (st < 0.01f) return;
+            int limb = mv.limb == 4 ? 0 : mv.limb;
+            int root = limb < 2 ? 1 : 0, mid = 3 + limb * 2, tip = mid + 1;
+            if (limb >= 2) { mid = limb == 2 ? 7 : 9; tip = mid + 1; }
+            else { mid = limb == 0 ? 3 : 5; tip = mid + 1; }
+            Vector2 d1 = J[mid] - J[root], d2 = J[tip] - J[mid];
+            J[mid] = J[root] + d1 * (1f + st * 0.5f);
+            J[tip] = J[mid] + d2 * (1f + st);
         }
 
         int RenderFacing()
@@ -529,25 +740,33 @@ namespace StickWars
             }
             if (body == BodyS.Tumble)
             {
-                if (vel.y < -10f && !bounced)
+                float sp = Mathf.Repeat(tumbleSpin + 180f, 360f) - 180f;
+                tumbleSpin = sp;
+                if (vel.y < -9f && !bounced)
                 {
+                    // удар всем телом о землю и отскок
                     bounced = true;
                     float vy = vel.y;
-                    vel.y = Mathf.Min(8f, -vy * 0.42f);
-                    battle.fx.Dust(pos, 16);
+                    vel.y = Mathf.Min(5.5f, -vy * 0.32f);
+                    vel.x *= 0.85f;
+                    spinVel = Mathf.Sign(sp == 0 ? 1 : sp) * Mathf.Min(Mathf.Abs(spinVel) * 0.5f + 120f, 300f);
+                    battle.fx.Dust(pos, 18);
+                    battle.Shock(pos, 1.6f, Draw.A(battle.theme.ink, 0.5f));
                     battle.cam.Shake(0.35f);
-                    battle.audio.Sfx("thud", 0.9f);
-                    if (vy < -17f) { battle.Crack(pos, false); battle.HitSpark(pos + Vector2.up * 0.1f, Vector2.up, 1.3f, battle.theme.ink); }
+                    battle.cam.Kick(0.4f);
+                    battle.audio.Sfx("thud", 1f);
+                    if (vy < -16f) { battle.Crack(pos, false); battle.HitSpark(pos + Vector2.up * 0.1f, Vector2.up, 1.3f, battle.theme.ink); }
                     RawDamage(2f + Mathf.Abs(vy) * 0.25f, DmgType.Blunt, null, true, HF.Fall);
                     return;
                 }
+                // ложится: на спину или на живот, скользит по земле
                 body = BodyS.Down;
-                downT = human ? 0.55f : Random.Range(0.45f, 0.9f) / Mathf.Sqrt(B.agi);
-                float sp = Mathf.Repeat(tumbleSpin + 180f, 360f) - 180f;
-                tumbleSpin = sp >= 0 ? 90f : -90f;
+                downTarget = sp >= -10f ? 90f : -90f;
+                downT = human ? 0.6f : Random.Range(0.55f, 1.0f) / Mathf.Sqrt(B.agi);
                 vel.y = 0;
-                battle.fx.Dust(pos, 10);
-                battle.audio.Sfx("thud", 0.6f);
+                vel.x *= 0.9f;
+                battle.fx.Dust(pos, 12);
+                battle.audio.Sfx("thud", 0.7f);
                 juggle = 0;
                 return;
             }
@@ -565,14 +784,21 @@ namespace StickWars
         void DownTick(float dt)
         {
             downT -= dt;
+            tumbleSpin = Mathf.MoveTowards(tumbleSpin, downTarget, 700f * dt);
+            if (Mathf.Abs(vel.x) > 1f && grounded)
+            {
+                slideDustT -= dt;
+                if (slideDustT <= 0f) { slideDustT = 0.05f; battle.fx.Dust(Center - Vector2.up * 0.3f, 1); if (bleedT > 0) battle.fx.Drip(Center); }
+            }
             if (downT > 0f || !grounded) return;
             body = BodyS.Normal;
             act = Act.GetUp;
             actT = 0;
-            getUpFrom = tumbleSpin;
-            actDur = B.style == Style.Acrobat ? 0.3f : 0.4f;
-            iframes = actDur + 0.25f;
-            if (B.style == Style.Acrobat || B.agi > 1.3f) { vel.y = 7f; grounded = false; } // подъём разгибом
+            kipJumped = false;
+            getUpFrom = downTarget;
+            bool kip = (B.style == Style.Acrobat || B.agi > 1.3f) && getUpFrom > 0;
+            actDur = kip ? 0.55f : 0.8f / Mathf.Sqrt(B.agi);
+            iframes = actDur * 0.85f;
             hurtT = 0; stun = 0;
         }
 
@@ -769,6 +995,9 @@ namespace StickWars
                     if (Random.value < 0.3f) battle.fx.Dust(pos, 1);
                     break;
                 case Act.GetUp:
+                    break;
+                case Act.ThrowSec:
+                    if (!actFired && u >= 0.45f) { actFired = true; FireSecondary(); }
                     break;
                 default:
                     if (!actFired && u >= 0.45f) { actFired = true; Fire(); }
@@ -988,6 +1217,8 @@ namespace StickWars
                 case Ability.IceShard:
                 case Ability.Telekinesis:
                 case Ability.Lightning:
+                case Ability.Summon:
+                    if (a == Ability.Summon && (minion || battle.MinionCount(this) >= 3)) return false;
                     castAb = a;
                     castFromStaff = false;
                     aim = AimAt(target);
@@ -1089,7 +1320,45 @@ namespace StickWars
                         battle.audio.Sfx("teleport", 0.7f);
                     }
                     break;
+                case Ability.Summon:
+                    battle.SpawnMinions(this, 2);
+                    break;
             }
+        }
+
+        public void SetupMinion(Fighter o, float lifetime)
+        {
+            minion = true; owner = o; life = lifetime;
+            iframes = 0.4f;
+        }
+
+        // второе оружие: метательные ножи / пистолет из описания
+        public bool UseSecondary()
+        {
+            if (sec == null || secAmmo <= 0 || secCd > 0f || !Free) return false;
+            aim = target != null ? ((sec.alwaysHead ? target.J[2] : target.Center) - J[1]).normalized : new Vector2(facing, 0);
+            if (target != null) facing = target.pos.x >= pos.x ? 1 : -1;
+            StartAct(Act.ThrowSec, sec.Ranged && sec.kind != WeaponKind.Thrown ? 0.3f : 0.36f);
+            secCd = 0.9f;
+            return true;
+        }
+
+        void FireSecondary()
+        {
+            if (sec == null || secAmmo <= 0) return;
+            Vector2 from = J[4];
+            bool knife = sec.kind == WeaponKind.Thrown && !sec.explode;
+            var h = MakeHit(sec.dmg * (sec.knives ? 1.2f : 1f), sec.kind == WeaponKind.Gun ? DmgType.Pierce : sec.explode ? DmgType.Blunt : DmgType.Blade, sec.element, 3f, 0.2f);
+            Projectile pr;
+            if (sec.explode) pr = battle.SpawnProjectile(Projectile.Kind.Grenade, from, new Vector2(facing * 9f, 7f), this, h, sec.color);
+            else if (sec.kind == WeaponKind.Gun) pr = battle.SpawnProjectile(Projectile.Kind.Bullet, from + aim * 0.4f, aim * 32f, this, h, sec.color);
+            else if (sec.kind == WeaponKind.Bow) pr = battle.SpawnProjectile(Projectile.Kind.Arrow, from, aim * 22f, this, h, sec.color);
+            else pr = battle.SpawnProjectile(sec.knives ? Projectile.Kind.Knife : Projectile.Kind.Shuriken, from, aim * 21f, this, h, sec.color);
+            if (sec.alwaysHead && target != null) { pr.homing = target; pr.forceHead = true; }
+            if (knife && sec.bleed) pr.bleed = true;
+            battle.audio.Sfx(sec.kind == WeaponKind.Gun ? "shot" : "whoosh", 0.7f);
+            secAmmo--;
+            if (secAmmo <= 0) battle.Popup(sec.name + ": пусто", J[2] + Vector2.up * 0.7f, new Color(0.8f, 0.8f, 0.8f), 0.6f);
         }
 
         public void Lift(Fighter by)
@@ -1308,7 +1577,7 @@ namespace StickWars
                 if (wasAir) juggle++;
                 bounced = false;
                 float sgn = Mathf.Sign(h.dir.x) == facing ? -1f : 1f; // удар в спину — кувырок вперёд
-                spinVel = sgn * (h.launcher ? 260f : Mathf.Clamp(kn * 70f, 300f, 900f));
+                spinVel = sgn * (h.launcher ? 160f : Mathf.Clamp(kn * 38f, 140f, 520f));
                 if (Mathf.Abs(Mathf.Repeat(tumbleSpin + 180f, 360f) - 180f) > 120f) tumbleSpin = 0;
                 stun = Mathf.Max(stun, 0.3f);
                 hurtT = 0;
@@ -1321,6 +1590,10 @@ namespace StickWars
                 hurtT = blocked ? 0.08f : 0.26f;
                 stun = Mathf.Max(stun, blocked ? 0f : h.stun);
                 hurtPose = (h.extra & HF.Head) != 0 ? Pose.HurtHigh : (Random.value < 0.5f ? Pose.HurtBody : Pose.Hurt);
+                // хлёсткая реакция: толчок пружины корпуса и рук
+                float imp = Mathf.Clamp(d * 45f, 200f, 1400f);
+                pv[0] += (h.extra & HF.Head) != 0 ? -imp : imp * 0.6f;
+                pv[1] -= imp; pv[3] -= imp * 0.8f;
             }
             battle.Impact(d, h.point, h.heavy || h.launcher);
 
@@ -1465,7 +1738,8 @@ namespace StickWars
                 else
                 {
                     var acts = ActiveAbilities();
-                    if (g.Pressed(Q1) && acts.Count > 0) UseAbility(acts[0]);
+                    if (g.Pressed(pindex == 0 ? KeyCode.E : KeyCode.U) || (pindex == 1 && g.Pressed(KeyCode.Keypad3))) UseSecondary();
+                    else if (g.Pressed(Q1) && acts.Count > 0) UseAbility(acts[0]);
                     else if (g.Pressed(Q2) && acts.Count > 1) UseAbility(acts[1]);
                     else if (g.Pressed(Q3) && acts.Count > 2) UseAbility(acts[2]);
                 }
@@ -1563,6 +1837,7 @@ namespace StickWars
 
             if (!Free || atkCd > 0f || battle.phase != Battle.Phase.Fight || target.iframes > 0.1f) return;
             if (Mathf.Abs(d.y) > 1.6f * Size + 0.4f && target.body != BodyS.Tumble) return;
+            if (sec != null && secAmmo > 0 && secCd <= 0f && dist > 2.4f && dist < 13f && Random.value < (sec.alwaysHead && target.B.Needs(HF.Head) ? 0.5f : 0.2f)) { if (UseSecondary()) return; }
             if (ranged && dist > 2.2f && dist < weapon.range) Attack(false);
             else if (weapon != null && weapon.kind == WeaponKind.Staff && dist > 3f && dist < 12f && staffCd <= 0f) Attack(false);
             else if (!ranged && dist <= reach && target.body != BodyS.Down)
@@ -1599,6 +1874,7 @@ namespace StickWars
                     case Ability.GroundSlam: use = dist < 3.5f && grounded && Random.value < 0.4f; break;
                     case Ability.Invisibility: use = hp < maxHp * 0.7f && Random.value < 0.25f; break;
                     case Ability.Telekinesis: use = dist < 10f && Random.value < 0.3f * need; break;
+                    case Ability.Summon: use = Random.value < 0.5f; break;
                 }
                 if (use && UseAbility(a)) return;
             }
@@ -1677,16 +1953,20 @@ namespace StickWars
         {
             if (body == BodyS.Tumble)
             {
-                Pose p = Pose.Tumble;
-                p.a1 += Mathf.Sin(animT * 18f) * 30f; p.b1 += Mathf.Cos(animT * 15f) * 30f;
-                p.f1 += Mathf.Sin(animT * 12f) * 25f; p.k1 += Mathf.Cos(animT * 13f) * 25f;
+                // полёт после мощного удара: тело выгнуто, руки и ноги отстают от движения
+                bool up = vel.y > 0;
+                Pose p = up ? Pose.Tumble : Pose.Lerp(Pose.Tumble, Pose.Slam, 0.5f);
+                p.a1 += Mathf.Sin(animT * 9f) * 18f; p.b1 += Mathf.Cos(animT * 8f) * 18f;
+                p.f1 += Mathf.Sin(animT * 7f) * 15f; p.k1 += Mathf.Cos(animT * 7.5f) * 15f;
                 p.spin = tumbleSpin;
                 return p;
             }
             if (body == BodyS.Down)
             {
                 Pose p = Pose.Lying;
-                p.a2 += Mathf.Sin(animT * 3f) * 5f;
+                float tw = Mathf.Max(0f, 0.4f - (animT % 2.2f)) * 2.5f;
+                p.a2 += Mathf.Sin(animT * 3f) * 5f + tw * 20f;
+                p.f2 -= tw * 25f;
                 p.spin = tumbleSpin;
                 return p;
             }
@@ -1738,12 +2018,26 @@ namespace StickWars
                     }
                 case Act.GetUp:
                     {
-                        float k = u * u * (3 - 2 * u);
-                        Pose p = Pose.Lerp(Pose.Lying, Pose.Crouch, k);
-                        p.spin = Mathf.Lerp(getUpFrom, 0f, k);
-                        if (B.style == Style.Acrobat) p.spin = Mathf.Lerp(getUpFrom, getUpFrom > 0 ? 360f : -360f, k) % 360f;
-                        return p;
+                        Pose rp = RestPose();
+                        bool kip = (B.style == Style.Acrobat || B.agi > 1.3f) && getUpFrom > 0;
+                        if (kip)
+                        {
+                            // подъём разгибом: ноги к груди — рывок — приземление в стойку
+                            if (u > 0.35f && !kipJumped) { kipJumped = true; vel.y = 9f; grounded = false; battle.fx.Dust(pos, 6); battle.audio.Sfx("whoosh", 0.5f); }
+                            Pose a = Pose.Lying; a.spin = getUpFrom;
+                            Pose b = Pose.Tuck; b.spin = getUpFrom + 25f;
+                            Pose c = Pose.AirDown; c.spin = 0f;
+                            Pose d = rp; d.spin = 0f;
+                            return Pose.Keys(u, new[] { a, b, c, d }, new[] { 0f, 0.35f, 0.7f, 1f });
+                        }
+                        bool back = getUpFrom > 0;
+                        Pose k0 = Pose.Lying; k0.spin = getUpFrom;
+                        Pose k1 = back ? Pose.SitUp : Pose.PushUp; k1.spin = back ? 38f : -50f;
+                        Pose k2 = Pose.Kneel; k2.spin = 0f;
+                        Pose k3 = rp; k3.spin = 0f;
+                        return Pose.Keys(u, new[] { k0, k1, k2, k3 }, new[] { 0f, 0.35f, 0.68f, 1f });
                     }
+                case Act.ThrowSec: return Pose.Attack(rest, Pose.ThrowW, Pose.ThrowS, u);
             }
             if (!grounded)
             {
@@ -1807,7 +2101,7 @@ namespace StickWars
                         if (trailPts.Count == 1)
                         {
                             bool w = mv.limb == 4 && weapon != null;
-                            Color c = w ? (weapon.element != Element.None ? Info.ElemColor(weapon.element) : Color.Lerp(weapon.color, Color.white, 0.6f)) : (glow ? Color.Lerp(mainCol, Color.white, 0.5f) : Color.Lerp(mainCol, battle.theme.ink, 0.4f));
+                            Color c = w ? (weapon.element != Element.None ? Info.ElemColor(weapon.element) : Color.Lerp(weapon.color, Color.white, 0.6f)) : (silhouette ? new Color(0.15f, 0.15f, 0.15f) : Color.Lerp(mainCol, Color.white, glow ? 0.5f : 0.15f));
                             var g = new Gradient();
                             g.SetKeys(new[] { new GradientColorKey(c, 0f), new GradientColorKey(c, 1f) }, new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(w ? 0.75f : 0.55f, 1f) });
                             lTrail.colorGradient = g;
@@ -1816,6 +2110,21 @@ namespace StickWars
                         }
                     }
                 }
+            }
+            // смаз-линии за кулаком/ногой (как в стикмен-анимациях)
+            if (act == Act.Move && mv != null)
+            {
+                float u = actT / actDur;
+                Vector2 tip = Tip(mv.limb);
+                Vector2 mvd = tip - prevTip;
+                if (u > mv.hitAt - 0.14f && u < mv.hitAt + 0.05f && mvd.magnitude > 0.05f && Mathf.Abs(mvd.normalized.x) > 0.55f)
+                {
+                    Vector2 dn = mvd.normalized;
+                    Color sc = silhouette ? new Color(0.1f, 0.1f, 0.1f, 0.6f) : Draw.A(Color.Lerp(mainCol, Color.white, 0.2f), 0.65f);
+                    for (int i = 0; i < 3; i++)
+                        battle.fx.Emit(tip - dn * Random.Range(0.25f, 0.9f) + new Vector2(0, Random.Range(-0.1f, 0.1f)) * Size, Vector2.zero, sc, 0.035f, 0.09f, 0f, false, 0f, true, Random.Range(10f, 22f), 0.6f);
+                }
+                prevTip = tip;
             }
             if (trailPts.Count >= 2)
             {
@@ -1927,6 +2236,8 @@ namespace StickWars
                 var sc = lScarf.startColor; sc.a = alpha; Draw.Col(lScarf, sc);
             }
 
+            RenderGear(P, rf, alpha, c, cb);
+
             bool shOn = shieldT > 0 && !dead;
             lShield.enabled = shOn; sShieldGlow.enabled = shOn;
             if (shOn)
@@ -1941,6 +2252,48 @@ namespace StickWars
                 Draw.Col(lShield, new Color(0.4f, 0.9f, 1f, shieldT < 0.8f ? 0.4f + 0.4f * Mathf.Sin(t * 30f) : 0.8f));
                 sShieldGlow.transform.position = cen;
                 sShieldGlow.transform.localScale = new Vector3(r * 2.4f, r * 2.7f, 1);
+            }
+        }
+
+        void RenderGear(Vector2[] P, int rf, float alpha, Color c, Color cb)
+        {
+            float s = Size;
+            Vector2 u = (P[1] - P[0]); float ul = u.magnitude; u = ul > 0.001f ? u / ul : Vector2.up;
+            Vector2 perp = new Vector2(-u.y, u.x);
+            if (lArmor != null) { Draw.Set(lArmor, Vector2.Lerp(P[0], P[1], 0.12f), Vector2.Lerp(P[0], P[1], 0.9f)); SetAlpha(lArmor, alpha); }
+            if (lBelt != null) { Vector2 bc = Vector2.Lerp(P[0], P[1], 0.1f); Draw.Set(lBelt, bc - perp * 0.15f * s, bc + perp * 0.15f * s); SetAlpha(lBelt, alpha); }
+            if (sPad != null) { sPad.transform.position = P[1] - u * 0.1f * s; SetAlpha(sPad, alpha); }
+            if (sGloveF != null) { sGloveF.transform.position = P[4]; sGloveB.transform.position = P[6]; SetAlpha(sGloveF, alpha); SetAlpha(sGloveB, alpha); }
+            if (lBootF != null)
+            {
+                Draw.Set(lBootF, Vector2.Lerp(P[7], P[8], 0.6f), P[8] + new Vector2(rf * 0.07f * s, 0));
+                Draw.Set(lBootB, Vector2.Lerp(P[9], P[10], 0.6f), P[10] + new Vector2(rf * 0.07f * s, 0));
+                SetAlpha(lBootF, alpha); SetAlpha(lBootB, alpha);
+            }
+            if (lWings != null)
+            {
+                Vector2 root = Vector2.Lerp(P[0], P[1], 0.8f) - new Vector2(rf * 0.08f * s, 0);
+                float flap = Mathf.Sin(animT * (grounded ? 4f : 14f)) * (grounded ? 0.12f : 0.4f);
+                for (int i = 0; i < 2; i++)
+                {
+                    float off = i == 0 ? 0f : 0.25f;
+                    var l = lWings[i];
+                    l.SetPosition(0, root);
+                    l.SetPosition(1, root + new Vector2(-rf * (0.55f + off) * s, (0.55f + flap) * s));
+                    l.SetPosition(2, root + new Vector2(-rf * (1.15f + off) * s, (0.85f + flap * 1.5f) * s));
+                    l.SetPosition(3, root + new Vector2(-rf * (1.0f + off) * s, (0.05f + flap) * s));
+                    SetAlpha(l, alpha);
+                }
+            }
+            if (lTail != null)
+            {
+                Vector2 p = P[0] - new Vector2(rf * 0.05f * s, 0);
+                for (int i = 0; i < 5; i++)
+                {
+                    lTail.SetPosition(i, p);
+                    p += new Vector2(-rf * 0.22f * s, (-0.1f + i * 0.08f) * s + Mathf.Sin(animT * 6f + i) * 0.05f);
+                }
+                SetAlpha(lTail, alpha);
             }
         }
 

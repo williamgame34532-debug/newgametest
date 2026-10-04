@@ -26,7 +26,29 @@ namespace StickWars
                 Mathf.LerpUnclamped(x.spin, y.spin, t));
         }
 
+        public float this[int i]
+        {
+            get
+            {
+                switch (i) { case 0: return lean; case 1: return a1; case 2: return a2; case 3: return b1; case 4: return b2; case 5: return f1; case 6: return f2; case 7: return k1; case 8: return k2; }
+                return spin;
+            }
+            set
+            {
+                switch (i) { case 0: lean = value; break; case 1: a1 = value; break; case 2: a2 = value; break; case 3: b1 = value; break; case 4: b2 = value; break; case 5: f1 = value; break; case 6: f2 = value; break; case 7: k1 = value; break; case 8: k2 = value; break; default: spin = value; break; }
+            }
+        }
+
         static float Ease(float k) { return k * k * (3 - 2 * k); }
+
+        // последовательность ключевых поз (подъём с земли и т.п.)
+        public static Pose Keys(float u, Pose[] p, float[] t)
+        {
+            if (u <= t[0]) return p[0];
+            for (int i = 0; i < t.Length - 1; i++)
+                if (u <= t[i + 1]) return Lerp(p[i], p[i + 1], Ease((u - t[i]) / (t[i + 1] - t[i])));
+            return p[p.Length - 1];
+        }
 
         // стойка -> замах -> удар (резкий, как "смаз") -> удержание -> стойка
         public static Pose Attack(Pose rest, Pose wind, Pose strike, float u, float hitAt = 0.45f)
@@ -48,7 +70,11 @@ namespace StickWars
         public static readonly Pose HurtHigh = new Pose(-38, -20, 25, -45, -5, 18, 10, -28, -12);
         public static readonly Pose HurtBody = new Pose(32, 45, 100, 35, 90, 20, -8, -25, -18);
         public static readonly Pose Tumble = new Pose(-10, 140, 170, -140, -170, 40, -30, -35, -60);
-        public static readonly Pose Lying = new Pose(0, 35, 60, -30, -10, 8, 4, -8, -4);
+        public static readonly Pose Lying = new Pose(0, 165, 175, 25, 10, 18, 6, -14, -4);
+        public static readonly Pose SitUp = new Pose(5, -35, -20, -50, -35, 88, 30, 70, 10);
+        public static readonly Pose PushUp = new Pose(0, 5, -5, 20, 5, 20, -10, -5, -25);
+        public static readonly Pose Kneel = new Pose(12, 45, 150, 30, 140, 80, 0, -10, -95);
+        public static readonly Pose Slam = new Pose(0, 150, 170, -150, -170, 25, 10, -25, -10);
         public static readonly Pose Tuck = new Pose(40, 70, 150, 60, 140, 115, -25, 100, -35);
         public static readonly Pose Victory = new Pose(-4, 150, 165, -150, -165, 14, 4, -14, -4);
         public static readonly Pose Cast = new Pose(10, 88, 88, 80, 82, 25, 5, -22, -8);
@@ -109,7 +135,7 @@ namespace StickWars
 
     public static class Skel
     {
-        public const float Torso = 0.78f, Upper = 0.42f, Fore = 0.40f, Thigh = 0.52f, Shin = 0.52f, HeadR = 0.25f, Width = 0.17f;
+        public const float Torso = 0.8f, Upper = 0.43f, Fore = 0.41f, Thigh = 0.53f, Shin = 0.53f, HeadR = 0.29f, Width = 0.21f;
 
         public static Vector2 Down(float deg, int f)
         {

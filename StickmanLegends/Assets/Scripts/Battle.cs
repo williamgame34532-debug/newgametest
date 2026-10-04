@@ -174,6 +174,8 @@ namespace StickWars
             if (!paused) PhaseLogic(praw, dt);
 
             for (int i = 0; i < fighters.Count; i++) fighters[i].Tick(dt);
+            for (int i = fighters.Count - 1; i >= 0; i--)
+                if (fighters[i].remove) { Destroy(fighters[i].gameObject); fighters.RemoveAt(i); }
             for (int i = projs.Count - 1; i >= 0; i--)
             {
                 var p = projs[i];
@@ -264,7 +266,7 @@ namespace StickWars
                         }
                     }
                     bool r = false, b = false;
-                    foreach (var f in fighters) { if (f.dead) continue; if (f.team == 0) r = true; else b = true; }
+                    foreach (var f in fighters) { if (f.dead || f.minion) continue; if (f.team == 0) r = true; else b = true; }
                     if (!r || !b)
                     {
                         phase = Phase.Victory; phaseT = 0;
@@ -410,6 +412,38 @@ namespace StickWars
             var t = new TimedFx { go = go, life = life, update = upd };
             timed.Add(t);
             return t;
+        }
+
+        public int MinionCount(Fighter owner)
+        {
+            int n = 0;
+            foreach (var f in fighters) if (f.minion && !f.dead && f.team == owner.team) n++;
+            return n;
+        }
+
+        // Призыв помощников: магический круг, дым, маленькие бойцы на стороне хозяина
+        public void SpawnMinions(Fighter owner, int n)
+        {
+            for (int i = 0; i < n; i++)
+            {
+                var b = new FighterBuild();
+                b.name = "Помощник";
+                b.color = Color.Lerp(owner.B.color, Color.white, 0.35f);
+                b.hp = 30f + owner.B.hp * 0.05f; b.str = 0.7f; b.spd = 1.15f; b.def = 0.7f; b.agi = 1.1f; b.size = 0.7f;
+                b.killMasks.Add((int)HF.Blunt);
+                b.style = Style.Brute;
+                b.acc.Add(Acc.Eyes);
+                b.accCol[Acc.Eyes] = new Color(0.7f, 0.4f, 1f);
+                if (owner.weapon != null && owner.weapon.kind == WeaponKind.Staff) b.acc.Add(Acc.Hood);
+                float x = Mathf.Clamp(owner.pos.x + owner.facing * (1.2f + i * 0.9f) * (i % 2 == 0 ? 1 : -1), -W + 1f, W - 1f);
+                var f = Spawn(b, owner.team, 4, new Vector2(x, 0), owner.facing);
+                f.SetupMinion(owner, 15f);
+                f.vel = new Vector2(0, 6f);
+                Shock(new Vector2(x, 0.05f), 1.4f, new Color(0.7f, 0.4f, 1f, 0.9f));
+                fx.Smoke(new Vector2(x, 0.6f), 14, new Color(0.5f, 0.3f, 0.8f, 0.6f), 0.5f, 0.6f);
+                for (int k = 0; k < 14; k++) fx.Emit(new Vector2(x + Random.Range(-0.6f, 0.6f), 0.1f), Vector2.up * Random.Range(1f, 4f), new Color(0.75f, 0.5f, 1f, 0.9f), 0.12f, 0.6f, 0f, false, 1f, true, 1, 1, true);
+            }
+            audio.Sfx("teleport", 0.9f);
         }
 
         public void Flash(float t, Color c)

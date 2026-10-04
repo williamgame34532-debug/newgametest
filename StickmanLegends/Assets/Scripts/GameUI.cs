@@ -398,7 +398,7 @@ namespace StickWars
             float by = VH - 115;
             if (Btn(new Rect(gap, by, 260, 80), "< НАЗАД", 30)) { Save(); scr = Scr.Main; }
             for (int i = 0; i < Theme.Count; i++)
-                if (Btn(new Rect(gap + 290 + i * 175, by + 10, 165, 60), Theme.Names[i], 19, false, data.theme == i)) { SetTheme(i); StartDemo(); }
+                if (Btn(new Rect(gap + 290 + i * 150, by + 10, 142, 60), Theme.Names[i], 16, false, data.theme == i)) { SetTheme(i); StartDemo(); }
             if (Btn(new Rect(VW - gap - 380, by, 380, 80), "К БОЮ!", 40, true)) StartBattle();
         }
 
@@ -894,7 +894,7 @@ namespace StickWars
             Txt(new Rect(r.x + 50, r.y + 100, w * 0.56f - 60, h - 220), left, 21, P.text, TextAnchor.UpperLeft, false, true);
             string right =
                 "УПРАВЛЕНИЕ (если включено)\n\n" +
-                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  S + A/D — перекат (неуязвимость)\n  F — удары руками/оружием, жми ещё — комбо\n  W + F — апперкот (подброс)\n  G — пинки,  S + G — подсечка\n  G на бегу — удар в прыжке\n  G в воздухе — удар вниз\n  R, T, Y — способности\n\n" +
+                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  S + A/D — перекат (неуязвимость)\n  F — удары руками/оружием, жми ещё — комбо\n  W + F — апперкот (подброс)\n  G — пинки,  S + G — подсечка\n  G на бегу — удар в прыжке\n  G в воздухе — удар вниз\n  E — метнуть второе оружие (ножи и т.п.)\n  R, T, Y — способности\n\n" +
                 "Игрок 2 (синие): стрелки, ↓ — блок,\n  K — удар, L — пинок, I O P — умения\n\n" +
                 "Удар в спину, в голову и по лежачему считаются отдельно — это важно для условий смерти.";
             Txt(new Rect(r.x + w * 0.56f + 10, r.y + 100, w * 0.44f - 60, h - 220), right, 20, P.text, TextAnchor.UpperLeft, false, true);
@@ -922,6 +922,7 @@ namespace StickWars
             int ri = 0, bi = 0;
             foreach (var f in b.fighters)
             {
+                if (f.minion) continue;
                 bool right = f.team == 1;
                 int idx = right ? bi++ : ri++;
                 bool lead = idx == 0;
@@ -994,7 +995,7 @@ namespace StickWars
                 foreach (var f in b.fighters)
                 {
                     if (!f.human || f.dead) continue;
-                    string keys = f.pindex == 0 ? "A D бег • W прыжок • S блок • S+A/D перекат • F удар (W+F апперкот) • G пинок (S+G подсечка) • R T Y умения" : "← → бег • ↑ прыжок • ↓ блок • ↓+←/→ перекат • K удар • L пинок • I O P умения";
+                    string keys = f.pindex == 0 ? "A D бег • W прыжок • S блок • S+A/D перекат • F удар (W+F апперкот) • G пинок (S+G подсечка) • E метнуть • R T Y умения" : "← → бег • ↑ прыжок • ↓ блок • ↓+←/→ перекат • K удар • L пинок • U метнуть • I O P умения";
                     Rect hr = f.pindex == 0 ? new Rect(20, VH - 46 - letterbox * 95f, 1000, 34) : new Rect(VW - 1020, VH - 46 - letterbox * 95f, 1000, 34);
                     Outline(hr, keys, 18, Color.white, new Color(0, 0, 0, 0.75f), f.pindex == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight, 1.5f);
                 }
@@ -1016,7 +1017,7 @@ namespace StickWars
             int n = 0;
             foreach (var f in battle.fighters)
             {
-                if (f.team != team) continue;
+                if (f.team != team || f.minion) continue;
                 if (n < 2) s += (s.Length > 0 ? " & " : "") + f.B.name;
                 n++;
             }
@@ -1078,6 +1079,7 @@ namespace StickWars
             if (f.shieldT > 0) st += "щит ";
             if (f.RageOn) st += "ЯРОСТЬ ";
             if (f.weapon != null) st += "[" + f.weapon.name + (f.weapon.Ranged ? " " + f.ammo : "") + "] ";
+            if (f.sec != null) st += "[" + f.sec.name + " " + f.secAmmo + "] ";
             st += "смерть: " + f.B.WeakText.ToLower();
             float sx = idx * 26 + 8;
             Rect sr = right ? new Rect(bar.x, iy - 1, bar.width - sx, 22) : new Rect(bar.x + sx, iy - 1, bar.width - sx, 22);

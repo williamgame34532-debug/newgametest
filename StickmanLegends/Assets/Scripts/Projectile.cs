@@ -5,12 +5,14 @@ namespace StickWars
 {
     public class Projectile : MonoBehaviour
     {
-        public enum Kind { Bullet, Arrow, Shuriken, Fireball, Ice, Bolt, Grenade }
+        public enum Kind { Bullet, Arrow, Shuriken, Fireball, Ice, Bolt, Grenade, Knife }
 
         public Kind kind;
         public Vector2 pos, vel;
         public Fighter owner;
         public int team;
+        public Fighter homing;
+        public bool forceHead, bleed;
         HitInfo hit;
         float grav, life, radius, spin, angle;
         bool stuck;
@@ -44,6 +46,18 @@ namespace StickWars
                         Draw.Taper(tip, 0.12f, 0f);
                         var fl = Draw.Line(vis, "fletch", 0.1f, new Color(0.9f, 0.9f, 0.9f), ord, false, 0);
                         Draw.Set(fl, new Vector2(-0.7f, 0), new Vector2(-0.5f, 0));
+                        break;
+                    }
+                case Kind.Knife:
+                    {
+                        grav = -3f; radius = 0.16f;
+                        var blade = Draw.Line(vis, "blade", 1f, new Color(0.85f, 0.87f, 0.92f), ord + 1, false, 0);
+                        Draw.Set(blade, new Vector2(-0.05f, 0), new Vector2(0.45f, 0));
+                        Draw.Taper(blade, 0.09f, 0.0f);
+                        var handle = Draw.Line(vis, "handle", 0.07f, new Color(0.25f, 0.15f, 0.08f), ord, false, 1);
+                        Draw.Set(handle, new Vector2(-0.3f, 0), new Vector2(-0.05f, 0));
+                        var gl = Draw.Spr(vis, "glint", Draw.Soft, new Color(1f, 1f, 1f, 0.5f), ord - 1);
+                        gl.transform.localScale = new Vector3(1.2f, 0.35f, 1f);
                         break;
                     }
                 case Kind.Shuriken:
@@ -114,7 +128,14 @@ namespace StickWars
                 if (kind == Kind.Grenade) { b.Explosion(pos, 2.4f, hit, team); return false; }
                 return false;
             }
-            vel.y += grav * dt;
+            if (homing != null && !homing.dead)
+            {
+                // самонаведение (ножи «точно в голову»)
+                float sp = vel.magnitude;
+                Vector2 want = (homing.J[2] - pos).normalized * sp;
+                vel = Vector2.Lerp(vel, want, Mathf.Min(1f, dt * 9f));
+            }
+            else vel.y += grav * dt;
             Vector2 prev = pos;
             pos += vel * dt;
             spin += dt * (kind == Kind.Shuriken ? 1400f : 500f);
@@ -138,7 +159,10 @@ namespace StickWars
                     var h = hit.Copy();
                     h.point = pos;
                     h.dir = vel.normalized;
-                    h.headshot = head && (kind == Kind.Bullet || kind == Kind.Arrow);
+                    if (forceHead && f == homing) head = true;
+                    h.headshot = head && (kind == Kind.Bullet || kind == Kind.Arrow || kind == Kind.Knife);
+                    if (head) h.extra |= HF.Head;
+                    if (bleed) { f.bleedT = Mathf.Max(f.bleedT, 3f); }
                     if (h.headshot) b.Popup("ХЕДШОТ!", f.J[2] + Vector2.up * 0.9f, new Color(1f, 0.3f, 0.2f), 0.9f);
                     f.TakeHit(h);
                     if (kind == Kind.Fireball) { b.Explosion(pos, 1.3f, Weaker(hit), team); }
@@ -156,7 +180,7 @@ namespace StickWars
                     vel.x *= 0.6f;
                     if (vel.y < 1f) vel.y = 0;
                 }
-                else if (kind == Kind.Arrow || kind == Kind.Shuriken)
+                else if (kind == Kind.Arrow || kind == Kind.Shuriken || kind == Kind.Knife)
                 {
                     pos.y = 0.05f; stuck = true; life = 4f; Apply();
                     b.fx.Dust(pos, 2);
@@ -171,7 +195,7 @@ namespace StickWars
             }
             if (Mathf.Abs(pos.x) > b.W + 0.2f)
             {
-                if (kind == Kind.Arrow || kind == Kind.Shuriken) { pos.x = Mathf.Sign(pos.x) * (b.W + 0.2f); stuck = true; life = 4f; Apply(); return true; }
+                if (kind == Kind.Arrow || kind == Kind.Shuriken || kind == Kind.Knife) { pos.x = Mathf.Sign(pos.x) * (b.W + 0.2f); stuck = true; life = 4f; Apply(); return true; }
                 if (kind == Kind.Grenade) { vel.x = -vel.x * 0.5f; pos.x = Mathf.Sign(pos.x) * (b.W + 0.2f); }
                 else
                 {

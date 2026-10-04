@@ -7,8 +7,8 @@ namespace StickWars
     public enum Element { None, Fire, Ice, Lightning, Poison, Shadow }
     public enum WeaponKind { Fists, Blade, Blunt, Spear, Gun, Bow, Thrown, Chainsaw, Staff }
     public enum DmgType { Blunt, Blade, Pierce, Fire, Ice, Lightning, Poison, Shadow }
-    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis }
-    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf }
+    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon }
+    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads }
 
     [Serializable]
     public class Stroke
@@ -83,7 +83,7 @@ namespace StickWars
         public float dmg = 10, range = 1.5f, rate = 1f, size = 1f, knock = 1f;
         public int ammo = 0;
         public int pellets = 1;
-        public bool bleed, axe, bat, rifle, explode, scythe, killer;
+        public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives;
         public Color color = Color.gray;
         public List<Stroke> drawing;
 
@@ -132,6 +132,9 @@ namespace StickWars
         public List<Acc> acc = new List<Acc>();
         public List<string> notes = new List<string>();
         public WeaponStats weapon;
+        public WeaponStats secondary;   // метательное/дальнобойное из описания (ножи, пистолет...)
+        public Dictionary<Acc, Color> accCol = new Dictionary<Acc, Color>();
+        public bool knightHelm;
         public List<Stroke> drawing = new List<Stroke>();
         public bool HasAb(Ability a) { return abilities.Contains(a); }
     }
@@ -156,6 +159,7 @@ namespace StickWars
                 case Ability.Vampire: return "Вампиризм (пассив)";
                 case Ability.Laser: return "Лазер из глаз";
                 case Ability.Telekinesis: return "Телекинез";
+                case Ability.Summon: return "Призыв помощников";
             }
             return a.ToString();
         }
@@ -174,6 +178,7 @@ namespace StickWars
                 case Ability.Invisibility: return 11f;
                 case Ability.Laser: return 8f;
                 case Ability.Telekinesis: return 9f;
+                case Ability.Summon: return 14f;
             }
             return 999f;
         }
