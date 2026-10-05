@@ -1116,6 +1116,8 @@ namespace StickWars
                     string w = t.w[m];
                     if (IsStop(w) || w == ",") continue;
                     if (IsAdj(w) && m + 1 < to && !IsStop(t.w[m + 1]) && t.w[m + 1] != ",") continue;
+                    // «в тёмную форму», «в демонический облик» — важно прилагательное
+                    if ((WordMatch(w, "форм") || WordMatch(w, "облик") || WordMatch(w, "режим") || WordMatch(w, "состоян") || WordMatch(w, "ипостас") || WordMatch(w, "верси") || WordMatch(w, "form") || WordMatch(w, "mode")) && m - 1 > k && IsAdj(t.w[m - 1])) return t.w[m - 1];
                     return w;
                 }
             }

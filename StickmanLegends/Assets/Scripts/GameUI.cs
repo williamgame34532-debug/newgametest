@@ -47,25 +47,47 @@ namespace StickWars
             urlLoading = true; urlLoadStatus = "Загрузка страницы...";
             url = url.Trim();
             if (!url.StartsWith("http")) url = "https://" + url;
-            using (var req = UnityEngine.Networking.UnityWebRequest.Get(url))
+            string text = null, title = null, err = null;
+            // 1) вики (Fandom, Википедия): чистый текст статьи через API
+            string api = WebText.WikiApiUrl(url);
+            if (api != null)
             {
-                req.timeout = 20;
-                yield return req.SendWebRequest();
-                if (req.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+                urlLoadStatus = "Загрузка статьи вики...";
+                using (var req = UnityEngine.Networking.UnityWebRequest.Get(api))
                 {
-                    urlLoadStatus = "Не удалось загрузить: " + req.error;
-                    urlLoading = false;
-                    yield break;
+                    req.timeout = 20;
+                    try { req.SetRequestHeader("User-Agent", WebText.UserAgent); } catch { }
+                    yield return req.SendWebRequest();
+                    if (req.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+                        text = WebText.FromWikiJson(req.downloadHandler.text, out title);
+                    else err = req.error + (req.responseCode > 0 ? " (" + req.responseCode + ")" : "");
                 }
-                string title;
-                string text = WebText.Extract(req.downloadHandler.text, out title);
-                if (string.IsNullOrEmpty(text)) { urlLoadStatus = "На странице не найден текст"; urlLoading = false; yield break; }
-                if (text.Length > DescLimit) text = text.Substring(0, DescLimit);
-                editDef.description = text;
-                if (!string.IsNullOrEmpty(title) && (string.IsNullOrEmpty(editDef.name) || editDef.name == "Боец")) editDef.name = title.Length > 40 ? title.Substring(0, 40) : title;
-                urlLoadStatus = "Загружено " + text.Length + " символов — арена разбирает описание";
-                MarkDirty();
             }
+            // 2) обычная страница
+            if (string.IsNullOrEmpty(text))
+            {
+                using (var req = UnityEngine.Networking.UnityWebRequest.Get(url))
+                {
+                    req.timeout = 20;
+                    try { req.SetRequestHeader("User-Agent", WebText.UserAgent); req.SetRequestHeader("Accept-Language", "ru,en;q=0.8"); } catch { }
+                    yield return req.SendWebRequest();
+                    if (req.result == UnityEngine.Networking.UnityWebRequest.Result.Success)
+                        text = WebText.Extract(req.downloadHandler.text, out title);
+                    else err = req.error + (req.responseCode > 0 ? " (" + req.responseCode + ")" : "");
+                }
+            }
+            if (string.IsNullOrEmpty(text))
+            {
+                urlLoadStatus = (err != null ? "Сайт не отдал страницу: " + err : "На странице не найден текст") + ". Можно скопировать текст со страницы и вставить сюда.";
+                urlLoading = false;
+                yield break;
+            }
+            if (text.Length > DescLimit) text = text.Substring(0, DescLimit);
+            editDef.description = text;
+            descTab = 2;
+            if (!string.IsNullOrEmpty(title) && (string.IsNullOrEmpty(editDef.name) || editDef.name.EndsWith(" боец"))) editDef.name = title.Length > 40 ? title.Substring(0, 40) : title;
+            urlLoadStatus = "Загружено " + text.Length + " символов — арена разбирает описание";
+            MarkDirty();
             urlLoading = false;
         }
         const int DescLimit = 12000;

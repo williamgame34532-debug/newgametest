@@ -27,7 +27,12 @@ namespace StickWars
             if (Has(f, "демон", "дьявол", "бес", "черт", "demon", "devil")) return "Демон";
             if (Has(f, "ангел", "бог", "божеств", "angel", "god")) return "Ангел";
             if (Has(f, "робот", "машин", "мех", "киборг", "андроид", "robot", "mech", "cyborg")) return "Робот";
-            if (Has(f, "тень", "тени", "призрак", "дух", "ghost", "shadow", "spirit")) return "Тень";
+            if (Has(f, "тень", "тени", "призрак", "дух", "темн", "черн", "мрачн", "ghost", "shadow", "spirit", "dark")) return "Тень";
+            if (Has(f, "демонич", "адск")) return "Демон";
+            if (Has(f, "божеств", "светл", "свят")) return "Ангел";
+            if (Has(f, "огнен", "пылающ")) return "Пламя";
+            if (Has(f, "ледян", "морозн")) return "Лёд";
+            if (Has(f, "звер", "животн", "дик")) return "Зверь";
             if (Has(f, "скелет", "мертв", "зомби", "лич", "нежит", "skeleton", "zombie", "lich", "undead")) return "Нежить";
             if (Has(f, "огон", "огн", "плам", "феникс", "fire", "flame", "phoenix")) return "Пламя";
             if (Has(f, "лед", "льд", "снеж", "мороз", "ice", "frost", "snow")) return "Лёд";
