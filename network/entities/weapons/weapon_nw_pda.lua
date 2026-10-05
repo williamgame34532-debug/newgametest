@@ -1,10 +1,12 @@
 AddCSLuaFile()
 
--- Служебный КПК в руках. Руки — настоящие руки персонажа (UseHands) на c_arms
--- (как у weapon_fists): доставание и держание двумя руками перед собой. КПК ставится
--- между кистями и масштабируется по расстоянию между ними, экран смотрит в камеру,
--- на нём — живое меню КПК (рендер в текстуру, см. cl_cityupdate.lua).
--- Нажатие — короткий «тычок» устройства при открытии и каждом клике по меню.
+-- Служебный КПК в руках.
+-- Основной вариант — вьюмодель models/weapons/c_kpk.mdl (аддон КПК): руки персонажа (UseHands)
+-- держат КПК двумя руками, анимации доставания, дыхания, нажатия большим пальцем и убирания.
+-- Углы экрана заданы аттачментами scr_tl/tr/br/bl — на них рисуется живое меню КПК
+-- (рендер в текстуру, см. cl_cityupdate.lua).
+-- Если c_kpk.mdl не собрана — запасной вариант на c_arms с КПК между кистями.
+-- ПКМ переключает мышь: в игру (осмотреться) и обратно в КПК.
 
 SWEP.PrintName = "Служебный КПК"
 SWEP.Author = "Network"
@@ -14,7 +16,9 @@ SWEP.Slot = 4
 SWEP.DrawAmmo = false
 SWEP.DrawCrosshair = false
 SWEP.UseHands = true
-SWEP.ViewModel = "models/weapons/c_arms.mdl"
+SWEP.KPKViewModel = "models/weapons/c_kpk.mdl"
+SWEP.bKPKViewModel = file.Exists(SWEP.KPKViewModel, "GAME")
+SWEP.ViewModel = SWEP.bKPKViewModel and SWEP.KPKViewModel or "models/weapons/c_arms.mdl"
 SWEP.ViewModelFOV = 54
 SWEP.WorldModel = "models/props_lab/clipboard.mdl"
 SWEP.Primary.ClipSize = -1
@@ -53,34 +57,74 @@ end
 
 function SWEP:Deploy()
 	self.equipAt = CurTime()
-	self.nwIdleAt = CurTime() + self:PlaySequence("fists_draw")
+
+	if (self.bKPKViewModel) then
+		self:SendWeaponAnim(ACT_VM_DRAW)
+
+		local vm = IsValid(self:GetOwner()) and self:GetOwner():GetViewModel()
+
+		self.nwIdleAt = CurTime() + (IsValid(vm) and vm:SequenceDuration() or 0.6)
+	else
+		self.nwIdleAt = CurTime() + self:PlaySequence("fists_draw")
+	end
 
 	return true
 end
 
--- Нажатие: визуально на клиенте (тычок устройства), см. C.pressAt.
+-- Нажатие большим пальцем — только визуально, на клиенте.
 function SWEP:Press()
-	if (CLIENT and NETWORK.city) then
+	if (!CLIENT) then
+		return
+	end
+
+	if (NETWORK.city) then
 		NETWORK.city.pressAt = RealTime()
+	end
+
+	if (self.bKPKViewModel) then
+		local duration = self:PlaySequence("press")
+
+		if (duration > 0) then
+			self.nwClientIdleAt = CurTime() + duration
+		end
 	end
 end
 
 function SWEP:Think()
 	if (self.nwIdleAt and self.nwIdleAt <= CurTime()) then
-		self.nwIdleAt = CurTime() + math.max(self:PlaySequence("fists_idle_01"), 2)
+		if (self.bKPKViewModel) then
+			self.nwIdleAt = nil
+			self:SendWeaponAnim(ACT_VM_IDLE)
+		else
+			self.nwIdleAt = CurTime() + math.max(self:PlaySequence("fists_idle_01"), 2)
+		end
+	end
+
+	if (CLIENT and self.nwClientIdleAt and self.nwClientIdleAt <= CurTime()) then
+		self.nwClientIdleAt = nil
+		self:PlaySequence("idle")
 	end
 end
 
 function SWEP:PrimaryAttack()
-	self:SetNextPrimaryFire(CurTime() + 1)
-	self:Press()
+	self:SetNextPrimaryFire(CurTime() + 0.6)
+
+	if (CLIENT and IsFirstTimePredicted()) then
+		self:Press()
+	end
 
 	if (SERVER) then
 		NETWORK.city.OpenPDA(self:GetOwner())
 	end
 end
 
+-- ПКМ в режиме «мышь в игре» возвращает курсор в КПК (в самом КПК ПКМ ловит cl_cityupdate).
 function SWEP:SecondaryAttack()
+	self:SetNextSecondaryFire(CurTime() + 0.3)
+
+	if (CLIENT and IsFirstTimePredicted() and NETWORK.city.SetFocus) then
+		NETWORK.city.SetFocus(true)
+	end
 end
 
 function SWEP:Reload()
@@ -186,8 +230,33 @@ function SWEP:GetKPKMatrix(vm)
 end
 
 function SWEP:PostDrawViewModel(vm)
-	local pos, ang, scale = self:GetKPKMatrix(vm)
 	local C = NETWORK.city
+
+	-- c_kpk: КПК уже в модели, рисуем только живой экран по аттачментам.
+	if (self.bKPKViewModel and C and C.DrawScreenQuad) then
+		local corners = {}
+
+		for index, name in ipairs({"scr_tl", "scr_tr", "scr_br", "scr_bl"}) do
+			local id = vm:LookupAttachment(name)
+			local data = id and id > 0 and vm:GetAttachment(id)
+
+			if (!data) then
+				corners = nil
+
+				break
+			end
+
+			corners[index] = data.Pos
+		end
+
+		if (corners) then
+			C.DrawScreenQuad(corners)
+
+			return
+		end
+	end
+
+	local pos, ang, scale = self:GetKPKMatrix(vm)
 
 	if (pos and C and C.DrawDevice) then
 		C.DrawDevice(pos, ang, scale, self)
@@ -233,7 +302,14 @@ function SWEP:DrawWorldModel()
 end
 
 function SWEP:DrawHUD()
-	if (IsValid(NETWORK.city.frame)) then
+	local frame = NETWORK.city.frame
+
+	if (IsValid(frame)) then
+		if (frame.bEmbedded and !frame.bFocused) then
+			draw.SimpleTextOutlined("ПКМ — курсор в КПК  •  R — закрыть", "nwChatSmall", ScrW() / 2,
+				ScrH() - 80, Color(200, 220, 228), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 160))
+		end
+
 		return
 	end
 

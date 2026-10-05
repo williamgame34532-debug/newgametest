@@ -412,8 +412,11 @@ local function Footer(screen, theme)
 	footer.Paint = function(_, w, h)
 		surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 160)
 		surface.DrawRect(S(22), 0, w - S(44), 1)
-		draw.SimpleText("ЛКМ — ВЫБОР   ·   R — ЗАКРЫТЬ", F("status"), w / 2, h / 2, theme.muted,
-			TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		local frame = C.frame
+		local hint = (IsValid(frame) and frame.bEmbedded) and
+			"ЛКМ — ВЫБОР   ·   ПКМ — МЫШЬ В ИГРУ   ·   R — ЗАКРЫТЬ" or "ЛКМ — ВЫБОР   ·   R — ЗАКРЫТЬ"
+
+		draw.SimpleText(hint, F("status"), w / 2, h / 2, theme.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 end
 
@@ -475,6 +478,7 @@ function C.Show(page, terminal)
 		frame:SetPos(rect.x, rect.y)
 		frame.Paint = function() end
 		frame:SetPaintedManually(true)
+		frame.bFocused = true
 	else
 		BuildFonts(screenH / 700)
 
@@ -531,6 +535,18 @@ function C.Show(page, terminal)
 				return
 			end
 
+			if (!this.bFocused) then
+				return
+			end
+
+			-- Системная стрелка не нужна: курсор рисуется на экране КПК.
+			local hovered = vgui.GetHoveredPanel()
+
+			if (IsValid(hovered) and hovered != this and hovered:HasParent(this) and
+				hovered:GetCursor() != "blank") then
+				hovered:SetCursor("blank")
+			end
+
 			-- Курсор не уходит с экрана КПК.
 			local x, y = this:GetPos()
 			local cx, cy = input.GetCursorPos()
@@ -543,6 +559,10 @@ function C.Show(page, terminal)
 		end
 	end
 	frame.PaintOver = function(this)
+		if (this.bEmbedded and !this.bFocused) then
+			return
+		end
+
 		local x, y = this:CursorPos()
 
 		if (x > 0 and y > 0 and x < this:GetWide() and y < this:GetTall()) then
@@ -1050,8 +1070,16 @@ end
 
 -- Углы экрана в локальных координатах устройства: TL, TR, BR, BL и смещение по нормали.
 -- kpk.mdl — горизонтальный 2:1, экран смотрит в +Z; запасной меш C24 — вертикальный, в +X.
+function C.IsLandscape()
+	if (C.bLandscape == nil) then
+		C.bLandscape = C.HasKPKModel() or file.Exists("models/weapons/c_kpk.mdl", "GAME")
+	end
+
+	return C.bLandscape
+end
+
 function C.ScreenCorners()
-	if (C.HasKPKModel()) then
+	if (C.IsLandscape()) then
 		local z = 1.29
 
 		return {Vector(-4.1, 2.05, z), Vector(4.1, 2.05, z), Vector(4.1, -2.05, z), Vector(-4.1, -2.05, z)},
@@ -1176,6 +1204,17 @@ function C.DrawDevice(pos, ang, scale, weapon)
 	end
 
 	local corners, lift = C.ScreenCorners()
+	local world = {}
+
+	for index = 1, 4 do
+		world[index] = LocalToWorld((corners[index] + lift) * scale, angle_zero, pos, ang)
+	end
+
+	C.DrawScreenQuad(world)
+end
+
+-- Живой экран КПК на четырёх мировых точках: верх-лево, верх-право, низ-право, низ-лево.
+function C.DrawScreenQuad(world)
 	local rect = C.EmbedRect()
 	local u0, v0 = rect.x / ScrW(), rect.y / ScrH()
 	local u1, v1 = (rect.x + rect.w) / ScrW(), (rect.y + rect.h) / ScrH()
@@ -1185,9 +1224,7 @@ function C.DrawDevice(pos, ang, scale, weapon)
 	mesh.Begin(MATERIAL_QUADS, 1)
 
 	for index = 1, 4 do
-		local world = LocalToWorld((corners[index] + lift) * scale, angle_zero, pos, ang)
-
-		mesh.Position(world)
+		mesh.Position(world[index])
 		mesh.TexCoord(0, uv[index][1], uv[index][2])
 		mesh.Color(255, 255, 255, 255)
 		mesh.AdvanceVertex()
@@ -1196,8 +1233,32 @@ function C.DrawDevice(pos, ang, scale, weapon)
 	mesh.End()
 end
 
+-- ПКМ: мышь в игру (осмотреться, ходить) и обратно в КПК. Меню на экране остаётся.
+function C.SetFocus(bFocus)
+	local frame = C.frame
+
+	if (!IsValid(frame) or !frame.bEmbedded or frame.bFocused == bFocus) then
+		return
+	end
+
+	frame.bFocused = bFocus
+
+	if (bFocus) then
+		frame:MakePopup()
+		frame:SetKeyboardInputEnabled(true)
+		local rect = C.EmbedRect()
+
+		input.SetCursorPos(rect.x + rect.w / 2, rect.y + rect.h / 2)
+	else
+		frame:SetMouseInputEnabled(false)
+		frame:SetKeyboardInputEnabled(false)
+	end
+
+	surface.PlaySound("buttons/lightswitch2.wav")
+end
+
 -- Каждый клик по меню — анимация нажатия пальцем.
-hook.Add("VGUIMousePressed", "nwPDAPress", function(panel)
+hook.Add("VGUIMousePressed", "nwPDAPress", function(panel, code)
 	local frame = C.frame
 
 	if (!IsValid(frame) or !frame.bEmbedded or !IsValid(panel)) then
@@ -1206,6 +1267,18 @@ hook.Add("VGUIMousePressed", "nwPDAPress", function(panel)
 
 	if (panel != frame and !panel:HasParent(frame)) then
 		return
+	end
+
+	if (code == MOUSE_RIGHT) then
+		C.SetFocus(false)
+
+		return
+	end
+
+	local weapon = LocalPlayer():GetActiveWeapon()
+
+	if (IsValid(weapon) and weapon.Press) then
+		weapon:Press()
 	end
 
 	if ((C.nextPress or 0) > RealTime()) then
@@ -1218,6 +1291,12 @@ end)
 
 -- Network -------------------------------------------------------------------------------------
 net.Receive("nwPDAOpen", function()
+	if (IsValid(C.frame) and C.frame.bEmbedded) then
+		C.SetFocus(true)
+
+		return
+	end
+
 	C.Show("home", false)
 end)
 
