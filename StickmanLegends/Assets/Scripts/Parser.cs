@@ -1439,7 +1439,7 @@ namespace StickWars
             {
                 FighterBuild sb;
                 inStage = true;
-                try { sb = BuildFighter(new FighterDef { name = "stage", description = st, color = d.color }, null); }
+                try { sb = BuildFighter(new FighterDef { name = "stage", description = st.Replace("zzab ", ""), color = d.color }, null); }
                 finally { inStage = false; }
                 var m = new StageMods();
                 foreach (var a in sb.acc) if (!b.acc.Contains(a)) m.acc.Add(a);
@@ -1448,7 +1448,7 @@ namespace StickWars
                 if (sb.acc.Contains(Acc.Aura)) m.auraKind = sb.auraKind;
                 m.headKind = sb.headKind; m.eyes2 = sb.eyes2; m.eyeCol2 = sb.eyeCol2;
                 foreach (var u in sb.understood)
-                    if (!u.StartsWith("слабость") && !u.StartsWith("новое оружие") && !u.StartsWith("оружие") && !u.StartsWith("предмет") && !u.StartsWith("в запасе")) m.text.Add(u);
+                    if (!u.StartsWith("слабость") && !u.StartsWith("новое оружие") && !u.StartsWith("оружие") && !u.StartsWith("предмет") && !u.StartsWith("в запасе") && !u.StartsWith("умение") && !u.StartsWith("превращение")) m.text.Add(u);
                 // чёрные глаза на тёмном силуэте не видно — делаем их «пустыми» с багровым свечением
                 Color ec;
                 if (m.accCol.TryGetValue(Acc.Eyes, out ec) && ec.r + ec.g + ec.b < 0.4f) m.accCol[Acc.Eyes] = new Color(0.55f, 0.02f, 0.05f);
