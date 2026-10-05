@@ -298,11 +298,11 @@ namespace StickWars
             Color c = CrowdColor(r.scale);
             float w = 0.13f * r.scale * 1.6f;
             int o = -46 + (int)(r.scale * 6f);
-            r.body = Draw.Line(crowdRoot, "rb", w * 1.1f, c, o, true, 2);
-            r.legA = Draw.Line(crowdRoot, "rl", w, c, o, true, 2); r.legA.positionCount = 3;
-            r.legB = Draw.Line(crowdRoot, "rl", w, c, o, true, 2); r.legB.positionCount = 3;
-            r.armA = Draw.Line(crowdRoot, "ra", w * 0.85f, c, o, true, 2); r.armA.positionCount = 3;
-            r.armB = Draw.Line(crowdRoot, "ra", w * 0.85f, c, o, true, 2); r.armB.positionCount = 3;
+            r.body = Draw.Line(crowdRoot, "rb", w * 1.1f, c, o, false, 2);
+            r.legA = Draw.Line(crowdRoot, "rl", w, c, o, false, 2); r.legA.positionCount = 3;
+            r.legB = Draw.Line(crowdRoot, "rl", w, c, o, false, 2); r.legB.positionCount = 3;
+            r.armA = Draw.Line(crowdRoot, "ra", w * 0.85f, c, o, false, 2); r.armA.positionCount = 3;
+            r.armB = Draw.Line(crowdRoot, "ra", w * 0.85f, c, o, false, 2); r.armB.positionCount = 3;
             r.head = Draw.Spr(crowdRoot, "rh", Draw.Circle, c, o);
             r.head.transform.localScale = Vector3.one * 0.55f * r.scale;
             if (Random.value < 0.35f)

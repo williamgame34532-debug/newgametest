@@ -8,7 +8,7 @@ namespace StickWars
     public enum WeaponKind { Fists, Blade, Blunt, Spear, Gun, Bow, Thrown, Chainsaw, Staff }
     public enum DmgType { Blunt, Blade, Pierce, Fire, Ice, Lightning, Poison, Shadow }
     public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon, Custom }
-    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie, Runes, Sheath, Cap, Glasses, Necklace, Backpack, ShieldProp, Scar, Bandages, Chains }
+    public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie, Runes, Sheath, Cap, Glasses, Necklace, Backpack, ShieldProp, Scar, Bandages, Chains, Skull, Greaves, Bracers }
 
     [Serializable]
     public class Stroke
@@ -60,6 +60,7 @@ namespace StickWars
         public bool recordVideo = false; // записывать видео каждого боя
         public bool classicStick = true; // (старое) классический стикман
         public bool cine3d = true;
+        public bool always3d = true;     // постоянный 3D-вид камеры
         public bool grim = true;         // мрачная атмосфера: виньетка, пепел, тёмная цветокоррекция
         public bool screenBlood = true;  // брызги крови на экран       // 3D-переходы камеры в эпичные моменты
         public int stickLook = 0;        // 0 — Dojo (толстые силуэты), 1 — классический (контур, суставы), 2 — простой
@@ -94,6 +95,9 @@ namespace StickWars
         public int ammo = 0;
         public int pellets = 1;
         public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives, summon, katana, glowBlade;
+        public bool cleave, dismember, dark;   // «пронзает всех», «отрезает части», тёмное лезвие
+        public AbilitySpec onHit;              // что делает при попадании: окаменение, заморозка, поджог...
+        public List<string> traits = new List<string>();
         public string customTag, summonName;
         public Color color = Color.gray;
         public List<Stroke> drawing;
@@ -123,8 +127,50 @@ namespace StickWars
         public Color color;
     }
 
+    // Умение, собранное из описания: форма (вокруг себя, луч, с неба...), стихия, цвет и эффект
+    public class AbilitySpec
+    {
+        public const int Bolt = 0, Nova = 1, Beam = 2, Sky = 3, Wave = 4, Self = 5;
+        public const int None = 0, Petrify = 1, Freeze = 2, Burn = 3, Knock = 4, Pull = 5, Heal = 6, Poison = 7, Lift = 8, Stun = 9, Drain = 10, Explode = 11;
+        public int shape;
+        public Element elem = Element.None;
+        public Color col = new Color(0.6f, 0.3f, 1f);
+        public bool dark, lethal;
+        public int effect;
+        public float power = 1f;
+        public string name, tag;
+        public static string EffectName(int e)
+        {
+            switch (e)
+            {
+                case Petrify: return "превращает в статую";
+                case Freeze: return "замораживает";
+                case Burn: return "поджигает";
+                case Knock: return "отбрасывает";
+                case Pull: return "притягивает";
+                case Heal: return "лечит";
+                case Poison: return "отравляет";
+                case Lift: return "поднимает в воздух";
+                case Stun: return "оглушает";
+                case Drain: return "высасывает жизнь";
+                case Explode: return "взрывает";
+            }
+            return "урон";
+        }
+        public static string ShapeName(int s)
+        {
+            switch (s) { case Nova: return "вокруг себя"; case Beam: return "лучом"; case Sky: return "с неба"; case Wave: return "волной по земле"; case Self: return "на себя"; }
+            return "снарядом";
+        }
+    }
+
     public class FighterBuild
     {
+        public AbilitySpec spec;          // собственное умение героя (из описания)
+        public int headKind;              // 0 голова, 1 череп, 2 огонь, 3 тыква, 4 экран, 5 кристалл, 6 предмет
+        public string headName;
+        public Color headCol = Color.white;
+        public bool skullArmor;           // броня с черепами
         public string name;
         public Color color;
         public float hp = 100, str = 1, spd = 1, def = 1, agi = 1, size = 1;
@@ -367,6 +413,9 @@ namespace StickWars
         public bool headshot;
         public bool heavy;
         public bool noFlinch;
+        public int effect;             // эффект умения/оружия (AbilitySpec.effect)
+        public bool effLethal, dismember;
+        public Color effCol = Color.white;
         public HF extra;               // голова/спина/взрыв/падение/магия/без оружия
         public bool launcher, slam, knockdown;
         public float lift;

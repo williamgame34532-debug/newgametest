@@ -73,6 +73,13 @@ namespace StickWars
         public int secAmmo;
         float secCd;
         public bool minion, remove, boss;
+        // окаменение / отчаянное умение / отрубленные части
+        public float petrifyT;
+        bool petrifyLethal, shattered;
+        Fighter petrifier;
+        float desperCd;
+        int lostLimbs; // 1 задняя рука, 2 передняя рука, 4 задняя нога, 8 передняя нога
+        Color petrifyCol = new Color(0.6f, 0.58f, 0.54f);
         public float life;
         Fighter owner;
         float downTarget, slideDustT;
@@ -120,6 +127,10 @@ namespace StickWars
         SpriteRenderer sPendant, sShieldP, sShieldPIn, sShieldPBoss, sCuffF, sCuffB, sItemHand, sItemHandGlow, sItemBelt, sItemNeck;
         LineRenderer[] lBandages;
         LineRenderer lItemBack, lItemHand;
+        LineRenderer lGreaveF, lGreaveB, lBracerF, lBracerB;
+        SpriteRenderer sKneeF, sKneeB;
+        Transform skullDeco;
+        LineRenderer[] flameHead;
         float weaponFxT;
         float boilT;
         int replayRF = 1;
@@ -360,7 +371,8 @@ namespace StickWars
         // Снаряжение из описания: шлем, броня, маска, капюшон, волосы, борода, глаза, крылья, хвост, пояс, перчатки, сапоги
         void BuildGear()
         {
-            float s = Size, hr = Skel.HeadR * s, w = Skel.Width * s;
+            // в виде Dojo тело толще — снаряжение крупнее, чтобы его было видно поверх силуэта
+            float s = Size, hr = Skel.HeadR * s * (dojo ? 1.08f : 1f), w = Skel.Width * s * (dojo ? 1.12f : 1f);
             int o = baseOrder + 9;
             Color steel = new Color(0.62f, 0.65f, 0.7f);
             bool eyes = B.acc.Contains(Acc.Eyes) || silhouette;
@@ -587,6 +599,8 @@ namespace StickWars
             animT += dt;
             hpTrail = Mathf.MoveTowards(hpTrail, hp, dt * maxHp * (hpTrail - hp > maxHp * 0.3f ? 0.9f : 0.35f));
             if (dead) { DeadTick(dt); Render(); return; }
+            desperCd -= dt;
+            if (petrifyT > 0f) { PetrifyTick(dt); Render(); return; }
 
             flash -= dt; hurtT -= dt; stun -= dt; atkCd -= dt; shieldT -= dt; invisT -= dt; regenBlock -= dt; slowT -= dt; staffCd -= dt;
             iframes -= dt; landT -= dt; popupCd -= dt; comboT -= dt; secCd -= dt;
@@ -935,6 +949,8 @@ namespace StickWars
         void DownTick(float dt)
         {
             downT -= dt;
+            // лёжа, когда враг рядом, — умение отчаяния
+            if (target != null && desperCd <= 0f && Mathf.Abs(target.pos.x - pos.x) < 3.5f && Random.value < dt * 2f) TryDesperation();
             tumbleSpin = Mathf.MoveTowards(tumbleSpin, downTarget, 700f * dt);
             if (Mathf.Abs(vel.x) > 1f && grounded)
             {
@@ -1300,6 +1316,7 @@ namespace StickWars
                 if (head) h.extra |= HF.Head;
                 h.point = head ? headP - new Vector2(facing * Skel.HeadR * e.Size, 0) : new Vector2(e.pos.x - facing * 0.12f * e.Size, Mathf.Clamp(tip.y, e.pos.y + 0.4f * e.Size, e.J[1].y));
                 if (wpn && weapon.bleed) { e.bleedT = Mathf.Max(e.bleedT, 3f); e.bleedBy = this; }
+                if (wpn) WeaponOnHit(h, e);
                 e.TakeHit(h);
                 OnLanded(h);
                 if (!mv.cleave && !wpn) break;
@@ -1528,6 +1545,7 @@ namespace StickWars
                     break;
                 case Ability.Custom:
                     {
+                        if (B.spec != null) { DoSpec(B.spec, false); break; }
                         // придуманное игроком умение: энергетический удар с его названием и уникальным цветом
                         Color cc = Color.HSVToRGB(Mathf.Abs((B.customAbility ?? "x").GetHashCode() % 360) / 360f, 0.75f, 1f);
                         var h = MakeHit(14f * pw, DmgType.Shadow, Element.None, 6f, 0.35f);
@@ -1541,6 +1559,302 @@ namespace StickWars
                     }
             }
         }
+
+        // ===================== СОБСТВЕННОЕ УМЕНИЕ (из описания) =====================
+        void DoSpec(AbilitySpec sp, bool desperate)
+        {
+            float pw = (0.7f + 0.3f * B.str) * sp.power * (desperate ? 1.25f : 1f);
+            Color col = sp.col;
+            Vector2 c = Center;
+            battle.PowerMoment(this, sp.name ?? "Умение", col, desperate);
+            switch (sp.shape)
+            {
+                case AbilitySpec.Nova:
+                    {
+                        float R = 4.6f * Size * Mathf.Sqrt(sp.power) * (desperate ? 1.2f : 1f);
+                        battle.Shock(c, R, col);
+                        battle.Shock(c, R * 0.55f, Color.Lerp(col, Color.white, 0.5f));
+                        // молнии/лучи во все стороны, даже где нет врагов
+                        for (int i = 0; i < 7; i++)
+                        {
+                            float a = i / 7f * Mathf.PI * 2f + Random.value * 0.5f;
+                            Vector2 end = c + new Vector2(Mathf.Cos(a), Mathf.Abs(Mathf.Sin(a)) * 0.8f + 0.1f) * R;
+                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, end, col, sp.dark);
+                            else battle.fx.Emit(c, (end - c) * 3f, col, 0.25f, 0.4f, 0f, false, 1f, true, 1, 1, true);
+                        }
+                        foreach (var e in battle.fighters)
+                        {
+                            if (e.team == team || e.dead) continue;
+                            Vector2 rel = e.Center - c;
+                            if (rel.magnitude > R) continue;
+                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, e.Center, col, sp.dark);
+                            SpecHit(e, sp, 16f * pw, rel.sqrMagnitude > 0.01f ? rel.normalized : new Vector2(facing, 0));
+                        }
+                        battle.cam.Shake(0.7f);
+                        battle.audio.Sfx(sp.elem == Element.Fire ? "fire" : "zap", 1f);
+                        battle.audio.Sfx("explosion", 0.5f);
+                        break;
+                    }
+                case AbilitySpec.Sky:
+                    {
+                        var list = new List<Fighter>();
+                        foreach (var e in battle.fighters) if (e.team != team && !e.dead && Mathf.Abs(e.pos.x - pos.x) < 12f) list.Add(e);
+                        if (list.Count == 0) { battle.ColumnStrike(new Vector2(pos.x + facing * 3f, 0), col, sp.dark); break; }
+                        int n = Mathf.Min(list.Count, desperate ? 4 : 2);
+                        for (int i = 0; i < n; i++)
+                        {
+                            var e = list[i];
+                            battle.ColumnStrike(new Vector2(e.pos.x, 0), col, sp.dark);
+                            SpecHit(e, sp, 20f * pw, new Vector2(Mathf.Sign(e.pos.x - pos.x + 0.01f), 0.4f).normalized);
+                        }
+                        battle.audio.Sfx(sp.elem == Element.Fire ? "fire" : "zap", 1f);
+                        break;
+                    }
+                case AbilitySpec.Beam:
+                    {
+                        Vector2 dir = target != null ? (target.Center - J[2]).normalized : new Vector2(facing, 0);
+                        Vector2 a = J[4], b = a + dir * 14f;
+                        battle.BeamVisual(a, b, col, sp.dark);
+                        foreach (var e in battle.fighters)
+                        {
+                            if (e.team == team || e.dead) continue;
+                            Vector2 rel = e.Center - a;
+                            float along = Vector2.Dot(rel, dir);
+                            if (along < 0 || along > 14f) continue;
+                            if ((rel - dir * along).magnitude > 0.9f * e.Size) continue;
+                            SpecHit(e, sp, 18f * pw, dir);
+                        }
+                        battle.audio.Sfx("laser", 0.9f);
+                        break;
+                    }
+                case AbilitySpec.Wave:
+                    {
+                        int dirx = target != null ? (target.pos.x >= pos.x ? 1 : -1) : facing;
+                        for (int i = 1; i <= 6; i++) battle.Shock(new Vector2(pos.x + dirx * i * 1.3f, 0.05f), 0.9f + i * 0.15f, col);
+                        battle.Crack(new Vector2(pos.x + dirx * 1.5f, 0f), false);
+                        foreach (var e in battle.fighters)
+                        {
+                            if (e.team == team || e.dead) continue;
+                            float fx = (e.pos.x - pos.x) * dirx;
+                            if (fx < -0.3f || fx > 8.5f || e.pos.y > 2.5f) continue;
+                            SpecHit(e, sp, 15f * pw, new Vector2(dirx, 0.5f).normalized);
+                        }
+                        battle.cam.Shake(0.6f);
+                        battle.audio.Sfx("heavy", 1f);
+                        break;
+                    }
+                case AbilitySpec.Self:
+                    {
+                        hp = Mathf.Min(maxHp, hp + maxHp * 0.3f * sp.power);
+                        shieldT = Mathf.Max(shieldT, 1.5f);
+                        battle.Shock(c, 2.2f, col);
+                        for (int i = 0; i < 30; i++) battle.fx.Emit(c + Random.insideUnitCircle * 0.8f, Vector2.up * Random.Range(1f, 4f), col, 0.12f, 0.8f, 0f, false, 1f, true, 1, 1, true);
+                        battle.audio.Sfx("heal", 0.9f);
+                        break;
+                    }
+                default:
+                    {
+                        var h = MakeHit(15f * pw, sp.elem == Element.None ? DmgType.Shadow : Info.ToType(sp.elem), sp.elem, 6f, 0.35f);
+                        h.extra |= HF.Magic | HF.Custom;
+                        h.customTag = sp.tag;
+                        h.knockdown = true;
+                        h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col;
+                        battle.SpawnProjectile(Projectile.Kind.Bolt, J[4] + aim * 0.3f, aim * 15f, this, h, col);
+                        battle.Shock(J[4], 1.2f, col);
+                        battle.audio.Sfx("zap", 0.8f);
+                        break;
+                    }
+            }
+        }
+
+        void SpecHit(Fighter e, AbilitySpec sp, float dmg, Vector2 dir)
+        {
+            var h = MakeHit(dmg, sp.elem == Element.None ? DmgType.Shadow : Info.ToType(sp.elem), sp.elem, 6f, 0.5f);
+            h.extra |= HF.Magic | HF.Custom;
+            h.customTag = sp.tag;
+            h.dir = dir; h.point = e.Center;
+            h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = sp.col;
+            if (sp.effect == AbilitySpec.Knock || sp.effect == AbilitySpec.None || sp.effect == AbilitySpec.Explode) { h.knockdown = true; h.knock = 9f; h.lift = 4f; }
+            e.TakeHit(h);
+        }
+
+        // эффект умения/оружия на цели
+        void ApplyEffect(HitInfo h)
+        {
+            var a = h.attacker;
+            switch (h.effect)
+            {
+                case AbilitySpec.Petrify:
+                    if (petrifyT > 0f) return;
+                    petrifyT = h.effLethal ? 1.5f : 2.6f;
+                    petrifyLethal = h.effLethal; petrifier = a;
+                    act = Act.None; mv = null; vel.x = 0f;
+                    battle.Popup("СТАТУЯ!", J[2] + Vector2.up * 0.9f, new Color(0.85f, 0.83f, 0.78f), 1f);
+                    battle.audio.Sfx("ice", 0.8f);
+                    for (int i = 0; i < 16; i++) battle.fx.Emit(Center + Random.insideUnitCircle * 0.6f * Size, Random.insideUnitCircle * 2f, Draw.A(h.effCol, 0.9f), 0.12f, 0.5f, 0f, false, 1f, true, 1, 1, true);
+                    break;
+                case AbilitySpec.Freeze: slowT = Mathf.Max(slowT, 3f); stun = Mathf.Max(stun, 1.3f); battle.fx.Sparks(Center, Vector2.up, 14, new Color(0.7f, 0.95f, 1f)); if (h.effLethal && hp < maxHp * 0.3f) { petrifyCol = new Color(0.65f, 0.88f, 1f); petrifyT = 1.2f; petrifyLethal = true; petrifier = a; } break;
+                case AbilitySpec.Burn: burnT = Mathf.Max(burnT, 3.5f); burnBy = a; break;
+                case AbilitySpec.Poison: poisonT = Mathf.Max(poisonT, 4.5f); poisonBy = a; break;
+                case AbilitySpec.Knock: vel += h.dir * 8f + Vector2.up * 4f; break;
+                case AbilitySpec.Pull: if (a != null) vel = new Vector2(Mathf.Sign(a.pos.x - pos.x) * 11f, 4f); break;
+                case AbilitySpec.Lift: if (a != null) Lift(a); break;
+                case AbilitySpec.Stun: stun = Mathf.Max(stun, 1.6f); battle.Popup("ОГЛУШЁН", J[2] + Vector2.up * 0.8f, new Color(1f, 1f, 0.5f), 0.7f); break;
+                case AbilitySpec.Drain: if (a != null && !a.dead) { a.hp = Mathf.Min(a.maxHp, a.hp + h.dmg * 0.6f); battle.BoltBetween(Center, a.Center, new Color(0.8f, 0.1f, 0.2f), true); } break;
+                case AbilitySpec.Explode: battle.fx.Explosion(Center, 1.4f); battle.audio.Sfx("explosion", 0.8f); battle.cam.Shake(0.5f); break;
+            }
+        }
+
+        void PetrifyTick(float dt)
+        {
+            petrifyT -= dt;
+            stun = Mathf.Max(stun, 0.1f);
+            // в воздухе статуя падает
+            if (pos.y > 0f)
+            {
+                float dy = Mathf.Min(pos.y, 9f * dt);
+                pos.y -= dy;
+                for (int i = 0; i < J.Length; i++) J[i].y -= dy;
+            }
+            if (Random.value < dt * 6f) battle.fx.Emit(J[Random.Range(0, 11)], new Vector2(Random.Range(-0.3f, 0.3f), -0.5f), new Color(0.55f, 0.53f, 0.5f, 0.8f), 0.06f, 0.8f, -8f, false, 0.5f, true);
+            if (petrifyT > 0f) return;
+            petrifyT = 0f;
+            if (!petrifyLethal) { petrifyCol = new Color(0.6f, 0.58f, 0.54f); battle.fx.Smoke(Center, 8, new Color(0.6f, 0.58f, 0.55f, 0.5f), 0.5f, 0.5f); return; }
+            // статуя рассыпается — смертельно
+            battle.StoneShatter(Center, Size);
+            shattered = true;
+            var h = new HitInfo { dmg = hp + 999f, type = DmgType.Blunt, elem = Element.None, attacker = petrifier, dir = Vector2.up, point = Center, knock = 3f, stun = 0.2f, noFlinch = true };
+            h.extra |= HF.Magic | HF.Custom;
+            if (petrifier != null) h.customTag = petrifier.B.customAbilityTag;
+            iframes = 0f;
+            TakeHitCore(h);
+            if (!dead) { shattered = false; petrifyCol = new Color(0.6f, 0.58f, 0.54f); }
+        }
+
+        // отчаянное умение: в нокдауне, лёжа или под колоссальными ударами герой сам применяет своё умение
+        bool TryDesperation()
+        {
+            if (dead || desperCd > 0f || petrifyT > 0f || battle.mode == Battle.Mode.Showroom || battle.phase != Battle.Phase.Fight) return false;
+            Ability pick = (Ability)(-1);
+            if (B.HasAb(Ability.Custom) && CooldownOf(Ability.Custom) <= 0f) pick = Ability.Custom;
+            else
+                foreach (var a in new[] { Ability.Lightning, Ability.Fireball, Ability.IceShard, Ability.GroundSlam, Ability.Summon, Ability.Telekinesis, Ability.Shield, Ability.Invisibility, Ability.Laser })
+                    if (B.HasAb(a) && CooldownOf(a) <= 0f) { pick = a; break; }
+            if ((int)pick < 0) return false;
+            desperCd = 5f;
+            aim = AimAt(target);
+            string nm = pick == Ability.Custom && B.customAbility != null ? B.customAbility : Info.Name(pick).Replace(" (пассив)", "");
+            switch (pick)
+            {
+                case Ability.Custom:
+                    if (B.spec != null) { cd[pick] = Info.Cooldown(pick); DoSpec(B.spec, true); iframes = Mathf.Max(iframes, 0.5f); return true; }
+                    castAb = pick; DoCast(); break;
+                case Ability.Lightning: case Ability.Fireball: case Ability.IceShard: case Ability.Telekinesis: case Ability.Summon:
+                    castAb = pick; castFromStaff = false; DoCast(); break;
+                case Ability.GroundSlam:
+                    DoSpec(new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Knock, col = new Color(1f, 0.8f, 0.5f), name = nm }, true);
+                    cd[pick] = Info.Cooldown(pick); iframes = Mathf.Max(iframes, 0.5f); return true;
+                case Ability.Laser:
+                    DoSpec(new AbilitySpec { shape = AbilitySpec.Beam, elem = Element.Fire, col = new Color(1f, 0.2f, 0.2f), name = nm }, true);
+                    cd[pick] = Info.Cooldown(pick); return true;
+                case Ability.Shield: shieldT = 3.5f; battle.Shock(Center, 1.6f, new Color(0.4f, 0.9f, 1f, 0.8f)); break;
+                case Ability.Invisibility: invisT = 3f; battle.fx.Smoke(Center, 14, new Color(0.3f, 0.3f, 0.35f, 0.6f), 0.5f, 0.6f); break;
+            }
+            cd[pick] = Info.Cooldown(pick);
+            iframes = Mathf.Max(iframes, 0.5f);
+            battle.PowerMoment(this, nm, Color.Lerp(mainCol, Color.white, 0.5f), true);
+            return true;
+        }
+
+        // свойства оружия при ударе: в голову, эффекты, расчленение
+        void WeaponOnHit(HitInfo h, Fighter e)
+        {
+            if (weapon.alwaysHead)
+            {
+                h.extra |= HF.Head; h.headshot = true;
+                h.point = e.J[2];
+                battle.fx.Sparks(e.J[2], h.dir, 6, Color.Lerp(weapon.color, Color.white, 0.5f));
+            }
+            if (weapon.dismember) h.dismember = true;
+            if (weapon.onHit != null) { h.effect = weapon.onHit.effect; h.effLethal = weapon.onHit.lethal; h.effCol = weapon.onHit.col; }
+            if (weapon.dark)
+                for (int i = 0; i < 8; i++) battle.fx.Emit(h.point, h.dir * Random.Range(2f, 6f) + Random.insideUnitCircle * 2f, new Color(0.35f, 0.05f, 0.55f, 0.9f), 0.14f, 0.4f, 0f, false, 2f, true, 1, 1, true);
+        }
+
+        // отрубить часть тела
+        void Dismember(HitInfo h)
+        {
+            float s = Size;
+            float w = Skel.Width * s * (dojo ? 1.3f : 1f);
+            Color c = mainCol;
+            Vector2 v = h.dir * Random.Range(4f, 8f) + Vector2.up * Random.Range(4f, 8f);
+            if (dead)
+            {
+                // на смерти — рука и нога в разные стороны
+                int n = Random.Range(1, 3);
+                for (int k = 0; k < n; k++)
+                {
+                    int bit = new[] { 1, 2, 4, 8 }[Random.Range(0, 4)];
+                    if ((lostLimbs & bit) != 0) continue;
+                    lostLimbs |= bit;
+                    Vector2 a, b;
+                    LimbEnds(bit, out a, out b);
+                    battle.SeverLimb(a, b, w, c, v + Random.insideUnitCircle * 3f);
+                    battle.fx.Fountain(a, (a - Center).normalized + Vector2.up, 8);
+                }
+                return;
+            }
+            if (Random.value > 0.45f) return;
+            int[] alive = { 1, 2 };
+            int bitA = alive[Random.Range(0, 2)];
+            if ((lostLimbs & bitA) != 0) bitA = 3 - bitA;
+            if ((lostLimbs & bitA) != 0) return;
+            if (bitA == 2 && weapon != null) bitA = 1; // руку с оружием не трогаем
+            if ((lostLimbs & bitA) != 0) return;
+            lostLimbs |= bitA;
+            Vector2 p0, p1;
+            LimbEnds(bitA, out p0, out p1);
+            battle.SeverLimb(p0, p1, w, c, v);
+            battle.fx.Fountain(p0, (p0 - Center).normalized + Vector2.up * 0.5f, 12);
+            bleedT = Mathf.Max(bleedT, 6f); bleedBy = h.attacker;
+            battle.audio.Sfx("slice", 1f); battle.audio.Sfx("crunch", 0.8f);
+        }
+
+        void LimbEnds(int bit, out Vector2 a, out Vector2 b)
+        {
+            Vector2[] P = dead && rag != null ? rag.p : J;
+            switch (bit)
+            {
+                case 1: a = P[5]; b = P[6]; break;
+                case 2: a = P[3]; b = P[4]; break;
+                case 4: a = P[9]; b = P[10]; break;
+                default: a = P[7]; b = P[8]; break;
+            }
+        }
+
+        // скрыть отрубленные части
+        void HideLost()
+        {
+            if (lostLimbs == 0) return;
+            if ((lostLimbs & 1) != 0) HideAll(lArmB, dHandB, sFistB, sGloveB, hOutB, hFilB, lSleeveB, sCuffB, lChainB, sShieldP, sShieldPIn, sShieldPBoss, lItemHand, sItemHand, sItemHandGlow, lBracerB);
+            if ((lostLimbs & 2) != 0) HideAll(lArmF, dHandF, sFistF, sGloveF, hOutF, hFilF, lSleeveF, sCuffF, lChainF, lBracerF);
+            if ((lostLimbs & 4) != 0) HideAll(lLegB, dFootB, lFootB, lBootB, lPantsB, fOutB, fFilB, lGreaveB, sKneeB);
+            if ((lostLimbs & 8) != 0) HideAll(lLegF, dFootF, lFootF, lBootF, lPantsF, fOutF, fFilF, lGreaveF, sKneeF);
+            if (segF != null)
+            {
+                if ((lostLimbs & 1) != 0) { segF[3].enabled = segF[4].enabled = false; }
+                if ((lostLimbs & 2) != 0) { segF[1].enabled = segF[2].enabled = false; }
+                if ((lostLimbs & 4) != 0) { segF[7].enabled = segF[8].enabled = false; }
+                if ((lostLimbs & 8) != 0) { segF[5].enabled = segF[6].enabled = false; }
+            }
+            if (!dead && Random.value < Time.deltaTime * 4f)
+            {
+                Vector2 stump = (lostLimbs & 1) != 0 ? J[1] : J[0];
+                battle.fx.Drip(stump);
+            }
+        }
+
+        static void HideAll(params Renderer[] rs) { foreach (var r in rs) if (r != null) r.enabled = false; }
 
         public void SetupMinion(Fighter o, float lifetime)
         {
@@ -1699,6 +2013,21 @@ namespace StickWars
         }
 
         public void TakeHit(HitInfo h)
+        {
+            if (dead) return;
+            float before = hp;
+            TakeHitCore(h);
+            float lost = before - hp;
+            if (lost <= 0f && !dead) return;
+            if (h.dismember) Dismember(h);
+            if (dead) return;
+            if (h.effect != AbilitySpec.None) ApplyEffect(h);
+            // колоссальный удар / нокдаун / лежит — герой сам применяет своё умение
+            bool big = lost >= 12f || h.heavy || h.knockdown || h.launcher || h.slam || body != BodyS.Normal || lost >= maxHp * 0.1f;
+            if (big && !minion) TryDesperation();
+        }
+
+        void TakeHitCore(HitInfo h)
         {
             if (dead) return;
             if (iframes > 0 && !h.extra.HasFlag(HF.Fall))
@@ -2137,7 +2466,12 @@ namespace StickWars
                     case Ability.Invisibility: use = hp < maxHp * 0.7f && Random.value < 0.25f; break;
                     case Ability.Telekinesis: use = dist < 10f && Random.value < 0.3f * need; break;
                     case Ability.Summon: use = Random.value < 0.5f; break;
-                    case Ability.Custom: use = dist < 12f && Random.value < 0.4f; break;
+                    case Ability.Custom:
+                        if (B.spec != null && B.spec.shape == AbilitySpec.Nova) use = dist < 4.6f * Size && Random.value < 0.6f;
+                        else if (B.spec != null && B.spec.shape == AbilitySpec.Self) use = hp < maxHp * 0.55f;
+                        else if (B.spec != null && B.spec.shape == AbilitySpec.Wave) use = dist < 8f && Mathf.Abs(d.y) < 1.5f && Random.value < 0.4f;
+                        else use = dist < 12f && Random.value < 0.4f;
+                        break;
                 }
                 if (use && UseAbility(a)) return;
             }
@@ -2464,6 +2798,7 @@ namespace StickWars
             float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : (iframes > 0 && act == Act.GetUp ? 0.6f + 0.4f * Mathf.Sin(animT * 40f) : 1f);
             if (replaying) alpha = replayAlpha;
             if (styleMode != 0 && flash <= 0) StyleColors(ref c, ref cb);
+            if (petrifyT > 0f || shattered) { c = petrifyCol; cb = Draw.Mul(petrifyCol, 0.78f); }
             lastAlpha = alpha;
             c.a = alpha; cb.a = alpha;
 
@@ -2558,6 +2893,7 @@ namespace StickWars
             RenderClassic(P, sh, c, cb, alpha, rf);
             RenderDojo(P, c, cb, alpha, rf);
             RenderFx(P, rf, alpha);
+            HideLost();
 
             bool shOn = shieldT > 0 && !dead;
             lShield.enabled = shOn; sShieldGlow.enabled = shOn;
@@ -3092,6 +3428,35 @@ namespace StickWars
                         }
                 }
             }
+            Color steel = new Color(0.62f, 0.65f, 0.7f);
+            if (B.acc.Contains(Acc.Greaves))
+            {
+                Color c = AccC(Acc.Greaves, AccC(Acc.Armor, steel));
+                lGreaveF = Draw.Line(transform, "greaveF", w * 1.1f, c, baseOrder + 7, true, 2);
+                lGreaveB = Draw.Line(transform, "greaveB", w * 1.1f, Draw.Mul(c, 0.75f), baseOrder + 1, true, 2);
+                sKneeF = Draw.Spr(transform, "kneeF", Draw.Circle, Color.Lerp(c, Color.white, 0.2f), baseOrder + 7);
+                sKneeB = Draw.Spr(transform, "kneeB", Draw.Circle, Draw.Mul(c, 0.8f), baseOrder + 1);
+                sKneeF.transform.localScale = sKneeB.transform.localScale = Vector3.one * w * 1.25f;
+            }
+            if (B.acc.Contains(Acc.Bracers))
+            {
+                Color c = AccC(Acc.Bracers, AccC(Acc.Armor, steel));
+                lBracerF = Draw.Line(transform, "bracerF", w * 1.0f, c, baseOrder + 13, true, 2);
+                lBracerB = Draw.Line(transform, "bracerB", w * 1.0f, Draw.Mul(c, 0.75f), baseOrder + 2, true, 2);
+            }
+            if (B.skullArmor)
+            {
+                // черепа на груди брони
+                skullDeco = new GameObject("skullDeco").transform;
+                skullDeco.SetParent(transform, false);
+                Color bone = new Color(0.92f, 0.89f, 0.8f), hole = new Color(0.06f, 0.04f, 0.05f);
+                float k = 0.3f * s * (dojo ? 1.2f : 1f);
+                var cr = Draw.Spr(skullDeco, "dCran", Draw.Circle, bone, baseOrder + 5); cr.transform.localScale = Vector3.one * k; cr.transform.localPosition = new Vector3(0, k * 0.1f, 0);
+                var jw = Draw.Spr(skullDeco, "dJaw", Draw.Square, bone, baseOrder + 5); jw.transform.localScale = new Vector3(k * 0.55f, k * 0.35f, 1); jw.transform.localPosition = new Vector3(0, -k * 0.38f, 0);
+                for (int i = -1; i <= 1; i += 2) { var e = Draw.Spr(skullDeco, "dEye", Draw.Circle, hole, baseOrder + 5); e.transform.localScale = Vector3.one * k * 0.3f; e.transform.localPosition = new Vector3(i * k * 0.2f, k * 0.05f, -0.001f); e.sortingOrder = baseOrder + 6; }
+                var ns = Draw.Spr(skullDeco, "dNose", Draw.Circle, hole, baseOrder + 6); ns.transform.localScale = new Vector3(k * 0.1f, k * 0.16f, 1); ns.transform.localPosition = new Vector3(0, -k * 0.16f, 0);
+            }
+            BuildHeadKind(s, hr, o);
             // Любые предметы из описания, которых нет в словаре — каждый получает форму и место на теле
             foreach (var it in B.items)
             {
@@ -3200,10 +3565,144 @@ namespace StickWars
             }
         }
 
+        // голова-череп / огонь / тыква / экран / кристалл / предмет вместо головы (поверх обычной головы)
+        void BuildHeadKind(float s, float hr, int o)
+        {
+            if (B.headKind == 0) return;
+            Color hc = B.headCol, hole = new Color(0.05f, 0.03f, 0.04f);
+            bool eyes = B.acc.Contains(Acc.Eyes) || silhouette || dojo;
+            Color eyeC = AccC(Acc.Eyes, B.headKind == 1 ? new Color(1f, 0.15f, 0.1f) : new Color(1f, 0.9f, 0.3f));
+            switch (B.headKind)
+            {
+                case 1:
+                    {
+                        var cran = Draw.Spr(headRoot, "skull", Draw.Circle, hc, o);
+                        cran.transform.localPosition = new Vector3(0, hr * 0.08f, 0); cran.transform.localScale = Vector3.one * hr * 2.25f;
+                        headRends.Add(cran);
+                        // челюсть
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(-hr * 0.15f, -hr * 0.45f), new Vector2(hr * 0.95f, -hr * 0.45f), new Vector2(hr * 0.85f, -hr * 1.05f), new Vector2(hr * 0.05f, -hr * 1.05f) }, hc, o, "jaw"));
+                        // глазницы
+                        for (int i = 0; i < 2; i++)
+                        {
+                            var so = Draw.Spr(headRoot, "socket", Draw.Circle, hole, o + 1);
+                            so.transform.localPosition = new Vector3(hr * (0.22f + i * 0.5f), hr * 0.02f, 0); so.transform.localScale = new Vector3(hr * 0.48f, hr * 0.56f, 1f);
+                            headRends.Add(so);
+                            if (eyes)
+                            {
+                                var g = Draw.Spr(headRoot, "socketGlow", Draw.Circle, eyeC, o + 2);
+                                g.transform.localPosition = so.transform.localPosition; g.transform.localScale = Vector3.one * hr * 0.17f;
+                                headRends.Add(g);
+                                var gg = Draw.Spr(headRoot, "socketGlow2", Draw.Soft, Draw.A(eyeC, 0.6f), o + 2);
+                                gg.transform.localPosition = so.transform.localPosition; gg.transform.localScale = Vector3.one * hr * 0.8f;
+                                headRends.Add(gg);
+                            }
+                        }
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(hr * 0.62f, -hr * 0.22f), new Vector2(hr * 0.78f, -hr * 0.22f), new Vector2(hr * 0.7f, -hr * 0.42f) }, hole, o + 1, "nose"));
+                        var teeth = Draw.Line(headRoot, "teeth", 0.025f * s, hole, o + 1, false, 0);
+                        Draw.Set(teeth, new Vector2(hr * 0.1f, -hr * 0.68f), new Vector2(hr * 0.9f, -hr * 0.68f));
+                        headRends.Add(teeth);
+                        for (int i = 0; i < 4; i++)
+                        {
+                            var tl = Draw.Line(headRoot, "tooth", 0.02f * s, hole, o + 1, false, 0);
+                            float x = hr * (0.2f + i * 0.2f);
+                            Draw.Set(tl, new Vector2(x, -hr * 0.5f), new Vector2(x, -hr * 0.85f));
+                            headRends.Add(tl);
+                        }
+                        var crack = Draw.Line(headRoot, "crack", 0.02f * s, Draw.Mul(hc, 0.55f), o + 1, false, 0);
+                        Draw.Set(crack, new List<Vector2> { new Vector2(-hr * 0.2f, hr * 1.1f), new Vector2(-hr * 0.05f, hr * 0.75f), new Vector2(-hr * 0.3f, hr * 0.5f) });
+                        headRends.Add(crack);
+                        break;
+                    }
+                case 2:
+                    {
+                        var core = Draw.Spr(headRoot, "fireHead", Draw.Circle, new Color(1f, 0.75f, 0.2f), o);
+                        core.transform.localScale = Vector3.one * hr * 2.2f; headRends.Add(core);
+                        var glowS = Draw.Spr(headRoot, "fireGlow", Draw.Soft, new Color(1f, 0.45f, 0.1f, 0.6f), o - 1);
+                        glowS.transform.localScale = Vector3.one * hr * 5f; headRends.Add(glowS);
+                        for (int i = 0; i < 2; i++) { var e = Draw.Spr(headRoot, "fEye", Draw.Circle, hole, o + 1); e.transform.localPosition = new Vector3(hr * (0.25f + i * 0.45f), hr * 0.05f, 0); e.transform.localScale = new Vector3(hr * 0.25f, hr * 0.35f, 1); headRends.Add(e); }
+                        flameHead = new LineRenderer[5];
+                        for (int i = 0; i < 5; i++)
+                        {
+                            flameHead[i] = Draw.Line(transform, "flame", 1f, i % 2 == 0 ? new Color(1f, 0.45f, 0.08f, 0.95f) : new Color(1f, 0.85f, 0.25f, 0.95f), baseOrder + 9, true, 2);
+                            Draw.Taper(flameHead[i], hr * 0.7f, 0.01f); flameHead[i].positionCount = 3;
+                        }
+                        break;
+                    }
+                case 3:
+                    {
+                        var p = Draw.Spr(headRoot, "pumpkin", Draw.Circle, hc, o); p.transform.localScale = new Vector3(hr * 2.5f, hr * 2.2f, 1f); headRends.Add(p);
+                        for (int i = -1; i <= 1; i += 2) { var rib = Draw.Line(headRoot, "rib", 0.03f * s, Draw.Mul(hc, 0.7f), o + 1, false, 2); Draw.Set(rib, new List<Vector2> { new Vector2(i * hr * 0.3f, hr * 1.05f), new Vector2(i * hr * 0.55f, 0), new Vector2(i * hr * 0.3f, -hr * 1.05f) }); headRends.Add(rib); }
+                        var stem = Draw.Line(headRoot, "stem", 0.09f * s, new Color(0.25f, 0.4f, 0.12f), o + 1, false, 2); Draw.Set(stem, new Vector2(0, hr * 1f), new Vector2(-hr * 0.2f, hr * 1.5f)); headRends.Add(stem);
+                        Color fire = new Color(1f, 0.9f, 0.3f);
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(hr * 0.15f, hr * 0.05f), new Vector2(hr * 0.45f, hr * 0.05f), new Vector2(hr * 0.3f, hr * 0.4f) }, fire, o + 1, "pEye"));
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(hr * 0.6f, hr * 0.05f), new Vector2(hr * 0.9f, hr * 0.05f), new Vector2(hr * 0.75f, hr * 0.4f) }, fire, o + 1, "pEye2"));
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(hr * 0.1f, -hr * 0.35f), new Vector2(hr * 0.95f, -hr * 0.35f), new Vector2(hr * 0.75f, -hr * 0.65f), new Vector2(hr * 0.5f, -hr * 0.5f), new Vector2(hr * 0.3f, -hr * 0.65f) }, fire, o + 1, "pMouth"));
+                        break;
+                    }
+                case 4:
+                    {
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(-hr * 1.1f, -hr * 0.9f), new Vector2(hr * 1.2f, -hr * 0.9f), new Vector2(hr * 1.2f, hr * 0.95f), new Vector2(-hr * 1.1f, hr * 0.95f) }, new Color(0.15f, 0.15f, 0.17f), o, "tv"));
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(-hr * 0.85f, -hr * 0.65f), new Vector2(hr * 0.95f, -hr * 0.65f), new Vector2(hr * 0.95f, hr * 0.7f), new Vector2(-hr * 0.85f, hr * 0.7f) }, hc, o + 1, "screen"));
+                        for (int i = 0; i < 2; i++) { var e = Draw.Spr(headRoot, "pix", Draw.Square, new Color(0.02f, 0.1f, 0.12f), o + 2); e.transform.localPosition = new Vector3(hr * (0.05f + i * 0.5f), hr * 0.15f, 0); e.transform.localScale = Vector3.one * hr * 0.3f; headRends.Add(e); }
+                        var ant = Draw.Line(headRoot, "antenna", 0.03f * s, new Color(0.15f, 0.15f, 0.17f), o, false, 0); Draw.Set(ant, new Vector2(0, hr * 0.95f), new Vector2(-hr * 0.5f, hr * 1.7f)); headRends.Add(ant);
+                        break;
+                    }
+                case 5:
+                    {
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(0, hr * 1.4f), new Vector2(hr * 1f, hr * 0.1f), new Vector2(0, -hr * 1.1f), new Vector2(-hr * 0.9f, hr * 0.1f) }, hc, o, "crystal"));
+                        headRends.Add(Draw.Poly(headRoot, new[] { new Vector2(0, hr * 1.4f), new Vector2(hr * 1f, hr * 0.1f), new Vector2(hr * 0.2f, hr * 0.1f) }, Color.Lerp(hc, Color.white, 0.5f), o + 1, "facet"));
+                        var g = Draw.Spr(headRoot, "crystalGlow", Draw.Soft, Draw.A(hc, 0.5f), o - 1); g.transform.localScale = Vector3.one * hr * 4f; headRends.Add(g);
+                        break;
+                    }
+                default:
+                    {
+                        var p = Draw.Spr(headRoot, "objHead", Draw.Circle, Draw.Mul(hc, 0.7f), o); p.transform.localScale = Vector3.one * hr * 2.35f; headRends.Add(p);
+                        var p2 = Draw.Spr(headRoot, "objHeadIn", Draw.Circle, hc, o + 1); p2.transform.localScale = Vector3.one * hr * 2.0f; headRends.Add(p2);
+                        if (eyes) for (int i = 0; i < 2; i++) { var e = Draw.Spr(headRoot, "oEye", Draw.Circle, eyeC, o + 2); e.transform.localPosition = new Vector3(hr * (0.3f + i * 0.4f), hr * 0.1f, 0); e.transform.localScale = Vector3.one * hr * 0.2f; headRends.Add(e); }
+                        break;
+                    }
+            }
+        }
+
         void RenderExtraGear(Vector2[] P, int rf, float alpha, Vector2 u, Vector2 perp)
         {
             float s = Size;
             RenderWounds(P, alpha);
+            if (lGreaveF != null)
+            {
+                Draw.Set(lGreaveF, Vector2.Lerp(P[7], P[8], 0.08f), Vector2.Lerp(P[7], P[8], 0.85f));
+                Draw.Set(lGreaveB, Vector2.Lerp(P[9], P[10], 0.08f), Vector2.Lerp(P[9], P[10], 0.85f));
+                sKneeF.transform.position = P[7]; sKneeB.transform.position = P[9];
+                SetAlpha(lGreaveF, alpha); SetAlpha(lGreaveB, alpha); SetAlpha(sKneeF, alpha); SetAlpha(sKneeB, alpha);
+            }
+            if (lBracerF != null)
+            {
+                Draw.Set(lBracerF, Vector2.Lerp(P[3], P[4], 0.2f), Vector2.Lerp(P[3], P[4], 0.85f));
+                Draw.Set(lBracerB, Vector2.Lerp(P[5], P[6], 0.2f), Vector2.Lerp(P[5], P[6], 0.85f));
+                SetAlpha(lBracerF, alpha); SetAlpha(lBracerB, alpha);
+            }
+            if (skullDeco != null)
+            {
+                skullDeco.gameObject.SetActive(alpha > 0.5f);
+                skullDeco.position = Vector2.Lerp(P[0], P[1], 0.62f) + new Vector2(rf * 0.04f * s, 0);
+                skullDeco.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(u.y, u.x) * Mathf.Rad2Deg - 90f);
+            }
+            if (flameHead != null)
+            {
+                Vector2 hc = headRoot.position;
+                float hr = Skel.HeadR * s;
+                for (int i = 0; i < flameHead.Length; i++)
+                {
+                    float x = (i - 2) * hr * 0.4f;
+                    float fl = Mathf.Sin(animT * (11f + i * 2.3f) + i) * 0.12f;
+                    Vector2 b0 = hc + new Vector2(x, hr * 0.5f);
+                    flameHead[i].SetPosition(0, b0);
+                    flameHead[i].SetPosition(1, b0 + new Vector2(fl * s - vel.x * 0.015f, hr * (1f + 0.15f * (i % 2))));
+                    flameHead[i].SetPosition(2, b0 + new Vector2(-fl * s * 1.5f - vel.x * 0.03f, hr * (1.9f + 0.35f * ((i + 1) % 3))));
+                    flameHead[i].enabled = alpha > 0.5f && !(dead && rag != null && rag.headOff);
+                }
+                if (!dead && Random.value < Time.deltaTime * 12f) battle.fx.Emit(hc + Vector2.up * hr, new Vector2(Random.Range(-0.4f, 0.4f), Random.Range(1.5f, 3f)), new Color(1f, 0.6f, 0.15f, 1f), 0.06f, 0.5f, 1f, false, 0.5f, true, 1, 1, true);
+            }
             Vector2 neck = P[1] - u * 0.05f * s;
             if (lNecklace != null)
             {

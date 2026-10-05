@@ -204,7 +204,7 @@ namespace StickWars
             new AccKw(Acc.Wings, "крыл", "wings", "wing$"),
             new AccKw(Acc.Tail, "хвост", "tail"),
             new AccKw(Acc.Belt, "пояс", "ремень", "кушак", "belt", "sash"),
-            new AccKw(Acc.Gloves, "перчат", "рукавиц", "наруч", "gloves", "gauntlet"),
+            new AccKw(Acc.Gloves, "перчат", "рукавиц", "кастет", "gloves", "gauntlet"),
             new AccKw(Acc.Boots, "ботин", "сапог", "сапоги", "кроссов", "кед", "boots", "shoes"),
             new AccKw(Acc.ShoulderPads, "наплечник", "эполет", "pauldron", "shoulder pad"),
             new AccKw(Acc.Aura, "аур", "сияни", "светится", "окутан", "пылает", "aura", "glowing"),
@@ -222,6 +222,8 @@ namespace StickWars
             new AccKw(Acc.ShieldProp, "держит щит", "со щитом", "щит в руке", "с щитом", "круглый щит", "деревянный щит", "железный щит", "holds a shield", "with a shield"),
             new AccKw(Acc.Scar, "шрам", "scar"),
             new AccKw(Acc.Bandages, "бинт", "перевязан", "повязки на", "bandage", "wrapped"),
+            new AccKw(Acc.Greaves, "понож", "наколенник", "щитки на ног", "латные сапог", "бронированные ног", "greaves", "kneepad", "shin guard"),
+            new AccKw(Acc.Bracers, "наручи$", "наручей", "наручах", "наручами", "наруч$", "налокотник", "бронированные рук", "bracer", "vambrace"),
             new AccKw(Acc.Chains, "цепи", "цепях", "кандал", "наручник", "оковы", "chains", "shackles", "cuffs"),
         };
 
@@ -675,6 +677,8 @@ namespace StickWars
             CustomWeapons(t, b);
             CustomItems(t, b);
             CustomAbility(t, b);
+            HeadParse(t, b);
+            SpecParse(t, b);
             string sn = SummonName(t, 0, t.w.Count);
             if (sn != null) b.summonName = sn;
             if ((b.weapon != null && b.weapon.summon) || (b.secondary != null && b.secondary.summon))
@@ -683,7 +687,7 @@ namespace StickWars
                 if (sw.summonName != null && sw.summonName != "Помощник") b.summonName = sw.summonName;
                 b.understood.Add(sw.name + " призывает: " + b.summonName);
             }
-            if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name);
+            if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name + (b.weapon.traits.Count > 0 ? " (" + string.Join(", ", b.weapon.traits.ToArray()) + ")" : ""));
             if (b.secondary != null) b.understood.Add("в запасе: " + b.secondary.name + (b.secondary.ammo > 0 ? " x" + b.secondary.ammo : "") + (b.secondary.alwaysHead ? " (точно в голову)" : ""));
             if (b.HasAb(Ability.Summon)) b.understood.Add("призывает помощников");
             return b;
@@ -755,6 +759,9 @@ namespace StickWars
                 case Acc.Scar: return "шрам";
                 case Acc.Bandages: return "бинты";
                 case Acc.Chains: return "цепи на руках";
+                case Acc.Greaves: return "поножи";
+                case Acc.Bracers: return "наручи";
+                case Acc.Skull: return "череп";
             }
             return null;
         }
@@ -982,6 +989,213 @@ namespace StickWars
             }
         }
 
+        // ======== голова: «череп вместо головы», «голова — тыква», «горящая голова» ========
+        static readonly string[] ARMOR_WORDS = { "брон", "доспех", "лат", "наплеч", "шлем", "понож", "наруч", "нагрудник", "кирас", "armor", "armour", "helmet" };
+        static void HeadParse(Tx t, FighterBuild b)
+        {
+            foreach (int i in FindAll(t, new[] { "череп", "скелет", "skull", "skeleton", "костян" }))
+            {
+                if (Negated(t, i)) continue;
+                string w = t.w[i];
+                bool adjArmor = false;
+                // «черепная броня», «доспех из черепов», «броня с черепами» — украшение брони
+                for (int k = Math.Max(0, i - 3); k < Math.Min(t.w.Count, i + 3); k++)
+                    if (k != i && t.sent[k] == t.sent[i]) foreach (var a in ARMOR_WORDS) if (WordMatch(t.w[k], a)) adjArmor = true;
+                bool headCtx = First(t, new[] { "вместо", "голов", "head", "лицо", "лица" }, Math.Max(0, i - 3), Math.Min(t.w.Count, i + 4)) >= 0;
+                if (adjArmor)
+                {
+                    if (!b.skullArmor) { b.skullArmor = true; if (!b.acc.Contains(Acc.Armor)) b.acc.Add(Acc.Armor); b.understood.Add("броня с черепами"); }
+                    if (!headCtx) continue;
+                }
+                if (b.headKind == 0 && (headCtx || w.StartsWith("скелет") || w == "череп" || w.StartsWith("skull")))
+                {
+                    b.headKind = 1; b.headCol = new Color(0.93f, 0.9f, 0.82f);
+                    if (!b.acc.Contains(Acc.Skull)) b.acc.Add(Acc.Skull);
+                    b.understood.Add("голова-череп");
+                }
+            }
+            if (b.headKind != 0) return;
+            // «X вместо головы» / «голова в огне»
+            foreach (int i in FindAll(t, new[] { "вместо", "instead" }))
+            {
+                int s0 = i - 3, s1 = i + 4;
+                if (First(t, new[] { "голов", "head" }, Math.Max(0, s0), Math.Min(t.w.Count, s1)) < 0) continue;
+                int known = First(t, new[] { "череп", "огн", "огон", "плам", "тыкв", "монитор", "телевиз", "экран", "кристал", "алмаз" }, Math.Max(0, s0), Math.Min(t.w.Count, s1));
+                if (known >= 0) { SetHead(b, t.w[known]); return; }
+                foreach (int k in new[] { i - 1, i + 1, i - 2, i + 2, i - 3, i + 3 })
+                {
+                    if (k < 0 || k >= t.w.Count || t.sent[k] != t.sent[i]) continue;
+                    string w = t.w[k];
+                    if (w == "вместо" || w.StartsWith("голов") || IsStop(w) || IsAdj(w) || w.Length < 3) continue;
+                    SetHead(b, w);
+                    if (b.headKind != 0) return;
+                }
+            }
+            if (Any(t, "горящ голов", "голова в огне", "огненн голов", "пылающ голов", "голова пылает", "голова горит", "flaming head")) SetHead(b, "огонь");
+            else if (Any(t, "тыквенн голов", "голова тыкв", "голова-тыкв")) SetHead(b, "тыква");
+        }
+
+        static void SetHead(FighterBuild b, string w)
+        {
+            string lem = Lemma(w);
+            if (WordMatch(w, "череп") || WordMatch(w, "skull")) { b.headKind = 1; b.headCol = new Color(0.93f, 0.9f, 0.82f); }
+            else if (WordMatch(w, "огн") || WordMatch(w, "огон") || WordMatch(w, "плам") || WordMatch(w, "fire")) { b.headKind = 2; b.headCol = new Color(1f, 0.5f, 0.1f); }
+            else if (WordMatch(w, "тыкв") || WordMatch(w, "pumpkin")) { b.headKind = 3; b.headCol = new Color(1f, 0.5f, 0.05f); }
+            else if (WordMatch(w, "монитор") || WordMatch(w, "телевиз") || WordMatch(w, "экран") || WordMatch(w, "tv")) { b.headKind = 4; b.headCol = new Color(0.25f, 0.95f, 1f); }
+            else if (WordMatch(w, "кристал") || WordMatch(w, "алмаз") || WordMatch(w, "камен") || WordMatch(w, "crystal")) { b.headKind = 5; b.headCol = new Color(0.55f, 0.9f, 1f); }
+            else { b.headKind = 6; b.headCol = Color.HSVToRGB((Hash(lem) % 360) / 360f, 0.6f, 0.85f); }
+            b.headName = lem;
+            if (b.headKind == 1 && !b.acc.Contains(Acc.Skull)) b.acc.Add(Acc.Skull);
+            b.understood.Add("вместо головы: " + lem);
+        }
+
+        // ======== эффекты: «превращает в статуи», «замораживает», «поджигает»... ========
+        static readonly string[] E_PETRIFY = { "стату", "камен", "окамен", "изваян", "statue", "stone", "petrif" };
+        static readonly string[] E_FREEZE = { "замора", "заморож", "леденя", "лед$", "льдом", "ледян", "freez" };
+        static readonly string[] E_BURN = { "сжига", "поджиг", "испепел", "сжиг", "burn" };
+        static readonly string[] E_KNOCK = { "отбрас", "отталк", "разбрас", "сносит", "откидыв", "knock", "push" };
+        static readonly string[] E_PULL = { "притяг", "подтяг", "pull" };
+        static readonly string[] E_HEAL = { "лечит", "исцел", "восстанавлив", "heal" };
+        static readonly string[] E_POISON = { "отравл", "ядом", "травит", "poison" };
+        static readonly string[] E_LIFT = { "поднима", "левитир", "подбрас", "lift" };
+        static readonly string[] E_STUN = { "оглуш", "парализ", "обездвиж", "оцепен", "stun", "paraly" };
+        static readonly string[] E_DRAIN = { "высасыв", "поглоща", "крадет жизн", "забирает жизн", "вампир", "drain" };
+        static readonly string[] E_EXPLODE = { "взрыв", "взрыва", "explod" };
+        static readonly string[] E_LETHAL = { "убива", "убьет", "умира", "смерт", "рассыпа", "разбива", "уничтож", "разруш", "погиба", "насмерть", "kill", "shatter", "death" };
+
+        static int EffectOf(Tx t, int from, int to, out bool lethal)
+        {
+            lethal = First(t, E_LETHAL, from, to) >= 0;
+            var order = new[] { E_PETRIFY, E_FREEZE, E_DRAIN, E_EXPLODE, E_LIFT, E_PULL, E_KNOCK, E_STUN, E_BURN, E_POISON, E_HEAL };
+            var ids = new[] { AbilitySpec.Petrify, AbilitySpec.Freeze, AbilitySpec.Drain, AbilitySpec.Explode, AbilitySpec.Lift, AbilitySpec.Pull, AbilitySpec.Knock, AbilitySpec.Stun, AbilitySpec.Burn, AbilitySpec.Poison, AbilitySpec.Heal };
+            for (int i = 0; i < order.Length; i++)
+            {
+                int k = First(t, order[i], from, to);
+                if (k >= 0 && !Negated(t, k)) return ids[i];
+            }
+            return AbilitySpec.None;
+        }
+
+        static readonly string[] SH_NOVA = { "вокруг себя", "вокруг него", "вокруг нее", "вокруг$", "во все стороны", "кругом", "по кругу", "around" };
+        static readonly string[] SH_SKY = { "с неба", "с небес", "сверху", "из облак", "from the sky" };
+        static readonly string[] SH_BEAM = { "луч", "лазер", "beam", "ray" };
+        static readonly string[] SH_WAVE = { "из земли", "по земле", "волн", "трещин", "shockwave", "wave" };
+        static readonly string[] SH_SELF = { "себя лечит", "лечит себя", "исцеляет себя", "восстанавливает себе", "heals himself" };
+        static readonly string[] ACT_VERB = { "созда", "вызыва", "выпуска", "насыла", "преврата", "испуска", "стреля", "мета", "броса", "умеет", "может", "призыва", "обрушива", "посыла", "окружа", "бьет", "колдует", "cast", "creates", "summons", "shoots" };
+        static readonly string[] EL_DARK = { "темн", "черн", "мрачн", "тьм", "тень", "тени", "теневы", "проклят", "dark", "shadow", "black" };
+        static readonly string[] EL_LIGHT = { "молни", "гром", "электр", "разряд", "lightning", "thunder" };
+        static readonly string[] EL_FIRE = { "огн", "огон", "плам", "пожар", "лава", "магм", "fire", "flame" };
+        static readonly string[] EL_ICE = { "лед$", "льд", "ледян", "мороз", "холод", "снег", "ice", "frost" };
+        static readonly string[] EL_POISON = { "яд", "кислот", "токсич", "poison", "acid" };
+        static readonly string[] EL_HOLY = { "свят", "божеств", "небесн", "светл", "holy", "light$" };
+
+        static void ReadElement(Tx t, int from, int to, AbilitySpec sp)
+        {
+            bool dark = First(t, EL_DARK, from, to) >= 0;
+            int li = First(t, EL_LIGHT, from, to), fi = First(t, EL_FIRE, from, to), ii = First(t, EL_ICE, from, to), pi = First(t, EL_POISON, from, to), hi = First(t, EL_HOLY, from, to);
+            sp.dark = dark;
+            if (li >= 0) { sp.elem = Element.Lightning; sp.col = dark ? new Color(0.62f, 0.2f, 1f) : new Color(1f, 0.95f, 0.45f); }
+            else if (fi >= 0) { sp.elem = Element.Fire; sp.col = dark ? new Color(0.55f, 0.1f, 0.9f) : new Color(1f, 0.45f, 0.1f); }
+            else if (ii >= 0) { sp.elem = Element.Ice; sp.col = new Color(0.55f, 0.9f, 1f); }
+            else if (pi >= 0) { sp.elem = Element.Poison; sp.col = new Color(0.45f, 1f, 0.3f); }
+            else if (hi >= 0 && !dark) { sp.elem = Element.None; sp.col = new Color(1f, 0.92f, 0.55f); }
+            else if (dark) { sp.elem = Element.Shadow; sp.col = new Color(0.45f, 0.1f, 0.75f); }
+            Color c;
+            if (from < to && ColorNear(t, from, out c) && !dark) sp.col = c;
+        }
+
+        // Собственное умение из предложения: форма + стихия + эффект. «Вокруг себя создаёт тёмные молнии,
+        // которые превращают врагов в статуи и убивают» -> кольцо тёмных молний, окаменение, статуи рассыпаются.
+        static void SpecParse(Tx t, FighterBuild b)
+        {
+            int i = 0;
+            while (i < t.w.Count)
+            {
+                int s1 = SentEnd(t, i);
+                int s0 = i;
+                i = s1;
+                if (s1 <= s0) { i = s0 + 1; continue; }
+                // предложение про оружие разбирается отдельно
+                bool lethal;
+                int eff = EffectOf(t, s0, s1, out lethal);
+                int shape = First(t, SH_SELF, s0, s1) >= 0 ? AbilitySpec.Self : First(t, SH_NOVA, s0, s1) >= 0 ? AbilitySpec.Nova : First(t, SH_SKY, s0, s1) >= 0 ? AbilitySpec.Sky : First(t, SH_BEAM, s0, s1) >= 0 ? AbilitySpec.Beam : First(t, SH_WAVE, s0, s1) >= 0 ? AbilitySpec.Wave : -1;
+                bool verb = First(t, ACT_VERB, s0, s1) >= 0;
+                var probe = new AbilitySpec();
+                ReadElement(t, s0, s1, probe);
+                bool hasElem = probe.elem != Element.None || probe.dark;
+                if (!(eff != AbilitySpec.None && (verb || hasElem) || shape >= 0 && (hasElem || eff != AbilitySpec.None))) continue;
+                // это описание оружия («меч, пронзает...») — пусть разбирает оружие
+                bool weaponSent = false;
+                foreach (var wk in WKINDS) foreach (var key in wk.w) if (First(t, new[] { key }, s0, s1) >= 0) weaponSent = true;
+                if (weaponSent && shape < 0) continue;
+                var sp = probe;
+                sp.shape = shape < 0 ? (eff == AbilitySpec.Heal ? AbilitySpec.Self : AbilitySpec.Bolt) : shape;
+                sp.effect = eff;
+                sp.lethal = lethal || eff == AbilitySpec.Explode;
+                if (First(t, INT_UP, s0, s1) >= 0 || First(t, new[] { "мощн", "огромн", "колоссал", "гигант", "massive", "huge" }, s0, s1) >= 0) sp.power = 1.4f;
+                // имя: прилагательное + существительное стихии / первые значимые слова
+                var words = new List<string>();
+                int ek = Math.Max(Math.Max(First(t, EL_LIGHT, s0, s1), First(t, EL_FIRE, s0, s1)), Math.Max(First(t, EL_ICE, s0, s1), First(t, EL_POISON, s0, s1)));
+                if (ek >= 0)
+                {
+                    if (ek - 1 >= s0 && IsAdj(t.w[ek - 1])) words.Add(t.w[ek - 1]);
+                    words.Add(t.w[ek]);
+                }
+                string nm;
+                if (words.Count > 0) nm = Cap(string.Join(" ", words.ToArray()));
+                else
+                {
+                    string[] gen = { "Сгусток силы", "Взрыв силы", "Луч силы", "Кара с небес", "Ударная волна", "Исцеление" };
+                    nm = sp.dark ? "Тёмная " + gen[sp.shape].ToLower() : gen[sp.shape];
+                    words.Add(sp.shape.ToString());
+                }
+                if (eff == AbilitySpec.Petrify) nm += " → статуи";
+                sp.name = nm;
+                sp.tag = words.Count > 0 ? Stem(words[words.Count - 1]) : "spec";
+                b.spec = sp;
+                b.customAbility = nm;
+                b.customAbilityTag = sp.tag;
+                // описанное умение заменяет стандартное той же стихии и встаёт первым (клавиша R)
+                if (sp.elem == Element.Lightning) b.abilities.Remove(Ability.Lightning);
+                if (sp.elem == Element.Fire) b.abilities.Remove(Ability.Fireball);
+                if (sp.elem == Element.Ice) b.abilities.Remove(Ability.IceShard);
+                b.abilities.Remove(Ability.Custom);
+                b.abilities.Insert(0, Ability.Custom);
+                while (b.abilities.Count > 4) b.abilities.RemoveAt(b.abilities.Count - 1);
+                b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
+                b.understood.RemoveAll(u => u.StartsWith("новое умение"));
+                b.understood.Add("умение «" + nm + "»: " + AbilitySpec.ShapeName(sp.shape) + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает само в нокдауне и под тяжёлыми ударами)");
+                return;
+            }
+        }
+
+        // свойства оружия из описания через запятую: «Тёмный меч, пронзает всех ровно через голову, отрезая части»
+        static void WeaponTraits(Tx t, WeaponStats w)
+        {
+            if (Any(t, "через голов", "в голову", "в голов", "голову$", "голове$", "голов", "headshot", "head$"))
+                if (Any(t, "пронза", "попада", "бьет", "целит", "проткн", "проника", "проходит", "отруба", "сносит", "ровно", "точно", "всегда", "hits", "pierce"))
+                { w.alwaysHead = true; w.traits.Add("бьёт точно в голову"); }
+            if (Any(t, "всех", "насквозь", "сразу нескольк", "всех врагов", "толпу", "нескольких", "everyone", "through", "all enemies"))
+            { w.cleave = true; w.range *= 1.35f; w.traits.Add("пронзает всех на пути"); }
+            if (Any(t, "отреза", "отруба", "отсека", "расчлен", "части", "конечност", "руки и ног", "кромса", "шинку", "dismember", "slices off", "cuts off"))
+            { w.dismember = true; w.bleed = true; w.traits.Add("отрезает части тела"); }
+            if (Any(t, "темн", "черн", "мрачн", "тьм", "проклят", "dark", "black"))
+            {
+                w.dark = true;
+                if (w.element == Element.None) w.element = Element.Shadow;
+                w.traits.Add("тёмная сила");
+            }
+            bool lethal;
+            int eff = EffectOf(t, 0, t.w.Count, out lethal);
+            if (eff != AbilitySpec.None && eff != AbilitySpec.Heal)
+            {
+                var sp = new AbilitySpec { effect = eff, lethal = lethal };
+                ReadElement(t, 0, t.w.Count, sp);
+                w.onHit = sp;
+                w.traits.Add(AbilitySpec.EffectName(eff) + (lethal ? " насмерть" : ""));
+            }
+        }
+
         static string Cap(string s) { return string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s.Substring(1); }
 
         static string[] MaskNames(List<int> masks)
@@ -1147,6 +1361,7 @@ namespace StickWars
                 if (NumberNear(t, i, 1, out v, out o10, out times)) w.dmg = times ? w.dmg * Mathf.Clamp(v, 0.3f, 3f) : Mathf.Clamp(v, 1f, 60f);
             }
             w.dmg = Mathf.Min(w.dmg, 60f);
+            WeaponTraits(t, w);
             if (Any(t, SUMMON_KEYS))
             {
                 w.summon = true;

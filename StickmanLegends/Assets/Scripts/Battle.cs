@@ -236,7 +236,9 @@ namespace StickWars
             if (c3d) Cine3DTick(raw); else cam.Tick(praw, this);
             var cp = cam.cam.transform.position;
             float hh = cam.cam.orthographicSize;
-            theme.Follow(cp);
+            if (!c3d) cam2D = cp;
+            if (!c3d) Always3DTick(raw);
+            if (!alwaysOn || c3d) theme.Follow(cp);
             theme.Tick(dt, fx, cp, hh * cam.cam.aspect, hh);
             DecorFollow();
             if (!paused) RecordFrame(raw);
@@ -399,7 +401,7 @@ namespace StickWars
             cam.Shake(Mathf.Min(0.6f, dmg * 0.018f + (heavy ? 0.25f : 0f)));
             if (dmg > 12f || heavy) cam.Kick(Mathf.Min(1f, dmg / 25f));
             if (heavy && dmg > 10f) Flash(0.05f, new Color(1f, 1f, 1f, 0.3f));
-            if (mode == Mode.Fight && heavy && dmg > 12f && !c3d && c3dCooldown <= 0f && Random.value < 0.18f) { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(at, 0.8f, side * 30f, side * 18f, 5.5f, 4.2f); }
+            if (Epic && heavy && dmg > 12f && !c3d && c3dCooldown <= 0f && Random.value < (mode == Mode.Survival ? 0.12f : 0.3f)) { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(at, 0.8f, side * 30f, side * 18f, 5.5f, 4.2f); }
             else if (Epic && (heavy || dmg > 14f) && Random.value < (mode == Mode.Survival ? 0.12f : 0.35f)) cam.Cut(at + Vector2.up * 0.4f, Random.Range(2.6f, 3.4f), Random.Range(0.35f, 0.6f));
         }
 

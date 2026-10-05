@@ -950,8 +950,10 @@ namespace StickWars
             string[] looks = { "Dojo (силуэты)", "Классика (контур)", "Простой" };
             for (int i = 0; i < 3; i++) if (Btn(new Rect(x + 170 + i * 200, y, 190, 44), looks[i], 18, false, S.stickLook == i)) S.stickLook = i;
             y += 50;
-            S.cine3d = Toggle(new Rect(x, y, half, 44), "3D-переходы камеры", S.cine3d, 21);
-            S.grim = Toggle(new Rect(x + half + 20, y, half, 44), "Мрачная атмосфера", S.grim, 21); y += 50;
+            float third = (cw - 40) / 3f;
+            S.always3d = Toggle(new Rect(x, y, third, 44), "Постоянный 3D-вид", S.always3d, 19);
+            S.cine3d = Toggle(new Rect(x + third + 20, y, third, 44), "3D-облёты", S.cine3d, 19);
+            S.grim = Toggle(new Rect(x + (third + 20) * 2, y, third, 44), "Мрачная атмосфера", S.grim, 19); y += 50;
             S.recordVideo = Toggle(new Rect(x, y, half, 48), "Записывать видео каждого боя", S.recordVideo, 22);
             if (Btn(new Rect(x + half + 20, y + 2, 260, 44), "Папка с видео", 20) && VideoRecorder.I != null)
             {
