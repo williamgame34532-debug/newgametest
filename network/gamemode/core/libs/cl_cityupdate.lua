@@ -1188,6 +1188,67 @@ local screenMat = CreateMaterial("nwPDAScreenMat", "UnlitGeneric", {
 	["$basetexture"] = screenRT:GetName()
 })
 
+-- Тот же экран как материал модели: подменяем материал стекла (pda_screen) у вьюмодели
+-- и своей модели в мире. UV стекла и так растянуты на весь экран, поэтому меню встаёт
+-- ровно в рамку, а пальцы оказываются поверх него. Нужный кусок текстуры задаёт
+-- $basetexturetransform.
+local screenModelMat = CreateMaterial("nwPDAScreenModelMat", "UnlitGeneric", {
+	["$basetexture"] = screenRT:GetName(),
+	["$model"] = "1"
+})
+
+function C.UpdateScreenTransform()
+	local rect = C.EmbedRect()
+	local frame = C.frame
+
+	if (IsValid(frame) and frame.bEmbedded) then
+		local fx, fy = frame:GetPos()
+
+		rect = {x = fx, y = fy, w = frame:GetWide(), h = frame:GetTall()}
+	end
+
+	local m = Matrix()
+
+	m:Translate(Vector(rect.x / ScrW(), rect.y / ScrH(), 0))
+	m:Scale(Vector(rect.w / ScrW(), rect.h / ScrH(), 1))
+
+	screenModelMat:SetMatrix("$basetexturetransform", m)
+end
+
+function C.ApplyScreenMaterial(entity)
+	if (!IsValid(entity)) then
+		return false
+	end
+
+	if (entity.nwScreenModel != entity:GetModel()) then
+		entity.nwScreenModel = entity:GetModel()
+		entity.nwScreenIndex = nil
+
+		for index, name in ipairs(entity:GetMaterials() or {}) do
+			if (string.find(string.lower(name), "pda_screen", 1, true)) then
+				entity.nwScreenIndex = index - 1
+
+				break
+			end
+		end
+	end
+
+	if (!entity.nwScreenIndex) then
+		return false
+	end
+
+	C.UpdateScreenTransform()
+	entity:SetSubMaterial(entity.nwScreenIndex, "!nwPDAScreenModelMat")
+
+	return true
+end
+
+function C.ClearScreenMaterial(entity)
+	if (IsValid(entity) and entity.nwScreenIndex) then
+		entity:SetSubMaterial(entity.nwScreenIndex, nil)
+	end
+end
+
 -- Экран, пока меню ещё не пришло с сервера: шапка, «радар» и подсказка.
 local function DrawStandby(rect)
 	local theme = C.Theme(LocalPlayer())

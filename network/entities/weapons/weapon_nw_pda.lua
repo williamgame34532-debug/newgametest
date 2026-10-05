@@ -33,7 +33,8 @@ SWEP.Secondary.Ammo = "none"
 SWEP.KPKModel = "models/network/kpk.mdl"
 
 function SWEP:Initialize()
-	self:SetHoldType("slam")
+	-- Двумя руками перед собой (от третьего лица).
+	self:SetHoldType("camera")
 end
 
 function SWEP:PlaySequence(name)
@@ -51,6 +52,7 @@ function SWEP:PlaySequence(name)
 	end
 
 	vm:SendViewModelMatchingSequence(sequence)
+	vm:SetCycle(0)
 
 	return vm:SequenceDuration(sequence)
 end
@@ -250,7 +252,32 @@ function SWEP:RestoreViewModel()
 	if (IsValid(self.nwKPK)) then
 		self.nwKPK:Remove()
 	end
+
+	local owner = self:GetOwner()
+	local vm = IsValid(owner) and owner.GetViewModel and owner:GetViewModel()
+
+	if (IsValid(vm) and NETWORK.city and NETWORK.city.ClearScreenMaterial) then
+		NETWORK.city.ClearScreenMaterial(vm)
+	end
 end
+
+-- Вьюмодель общая для всех оружий: снимаем подменённый материал, если КПК уже не в руках.
+hook.Add("Think", "nwPDAScreenMaterial", function()
+	local client = LocalPlayer()
+	local vm = IsValid(client) and client:GetViewModel()
+
+	if (!IsValid(vm) or !vm.nwScreenIndex) then
+		return
+	end
+
+	local weapon = client:GetActiveWeapon()
+
+	if (!IsValid(weapon) or weapon:GetClass() != "weapon_nw_pda") then
+		NETWORK.city.ClearScreenMaterial(vm)
+		vm.nwScreenIndex = nil
+		vm.nwScreenModel = nil
+	end
+end)
 
 -- Где держать КПК: посередине между кистями, лицом к камере, по ширине хвата.
 function SWEP:GetKPKMatrix(vm)
@@ -319,31 +346,18 @@ function SWEP:GetKPKMatrix(vm)
 	return pos, ang, scale
 end
 
+function SWEP:PreDrawViewModel(vm)
+	if (self.bKPKViewModel and NETWORK.city and NETWORK.city.ApplyScreenMaterial) then
+		NETWORK.city.ApplyScreenMaterial(vm)
+	end
+end
+
 function SWEP:PostDrawViewModel(vm)
 	local C = NETWORK.city
 
-	-- c_kpk: КПК уже в модели, рисуем только живой экран по аттачментам.
-	if (self.bKPKViewModel and C and C.DrawScreenQuad) then
-		local corners = {}
-
-		for index, name in ipairs({"scr_tl", "scr_tr", "scr_br", "scr_bl"}) do
-			local id = vm:LookupAttachment(name)
-			local data = id and id > 0 and vm:GetAttachment(id)
-
-			if (!data) then
-				corners = nil
-
-				break
-			end
-
-			corners[index] = data.Pos
-		end
-
-		if (corners) then
-			C.DrawScreenQuad(corners)
-
-			return
-		end
+	-- c_kpk: КПК уже в модели, живой экран — материал её стекла (см. PreDrawViewModel).
+	if (self.bKPKViewModel and vm.nwScreenIndex) then
+		return
 	end
 
 	local pos, ang, scale = self:GetKPKMatrix(vm)
@@ -353,6 +367,7 @@ function SWEP:PostDrawViewModel(vm)
 	end
 end
 
+-- От третьего лица: КПК между кистями (hold type "camera"), экраном к лицу персонажа.
 function SWEP:DrawWorldModel()
 	local owner = self:GetOwner()
 
@@ -360,15 +375,29 @@ function SWEP:DrawWorldModel()
 		return self:DrawModel()
 	end
 
-	local bone = owner:LookupBone("ValveBiped.Bip01_R_Hand")
+	local left = owner:LookupBone("ValveBiped.Bip01_L_Hand")
+	local rightHand = owner:LookupBone("ValveBiped.Bip01_R_Hand")
 
-	if (!bone) then
+	if (!left or !rightHand) then
 		return
 	end
 
-	local pos, ang = owner:GetBonePosition(bone)
+	local a = owner:GetBonePosition(left)
+	local b = owner:GetBonePosition(rightHand)
 
-	ang:RotateAroundAxis(ang:Forward(), 90)
+	if (!a or !b) then
+		return
+	end
+
+	local eye = owner:EyeAngles()
+
+	eye.p = math.Clamp(eye.p, -30, 50)
+
+	local forward, right = eye:Forward(), eye:Right()
+	local pos = (a + b) * 0.5 + forward * 1.2
+	local ang = right:AngleEx(-forward)
+
+	ang:RotateAroundAxis(right, -25)
 
 	if (util.IsValidModel(self.KPKModel)) then
 		if (!IsValid(self.nwKPK)) then
@@ -379,15 +408,20 @@ function SWEP:DrawWorldModel()
 			end
 
 			self.nwKPK:SetNoDraw(true)
+			self.nwKPK:SetModelScale(0.55, 0)
 		end
 
-		self.nwKPK:SetModelScale(0.42, 0)
-		self.nwKPK:SetRenderOrigin(pos + ang:Forward() * 3 + ang:Right() * 1)
+		-- Свой КПК от третьего лица показывает живой экран, чужие — заставку модели.
+		if (owner == LocalPlayer() and NETWORK.city and NETWORK.city.ApplyScreenMaterial) then
+			NETWORK.city.ApplyScreenMaterial(self.nwKPK)
+		end
+
+		self.nwKPK:SetRenderOrigin(pos - ang:Up() * 0.7 * 0.55)
 		self.nwKPK:SetRenderAngles(ang)
 		self.nwKPK:SetupBones()
 		self.nwKPK:DrawModel()
 	elseif (NETWORK.cityModels) then
-		NETWORK.cityModels.Draw("pda_", pos, ang, 0.55, 0)
+		NETWORK.cityModels.Draw("pda_", pos, (-forward):AngleEx(eye:Up()), 0.45, 0)
 	end
 end
 
