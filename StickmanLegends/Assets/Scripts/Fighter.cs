@@ -1477,6 +1477,9 @@ namespace StickWars
                 case Ability.Lightning:
                 case Ability.Summon:
                 case Ability.Custom:
+                case Ability.Custom2:
+                case Ability.Custom3:
+                case Ability.Custom4:
                     if (a == Ability.Summon && (minion || battle.MinionCount(this) >= 3)) return false;
                     castAb = a;
                     castFromStaff = false;
@@ -1517,7 +1520,7 @@ namespace StickWars
                 default: return false;
             }
             cd[a] = Info.Cooldown(a);
-            battle.Popup((a == Ability.Custom && B.customAbility != null ? B.customAbility : Info.Name(a).Replace(" (пассив)", "")).ToUpper() + "!", J[2] + Vector2.up * 0.7f, Color.Lerp(mainCol, Color.white, 0.4f), 0.8f);
+            battle.Popup(B.AbilityName(a).ToUpper() + "!", J[2] + Vector2.up * 0.7f, Color.Lerp(mainCol, Color.white, 0.4f), 0.8f);
             return true;
         }
 
@@ -1583,6 +1586,10 @@ namespace StickWars
                 case Ability.Summon:
                     battle.SpawnMinions(this, 2, weapon != null && weapon.summon ? weapon.summonName : (sec != null && sec.summon ? sec.summonName : B.summonName));
                     break;
+                case Ability.Custom2:
+                case Ability.Custom3:
+                case Ability.Custom4:
+                    { var sp2 = B.SpecOf(castAb); if (sp2 != null) DoSpec(sp2, false); break; }
                 case Ability.Custom:
                     {
                         if (B.spec != null) { DoSpec(B.spec, false); break; }
@@ -1888,15 +1895,20 @@ namespace StickWars
         {
             if (dead || desperCd > 0f || petrifyT > 0f || battle.mode == Battle.Mode.Showroom || battle.phase != Battle.Phase.Fight) return false;
             Ability pick = (Ability)(-1);
-            if (B.HasAb(Ability.Custom) && CooldownOf(Ability.Custom) <= 0f) pick = Ability.Custom;
-            else
+            for (int ci = 0; ci < 4 && (int)pick < 0; ci++)
+            {
+                var ca = FighterBuild.CustomSlot(ci);
+                if (B.HasAb(ca) && CooldownOf(ca) <= 0f && B.SpecOf(ca) != null) pick = ca;
+            }
+            if ((int)pick < 0 && B.HasAb(Ability.Custom) && CooldownOf(Ability.Custom) <= 0f) pick = Ability.Custom;
+            if ((int)pick < 0)
                 foreach (var a in new[] { Ability.Lightning, Ability.Fireball, Ability.IceShard, Ability.GroundSlam, Ability.Summon, Ability.Telekinesis, Ability.Shield, Ability.Invisibility, Ability.Laser })
                     if (B.HasAb(a) && CooldownOf(a) <= 0f) { pick = a; break; }
             if ((int)pick < 0) return false;
             desperCd = 5f;
             cd[pick] = Info.Cooldown(pick);
             // вырывается: подпрыгивает, взрыв вокруг откидывает всех, а на пике прыжка — само умение
-            Color bc = B.spec != null && pick == Ability.Custom ? B.spec.col : Color.Lerp(mainCol, Color.white, 0.5f);
+            Color bc = B.SpecOf(pick) != null ? B.SpecOf(pick).col : Color.Lerp(mainCol, Color.white, 0.5f);
             BreakoutJump(bc);
             despPend = pick; despPendT = 0.32f;
             return true;
@@ -1973,7 +1985,8 @@ namespace StickWars
         {
             if (dead) return;
             aim = AimAt(target);
-            string nm = pick == Ability.Custom && B.customAbility != null ? B.customAbility : Info.Name(pick).Replace(" (пассив)", "");
+            string nm = B.AbilityName(pick);
+            if (B.SpecOf(pick) != null) { DoSpec(B.SpecOf(pick), true); iframes = Mathf.Max(iframes, 0.5f); return; }
             switch (pick)
             {
                 case Ability.Custom:
@@ -2508,9 +2521,9 @@ namespace StickWars
         {
             var g = Game.I;
             if (g == null) return;
-            KeyCode L, R, U, D, A, K, Q1, Q2, Q3;
-            if (pindex == 0) { L = KeyCode.A; R = KeyCode.D; U = KeyCode.W; D = KeyCode.S; A = KeyCode.F; K = KeyCode.G; Q1 = KeyCode.R; Q2 = KeyCode.T; Q3 = KeyCode.Y; }
-            else { L = KeyCode.LeftArrow; R = KeyCode.RightArrow; U = KeyCode.UpArrow; D = KeyCode.DownArrow; A = KeyCode.K; K = KeyCode.L; Q1 = KeyCode.I; Q2 = KeyCode.O; Q3 = KeyCode.P; }
+            KeyCode L, R, U, D, A, K, Q1, Q2, Q3, Q4;
+            if (pindex == 0) { L = KeyCode.A; R = KeyCode.D; U = KeyCode.W; D = KeyCode.S; A = KeyCode.F; K = KeyCode.G; Q1 = KeyCode.R; Q2 = KeyCode.T; Q3 = KeyCode.Y; Q4 = KeyCode.H; }
+            else { L = KeyCode.LeftArrow; R = KeyCode.RightArrow; U = KeyCode.UpArrow; D = KeyCode.DownArrow; A = KeyCode.K; K = KeyCode.L; Q1 = KeyCode.I; Q2 = KeyCode.O; Q3 = KeyCode.P; Q4 = KeyCode.Semicolon; }
             if (pindex == 1)
             {
                 if (g.Pressed(KeyCode.Keypad1)) A = KeyCode.Keypad1;
@@ -2555,6 +2568,7 @@ namespace StickWars
                     else if (g.Pressed(Q1) && acts.Count > 0) UseAbility(acts[0]);
                     else if (g.Pressed(Q2) && acts.Count > 1) UseAbility(acts[1]);
                     else if (g.Pressed(Q3) && acts.Count > 2) UseAbility(acts[2]);
+                    else if (g.Pressed(Q4) && acts.Count > 3) UseAbility(acts[3]);
                 }
             }
             else if (act == Act.Block && !g.Held(D) && actT > 0.1f) act = Act.None;
@@ -2695,11 +2709,18 @@ namespace StickWars
                     case Ability.Telekinesis: use = dist < 10f && Random.value < 0.3f * need; break;
                     case Ability.Summon: use = Random.value < 0.5f; break;
                     case Ability.Custom:
-                        if (B.spec != null && B.spec.shape == AbilitySpec.Nova) use = dist < 4.6f * Size && Random.value < 0.6f;
-                        else if (B.spec != null && B.spec.shape == AbilitySpec.Self) use = hp < maxHp * 0.55f;
-                        else if (B.spec != null && B.spec.shape == AbilitySpec.Wave) use = dist < 8f && Mathf.Abs(d.y) < 1.5f && Random.value < 0.4f;
-                        else use = dist < 12f && Random.value < 0.4f;
-                        break;
+                    case Ability.Custom2:
+                    case Ability.Custom3:
+                    case Ability.Custom4:
+                        {
+                            var sp = B.SpecOf(a);
+                            if (sp != null && sp.shape == AbilitySpec.Nova) use = dist < 4.6f * Size && Random.value < 0.6f;
+                            else if (sp != null && sp.effect == AbilitySpec.Transform) use = morphOrig == null && (hp < maxHp * 0.7f || Random.value < 0.15f);
+                            else if (sp != null && sp.shape == AbilitySpec.Self) use = hp < maxHp * 0.55f || (sp.effect == AbilitySpec.Clone && Random.value < 0.3f);
+                            else if (sp != null && sp.shape == AbilitySpec.Wave) use = dist < 8f && Mathf.Abs(d.y) < 1.5f && Random.value < 0.4f;
+                            else use = dist < 12f && Random.value < 0.4f;
+                            break;
+                        }
                 }
                 if (use && UseAbility(a)) return;
             }

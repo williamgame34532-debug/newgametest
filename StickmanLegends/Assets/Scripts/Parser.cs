@@ -456,8 +456,9 @@ namespace StickWars
             b.name = string.IsNullOrEmpty(d.name) ? "Безымянный" : d.name;
             b.color = d.color;
             b.drawing = d.drawing ?? new List<Stroke>();
-            var t = Tokenize(Dedup(d.description) + " . " + d.name);
-            var rnd = new System.Random(Hash(d.name + d.description));
+            string full = Compose(d);
+            var t = Tokenize(Dedup(full) + " . " + d.name);
+            var rnd = new System.Random(Hash(d.name + full));
 
             // --- бессмертие
             bool imm = false;
@@ -675,7 +676,12 @@ namespace StickWars
                 if (library != null)
                     foreach (var w in library)
                         if (w != null && string.Equals(w.name.Trim(), wd, StringComparison.OrdinalIgnoreCase)) { fromLib = w; break; }
-                b.weapon = fromLib != null ? BuildWeapon(fromLib) : BuildWeapon(new WeaponDef { name = wd, description = wd });
+                // «Коса смерти, отрезает части тела» → имя «Коса смерти», остальное — что оружие делает
+                string wname = wd;
+                int cut = wd.IndexOfAny(new[] { ',', '.', ';', ':', '—', '\n' });
+                if (cut > 1) wname = wd.Substring(0, cut).Trim();
+                if (wname.Length > 40) wname = wname.Substring(0, 40);
+                b.weapon = fromLib != null ? BuildWeapon(fromLib) : BuildWeapon(new WeaponDef { name = wname, description = wd });
                 if (b.weapon.Ranged) { b.secondary = b.weapon; b.weapon = null; }
             }
             WeaponsFromDescription(t, b);
@@ -696,6 +702,17 @@ namespace StickWars
             if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name + (b.weapon.traits.Count > 0 ? " (" + string.Join(", ", b.weapon.traits.ToArray()) + ")" : ""));
             if (b.secondary != null) b.understood.Add("в запасе: " + b.secondary.name + (b.secondary.ammo > 0 ? " x" + b.secondary.ammo : "") + (b.secondary.alwaysHead ? " (точно в голову)" : ""));
             if (b.HasAb(Ability.Summon)) b.understood.Add("призывает помощников");
+            // «урон 30», «атака 8/10», «урон x2» — сила ударов бойца
+            foreach (int i in FindAll(t, new[] { "урон", "атак", "damage", "attack" }))
+            {
+                if (b.weapon != null && i > 0 && First(t, new[] { "оруж", "меч", "weapon" }, Math.Max(0, i - 3), i) >= 0) continue;
+                float v; bool o10, times;
+                if (!NumberNear(t, i, 1, out v, out o10, out times)) continue;
+                float ns = times ? b.str * Mathf.Clamp(v, 0.3f, 3f) : o10 ? Mathf.Lerp(0.5f, 2.5f, v / 10f) : Mathf.Clamp(v / 12f, 0.4f, 3f);
+                b.str = ns;
+                b.understood.Add("урон/сила ударов " + ns.ToString("0.0") + " (число из описания)");
+                break;
+            }
             // длинные тексты (с сайтов) не должны раздувать характеристики и список «понял»
             b.str = Mathf.Clamp(b.str, 0.4f, 3f); b.spd = Mathf.Clamp(b.spd, 0.4f, 2.5f); b.def = Mathf.Clamp(b.def, 0.4f, 3f); b.agi = Mathf.Clamp(b.agi, 0.4f, 2.5f);
             b.size = Mathf.Clamp(b.size, 0.5f, 2.2f);
@@ -1230,22 +1247,27 @@ namespace StickWars
                 if (eff == AbilitySpec.Petrify) nm += " → статуи";
                 sp.name = nm;
                 sp.tag = words.Count > 0 ? Stem(words[words.Count - 1]) : "spec";
-                b.spec = sp;
-                b.customAbility = nm;
-                b.customAbilityTag = sp.tag;
-                // описанное умение заменяет стандартное той же стихии и встаёт первым (клавиша R)
+                bool dupSpec = false;
+                foreach (var o in b.specs) if (o.effect == sp.effect && o.shape == sp.shape && o.elem == sp.elem && o.form == sp.form) dupSpec = true;
+                if (dupSpec) continue;
+                if (b.specs.Count == 0) { b.customAbility = nm; b.customAbilityTag = sp.tag; }
+                b.specs.Add(sp);
+                // описанное умение заменяет стандартное той же стихии
                 if (sp.elem == Element.Lightning) b.abilities.Remove(Ability.Lightning);
                 if (sp.elem == Element.Fire) b.abilities.Remove(Ability.Fireball);
                 if (sp.elem == Element.Ice) b.abilities.Remove(Ability.IceShard);
-                b.abilities.Remove(Ability.Custom);
-                b.abilities.Insert(0, Ability.Custom);
-                while (b.abilities.Count > 4) b.abilities.RemoveAt(b.abilities.Count - 1);
+                if (sp.effect == AbilitySpec.Clone) b.abilities.Remove(Ability.Summon);
                 b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
                 b.understood.RemoveAll(u => u.StartsWith("новое умение"));
                 if (eff == AbilitySpec.Transform) b.understood.Add("превращение в «" + Lemma(form) + "» (сила, размер и вид меняются на время)");
-                b.understood.Add("умение «" + nm + "»: " + AbilitySpec.ShapeName(sp.shape) + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает само в нокдауне и под тяжёлыми ударами)");
-                return;
+                b.understood.Add("умение " + b.specs.Count + " «" + nm + "»: " + AbilitySpec.ShapeName(sp.shape) + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает и само в нокдауне)");
+                if (b.specs.Count >= 4) break;
             }
+            if (b.specs.Count == 0) return;
+            // свои умения встают первыми: клавиши R, T, Y, H
+            foreach (var ca in new[] { Ability.Custom, Ability.Custom2, Ability.Custom3, Ability.Custom4 }) b.abilities.Remove(ca);
+            for (int k = b.specs.Count - 1; k >= 0; k--) b.abilities.Insert(0, FighterBuild.CustomSlot(k));
+            while (b.abilities.Count > 5) b.abilities.RemoveAt(b.abilities.Count - 1);
         }
 
         // разноцветные глаза: «один глаз красный, другой синий», «разноцветные глаза», «гетерохромия»
@@ -1297,6 +1319,31 @@ namespace StickWars
                 w.onHit = sp;
                 w.traits.Add(AbilitySpec.EffectName(eff) + (lethal ? " насмерть" : ""));
             }
+        }
+
+        // все поля редактора собираются в один текст: каждая способность — отдельное предложение
+        public static string Compose(FighterDef d)
+        {
+            var sb = new System.Text.StringBuilder();
+            if (!string.IsNullOrEmpty(d.appearance)) sb.Append(d.appearance.Trim().TrimEnd('.')).Append(". ");
+            if (!string.IsNullOrEmpty(d.stats))
+                foreach (var part in d.stats.Split(new[] { ',', ';', '\n' }, StringSplitOptions.RemoveEmptyEntries))
+                    sb.Append(part.Trim().TrimEnd('.')).Append(". ");
+            if (!string.IsNullOrEmpty(d.weakness))
+            {
+                string w = d.weakness.Trim().TrimEnd('.');
+                string lw = w.ToLowerInvariant();
+                bool phrased = lw.StartsWith("слаб") || lw.StartsWith("убить") || lw.StartsWith("умира") || lw.StartsWith("боит") || lw.StartsWith("уязв") || lw.StartsWith("только") || lw.StartsWith("weak");
+                sb.Append(phrased ? w : "Слабость: " + w).Append(". ");
+            }
+            if (!string.IsNullOrEmpty(d.abilitiesText))
+                foreach (var line in d.abilitiesText.Split(new[] { '\n', ';' }, StringSplitOptions.RemoveEmptyEntries))
+                {
+                    string l = line.Trim().TrimStart('-', '•', '*', ' ').TrimEnd('.');
+                    if (l.Length > 0) sb.Append(l).Append(". ");
+                }
+            sb.Append(d.description ?? "");
+            return sb.ToString();
         }
 
         // одинаковые предложения учитываются один раз (вики-страницы любят повторяться)

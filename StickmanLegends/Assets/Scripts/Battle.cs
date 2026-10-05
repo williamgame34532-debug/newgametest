@@ -234,6 +234,7 @@ namespace StickWars
             }
             if (announceT > 0) announceT -= praw;
             if (flashT > 0) flashT -= raw;
+            if (cutInT > 0) cutInT -= raw;
 
             if (c3dCooldown > 0f) c3dCooldown -= raw;
             if (c3d) Cine3DTick(raw); else cam.Tick(praw, this);
@@ -761,7 +762,8 @@ namespace StickWars
         // монтажная склейка: камера мгновенно «режет» на крупный план, как в анимации
         public void Cut(Vector2 at, float s, float dur) { cutC = at; cutS = s; cutT = dur; c = at; size = s; }
         public void Shake(float a) { if (Game.I != null && !Game.I.S.shake) return; trauma = Mathf.Min(1f, trauma + a); }
-        public void Kick(float k) { kick = Mathf.Max(kick, k); }
+        public void Kick(float k) { kick = Mathf.Max(kick, k); if (Game.I == null || Game.I.S.shake) roll += (Random.value < 0.5f ? -1f : 1f) * k * 4.5f; }
+        float roll;
         public void Focus(Vector2 p, float dur) { focusP = p; focusT = dur; }
 
         public void Tick(float raw, Battle b)
@@ -825,7 +827,8 @@ namespace StickWars
             Vector2 off = new Vector2(Mathf.PerlinNoise(t * 25f, 0.3f) - 0.5f, Mathf.PerlinNoise(0.7f, t * 25f) - 0.5f) * 2f * sh * 0.8f;
             cam.orthographicSize = half;
             cam.transform.position = new Vector3(cc.x + off.x, cc.y + off.y, -10f);
-            cam.transform.rotation = Quaternion.Euler(0, 0, (Mathf.PerlinNoise(t * 18f, 5.1f) - 0.5f) * 2f * sh * 4f);
+            roll = Mathf.Lerp(roll, 0f, 1f - Mathf.Exp(-raw * 6f)); // наклон кадра на тяжёлых ударах
+            cam.transform.rotation = Quaternion.Euler(0, 0, (Mathf.PerlinNoise(t * 18f, 5.1f) - 0.5f) * 2f * sh * 4f + roll);
         }
     }
 }

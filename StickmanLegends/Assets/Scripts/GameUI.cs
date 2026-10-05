@@ -22,6 +22,8 @@ namespace StickWars
         WeaponStats editWeaponBuild;
         bool editDirty;
         Vector2 descScroll;
+        int descTab;
+        string lastCompose;
         float editChangeT;
         string lastName, lastDesc, lastWeap;
         string editUrl = "", urlLoadStatus = "";
@@ -30,7 +32,7 @@ namespace StickWars
         readonly Dictionary<string, FighterBuild> buildCache = new Dictionary<string, FighterBuild>();
         FighterBuild CachedBuild(FighterDef d)
         {
-            string key = (d.name ?? "") + "\u0001" + (d.description ?? "") + "\u0001" + (d.weaponDesc ?? "") + "\u0001" + d.color + "\u0001" + (d.drawing != null ? d.drawing.Count : 0) + "\u0001" + data.weapons.Count;
+            string key = (d.name ?? "") + "\u0001" + Parser.Compose(d) + "\u0001" + (d.weaponDesc ?? "") + "\u0001" + d.color + "\u0001" + (d.drawing != null ? d.drawing.Count : 0) + "\u0001" + data.weapons.Count;
             FighterBuild b;
             if (buildCache.TryGetValue(key, out b)) return b;
             if (buildCache.Count > 64) buildCache.Clear();
@@ -320,6 +322,46 @@ namespace StickWars
             return vignette;
         }
 
+        // Кат-ин умения: косая полоса через весь экран с силуэтом бойца, именем и названием умения
+        void CutIn()
+        {
+            var b = battle;
+            float age = b.cutInMax - b.cutInT, k = age / b.cutInMax;
+            float inK = Mathf.Clamp01(age / 0.14f), outK = Mathf.Clamp01(b.cutInT / 0.16f);
+            float slide = (1f - Mathf.Pow(1f - inK, 3f)) * outK;
+            float dir = b.cutInRight ? -1f : 1f;
+            float h = b.cutInDesp ? 230f : 190f;
+            float cy = VH * 0.42f;
+            var m = GUI.matrix;
+            GUIUtility.RotateAroundPivot(-7f * dir, new Vector2(VW / 2f, cy));
+            float off = (1f - slide) * VW * -dir + dir * age * 40f;
+            Rect band = new Rect(-200 + off, cy - h / 2, VW + 400, h);
+            Box(band, new Color(0.02f, 0.02f, 0.03f, 0.88f * outK), 0);
+            Box(new Rect(band.x, band.y, band.width, 10), Draw.A(b.cutInCol, outK), 0);
+            Box(new Rect(band.x, band.yMax - 10, band.width, 10), Draw.A(b.cutInCol, outK), 0);
+            // линии скорости
+            var rnd = new System.Random(7);
+            for (int i = 0; i < 26; i++)
+            {
+                float ly = band.y + 14 + (float)rnd.NextDouble() * (h - 28);
+                float lx = Mathf.Repeat((float)rnd.NextDouble() * VW * 1.5f - age * 2600f * dir, VW * 1.5f) - VW * 0.25f;
+                Box(new Rect(lx, ly, 120 + (float)rnd.NextDouble() * 260, 2), Draw.A(Color.Lerp(b.cutInCol, Color.white, 0.5f), 0.35f * outK), 0);
+            }
+            // силуэт бойца: голова с глазами и плечи
+            float px = b.cutInRight ? VW - 330 : 150, py = cy;
+            Box(new Rect(px - 120 + off * 0.2f, py + 20, 240, 140), Draw.A(b.cutInBody, outK), 70);
+            Box(new Rect(px - 85 + off * 0.2f, py - 120, 170, 170), Draw.A(b.cutInBody, outK), 85);
+            float ex = px + (b.cutInRight ? -40 : 15) + off * 0.2f;
+            Box(new Rect(ex, py - 50, 34, 12), Draw.A(Color.Lerp(b.cutInCol, Color.white, 0.6f), outK), 6);
+            Box(new Rect(ex + 42 * (b.cutInRight ? -1 : 1), py - 52, 30, 12), Draw.A(Color.Lerp(b.cutInCol, Color.white, 0.6f), outK), 6);
+            // текст
+            Rect tr = b.cutInRight ? new Rect(60 + off * 0.6f, cy - h / 2 + 18, VW - 520, 50) : new Rect(400 + off * 0.6f, cy - h / 2 + 18, VW - 520, 50);
+            TextAnchor an = b.cutInRight ? TextAnchor.MiddleRight : TextAnchor.MiddleLeft;
+            Outline(tr, b.cutInName ?? "", 30, Draw.A(Color.white, outK), new Color(0, 0, 0, outK), an, 2f);
+            Outline(new Rect(tr.x, tr.y + 46, tr.width, h - 80), (b.cutInDesp ? "⚡ " : "") + (b.cutInAb ?? "").ToUpper() + "!", b.cutInDesp ? 78 : 66, Draw.A(Color.Lerp(b.cutInCol, Color.white, 0.35f), outK), new Color(0, 0, 0, outK), an, 4f);
+            GUI.matrix = m;
+        }
+
         // кляксы крови для брызг на экран: неровное пятно + капли-спутники
         Texture2D[] splatTex;
         Texture2D SplatTex(int seed)
@@ -404,6 +446,7 @@ namespace StickWars
             }
             if (battle.curStyle == 10 && Event.current.type == EventType.Repaint)
                 for (int y = 0; y < VH; y += 6) Box(new Rect(0, y, VW, 1.5f), new Color(0, 0, 0, 0.18f), 0);
+            if ((fight || replay) && battle.cutInT > 0f && Event.current.type == EventType.Repaint) CutIn();
             if (battle.flashT > 0f)
             {
                 Color fc = battle.flashCol; fc.a *= Mathf.Clamp01(battle.flashT / 0.06f);
@@ -541,7 +584,7 @@ namespace StickWars
                 Txt(new Rect(row.x + 62, row.y + 8, row.width - 250, 40), d.name, 26, P.text, TextAnchor.MiddleLeft, true);
                 var b = CachedBuild(d);
                 string ab = "";
-                foreach (var a in b.abilities) ab += (ab.Length > 0 ? ", " : "") + Info.Name(a).Replace(" (пассив)", "");
+                foreach (var a in b.abilities) ab += (ab.Length > 0 ? ", " : "") + b.AbilityName(a);
                 Txt(new Rect(row.x + 62, row.y + 46, row.width - 80, 28), ab, 18, P.sub);
                 Txt(new Rect(row.x + 62, row.y + 74, row.width - 80, 28), (b.weapon != null ? b.weapon.name : "Кулаки") + "  •  смерть: " + b.WeakText.ToLower(), 18, P.sub);
                 if (Btn(new Rect(row.xMax - 180, row.y + 14, 110, 44), "Изменить", 19)) OpenFighterEditor(team, i);
@@ -618,7 +661,9 @@ namespace StickWars
                 editDef.description = "";
             }
             if (editDef.drawing == null) editDef.drawing = new List<Stroke>();
-            lastName = editDef.name; lastDesc = editDef.description; lastWeap = editDef.weaponDesc;
+            lastName = editDef.name; lastDesc = editDef.description; lastWeap = editDef.weaponDesc; lastCompose = Parser.Compose(editDef);
+            descTab = string.IsNullOrEmpty(editDef.abilitiesText) && !string.IsNullOrEmpty(editDef.description) && string.IsNullOrEmpty(editDef.appearance) ? 2 : 0;
+            urlLoadStatus = "";
             scr = Scr.EditFighter;
             RebuildShowroom();
         }
@@ -680,20 +725,48 @@ namespace StickWars
             }
             y += 58;
 
-            Txt(new Rect(x, y, w - 200, 34), "Опиши героя: внешность, способности, превращения, слабость", 23, P.sub, TextAnchor.MiddleLeft, true);
-            Txt(new Rect(x + w - 200, y, 200, 34), (editDef.description ?? "").Length + " / " + DescLimit, 17, P.sub, TextAnchor.MiddleRight);
-            y += 38;
-            descScroll = GUI.BeginScrollView(new Rect(x, y, w, 136), descScroll, new Rect(0, 0, w - 20, Mathf.Max(136f, stArea.CalcHeight(new GUIContent(editDef.description ?? ""), w - 20))));
-            editDef.description = GUI.TextArea(new Rect(0, 0, w - 20, Mathf.Max(136f, stArea.CalcHeight(new GUIContent(editDef.description ?? ""), w - 20))), editDef.description ?? "", DescLimit, stArea);
+            // ---- описание по полям ----
+            editDef.stats = HintField(new Rect(x, y, w, 40), "Статы", editDef.stats, "здоровье 500, урон 30, скорость 8/10, защита x2, рост 2 метра", 300);
+            y += 46;
+            editDef.weakness = HintField(new Rect(x, y, w, 40), "Слабость", editDef.weakness, "чем убить: удар в голову, свет, серебро, только молнией...", 300);
+            y += 48;
+            string[] tabs = { "Способности", "Внешность", "Свободный текст / сайт" };
+            float tw = (w - 16) / 3f;
+            for (int i = 0; i < 3; i++)
+            {
+                string cnt = i == 0 ? CountLines(editDef.abilitiesText) : i == 1 ? ((editDef.appearance ?? "").Length > 0 ? " ✓" : "") : ((editDef.description ?? "").Length > 0 ? " ✓" : "");
+                if (Btn(new Rect(x + i * (tw + 8), y, tw, 36), tabs[i] + cnt, 17, false, descTab == i)) { descTab = i; GUI.FocusControl(null); }
+            }
+            y += 40;
+            string cur = descTab == 0 ? editDef.abilitiesText : descTab == 1 ? editDef.appearance : editDef.description;
+            int lim = descTab == 2 ? DescLimit : 3000;
+            float th = Mathf.Max(112f, stArea.CalcHeight(new GUIContent(cur ?? ""), w - 20));
+            descScroll = GUI.BeginScrollView(new Rect(x, y, w, 112), descScroll, new Rect(0, 0, w - 20, th));
+            cur = GUI.TextArea(new Rect(0, 0, w - 20, th), cur ?? "", lim, stArea);
+            if (string.IsNullOrEmpty(cur))
+            {
+                string hint = descTab == 0 ? "Каждая способность с новой строки, например:\nвокруг себя создаёт тёмные молнии, которые превращают врагов в статуи\nпревращается в дракона\nвыпускает жижу, которая управляет врагами"
+                    : descTab == 1 ? "череп вместо головы, черепная броня, поножи, красный плащ, огненная аура, один глаз красный, другой синий..."
+                    : "любой текст о персонаже: история, характер, всё что угодно — или загрузи со страницы сайта";
+                Txt(new Rect(10, 6, w - 40, 100), hint, 16, Draw.A(P.sub, 0.7f), TextAnchor.UpperLeft, false, true);
+            }
             GUI.EndScrollView();
-            y += 142;
-            // ссылка на страницу с описанием персонажа
-            Txt(new Rect(x, y + 2, 120, 40), "Сайт", 20, P.sub, TextAnchor.MiddleLeft, true);
-            editUrl = GUI.TextField(new Rect(x + 80, y, w - 300, 40), editUrl ?? "", 500, stField);
-            if (Btn(new Rect(x + w - 210, y, 210, 40), urlLoading ? "загрузка..." : "Взять описание", 17) && !urlLoading && !string.IsNullOrEmpty(editUrl)) StartCoroutine(LoadDescriptionFromUrl(editUrl));
-            y += 44;
-            Txt(new Rect(x, y, w, 26), string.IsNullOrEmpty(urlLoadStatus) ? "Можно вставить готовый текст или ссылку на страницу персонажа. Бессмертие отключается, слабость ищется в тексте." : urlLoadStatus, 16, P.sub, TextAnchor.UpperLeft, false, true);
-            y += 28;
+            if (descTab == 0) editDef.abilitiesText = cur; else if (descTab == 1) editDef.appearance = cur; else editDef.description = cur;
+            y += 116;
+            if (descTab == 2)
+            {
+                Txt(new Rect(x, y + 2, 120, 36), "Сайт", 19, P.sub, TextAnchor.MiddleLeft, true);
+                editUrl = GUI.TextField(new Rect(x + 70, y, w - 290, 36), editUrl ?? "", 500, stField);
+                if (Btn(new Rect(x + w - 210, y, 210, 36), urlLoading ? "загрузка..." : "Взять описание", 16) && !urlLoading && !string.IsNullOrEmpty(editUrl)) StartCoroutine(LoadDescriptionFromUrl(editUrl));
+                y += 40;
+                Txt(new Rect(x, y, w, 22), string.IsNullOrEmpty(urlLoadStatus) ? "Бессмертие отключается, слабость ищется в тексте. " + (editDef.description ?? "").Length + " / " + DescLimit : urlLoadStatus, 15, P.sub, TextAnchor.UpperLeft, false, true);
+                y += 24;
+            }
+            else
+            {
+                Txt(new Rect(x, y, w, 22), descTab == 0 ? "До 4 своих умений: клавиши R, T, Y, H. В нокдауне боец применит их сам." : "Всё, что надето и описано, появится на стикмане.", 15, P.sub);
+                y += 24;
+            }
 
             Txt(new Rect(x, y, 200, 40), "Оружие", 24, P.sub, TextAnchor.MiddleLeft, true);
             editDef.weaponDesc = GUI.TextField(new Rect(x + 120, y, w - 120, 46), editDef.weaponDesc ?? "", 600, stField);
@@ -713,7 +786,7 @@ namespace StickWars
 
             // планшет для рисования + характеристики
             float by = r.yMax - 92;
-            float padS = Mathf.Clamp(by - 10f - 80f - 34f - y, 200f, 320f);
+            float padS = Mathf.Clamp(by - 10f - 80f - 34f - y, 140f, 320f);
             float padW = Mathf.Max(padS, 300f);
             Txt(new Rect(x, y, padW + 40, 30), "Нарисуй на голове (шляпа, маска...)", 19, P.sub, TextAnchor.MiddleLeft, true);
             Rect pad = new Rect(x, y + 34, padS, padS);
@@ -745,8 +818,10 @@ namespace StickWars
                 return;
             }
 
-            if (editDef.name != lastName || editDef.description != lastDesc || editDef.weaponDesc != lastWeap)
+            string compose = Parser.Compose(editDef);
+            if (editDef.name != lastName || compose != lastCompose || editDef.weaponDesc != lastWeap)
             {
+                lastCompose = compose;
                 // цвет из описания, если он там упомянут впервые
                 Color dc;
                 Color prevC;
@@ -760,6 +835,23 @@ namespace StickWars
             Rect nameR = new Rect(rx, VH - 170, VW - rx - 20, 70);
             Outline(nameR, editDef.name, 48, editDef.color.grayscale < 0.12f ? new Color(0.9f, 0.9f, 0.9f) : editDef.color, new Color(0, 0, 0, 0.7f), TextAnchor.MiddleCenter, 3f);
             Txt(new Rect(rx, VH - 100, VW - rx - 20, 40), editDirty ? "генерация..." : "персонаж показывает приёмы", 22, P.sub, TextAnchor.MiddleCenter);
+        }
+
+        static string CountLines(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            int n = 0; foreach (var l in s.Split('\n', ';')) if (l.Trim().Length > 0) n++;
+            return n > 0 ? " (" + n + ")" : "";
+        }
+
+        // однострочное поле с подписью слева и подсказкой внутри, пока пусто
+        string HintField(Rect r, string label, string v, string hint, int max)
+        {
+            Txt(new Rect(r.x, r.y, 120, r.height), label, 20, P.sub, TextAnchor.MiddleLeft, true);
+            Rect fr = new Rect(r.x + 120, r.y, r.width - 120, r.height);
+            v = GUI.TextField(fr, v ?? "", max, stField);
+            if (string.IsNullOrEmpty(v)) Txt(new Rect(fr.x + 12, fr.y, fr.width - 20, fr.height), hint, 16, Draw.A(P.sub, 0.65f), TextAnchor.MiddleLeft);
+            return v;
         }
 
         void FighterStats(Rect r, FighterBuild b)
@@ -782,7 +874,7 @@ namespace StickWars
             StatBar(new Rect(x, y, w, 28), "Защита", b.def / 1.9f, new Color(0.35f, 0.6f, 1f), b.def.ToString("0.0")); y += 29;
             StatBar(new Rect(x, y, w, 28), "Ловкость", b.agi / 1.9f, new Color(0.7f, 0.4f, 1f), b.agi.ToString("0.0")); y += 34;
             Txt(new Rect(x, y, w, 28), "Способности:", 20, P.text, TextAnchor.MiddleLeft, true); y += 28;
-            foreach (var a in b.abilities) { Txt(new Rect(x + 14, y, w - 14, 26), "• " + Info.Name(a), 19, P.text); y += 25; }
+            foreach (var a in b.abilities) { Txt(new Rect(x + 14, y, w - 14, 26), "• " + b.AbilityName(a), 19, P.text); y += 25; }
             y += 4;
             Txt(new Rect(x, y, w, 44), (b.killOnly ? "Убить можно ТОЛЬКО: " : "Слабость (урон x2): ") + b.WeakText.Replace("ТОЛЬКО ", ""), 19, new Color(1f, 0.55f, 0.15f), TextAnchor.UpperLeft, true, true); y += 46;
             if (b.immuneMask != 0) { Txt(new Rect(x, y, w, 26), "Иммунитет: " + HFInfo.Describe(b.immuneMask), 18, new Color(0.5f, 0.75f, 1f), TextAnchor.MiddleLeft, true); y += 26; }
@@ -1055,7 +1147,7 @@ namespace StickWars
             Txt(new Rect(r.x + 50, r.y + 100, w * 0.56f - 60, h - 220), left, 21, P.text, TextAnchor.UpperLeft, false, true);
             string right =
                 "УПРАВЛЕНИЕ (если включено)\n\n" +
-                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  S + A/D — перекат (неуязвимость)\n  F — удары руками/оружием, жми ещё — комбо\n  W + F — апперкот (подброс)\n  G — пинки,  S + G — подсечка\n  G на бегу — удар в прыжке\n  G в воздухе — удар вниз\n  E — метнуть второе оружие (ножи и т.п.)\n  Q — захват и бросок\n  A/D дважды — рывок\n  блок в момент удара — парирование и контратака\n  R, T, Y — способности\n\n" +
+                "Игрок 1 (красные):\n  A / D — бег,  W — прыжок,  S — блок\n  S + A/D — перекат (неуязвимость)\n  F — удары руками/оружием, жми ещё — комбо\n  W + F — апперкот (подброс)\n  G — пинки,  S + G — подсечка\n  G на бегу — удар в прыжке\n  G в воздухе — удар вниз\n  E — метнуть второе оружие (ножи и т.п.)\n  Q — захват и бросок\n  A/D дважды — рывок\n  блок в момент удара — парирование и контратака\n  R, T, Y, H — способности (до 4 своих)\n\n" +
                 "Игрок 2 (синие): стрелки, ↓ — блок,\n  K — удар, L — пинок, J — захват,\n  U — метнуть, I O P — умения\n\n" +
                 "Удар в спину, в голову и по лежачему считаются отдельно — это важно для условий смерти.";
             Txt(new Rect(r.x + w * 0.56f + 10, r.y + 100, w * 0.44f - 60, h - 220), right, 20, P.text, TextAnchor.UpperLeft, false, true);
@@ -1248,7 +1340,7 @@ namespace StickWars
             foreach (var f in b.fighters)
             {
                 if (!f.human || f.dead) continue;
-                string keys = f.pindex == 0 ? "A D бег (2× рывок) • W прыжок • S блок/парир. • F удар • G пинок • Q захват • E метнуть • R T Y умения" : "← → бег (2× рывок) • ↑ прыжок • ↓ блок • K удар • L пинок • J захват • U метнуть • I O P умения";
+                string keys = f.pindex == 0 ? "A D бег (2× рывок) • W прыжок • S блок/парир. • F удар • G пинок • Q захват • E метнуть • R T Y H умения" : "← → бег (2× рывок) • ↑ прыжок • ↓ блок • K удар • L пинок • J захват • U метнуть • I O P ; умения";
                 Rect hr = f.pindex == 0 ? new Rect(20, VH - 46 - letterbox * 95f, 1000, 34) : new Rect(VW - 1020, VH - 46 - letterbox * 95f, 1000, 34);
                 Outline(hr, keys, 18, Color.white, new Color(0, 0, 0, 0.75f), f.pindex == 0 ? TextAnchor.MiddleLeft : TextAnchor.MiddleRight, 1.5f);
             }
@@ -1340,10 +1432,12 @@ namespace StickWars
             foreach (var ab in f.ActiveAbilities())
             {
                 float c = f.CooldownOf(ab) / Info.Cooldown(ab);
+                var spc = f.B.SpecOf(ab);
+                Color rc = spc != null ? Color.Lerp(spc.col, Color.white, 0.2f) : new Color(1f, 0.85f, 0.2f);
                 Rect ir = right ? new Rect(bar.xMax - 20 - idx * 26, iy, 20, 20) : new Rect(bar.x + idx * 26, iy, 20, 20);
                 Box(ir, new Color(0.25f, 0.25f, 0.25f, 0.9f), 10);
-                if (c <= 0) Box(ir, new Color(1f, 0.85f, 0.2f), 10);
-                else Box(new Rect(ir.x, ir.y + ir.height * c, ir.width, ir.height * (1 - c)), new Color(1f, 0.85f, 0.2f, 0.6f), 6);
+                if (c <= 0) Box(ir, rc, 10);
+                else Box(new Rect(ir.x, ir.y + ir.height * c, ir.width, ir.height * (1 - c)), Draw.A(rc, 0.6f), 6);
                 idx++;
             }
             string st = "";

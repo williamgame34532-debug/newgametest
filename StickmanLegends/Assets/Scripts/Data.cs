@@ -7,7 +7,7 @@ namespace StickWars
     public enum Element { None, Fire, Ice, Lightning, Poison, Shadow }
     public enum WeaponKind { Fists, Blade, Blunt, Spear, Gun, Bow, Thrown, Chainsaw, Staff }
     public enum DmgType { Blunt, Blade, Pierce, Fire, Ice, Lightning, Poison, Shadow }
-    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon, Custom }
+    public enum Ability { Fireball, Lightning, Teleport, Dash, Shield, Regen, DoubleJump, IceShard, GroundSlam, Invisibility, Rage, Vampire, Laser, Telekinesis, Summon, Custom, Custom2, Custom3, Custom4 }
     public enum Acc { Headband, WizardHat, CowboyHat, Horns, Crown, Halo, Cape, Visor, Scarf, Helmet, Armor, Mask, Hood, Hair, Beard, Eyes, Wings, Tail, Belt, Gloves, Boots, ShoulderPads, Aura, Shirt, Pants, Robe, Coat, Tie, Runes, Sheath, Cap, Glasses, Necklace, Backpack, ShieldProp, Scar, Bandages, Chains, Skull, Greaves, Bracers }
 
     [Serializable]
@@ -25,6 +25,11 @@ namespace StickWars
         public string name = "Боец";
         public string description = "";
         public string weaponDesc = "";
+        // отдельные поля описания
+        public string appearance = "";   // внешность, одежда, аура
+        public string abilitiesText = ""; // способности — каждая с новой строки
+        public string stats = "";        // здоровье, урон, скорость...
+        public string weakness = "";     // слабость / как убить
         public Color color = new Color(0.8f, 0.1f, 0.1f);
         public List<Stroke> drawing = new List<Stroke>();
 
@@ -177,7 +182,22 @@ namespace StickWars
 
     public class FighterBuild
     {
-        public AbilitySpec spec;          // собственное умение героя (из описания)
+        public List<AbilitySpec> specs = new List<AbilitySpec>(); // свои умения героя из описания (до 4)
+        public AbilitySpec spec { get { return specs.Count > 0 ? specs[0] : null; } set { specs.Clear(); if (value != null) specs.Add(value); } }
+        public static bool IsCustom(Ability a) { return a == Ability.Custom || a == Ability.Custom2 || a == Ability.Custom3 || a == Ability.Custom4; }
+        public static Ability CustomSlot(int i) { return i == 0 ? Ability.Custom : i == 1 ? Ability.Custom2 : i == 2 ? Ability.Custom3 : Ability.Custom4; }
+        public AbilitySpec SpecOf(Ability a)
+        {
+            int i = a == Ability.Custom ? 0 : a == Ability.Custom2 ? 1 : a == Ability.Custom3 ? 2 : a == Ability.Custom4 ? 3 : -1;
+            return i >= 0 && i < specs.Count ? specs[i] : null;
+        }
+        public string AbilityName(Ability a)
+        {
+            var sp = SpecOf(a);
+            if (sp != null && sp.name != null) return sp.name;
+            if (a == Ability.Custom && customAbility != null) return customAbility;
+            return Info.Name(a).Replace(" (пассив)", "");
+        }
         public int headKind;              // 0 голова, 1 череп, 2 огонь, 3 тыква, 4 экран, 5 кристалл, 6 предмет
         public string headName;
         public Color headCol = Color.white;
@@ -191,6 +211,7 @@ namespace StickWars
             c.understood = new List<string>(understood); c.notes = new List<string>(notes);
             c.acc = new List<Acc>(acc); c.accCol = new Dictionary<Acc, Color>(accCol);
             c.items = new List<CustomItem>(items);
+            c.specs = new List<AbilitySpec>(specs);
             return c;
         }
         public string name;
@@ -253,7 +274,7 @@ namespace StickWars
                 case Ability.Laser: return "Лазер из глаз";
                 case Ability.Telekinesis: return "Телекинез";
                 case Ability.Summon: return "Призыв помощников";
-                case Ability.Custom: return "Особое умение";
+                case Ability.Custom: case Ability.Custom2: case Ability.Custom3: case Ability.Custom4: return "Особое умение";
             }
             return a.ToString();
         }
@@ -274,6 +295,7 @@ namespace StickWars
                 case Ability.Telekinesis: return 9f;
                 case Ability.Summon: return 14f;
                 case Ability.Custom: return 5f;
+                case Ability.Custom2: case Ability.Custom3: case Ability.Custom4: return 6f;
             }
             return 999f;
         }

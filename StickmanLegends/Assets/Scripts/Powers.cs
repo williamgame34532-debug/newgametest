@@ -210,12 +210,65 @@ namespace StickWars
             SlowMo(desperate ? 0.9f : 0.5f);
             Flash(0.09f, Draw.A(col, 0.55f));
             audio.Sfx("cine", 0.8f, 0f);
-            Announce((desperate ? "⚡ " : "") + name.ToUpper() + "!", Color.Lerp(col, Color.white, 0.35f), 1.2f);
+            // кат-ин во весь экран вместо обычной надписи
+            cutInT = cutInMax = desperate ? 1.15f : 0.9f;
+            cutInName = f.B.name; cutInAb = name; cutInCol = col; cutInRight = f.team == 1; cutInDesp = desperate;
+            cutInBody = f.B.color;
+            MagicCircle(new Vector2(f.pos.x, 0.03f), col, desperate ? 2.6f : 1.9f);
             if (!c3d && (desperate || c3dCooldown <= 0f))
             {
                 float side = Random.value < 0.5f ? -1f : 1f;
                 Cinematic3D(f.Center, desperate ? 1.5f : 1.0f, side * 50f, side * 15f, 6.5f, 4.2f);
             }
+        }
+    
+        // кат-ин (рисует GameUI)
+        public float cutInT, cutInMax;
+        public string cutInName, cutInAb;
+        public Color cutInCol, cutInBody;
+        public bool cutInRight, cutInDesp;
+
+        // магический круг на земле под кастующим: кольца, руны, звезда — плоский, вращается
+        public void MagicCircle(Vector2 at, Color col, float r)
+        {
+            var go = new GameObject("magicCircle");
+            go.transform.SetParent(transform, false);
+            var lines = new List<LineRenderer>();
+            var c1 = Draw.Line(go.transform, "c1", 0.06f, Draw.A(col, 0.9f), -2, true, 0); c1.positionCount = 40; c1.loop = true; lines.Add(c1);
+            var c2 = Draw.Line(go.transform, "c2", 0.04f, Draw.A(Color.Lerp(col, Color.white, 0.4f), 0.9f), -2, true, 0); c2.positionCount = 40; c2.loop = true; lines.Add(c2);
+            var star = Draw.Line(go.transform, "star", 0.04f, Draw.A(col, 0.85f), -2, true, 0); star.positionCount = 5; star.loop = true; lines.Add(star);
+            var runes = new List<LineRenderer>();
+            for (int i = 0; i < 10; i++) { var rl = Draw.Line(go.transform, "rune", 0.035f, Draw.A(Color.Lerp(col, Color.white, 0.6f), 0.9f), -2, true, 0); rl.positionCount = 3; runes.Add(rl); }
+            var glowS = Draw.Spr(go.transform, "glow", Draw.Soft, Draw.A(col, 0.5f), -3);
+            glowS.transform.position = at; glowS.transform.localScale = new Vector3(r * 3.2f, r * 0.9f, 1f);
+            const float flat = 0.28f;
+            AddFx(go, 1.1f, (t, k) =>
+            {
+                float grow = Mathf.Min(1f, t * 6f), fade = k > 0.7f ? (1f - k) / 0.3f : 1f;
+                float rr = r * grow, rot = t * 2.2f;
+                for (int i = 0; i < 40; i++)
+                {
+                    float a = i / 40f * Mathf.PI * 2f;
+                    c1.SetPosition(i, at + new Vector2(Mathf.Cos(a) * rr, Mathf.Sin(a) * rr * flat));
+                    c2.SetPosition(i, at + new Vector2(Mathf.Cos(a) * rr * 0.72f, Mathf.Sin(a) * rr * 0.72f * flat));
+                }
+                for (int i = 0; i < 5; i++)
+                {
+                    float a = rot + (i * 2 % 5) * Mathf.PI * 2f / 5f + Mathf.PI / 2f;   // пентаграмма
+                    star.SetPosition(i, at + new Vector2(Mathf.Cos(a) * rr * 0.7f, Mathf.Sin(a) * rr * 0.7f * flat));
+                }
+                for (int i = 0; i < runes.Count; i++)
+                {
+                    float a = -rot * 1.5f + i * Mathf.PI * 2f / runes.Count;
+                    Vector2 p0 = at + new Vector2(Mathf.Cos(a) * rr * 0.86f, Mathf.Sin(a) * rr * 0.86f * flat);
+                    Vector2 tg = new Vector2(-Mathf.Sin(a), Mathf.Cos(a) * flat) * 0.12f * r;
+                    runes[i].SetPosition(0, p0 - tg); runes[i].SetPosition(1, p0 + new Vector2(0, 0.08f * r)); runes[i].SetPosition(2, p0 + tg);
+                }
+                foreach (var l in lines) Draw.Col(l, Draw.A(l == c2 ? Color.Lerp(col, Color.white, 0.4f) : col, 0.9f * fade));
+                foreach (var l in runes) Draw.Col(l, Draw.A(Color.Lerp(col, Color.white, 0.6f), 0.9f * fade));
+                glowS.color = Draw.A(col, 0.5f * fade);
+                if (Random.value < 0.5f) fx.Emit(at + new Vector2(Random.Range(-rr, rr), 0.05f), Vector2.up * Random.Range(1.5f, 4f), Draw.A(col, 0.9f), 0.07f, 0.6f, 0f, false, 0.5f, true, 1, 1, true);
+            });
         }
     }
 }
