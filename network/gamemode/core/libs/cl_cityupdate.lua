@@ -516,7 +516,11 @@ function C.Show(page, terminal)
 	frame.Close = function(this)
 		this:Remove()
 	end
-	frame.OnRemove = function()
+	frame.OnRemove = function(this)
+		if (this.bEmbedded) then
+			gui.EnableScreenClicker(false)
+		end
+
 		C.feed = nil
 		C.Request("close")
 	end
@@ -1381,6 +1385,34 @@ end
 -- Живой экран КПК на четырёх мировых точках: верх-лево, верх-право, низ-право, низ-лево.
 function C.DrawScreenQuad(world)
 	local rect = C.EmbedRect()
+	local frame = C.frame
+
+	if (IsValid(frame) and frame.bEmbedded) then
+		local fx, fy = frame:GetPos()
+
+		rect = {x = fx, y = fy, w = frame:GetWide(), h = frame:GetTall()}
+	end
+
+	-- Слой меню приподнят над стеклом модели, иначе он мерцает вместе с её текстурой.
+	local normal = (world[2] - world[1]):Cross(world[4] - world[1])
+
+	if (normal:LengthSqr() > 0) then
+		normal:Normalize()
+
+		local center = (world[1] + world[3]) * 0.5
+
+		if (normal:Dot(EyePos() - center) < 0) then
+			normal = -normal
+		end
+
+		local lifted = {}
+
+		for index = 1, 4 do
+			lifted[index] = world[index] + normal * 0.05
+		end
+
+		world = lifted
+	end
 	local u0, v0 = rect.x / ScrW(), rect.y / ScrH()
 	local u1, v1 = (rect.x + rect.w) / ScrW(), (rect.y + rect.h) / ScrH()
 	local uv = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}}
@@ -1409,14 +1441,19 @@ function C.SetFocus(bFocus)
 	frame.bFocused = bFocus
 
 	if (bFocus) then
-		frame:MakePopup()
+		-- MakePopup сам не включает обратно выключенный ввод мыши — включаем явно.
+		frame:SetMouseInputEnabled(true)
 		frame:SetKeyboardInputEnabled(true)
-		local rect = C.EmbedRect()
+		frame:MakePopup()
+		gui.EnableScreenClicker(true)
 
-		input.SetCursorPos(rect.x + rect.w / 2, rect.y + rect.h / 2)
+		local x, y = frame:GetPos()
+
+		input.SetCursorPos(x + frame:GetWide() / 2, y + frame:GetTall() / 2)
 	else
 		frame:SetMouseInputEnabled(false)
 		frame:SetKeyboardInputEnabled(false)
+		gui.EnableScreenClicker(false)
 	end
 
 	surface.PlaySound("buttons/lightswitch2.wav")
