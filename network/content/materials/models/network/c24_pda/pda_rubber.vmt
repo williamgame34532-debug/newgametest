@@ -1,0 +1,5 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/network/c24_pda/pda_rubber"
+	"$surfaceprop" "rubber"
+}

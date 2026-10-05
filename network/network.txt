@@ -1,0 +1,12 @@
+"network"
+{
+	"base"			"base"
+	"title"			"Network: Half-Life Alyx v2"
+	"maps"			"^rp_"
+	"menusystem"	"1"
+	"workshopid"	""
+
+	"settings"
+	{
+	}
+}

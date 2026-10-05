@@ -1,0 +1,9 @@
+ITEM.name = "Набор инструментов"
+ITEM.description = "Отвёртки, зажимы и моток изоленты. Хватает ровно на одну серьёзную работу."
+ITEM.model = "models/props_lab/box01a.mdl"
+ITEM.rarity = "uncommon"
+ITEM.weight = 1.8
+ITEM.maxStack = 3
+ITEM.width = 2
+ITEM.height = 1
+ITEM.category = "misc"

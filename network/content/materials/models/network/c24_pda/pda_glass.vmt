@@ -1,0 +1,6 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/network/c24_pda/pda_glass"
+	"$envmap" "env_cubemap"
+	"$envmaptint" "[.12 .14 .16]"
+}
