@@ -20,6 +20,8 @@ SWEP.KPKViewModel = "models/weapons/c_kpk.mdl"
 SWEP.bKPKViewModel = file.Exists(SWEP.KPKViewModel, "GAME")
 SWEP.ViewModel = SWEP.bKPKViewModel and SWEP.KPKViewModel or "models/weapons/c_arms.mdl"
 SWEP.ViewModelFOV = 54
+SWEP.BobScale = 0.35
+SWEP.SwayScale = 0.6
 SWEP.WorldModel = "models/props_lab/clipboard.mdl"
 SWEP.Primary.ClipSize = -1
 SWEP.Primary.DefaultClip = -1
@@ -31,6 +33,11 @@ SWEP.Secondary.Automatic = false
 SWEP.Secondary.Ammo = "none"
 
 SWEP.KPKModel = "models/network/kpk.mdl"
+
+function SWEP:SetupDataTables()
+	-- Момент начала убирания: по нему клиент запускает анимацию убирания (в т.ч. в одиночной игре).
+	self:NetworkVar("Float", 0, "HolsterTime")
+end
 
 function SWEP:Initialize()
 	-- Двумя руками перед собой (от третьего лица).
@@ -63,7 +70,10 @@ function SWEP:Deploy()
 	self.nwHolsterTo = nil
 	self.nwHolstered = nil
 	self.nwRaised = false
-	self.nwClientIdleAt = nil
+
+	if (SERVER) then
+		self:SetHolsterTime(0)
+	end
 
 	-- Экран «загружается», затем интерфейс открывается на КПК (мышь пока в игре).
 	if (CLIENT and NETWORK.city and IsFirstTimePredicted()) then
@@ -80,13 +90,8 @@ function SWEP:Deploy()
 		end)
 	end
 
-	if (self.bKPKViewModel) then
-		self:SendWeaponAnim(ACT_VM_DRAW)
-
-		local vm = IsValid(self:GetOwner()) and self:GetOwner():GetViewModel()
-
-		self.nwIdleAt = CurTime() + (IsValid(vm) and vm:SequenceDuration() or 0.6)
-	else
+	-- c_kpk анимирует клиент (см. UpdateAnim), у запасного варианта — анимации c_arms.
+	if (!self.bKPKViewModel) then
 		self.nwIdleAt = CurTime() + self:PlaySequence("fists_draw")
 	end
 
@@ -103,27 +108,34 @@ function SWEP:Press()
 		NETWORK.city.pressAt = RealTime()
 	end
 
-	if (self.bKPKViewModel and self.nwRaised and !self.nwRaising) then
-		local duration = self:PlaySequence("press")
-
-		if (duration > 0) then
-			self.nwClientIdleAt = RealTime() + duration
-		end
+	if (self.bKPKViewModel and self.nwRaised and (self.nwAnim == "idle_up" or self.nwAnim == "press")) then
+		self:SetAnim("press")
 	end
 end
 
 -- Поднять КПК к лицу (мышь в КПК) или опустить вниз (мышь в игре). Только визуально, на клиенте.
 function SWEP:SetRaised(bRaised)
-	if (!CLIENT or !self.bKPKViewModel or self.nwRaised == bRaised or self.nwHolsterAt) then
+	if (!CLIENT or !self.bKPKViewModel or self.nwRaised == bRaised) then
 		return
 	end
 
 	self.nwRaised = bRaised
 
-	local duration = self:PlaySequence(bRaised and "raise" or "lower")
+	local anim = self.nwAnim
 
-	self.nwRaising = bRaised or nil
-	self.nwClientIdleAt = RealTime() + math.max(duration, 0.1)
+	-- Во время доставания/убирания переход подхватится в конце (см. NextAnim).
+	if (!anim or anim == "draw" or anim == "holster" or anim == "holster_up") then
+		return
+	end
+
+	-- Подъём и опускание зеркальны: прерванный переход разворачивается с того же места.
+	local cycle = 0
+
+	if (anim == "raise" or anim == "lower") then
+		cycle = 1 - self:GetAnimProgress()
+	end
+
+	self:SetAnim(bRaised and "raise" or "lower", cycle)
 end
 
 function SWEP:GetIdleSequence()
@@ -148,19 +160,8 @@ function SWEP:Think()
 	if (self.nwHolsterAt) then
 		return
 	end
-	if (self.nwIdleAt and self.nwIdleAt <= CurTime()) then
-		if (self.bKPKViewModel) then
-			self.nwIdleAt = nil
-			self:SendWeaponAnim(ACT_VM_IDLE)
-		else
-			self.nwIdleAt = CurTime() + math.max(self:PlaySequence("fists_idle_01"), 2)
-		end
-	end
-
-	if (CLIENT and self.nwClientIdleAt and self.nwClientIdleAt <= RealTime()) then
-		self.nwClientIdleAt = nil
-		self.nwRaising = nil
-		self:PlaySequence(self:GetIdleSequence())
+	if (self.nwIdleAt and self.nwIdleAt <= CurTime() and !self.bKPKViewModel) then
+		self.nwIdleAt = CurTime() + math.max(self:PlaySequence("fists_idle_01"), 2)
 	end
 end
 
@@ -212,12 +213,11 @@ function SWEP:Holster(weapon)
 	local duration
 
 	if (self.bKPKViewModel) then
-		-- 12 кадров при 30 fps; анимация из текущего положения играется на клиенте.
+		-- 12 кадров при 30 fps; анимацию запускает клиент по HolsterTime.
 		duration = 0.42
 
-		if (CLIENT) then
-			self.nwClientIdleAt = nil
-			self:PlaySequence(self.nwRaised and "holster_up" or "holster")
+		if (SERVER) then
+			self:SetHolsterTime(CurTime())
 		end
 	else
 		duration = math.max(self:PlaySequence("fists_holster"), 0.4)
@@ -369,8 +369,116 @@ function SWEP:GetKPKMatrix(vm)
 	return pos, ang, scale
 end
 
+-- Анимации c_kpk ведёт клиент: секвенция и кадр выставляются перед каждой отрисовкой
+-- по RealTime, поэтому сетевые обновления вьюмодели и предсказание их не сбивают.
+local LOOP_ANIMS = {idle = true, idle_up = true}
+
+function SWEP:GetAnimDuration(name)
+	local vm = self.nwAnimVM
+	local sequence = IsValid(vm) and vm:LookupSequence(name)
+
+	if (!sequence or sequence < 0) then
+		return 0.4
+	end
+
+	return math.max(vm:SequenceDuration(sequence), 0.01)
+end
+
+function SWEP:GetAnimProgress()
+	if (!self.nwAnim) then
+		return 1
+	end
+
+	return math.Clamp((RealTime() - self.nwAnimStart) / self:GetAnimDuration(self.nwAnim), 0, 1)
+end
+
+function SWEP:SetAnim(name, cycle)
+	self.nwAnim = name
+	self.nwAnimStart = RealTime() - (cycle or 0) * self:GetAnimDuration(name)
+end
+
+function SWEP:NextAnim(name)
+	if (name == "draw") then
+		return self.nwRaised and "raise" or "idle"
+	elseif (name == "raise" or name == "press") then
+		return self.nwRaised and "idle_up" or "lower"
+	elseif (name == "lower") then
+		return self.nwRaised and "raise" or "idle"
+	end
+end
+
+function SWEP:UpdateAnim(vm)
+	local now = RealTime()
+
+	-- Вьюмодель не рисовалась — КПК только что достали: играем доставание.
+	if (self.nwAnimVM != vm or now - (self.nwAnimSeen or 0) > 0.3) then
+		self.nwAnimVM = vm
+		self.nwHolsterSeen = self:GetHolsterTime()
+		self:SetAnim("draw")
+	end
+
+	self.nwAnimSeen = now
+
+	local holster = self:GetHolsterTime()
+
+	if (holster > 0 and holster != self.nwHolsterSeen) then
+		self.nwHolsterSeen = holster
+		local anim = self.nwAnim
+		local bDown = anim == "idle" or anim == "lower" or (anim == "draw" and !self.nwRaised)
+
+		self:SetAnim(bDown and "holster" or "holster_up")
+	end
+
+	local duration = self:GetAnimDuration(self.nwAnim)
+	local cycle = (now - self.nwAnimStart) / duration
+
+	for _ = 1, 4 do
+		if (cycle < 1) then
+			break
+		end
+
+		if (LOOP_ANIMS[self.nwAnim]) then
+			cycle = cycle % 1
+		else
+			local nextAnim = self:NextAnim(self.nwAnim)
+
+			if (!nextAnim) then
+				cycle = 1
+
+				break
+			end
+
+			-- Следующая анимация продолжает время предыдущей — без рывка на стыке.
+			self.nwAnim = nextAnim
+			self.nwAnimStart = self.nwAnimStart + duration
+			duration = self:GetAnimDuration(nextAnim)
+			cycle = (now - self.nwAnimStart) / duration
+		end
+	end
+
+	local sequence = vm:LookupSequence(self.nwAnim)
+
+	if (!sequence or sequence < 0) then
+		return
+	end
+
+	if (vm:GetSequence() != sequence) then
+		vm:SetSequence(sequence)
+	end
+
+	vm:SetCycle(math.Clamp(cycle, 0, 1))
+	vm:SetPlaybackRate(0)
+	vm:InvalidateBoneCache()
+end
+
 function SWEP:PreDrawViewModel(vm)
-	if (self.bKPKViewModel and NETWORK.city and NETWORK.city.ApplyScreenMaterial) then
+	if (!self.bKPKViewModel) then
+		return
+	end
+
+	self:UpdateAnim(vm)
+
+	if (NETWORK.city and NETWORK.city.ApplyScreenMaterial) then
 		NETWORK.city.ApplyScreenMaterial(vm)
 	end
 end

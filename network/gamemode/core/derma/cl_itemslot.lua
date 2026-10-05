@@ -981,7 +981,7 @@ function NETWORK.gui.DrawCellBackdrop(columns, rows, cellWidth, cell, gap, fill,
 	local stepX = cellWidth + gap
 	local stepY = cell + gap
 	local radius = math.max(NETWORK.util.Scale(5), 3)
-	local color = Color(255, 255, 255, 9)
+	local color = Color(3, 4, 5, 170)
 
 	for row = 0, rows - 1 do
 		for column = 0, columns - 1 do
@@ -990,7 +990,7 @@ function NETWORK.gui.DrawCellBackdrop(columns, rows, cellWidth, cell, gap, fill,
 	end
 end
 
-local CELL_GLASS = Color(17, 18, 19)
+local CELL_GLASS = Color(8, 9, 10)
 
 local CELL_LINE = Color(66, 69, 71)
 
@@ -1155,7 +1155,11 @@ function PANEL:Paint(width, height)
 	local cellRadius = math.max(Sc(5), 3)
 
 	draw.RoundedBox(cellRadius, 0, y, width, height,
-		Color(255, 255, 255, ((bFilled and 16 or 9) + 10 * hover) * reveal))
+		Color(3, 4, 5, (bFilled and 215 or 170) * reveal))
+
+	if (hover > 0.01) then
+		draw.RoundedBox(cellRadius, 0, y, width, height, Color(255, 255, 255, 8 * hover * reveal))
+	end
 
 	if (bSelected or hover > 0.01) then
 		local tint = bSelected and select or accent
