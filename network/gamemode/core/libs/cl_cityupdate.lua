@@ -1195,8 +1195,13 @@ local screenMat = CreateMaterial("nwPDAScreenMat", "UnlitGeneric", {
 -- $basetexturetransform.
 local screenModelMat = CreateMaterial("nwPDAScreenModelMat", "UnlitGeneric", {
 	["$basetexture"] = screenRT:GetName(),
-	["$model"] = "1"
+	["$model"] = "1",
+	["$nofog"] = "1"
 })
+
+-- Экран без освещения на полной яркости с HDR/свечением выцветает — приглушаем.
+local screenBrightness = CreateClientConVar("network_pda_brightness", "0.62", true, false,
+	"Яркость экрана КПК в руках (0.2–1)")
 
 function C.UpdateScreenTransform()
 	local rect = C.EmbedRect()
@@ -1214,6 +1219,10 @@ function C.UpdateScreenTransform()
 	m:Scale(Vector(rect.w / ScrW(), rect.h / ScrH(), 1))
 
 	screenModelMat:SetMatrix("$basetexturetransform", m)
+
+	local k = math.Clamp(screenBrightness:GetFloat(), 0.2, 1)
+
+	screenModelMat:SetVector("$color", Vector(k, k, k))
 end
 
 function C.ApplyScreenMaterial(entity)
@@ -1425,8 +1434,9 @@ function C.DrawDevice(pos, ang, scale, weapon)
 				C.vmDevice:SetModelScale(scale, 0)
 			end
 
+			-- studiomdl поворачивает модель на 90° вокруг Z: ширина — локальная Y, верх экрана — -X.
 			C.vmDevice:SetRenderOrigin(pos)
-			C.vmDevice:SetRenderAngles(ang)
+			C.vmDevice:SetRenderAngles(ang:Right():AngleEx(ang:Up()))
 			C.vmDevice:SetupBones()
 			C.vmDevice:DrawModel()
 		end

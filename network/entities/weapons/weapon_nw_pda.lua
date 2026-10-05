@@ -105,7 +105,7 @@ function SWEP:Press()
 		local duration = self:PlaySequence("press")
 
 		if (duration > 0) then
-			self.nwClientIdleAt = CurTime() + duration
+			self.nwClientIdleAt = RealTime() + duration
 		end
 	end
 end
@@ -137,7 +137,7 @@ function SWEP:Think()
 		end
 	end
 
-	if (CLIENT and self.nwClientIdleAt and self.nwClientIdleAt <= CurTime()) then
+	if (CLIENT and self.nwClientIdleAt and self.nwClientIdleAt <= RealTime()) then
 		self.nwClientIdleAt = nil
 		self:PlaySequence("idle")
 	end
@@ -391,13 +391,18 @@ function SWEP:DrawWorldModel()
 
 	local eye = owner:EyeAngles()
 
-	eye.p = math.Clamp(eye.p, -30, 50)
+	eye.p = 0
 
-	local forward, right = eye:Forward(), eye:Right()
-	local pos = (a + b) * 0.5 + forward * 1.2
-	local ang = right:AngleEx(-forward)
+	local forward, right, up = eye:Forward(), eye:Right(), eye:Up()
 
-	ang:RotateAroundAxis(right, -25)
+	-- Экран смотрит вверх-назад, к лицу персонажа (он смотрит на КПК в руках).
+	local normal = (up * 0.8 - forward * 0.6):GetNormalized()
+	local screenUp = normal:Cross(right):GetNormalized()
+
+	-- studiomdl поворачивает модель на 90° вокруг вертикали: ширина КПК — локальная ось Y,
+	-- верх экрана — локальная -X, экран — +Z.
+	local ang = (-screenUp):AngleEx(normal)
+	local pos = (a + b) * 0.5 + forward * 1.5 - normal * 0.4
 
 	if (util.IsValidModel(self.KPKModel)) then
 		if (!IsValid(self.nwKPK)) then
@@ -416,12 +421,12 @@ function SWEP:DrawWorldModel()
 			NETWORK.city.ApplyScreenMaterial(self.nwKPK)
 		end
 
-		self.nwKPK:SetRenderOrigin(pos - ang:Up() * 0.7 * 0.5)
+		self.nwKPK:SetRenderOrigin(pos)
 		self.nwKPK:SetRenderAngles(ang)
 		self.nwKPK:SetupBones()
 		self.nwKPK:DrawModel()
 	elseif (NETWORK.cityModels) then
-		NETWORK.cityModels.Draw("pda_", pos, (-forward):AngleEx(eye:Up()), 0.45, 0)
+		NETWORK.cityModels.Draw("pda_", pos, (-forward):AngleEx(up), 0.45, 0)
 	end
 end
 
