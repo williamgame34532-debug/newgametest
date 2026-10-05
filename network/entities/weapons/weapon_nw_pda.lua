@@ -1,9 +1,10 @@
 AddCSLuaFile()
 
--- Служебный КПК в руках. Руки — настоящие руки персонажа (UseHands) на анимациях
--- детонатора из c_slam: доставание, держание, нажатие и убирание. Сам пульт SLAM
--- скрыт, вместо него в руке рисуется модель КПК, а на его экране — живое меню КПК
--- (рендер в текстуру, см. cl_cityupdate.lua).
+-- Служебный КПК в руках. Руки — настоящие руки персонажа (UseHands) на c_arms
+-- (как у weapon_fists): доставание и держание двумя руками перед собой. КПК ставится
+-- между кистями и масштабируется по расстоянию между ними, экран смотрит в камеру,
+-- на нём — живое меню КПК (рендер в текстуру, см. cl_cityupdate.lua).
+-- Нажатие — короткий «тычок» устройства при открытии и каждом клике по меню.
 
 SWEP.PrintName = "Служебный КПК"
 SWEP.Author = "Network"
@@ -13,7 +14,7 @@ SWEP.Slot = 4
 SWEP.DrawAmmo = false
 SWEP.DrawCrosshair = false
 SWEP.UseHands = true
-SWEP.ViewModel = "models/weapons/c_slam.mdl"
+SWEP.ViewModel = "models/weapons/c_arms.mdl"
 SWEP.ViewModelFOV = 54
 SWEP.WorldModel = "models/props_lab/clipboard.mdl"
 SWEP.Primary.ClipSize = -1
@@ -31,41 +32,42 @@ function SWEP:Initialize()
 	self:SetHoldType("slam")
 end
 
--- КПК не «опускается» как оружие: вьюмодель видна всегда (см. cl_weapon.lua).
-function SWEP:IsSafety()
-	return true
-end
+function SWEP:PlaySequence(name)
+	local owner = self:GetOwner()
+	local vm = IsValid(owner) and owner:GetViewModel()
 
-function SWEP:PlayAnim(act, nextIdle)
-	self:SendWeaponAnim(act)
+	if (!IsValid(vm)) then
+		return 0
+	end
 
-	local vm = IsValid(self:GetOwner()) and self:GetOwner():GetViewModel()
-	local duration = IsValid(vm) and vm:SequenceDuration() or 0.5
+	local sequence = vm:LookupSequence(name)
 
-	self.nwIdleAt = CurTime() + (nextIdle or duration)
+	if (!sequence or sequence < 0) then
+		return 0
+	end
+
+	vm:SendViewModelMatchingSequence(sequence)
+
+	return vm:SequenceDuration(sequence)
 end
 
 function SWEP:Deploy()
 	self.equipAt = CurTime()
-	self:PlayAnim(ACT_SLAM_DETONATOR_DRAW)
+	self.nwIdleAt = CurTime() + self:PlaySequence("fists_draw")
 
 	return true
 end
 
--- Нажатие: проигрывается при открытии КПК и при каждом клике по меню.
+-- Нажатие: визуально на клиенте (тычок устройства), см. C.pressAt.
 function SWEP:Press()
-	if ((self.nwPressAt or 0) > CurTime()) then
-		return
+	if (CLIENT and NETWORK.city) then
+		NETWORK.city.pressAt = RealTime()
 	end
-
-	self.nwPressAt = CurTime() + 0.2
-	self:PlayAnim(ACT_SLAM_DETONATOR_DETONATE)
 end
 
 function SWEP:Think()
 	if (self.nwIdleAt and self.nwIdleAt <= CurTime()) then
-		self.nwIdleAt = nil
-		self:SendWeaponAnim(ACT_SLAM_DETONATOR_IDLE)
+		self.nwIdleAt = CurTime() + math.max(self:PlaySequence("fists_idle_01"), 2)
 	end
 end
 
@@ -106,26 +108,10 @@ function SWEP:OnRemove()
 end
 
 if (SERVER) then
-	util.AddNetworkString("nwPDAPress")
-
-	net.Receive("nwPDAPress", function(_, client)
-		local weapon = client:GetActiveWeapon()
-
-		if (IsValid(weapon) and weapon:GetClass() == "weapon_nw_pda") then
-			weapon:Press()
-		end
-	end)
-
 	return
 end
 
 -- Клиент ----------------------------------------------------------------------------------------
-
-local hidden = CreateMaterial("nwPDAHiddenVM", "UnlitGeneric", {
-	["$basetexture"] = "vgui/white",
-	["$translucent"] = "1",
-	["$alpha"] = "0"
-})
 
 -- Подгонка положения КПК в руке (можно крутить в игре: network_pda_tune).
 local tune = {
@@ -135,108 +121,78 @@ local tune = {
 	p = CreateClientConVar("network_pda_vm_p", "0", true, false),
 	yaw = CreateClientConVar("network_pda_vm_yaw", "0", true, false),
 	r = CreateClientConVar("network_pda_vm_r", "0", true, false),
-	scale = CreateClientConVar("network_pda_vm_scale", "0.45", true, false)
+	scale = CreateClientConVar("network_pda_vm_scale", "1", true, false)
 }
 
 function SWEP:RestoreViewModel()
-	local owner = self:GetOwner()
-	local vm = IsValid(owner) and owner.GetViewModel and owner:GetViewModel()
-
-	if (IsValid(vm) and vm.nwPDAHidden) then
-		vm:SetMaterial("")
-		vm.nwPDAHidden = nil
-	end
-
 	if (IsValid(self.nwKPK)) then
 		self.nwKPK:Remove()
 	end
 end
 
--- Кость, к которой крепится КПК: пульт детонатора в c_slam, иначе левая кисть.
-local function FindAnchor(vm)
-	if (vm.nwPDAAnchorModel == vm:GetModel() and vm.nwPDAAnchor) then
-		return vm.nwPDAAnchor
-	end
+-- Где держать КПК: посередине между кистями, лицом к камере, по ширине хвата.
+function SWEP:GetKPKMatrix(vm)
+	local eyeAng = EyeAngles()
+	local forward, right, up = eyeAng:Forward(), eyeAng:Right(), eyeAng:Up()
+	local left = vm:LookupBone("ValveBiped.Bip01_L_Hand")
+	local rightHand = vm:LookupBone("ValveBiped.Bip01_R_Hand")
+	local pos, span
 
-	local anchor
+	if (left and rightHand) then
+		local a = vm:GetBonePosition(left)
+		local b = vm:GetBonePosition(rightHand)
 
-	for index = 0, vm:GetBoneCount() - 1 do
-		local name = string.lower(vm:GetBoneName(index) or "")
-
-		if (string.find(name, "deton", 1, true)) then
-			anchor = index
-
-			break
+		if (a and b and a != vector_origin and b != vector_origin) then
+			pos = (a + b) * 0.5
+			span = math.abs((b - a):Dot(right))
 		end
 	end
 
-	anchor = anchor or vm:LookupBone("ValveBiped.Bip01_L_Hand") or 0
-
-	vm.nwPDAAnchorModel = vm:GetModel()
-	vm.nwPDAAnchor = anchor
-
-	return anchor
-end
-
--- Матрица КПК во вьюмодели: кость-якорь + подгонка из конваров.
-function SWEP:GetKPKMatrix(vm)
-	local matrix = vm:GetBoneMatrix(FindAnchor(vm))
-
-	if (!matrix) then
-		return
+	if (!pos or !span or span < 2) then
+		pos = EyePos() + forward * 18 - up * 4
+		span = 10
 	end
 
-	local pos, ang = matrix:GetTranslation(), matrix:GetAngles()
+	local C = NETWORK.city
+	local bLandscape = C and C.HasKPKModel and C.HasKPKModel()
+	-- Расстояние между центрами ручек: kpk.mdl ~11.2, запасной меш C24 ~10.
+	local grip = bLandscape and 11.2 or 10
+	local scale = math.Clamp(span / grip, 0.25, 2) * math.Clamp(tune.scale:GetFloat(), 0.1, 3)
 
-	ang:RotateAroundAxis(ang:Right(), tune.p:GetFloat())
-	ang:RotateAroundAxis(ang:Up(), tune.yaw:GetFloat())
-	ang:RotateAroundAxis(ang:Forward(), tune.r:GetFloat())
+	pos = pos + right * tune.y:GetFloat() + up * tune.z:GetFloat() + forward * tune.x:GetFloat()
 
-	pos = pos + ang:Forward() * tune.x:GetFloat() + ang:Right() * tune.y:GetFloat() +
-		ang:Up() * tune.z:GetFloat()
+	-- Нажатие: устройство коротко уходит от камеры и чуть наклоняется.
+	local press = C and C.pressAt and math.Clamp(1 - (RealTime() - C.pressAt) / 0.22, 0, 1) or 0
 
-	return pos, ang, math.Clamp(tune.scale:GetFloat(), 0.05, 3)
-end
+	press = math.sin(press * math.pi)
+	pos = pos + forward * press * 0.6 * scale
 
-function SWEP:PreDrawViewModel(vm)
-	-- Сам пульт SLAM не рисуем, руки — отдельная сущность и остаются видны.
-	if (!vm.nwPDAHidden) then
-		vm:SetMaterial("!nwPDAHiddenVM")
-		vm.nwPDAHidden = true
+	-- Лёгкое «дыхание» в руках.
+	pos = pos + up * math.sin(RealTime() * 1.3) * 0.08
+
+	local ang
+
+	if (bLandscape) then
+		ang = right:AngleEx(-forward)
+	else
+		ang = (-forward):AngleEx(up)
 	end
+
+	ang:RotateAroundAxis(right, tune.p:GetFloat() + press * 3)
+	ang:RotateAroundAxis(up, tune.yaw:GetFloat())
+	ang:RotateAroundAxis(forward, tune.r:GetFloat())
+
+	return pos, ang, scale
 end
 
 function SWEP:PostDrawViewModel(vm)
 	local pos, ang, scale = self:GetKPKMatrix(vm)
-
-	if (!pos) then
-		return
-	end
-
 	local C = NETWORK.city
 
-	if (C and C.DrawDevice) then
+	if (pos and C and C.DrawDevice) then
 		C.DrawDevice(pos, ang, scale, self)
 	end
 end
-
--- Если вьюмодель сменилась без Holster (смерть, принудительная смена оружия) — чистим.
-hook.Add("Think", "nwPDAViewModel", function()
-	local client = LocalPlayer()
-
-	if (!IsValid(client)) then
-		return
-	end
-
-	local vm = client:GetViewModel()
-	local weapon = client:GetActiveWeapon()
-
-	if (IsValid(vm) and vm.nwPDAHidden and
-		(!IsValid(weapon) or weapon:GetClass() != "weapon_nw_pda")) then
-		vm:SetMaterial("")
-		vm.nwPDAHidden = nil
-	end
-end)
 
 function SWEP:DrawWorldModel()
 	local owner = self:GetOwner()

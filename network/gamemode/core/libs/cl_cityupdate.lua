@@ -1085,8 +1085,7 @@ end
 local screenRT = GetRenderTargetEx("nwPDAScreenRT", ScrW(), ScrH(), RT_SIZE_FULL_FRAME_BUFFER,
 	MATERIAL_RT_DEPTH_NONE, 2, 0, IMAGE_FORMAT_RGBA8888)
 local screenMat = CreateMaterial("nwPDAScreenMat", "UnlitGeneric", {
-	["$basetexture"] = screenRT:GetName(),
-	["$model"] = "1"
+	["$basetexture"] = screenRT:GetName()
 })
 
 -- Экран ожидания, пока меню закрыто.
@@ -1214,9 +1213,7 @@ hook.Add("VGUIMousePressed", "nwPDAPress", function(panel)
 	end
 
 	C.nextPress = RealTime() + 0.2
-
-	net.Start("nwPDAPress")
-	net.SendToServer()
+	C.pressAt = RealTime()
 end)
 
 -- Network -------------------------------------------------------------------------------------

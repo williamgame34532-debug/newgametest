@@ -4,7 +4,9 @@ NETWORK.weapon.raiseTime = 1.4
 NETWORK.weapon.alwaysRaised = {
 	gmod_tool = true,
 	gmod_camera = true,
-	weapon_physgun = true
+	weapon_physgun = true,
+	-- КПК не оружие: всегда «в руках», ЛКМ не блокируется, подсказки «поднять» нет.
+	weapon_nw_pda = true
 }
 
 NETWORK.weapon.hands = "weapon_nwhands"
