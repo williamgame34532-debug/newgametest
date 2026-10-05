@@ -408,7 +408,7 @@ function SWEP:DrawWorldModel()
 			end
 
 			self.nwKPK:SetNoDraw(true)
-			self.nwKPK:SetModelScale(0.55, 0)
+			self.nwKPK:SetModelScale(0.5, 0)
 		end
 
 		-- Свой КПК от третьего лица показывает живой экран, чужие — заставку модели.
@@ -416,7 +416,7 @@ function SWEP:DrawWorldModel()
 			NETWORK.city.ApplyScreenMaterial(self.nwKPK)
 		end
 
-		self.nwKPK:SetRenderOrigin(pos - ang:Up() * 0.7 * 0.55)
+		self.nwKPK:SetRenderOrigin(pos - ang:Up() * 0.7 * 0.5)
 		self.nwKPK:SetRenderAngles(ang)
 		self.nwKPK:SetupBones()
 		self.nwKPK:DrawModel()

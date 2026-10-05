@@ -476,7 +476,7 @@ function C.Show(page, terminal)
 	if (frame.bEmbedded) then
 		local rect = C.EmbedRect()
 
-		BuildFonts(rect.h / (rect.bLandscape and 520 or 700))
+		BuildFonts(rect.h / (rect.bLandscape and 640 or 700))
 
 		frame.margin = 0
 		frame.chin = 0
@@ -1154,7 +1154,7 @@ function C.ScreenCorners()
 	if (C.IsLandscape()) then
 		local z = 1.29
 
-		return {Vector(-4.1, 2.05, z), Vector(4.1, 2.05, z), Vector(4.1, -2.05, z), Vector(-4.1, -2.05, z)},
+		return {Vector(-4.8, 2.7, z), Vector(4.8, 2.7, z), Vector(4.8, -2.7, z), Vector(-4.8, -2.7, z)},
 			Vector(0, 0, 0.02), true
 	end
 
@@ -1170,9 +1170,10 @@ function C.EmbedRect()
 	local w, h
 
 	if (bLandscape) then
-		h = math.Round(math.min(ScrH() * 0.62, 560))
-		w = math.min(h * 2, math.Round(ScrW() * 0.92))
-		h = math.Round(w / 2)
+		-- Экран КПК 16:9 (9.6 x 5.4).
+		h = math.Round(math.min(ScrH() * 0.72, 700))
+		w = math.min(math.Round(h * 16 / 9), math.Round(ScrW() * 0.94))
+		h = math.Round(w * 9 / 16)
 	else
 		h = math.min(ScrH() - 120, 780)
 		w = math.Round(h * (9.12 / 12.77))
