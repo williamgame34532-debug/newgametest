@@ -8,6 +8,6 @@ ITEM.category = "misc"
 ITEM.maxStack = 1
 ITEM.useLabel = "Открыть КПК"
 function ITEM:OnUse(client)
- if (SERVER) then NETWORK.city.OpenPDA(client) end
+ if (SERVER) then NETWORK.city.TakePDA(client) end
  return false
 end

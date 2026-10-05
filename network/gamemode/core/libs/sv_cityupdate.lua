@@ -77,6 +77,33 @@ function C.OpenPDA(p)
  p.nwPDAChar=p:GetCharacterID()
  net.Start("nwPDAOpen") net.Send(p)
 end
+C.pdaWeapon = "weapon_nw_pda"
+
+-- «Открыть КПК» из инвентаря: КПК берётся в руки, и меню открывается на его экране.
+function C.TakePDA(p)
+ if (!p:Alive() or !C.HasPDA(p)) then return Notice(p,"Этот КПК недоступен вашей фракции.") end
+ local weapon=p:GetWeapon(C.pdaWeapon)
+ if (!IsValid(weapon)) then weapon=p:Give(C.pdaWeapon) end
+ if (!IsValid(weapon)) then return C.OpenPDA(p) end
+ if (p:GetActiveWeapon()==weapon) then return C.OpenPDA(p) end
+ p:SelectWeapon(C.pdaWeapon)
+ timer.Simple(0.5,function()
+  if (IsValid(p) and p:Alive() and IsValid(p:GetActiveWeapon()) and p:GetActiveWeapon():GetClass()==C.pdaWeapon) then
+   C.OpenPDA(p)
+  end
+ end)
+end
+-- Предмет выбросили, передали или потеряли — КПК из рук забирается.
+timer.Create("nwPDAWeapon",1,0,function()
+ for _,p in ipairs(player.GetAll()) do
+  if (p:HasWeapon(C.pdaWeapon) and !C.HasPDA(p)) then
+   if (IsValid(p:GetActiveWeapon()) and p:GetActiveWeapon():GetClass()==C.pdaWeapon and NETWORK.weapon and NETWORK.weapon.hands) then
+    p:SelectWeapon(NETWORK.weapon.hands)
+   end
+   p:StripWeapon(C.pdaWeapon)
+  end
+ end
+end)
 function C.Detonate(p)
  if (!p:Alive() or !NETWORK.trap.IsRebel(p) or !C.HasItem(p,"detonator")) then return end
  if ((p.nwDetonateAt or 0)>CurTime()) then return end

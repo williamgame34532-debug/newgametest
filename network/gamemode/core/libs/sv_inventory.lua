@@ -33,6 +33,11 @@ function NETWORK.inventory.GetAllowedWeapons(client)
 		end
 	end
 
+	-- КПК в руках есть, пока у игрока есть предмет КПК своей фракции.
+	if (NETWORK.city and NETWORK.city.HasPDA and NETWORK.city.HasPDA(client)) then
+		wanted[NETWORK.city.pdaWeapon or "weapon_nw_pda"] = "pda"
+	end
+
 	if (character) then
 		local class = NETWORK.classes and NETWORK.classes.GetAssigned and
 			NETWORK.classes.GetAssigned(character)
