@@ -26,8 +26,8 @@ local STAMP_FONT = "nwHudSmall"
 local FREQ_FONT = "nwInvKey"
 local AMBER = Color(240, 186, 74)
 
-local PLATE_FILL = Color(10, 12, 15, 238)
-local CARD_FILL = Color(12, 15, 19, 242)
+local PLATE_FILL = Color(18, 19, 20, 238)
+local CARD_FILL = Color(18, 19, 20, 242)
 
 local scratch = Color(0, 0, 0, 0)
 
@@ -2812,6 +2812,14 @@ function PANEL:PaintPlate(width, height)
 
 	local tabY = Sc(6)
 	local tabHeight = Sc(28)
+
+	-- Тёмная шапка под вкладками, полоса цвета канала слева и тёмная полоса под вводом.
+	surface.SetDrawColor(10, 11, 12, 210 * alpha)
+	surface.DrawRect(line, line, width - line * 2, tabY + tabHeight + Sc(5) - line)
+	surface.DrawRect(line, height - self.inputHeight, width - line * 2, self.inputHeight - line)
+
+	surface.SetDrawColor(caret.r, caret.g, caret.b, 235 * alpha)
+	surface.DrawRect(0, 0, math.max(Sc(3), 2), height)
 	local cursorX, cursorY = self:CursorPos()
 
 	local function IsOver(rect)
@@ -2891,22 +2899,19 @@ function PANEL:PaintPlate(width, height)
 		local centerX = rect.x + math.Round(rect.width * 0.5)
 		local reveal = rect.reveal or 1
 
-		if (bHover and !bActive) then
+		-- Активная вкладка — светлая плашка с тёмным текстом, как вкладки инвентаря.
+		if (bActive) then
 			RoundBox(cellRadius, rect.x, tabY + Sc(2), rect.width, tabHeight - Sc(4),
-				255, 255, 255, 12 * alpha * reveal)
+				212, 212, 200, 235 * alpha * reveal)
+		elseif (bHover) then
+			RoundBox(cellRadius, rect.x, tabY + Sc(2), rect.width, tabHeight - Sc(4),
+				255, 255, 255, 16 * alpha * reveal)
 		end
 
 		draw.SimpleText(label, "nwSideNav", centerX, tabY + math.Round(tabHeight * 0.5) - Sc(1),
-			ColorAlpha(bActive and theme.text or (bHover and theme.text or theme.textDim),
-				(bActive and 250 or 225) * alpha * reveal),
+			bActive and Color(16, 17, 18, 255 * alpha * reveal) or
+				ColorAlpha(bHover and theme.text or theme.textDim, 225 * alpha * reveal),
 			TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-
-		if (bActive) then
-			local lineWidth = math.min(labelWidth + Sc(6), rect.width)
-
-			Pill(centerX - math.Round(lineWidth * 0.5), tabY + tabHeight - underline - Sc(1),
-				lineWidth, underline, accent.r, accent.g, accent.b, 240 * alpha * reveal)
-		end
 
 		local unread = rect.tab.unread or 0
 

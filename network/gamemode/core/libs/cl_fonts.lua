@@ -189,6 +189,7 @@ local function CreateFonts()
 		nwInvBadge = {font = body, size = 12, weight = 800},
 		nwInvCount = {font = display, size = 17, weight = 800},
 		nwTipHead = {font = display, size = 14, weight = 800},
+		nwRadialLabel = {font = body, size = 18, weight = 600},
 		nwTkHeader = {font = NETWORK.fonts.button, size = 13, weight = 700},
 		nwTkTab = {font = NETWORK.fonts.button, size = 15, weight = 700},
 		nwTkBack = {font = display, size = 24, weight = 600},

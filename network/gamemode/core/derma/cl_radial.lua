@@ -395,15 +395,15 @@ function PANEL:Init()
 	self.levelFrac = 0
 	self.hover = 0
 
-	self.modelYaw = 35
+	self.modelYaw = 20
 	self.modelPitch = 0
-	self.modelZoom = 1
+	self.modelZoom = 0.5
 	self.modelShift = 0
 
 	self.centerX = ScrW() * 0.5
 	self.centerY = ScrH() * 0.5
-	self.outer = ScrH() * 0.235
-	self.inner = ScrH() * 0.118
+	self.outer = ScrH() * 0.29
+	self.inner = ScrH() * 0.112
 
 	self:SetupModel()
 
@@ -416,11 +416,42 @@ function PANEL:SetupModel()
 	local client = LocalPlayer()
 	local size = math.Round(self.inner * 1.9)
 
+	size = math.Round(self.inner * 2)
+
 	self.model = self:Add("DModelPanel")
 	self.model:SetSize(size, size)
 	self.model:SetPos(self.centerX - size * 0.5, self.centerY - size * 0.5)
 	self.model:SetModel(client:GetModel())
-	self.model:SetFOV(32)
+	self.model:SetFOV(30)
+
+	-- Портрет обрезается по кругу через стенсил, как в центре меню на скриншоте.
+	local basePaint = self.model.Paint
+
+	self.model.Paint = function(panel, panelWidth, panelHeight)
+		local radius = math.floor(math.min(panelWidth, panelHeight) * 0.5)
+		local alpha = 1 - math.pow(1 - math.Clamp(self.frac or 0, 0, 1), 3)
+
+		render.ClearStencil()
+		render.SetStencilEnable(true)
+		render.SetStencilWriteMask(255)
+		render.SetStencilTestMask(255)
+		render.SetStencilReferenceValue(1)
+		render.SetStencilCompareFunction(STENCIL_ALWAYS)
+		render.SetStencilPassOperation(STENCIL_REPLACE)
+		render.SetStencilFailOperation(STENCIL_KEEP)
+		render.SetStencilZFailOperation(STENCIL_KEEP)
+
+		DrawCircle(panelWidth * 0.5, panelHeight * 0.5, radius - 1,
+			Color(14, 15, 17, 245 * alpha))
+
+		render.SetStencilCompareFunction(STENCIL_EQUAL)
+		render.SetStencilPassOperation(STENCIL_KEEP)
+
+		panel:SetAlpha(math.Round(255 * alpha))
+		basePaint(panel, panelWidth, panelHeight)
+
+		render.SetStencilEnable(false)
+	end
 	self.model:SetAnimated(true)
 	self.model:SetMouseInputEnabled(false)
 	self.model.LayoutEntity = function(panel, entity)
@@ -461,8 +492,13 @@ function PANEL:UpdateCamera()
 
 	local zoom = self.modelZoom
 
-	self.model:SetCamPos(Vector(64 * zoom, 26 * zoom, 62 * zoom + self.modelPitch))
-	self.model:SetLookAt(Vector(0, self.modelShift, 46 + self.modelPitch * 0.4))
+	-- По умолчанию крупный план головы; колесо отдаляет до полного роста.
+	local far = math.Clamp((zoom - 0.5) / 1.4, 0, 1)
+	local lookZ = Lerp(far, 64, 40)
+
+	self.model:SetCamPos(Vector(Lerp(far, 30, 110), Lerp(far, 6, 22),
+		lookZ + 2 + self.modelPitch))
+	self.model:SetLookAt(Vector(0, self.modelShift, lookZ + self.modelPitch * 0.4))
 end
 
 function PANEL:IsModelHovered()
@@ -622,7 +658,7 @@ function PANEL:Think()
 	local hovered
 
 	if (#items > 0 and distance > self.inner * 0.9 and distance < self.outer * 1.35) then
-		local angle = math.deg(math.atan2(deltaY, deltaX)) % 360
+		local angle = (math.deg(math.atan2(deltaY, deltaX)) + 90) % 360
 		local step = 360 / #items
 		local index = math.floor(((angle + step * 0.5) % 360) / step) + 1
 
@@ -699,7 +735,7 @@ function PANEL:OnMouseWheeled(delta)
 
 	local mouseX = gui.MousePos()
 
-	self.modelZoom = math.Clamp(self.modelZoom - delta * 0.09, 0.5, 1.9)
+	self.modelZoom = math.Clamp(self.modelZoom - delta * 0.12, 0.5, 1.9)
 	self.modelShift = math.Clamp(self.modelShift +
 		((mouseX - self.centerX) / math.max(self.inner, 1)) * delta * 2.5, -18, 18)
 
@@ -726,71 +762,79 @@ function PANEL:OnRemove()
 	end
 end
 
+-- Один сплошной диск без перегородок: наведённый сектор светлеет,
+-- подписи (и наши иконки над ними) лежат на средней окружности.
 function PANEL:PaintItems(items, progress, alpha, bActive)
-	local theme = NETWORK.theme
 	local frac = 1 - math.pow(1 - math.Clamp(progress, 0, 1), 3)
 
 	if (frac <= 0.005 or #items == 0) then
 		return
 	end
 
+	local Sc = NETWORK.util.Scale
 	local x, y = self.centerX, self.centerY
-	local outer = self.outer * Lerp(frac, 0.72, 1)
-	local inner = self.inner * Lerp(frac, 0.86, 1)
+	local outer = self.outer * Lerp(frac, 0.9, 1)
+	local inner = self.inner
 	local step = 360 / #items
+	local bVort = (self.menus[self.level] or {}).bScroll
 
 	for i, item in ipairs(items) do
-		local reveal = math.Clamp((frac - (i - 1) * 0.04) / 0.62, 0, 1)
+		local reveal = math.Clamp((frac - (i - 1) * 0.03) / 0.6, 0, 1)
 
 		if (reveal <= 0.01) then
 			continue
 		end
 
 		local bHovered = bActive and self.hovered == i
-		local start = -step * 0.5 + step * (i - 1)
-		local length = (step - 2.2) * reveal
-
-		local bVort = (self.menus[self.level] or {}).bScroll
-		local accent = bVort and Color(96, 200, 120) or theme.combine
-		local segmentAlpha = (item.bStub and 0.6 or 1) * alpha
-		local fillColor, edgeColor
+		local start = -step * 0.5 + step * (i - 1) - 90
 
 		if (bHovered) then
-			fillColor = ColorAlpha(accent, 60 * segmentAlpha)
-			edgeColor = ColorAlpha(accent, 255 * segmentAlpha)
+			local tint = bVort and Color(150, 230, 160) or Color(255, 255, 255)
+
+			DrawSegment(x, y, inner, outer, start, step,
+				ColorAlpha(tint, 16 * self.hover * alpha))
 		elseif (item.bActive) then
-			fillColor = ColorAlpha(accent, 24 * segmentAlpha)
-			edgeColor = ColorAlpha(accent, 110 * segmentAlpha)
-		else
-			fillColor = Color(255, 255, 255, 8 * segmentAlpha)
-			edgeColor = Color(255, 255, 255, 18 * segmentAlpha)
+			DrawSegment(x, y, inner, outer, start, step, Color(255, 255, 255, 7 * alpha))
 		end
 
-		DrawSegment(x, y, inner + 4, outer, start, length, fillColor)
-		DrawSegmentOutline(x, y, inner + 4, outer, start, length,
-			math.max(NETWORK.util.Scale(1), 1), edgeColor)
-
-		local middle = math.rad(start + length * 0.5)
-		local radius = (inner + outer) * 0.5
+		local middle = math.rad(start + step * 0.5)
+		local radius = inner + (outer - inner) * 0.56
 		local pointX = x + math.cos(middle) * radius
 		local pointY = y + math.sin(middle) * radius
-		local textColor = bHovered and theme.combine or
-			(item.bStub and theme.textFaint or theme.textDim)
+		local textAlpha = 255 * alpha * reveal
+		local textColor
 
-		if (item.bText) then
-			draw.SimpleText(item.label, bHovered and "nwField" or "nwHudSmall",
-				pointX, pointY, ColorAlpha(textColor, 255 * alpha * reveal),
+		if (bHovered) then
+			textColor = Color(250, 250, 248, textAlpha)
+		elseif (item.bStub) then
+			textColor = Color(130, 130, 130, textAlpha * 0.8)
+		else
+			textColor = Color(196, 196, 194, textAlpha * 0.92)
+		end
+
+		local path, bWhite
+
+		if (!item.bText) then
+			path, bWhite = ResolveIcon(item)
+		end
+
+		local label = item.label or ""
+
+		if (path) then
+			local size = math.Round(ScrH() * (bHovered and 0.03 or 0.026))
+
+			DrawIcon(path, bWhite, math.Round(pointX - size * 0.5),
+				math.Round(pointY - size - Sc(2)), size, textColor)
+
+			draw.SimpleText(label, "nwRadialLabel", pointX + 1, pointY + Sc(12) + 1,
+				Color(0, 0, 0, 150 * alpha * reveal), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			draw.SimpleText(label, "nwRadialLabel", pointX, pointY + Sc(12), textColor,
 				TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		else
-			local path, bWhite = ResolveIcon(item)
-
-			if (path) then
-				local size = math.Round(ScrH() * (bHovered and 0.036 or 0.03))
-
-				DrawIcon(path, bWhite, math.Round(pointX - size * 0.5),
-					math.Round(pointY - size * 0.5), size,
-					ColorAlpha(textColor, 255 * alpha * reveal))
-			end
+			draw.SimpleText(label, "nwRadialLabel", pointX + 1, pointY + 1,
+				Color(0, 0, 0, 150 * alpha * reveal), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			draw.SimpleText(label, "nwRadialLabel", pointX, pointY, textColor,
+				TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		end
 	end
 end
@@ -943,17 +987,14 @@ function PANEL:Paint(width, height)
 	local outer = self.outer * Lerp(frac, 0.86, 1)
 	local inner = self.inner * Lerp(frac, 0.86, 1)
 
-	util.DrawBlur(self, 4 * alpha, 0.25)
+	util.DrawBlur(self, 3 * alpha, 0.25)
 
-	surface.SetDrawColor(3, 4, 6, 140 * alpha)
+	surface.SetDrawColor(0, 0, 0, 60 * alpha)
 	surface.DrawRect(0, 0, width, height)
 
-	util.DrawVignette(0, 0, width, height,
-		math.Round(math.min(width, height) * 0.5), 140 * alpha)
-
-	DrawCircle(x, y, inner, Color(8, 9, 11, 240 * alpha))
-
-	util.DrawArc(x, y, inner, math.max(Sc(1), 1), 1, Color(255, 255, 255, 30 * alpha), 96)
+	-- Большой полупрозрачный диск.
+	DrawSegment(x, y, inner, outer, 0, 360, Color(34, 35, 36, 196 * alpha))
+	util.DrawArc(x, y, outer, math.max(Sc(1), 1), 1, Color(255, 255, 255, 10 * alpha), 128)
 
 	if (self.exitItems and (self.exitFrac or 0) > 0.005) then
 		self:PaintItems(self.exitItems, self.exitFrac, alpha * self.exitFrac, false)
@@ -961,6 +1002,19 @@ function PANEL:Paint(width, height)
 
 	if ((self.levelFrac or 0) > 0) then
 		self:PaintItems(items, self.levelFrac, alpha, true)
+	end
+
+	-- Тонкое белое кольцо портрета и дуга здоровья.
+	local client = LocalPlayer()
+	local ring = math.max(Sc(2), 2)
+
+	util.DrawArc(x, y, inner + ring, ring, 1, Color(235, 235, 232, 200 * alpha), 128)
+
+	if (IsValid(client)) then
+		local health = math.Clamp(client:Health() / math.max(client:GetMaxHealth(), 1), 0, 1)
+
+		util.DrawArc(x, y, inner + ring * 2.5, ring * 1.5, health * 0.25,
+			Color(235, 235, 232, 235 * alpha), 64, 0)
 	end
 
 	local titleText = util.Upper(title)
@@ -971,64 +1025,11 @@ function PANEL:Paint(width, height)
 
 	local item = items[self.hovered or 0]
 
-	if (!item and (self.levelFrac or 0) > 0.4) then
-		draw.SimpleText("· · ·", "nwHudSmall", x, y, ColorAlpha(theme.textFaint,
-			200 * alpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	end
-
 	if (item and (self.levelFrac or 0) > 0.4 and
 		(self.menus[self.level] or {}).bScroll) then
 		self:PaintScroll(x, y, inner, item, alpha, self.hovered, #items)
 
 		return self:PaintFooter(x, y, outer, alpha, title)
-	end
-
-	if (item and (self.levelFrac or 0) > 0.4) then
-		local centerLabel = util.Upper(item.label)
-		local centerHint = item.hint
-
-		surface.SetFont("nwField")
-
-		local labelWidth = surface.GetTextSize(centerLabel)
-		local limit = inner * 1.55
-
-		local labelFont = labelWidth > limit and "nwHudSmall" or "nwField"
-		local hintY = y + Sc(4)
-
-		draw.SimpleText(centerLabel, labelFont, x,
-			centerHint and (y - Sc(14)) or y,
-			ColorAlpha(theme.text, 252 * alpha), TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER)
-
-		if (centerHint) then
-			surface.SetFont("nwHudSmall")
-
-			local words = string.Explode(" ", centerHint)
-			local line = ""
-			local lines = {}
-
-			for _, word in ipairs(words) do
-				local try = line == "" and word or (line .. " " .. word)
-
-				if (surface.GetTextSize(try) > limit and line != "") then
-					lines[#lines + 1] = line
-					line = word
-				else
-					line = try
-				end
-			end
-
-			if (line != "") then
-				lines[#lines + 1] = line
-			end
-
-			for index = 1, math.min(#lines, 4) do
-				draw.SimpleText(lines[index], "nwHudSmall", x,
-					hintY + (index - 1) * Sc(13),
-					ColorAlpha(theme.textDim, 235 * alpha),
-					TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-			end
-		end
 	end
 
 	if ((self.levelFrac or 0) > 0.4) then
@@ -1053,11 +1054,10 @@ function PANEL:Paint(width, height)
 		local plateX = x - math.Round(plateWidth * 0.5)
 		local plateY = labelY - math.Round(plateHeight * 0.5)
 
-		surface.SetDrawColor(8, 9, 11, 235 * alpha)
+		surface.SetDrawColor(26, 27, 28, 210 * alpha)
 		surface.DrawRect(plateX, plateY, plateWidth, plateHeight)
 
-		surface.SetDrawColor(item and ColorAlpha(theme.combine, 200 * alpha) or
-			Color(255, 255, 255, 26 * alpha))
+		surface.SetDrawColor(255, 255, 255, (item and 60 or 20) * alpha)
 		surface.DrawOutlinedRect(plateX, plateY, plateWidth, plateHeight, line)
 
 		draw.SimpleText(label, "nwInvName", x,
@@ -1077,7 +1077,7 @@ function PANEL:Paint(width, height)
 		local backX = x + outer + Sc(46)
 
 		DrawIcon("framework/chat/ui_close.png", true, backX - Sc(8), y - Sc(8), Sc(16),
-			ColorAlpha(theme.combine, 235 * alpha))
+			Color(220, 220, 216, 235 * alpha))
 
 		draw.SimpleText(util.Upper(L("radialBack")), "nwHudSmall", backX + Sc(20), y,
 			ColorAlpha(theme.accent, 235 * alpha), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
