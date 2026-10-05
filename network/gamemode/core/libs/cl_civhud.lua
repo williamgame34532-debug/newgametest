@@ -43,6 +43,195 @@ end
 local curfewHud = CreateClientConVar("network_curfew_hud", "1", true, false,
 	"Показывать комендантский час вверху экрана")
 
+NETWORK.curfewHud = NETWORK.curfewHud or {show = 0, kind = nil}
+
+local CURFEW = NETWORK.curfewHud
+
+CURFEW.warnBefore = 1
+CURFEW.red = Color(214, 64, 56)
+CURFEW.amber = Color(226, 166, 64)
+
+local function FormatHours(hours)
+	local minutes = math.max(math.floor(hours * 60 + 0.5), 0)
+
+	return string.format("%d:%02d", math.floor(minutes / 60), minutes % 60)
+end
+
+local function FormatClock(hours)
+	hours = hours % 24
+
+	return string.format("%02d:%02d", math.floor(hours), math.floor((hours % 1) * 60))
+end
+
+-- Текущее состояние: "curfew" (идёт), "soon" (скоро начнётся) или nil.
+function CURFEW.GetState()
+	local schedule = NETWORK.schedule
+
+	if (!schedule or !schedule.IsCurfew or !NETWORK.time) then
+		return
+	end
+
+	local hours = NETWORK.time.GetHours()
+	local level = schedule.GetAlertLevel and schedule.GetAlertLevel() or "green"
+	local startAt = schedule.GetCurfewStart and schedule.GetCurfewStart() or 18
+	local endAt = schedule.curfewEnd or 6
+
+	if (schedule.IsCurfew()) then
+		if (level == "red") then
+			return "curfew", {bRed = true}
+		end
+
+		local total = (endAt - startAt) % 24
+		local left = schedule.HoursUntil(endAt, hours)
+
+		return "curfew", {left = left, total = total, endAt = endAt}
+	end
+
+	local untilStart = schedule.HoursUntil(startAt, hours)
+
+	if (untilStart <= CURFEW.warnBefore) then
+		return "soon", {left = untilStart, startAt = startAt}
+	end
+end
+
+-- Плашка вверху по центру: красная во время комендантского часа, жёлтая — за час до него.
+function CURFEW.Draw(fade)
+	local Sc = NETWORK.util.Scale
+	local util = NETWORK.util
+	local state, data = CURFEW.GetState()
+
+	if (state) then
+		CURFEW.kind, CURFEW.data = state, data
+	end
+
+	CURFEW.show = util.Approach(CURFEW.show, state and 1 or 0, 5)
+
+	if (CURFEW.show < 0.01 or !CURFEW.kind) then
+		return
+	end
+
+	state, data = CURFEW.kind, CURFEW.data or {}
+
+	local show = util.EaseOut(CURFEW.show)
+	local alpha = show * fade
+	local bCurfew = state == "curfew"
+	local accent = bCurfew and CURFEW.red or CURFEW.amber
+	local pulse = 0.65 + math.abs(math.sin(CurTime() * (bCurfew and 2.2 or 1.4))) * 0.35
+	local width = math.min(Sc(420), ScrW() - Sc(40))
+	local height = Sc(62)
+	local x = math.Round((ScrW() - width) * 0.5)
+	local y = Sc(18) - math.Round((1 - show) * Sc(30))
+	local title = util.Upper(bCurfew and L("curfewHud") or L("curfewSoon"))
+	local hint = bCurfew and L("curfewHudHint") or L("curfewSoonHint")
+	local timerText, timerCaption, progress
+
+	if (bCurfew and data.bRed) then
+		timerText = L("curfewUntilCancel")
+		timerCaption = util.Upper(L("curfewRed"))
+	elseif (bCurfew) then
+		timerText = FormatHours(data.left or 0)
+		timerCaption = util.Upper(L("curfewUntil", FormatClock(data.endAt or 6)))
+		progress = 1 - (data.left or 0) / math.max(data.total or 12, 0.01)
+	else
+		timerText = FormatHours(data.left or 0)
+		timerCaption = util.Upper(L("curfewIn", FormatClock(data.startAt or 18)))
+		progress = 1 - (data.left or 0) / CURFEW.warnBefore
+	end
+
+	-- Плита
+	surface.SetDrawColor(10, 11, 12, 215 * alpha)
+	surface.DrawRect(x, y, width, height)
+
+	if (NETWORK.tk and NETWORK.tk.Hatch) then
+		NETWORK.tk.Hatch(x + 1, y + 1, width - 2, height - 2,
+			Color(accent.r, accent.g, accent.b, 14 * alpha), Sc(8))
+	end
+
+	surface.SetDrawColor(accent.r, accent.g, accent.b, 120 * alpha)
+	surface.DrawOutlinedRect(x, y, width, height, 1)
+
+	local stripe = math.max(Sc(4), 3)
+
+	surface.SetDrawColor(accent.r, accent.g, accent.b, 255 * pulse * alpha)
+	surface.DrawRect(x, y, stripe, height)
+
+	-- Значок: треугольник с «!»
+	local icon = Sc(26)
+	local iconX = x + stripe + Sc(14)
+	local iconY = y + math.Round((height - icon) * 0.5)
+
+	draw.NoTexture()
+	surface.SetDrawColor(accent.r, accent.g, accent.b, 235 * pulse * alpha)
+	surface.DrawPoly({
+		{x = iconX + math.Round(icon * 0.5), y = iconY},
+		{x = iconX + icon, y = iconY + icon},
+		{x = iconX, y = iconY + icon}
+	})
+
+	draw.SimpleText("!", "nwInvBodyBold", iconX + math.Round(icon * 0.5),
+		iconY + math.Round(icon * 0.62), Color(12, 12, 12, 255 * alpha),
+		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+	-- Заголовок и подсказка
+	local textX = iconX + icon + Sc(14)
+	local timerWidth = Sc(110)
+
+	util.DrawTextSpaced(title, "nwHudLabel", textX, y + Sc(20),
+		ColorAlpha(accent, 250 * alpha), Sc(2), TEXT_ALIGN_CENTER)
+
+	draw.SimpleText(util.TruncateWidth(hint, "nwHudSmall", width - (textX - x) - timerWidth),
+		"nwHudSmall", textX, y + Sc(40), Color(200, 200, 194, 225 * alpha),
+		TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+	-- Таймер справа
+	local right = x + width - Sc(14)
+
+	draw.SimpleText(timerText, "nwHudPlayer", right, y + Sc(22),
+		Color(236, 234, 226, 250 * alpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	draw.SimpleText(timerCaption, "nwHudSmall", right, y + Sc(43),
+		Color(150, 150, 144, 230 * alpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+
+	-- Прогресс по нижней кромке
+	if (progress) then
+		local barHeight = math.max(Sc(2), 2)
+		local barX = x + stripe
+		local barWidth = width - stripe
+
+		surface.SetDrawColor(255, 255, 255, 18 * alpha)
+		surface.DrawRect(barX, y + height - barHeight, barWidth, barHeight)
+
+		surface.SetDrawColor(accent.r, accent.g, accent.b, 230 * alpha)
+		surface.DrawRect(barX, y + height - barHeight,
+			math.Round(barWidth * math.Clamp(progress, 0, 1)), barHeight)
+	end
+end
+
+hook.Add("HUDPaint", "nwCurfewHud", function()
+	local client = LocalPlayer()
+
+	if (!curfewHud:GetBool() or !IsValid(client) or !client:Alive() or
+		!client:HasCharacter() or NETWORK.hud.IsHidden()) then
+		return
+	end
+
+	-- У Альянса своя пометка в HUD, плашка нужна гражданским.
+	if (client.IsCombine and client:IsCombine()) then
+		return
+	end
+
+	if (IsValid(NETWORK.gui.menu) or IsValid(NETWORK.gui.tabMenu)) then
+		return
+	end
+
+	local fade = NETWORK.hud.GetFade and NETWORK.hud.GetFade() or 1
+
+	if (fade < 0.01) then
+		return
+	end
+
+	CURFEW.Draw(fade)
+end)
+
 hook.Add("HUDPaint", "nwCivHud", function()
 	local client = LocalPlayer()
 
@@ -70,39 +259,6 @@ hook.Add("HUDPaint", "nwCivHud", function()
 	local x = Sc(26)
 	local width = Sc(230)
 	local y = ScrH() - Sc(26)
-
-	if (NETWORK.schedule and NETWORK.schedule.IsCurfew and
-		NETWORK.schedule.IsCurfew() and
-		curfewHud:GetBool()) then
-
-		local pulse = 0.72 + math.abs(math.sin(CurTime() * 1.4)) * 0.28
-		local label = util.Upper(L("curfewHud"))
-		local hint = L("curfewHudHint")
-		local warn = Color(226, 96, 88)
-		local centerX = math.Round(ScrW() * 0.5)
-		local labelY = Sc(26)
-		local labelWidth = util.TextSpacedSize(label, "nwTag", Sc(3))
-		local labelX = math.Round(centerX - labelWidth * 0.5)
-
-		util.DrawTextSpaced(label, "nwTag", labelX + 1, labelY + 1,
-			Color(0, 0, 0, 160 * pulse * fade), Sc(3), TEXT_ALIGN_TOP)
-		util.DrawTextSpaced(label, "nwTag", labelX, labelY,
-			ColorAlpha(warn, 250 * pulse * fade), Sc(3), TEXT_ALIGN_TOP)
-
-		surface.SetFont("nwTag")
-
-		local _, labelHeight = surface.GetTextSize("A")
-		local lineY = labelY + labelHeight + Sc(4)
-		local lineWidth = math.max(labelWidth, Sc(120))
-
-		surface.SetDrawColor(warn.r, warn.g, warn.b, 170 * pulse * fade)
-		surface.DrawRect(math.Round(centerX - lineWidth * 0.5), lineY, lineWidth,
-			math.max(Sc(1), 1))
-
-		draw.SimpleTextOutlined(hint, "nwHudSmall", centerX, lineY + Sc(12),
-			ColorAlpha(theme.textDim, 235 * fade), TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 150 * fade))
-	end
 
 	local lines = {}
 

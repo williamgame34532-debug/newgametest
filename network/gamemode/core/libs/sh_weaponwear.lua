@@ -3,9 +3,10 @@ NETWORK.weaponwear = NETWORK.weaponwear or {}
 local W = NETWORK.weaponwear
 
 W.maxUses = 100
-W.perShot = 0.28
-W.jamBelow = 0.35
-W.jamChance = 0.14
+-- ~1000 выстрелов до полной поломки (было ~360), клины только на изношенном стволе.
+W.perShot = 0.1
+W.jamBelow = 0.25
+W.jamChance = 0.08
 
 W.slots = {primary = true, secondary = true}
 

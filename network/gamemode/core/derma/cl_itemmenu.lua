@@ -5,8 +5,8 @@ function PANEL:Init()
 
 	self.buttons = {}
 	self.alpha = 0
-	self.rowHeight = Sc(34)
-	self.width = Sc(176)
+	self.rowHeight = Sc(30)
+	self.width = Sc(200)
 	self.padding = Sc(4)
 	self.openTime = CurTime()
 
@@ -44,34 +44,39 @@ function PANEL:AddOption(label, callback, color, glyph, children)
 			self:OpenSubmenu(panel)
 		end
 	end
+	button.bDanger = color != nil and color == NETWORK.theme.inv.danger
 	button.Paint = function(panel, width, height)
-		local palette = NETWORK.theme.inv
-		local tint = color or palette.text
+		local palette = NETWORK.theme.tk
 		local hover = NETWORK.util.EaseInOut(panel.hover)
 		local middle = math.Round(height * 0.5)
+		local inset = Sc(3)
+		local idle = panel.bDanger and palette.text or (color or palette.text)
+		local text = panel.bDanger and idle or Color(
+			Lerp(hover, idle.r, palette.activeText.r),
+			Lerp(hover, idle.g, palette.activeText.g),
+			Lerp(hover, idle.b, palette.activeText.b))
 
-		if (hover > 0.01) then
-			local accent = palette.accent
-			local rail = math.max(Sc(3), 2)
-			local railHeight = math.Round((height - Sc(14)) * hover)
-
-			draw.RoundedBox(math.max(Sc(5), 3), Sc(4), Sc(1), width - Sc(8),
-				height - Sc(2), Color(255, 255, 255, 16 * hover * self.alpha))
-
-			if (railHeight >= rail) then
-				draw.RoundedBox(math.floor(rail * 0.5), Sc(7),
-					middle - math.floor(railHeight * 0.5), rail, railHeight,
-					Color(accent.r, accent.g, accent.b, 235 * hover * self.alpha))
-			end
+		-- Строка как в Tarkov: тёмная плашка, при наведении светлеет; «Выбросить» — красная.
+		if (panel.bDanger) then
+			surface.SetDrawColor(palette.bad.r + 30 * hover, palette.bad.g + 10 * hover,
+				palette.bad.b + 10 * hover, (150 + 90 * hover) * self.alpha)
+		else
+			surface.SetDrawColor(Lerp(hover, palette.plateLight.r, palette.active.r),
+				Lerp(hover, palette.plateLight.g, palette.active.g),
+				Lerp(hover, palette.plateLight.b, palette.active.b),
+				(170 + 80 * hover) * self.alpha)
 		end
+
+		surface.DrawRect(inset, Sc(1), width - inset * 2, height - Sc(2))
 
 		local glyphSize = Sc(13)
 
-		NETWORK.gui.DrawGlyph(glyph or "dot", Sc(16), middle - math.Round(glyphSize * 0.5), glyphSize,
-			ColorAlpha(palette.accentSoft, (200 + 55 * hover) * self.alpha))
+		NETWORK.gui.DrawGlyph(glyph or "dot", Sc(14), middle - math.Round(glyphSize * 0.5),
+			glyphSize, ColorAlpha(text, (190 + 65 * hover) * self.alpha))
 
-		draw.SimpleText(label, "nwInvBody", Sc(38), middle,
-			ColorAlpha(tint, (215 + 40 * hover) * self.alpha), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		draw.SimpleText(NETWORK.util.Upper(label), "nwTkHeader", Sc(36), middle,
+			ColorAlpha(text, (215 + 40 * hover) * self.alpha), TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
 
 		if (panel.children) then
 			NETWORK.gui.DrawGlyph("chevron", width - Sc(22), middle - Sc(6), Sc(12),
@@ -201,29 +206,12 @@ function PANEL:Think()
 end
 
 function PANEL:Paint(width, height)
-	local Sc = NETWORK.util.Scale
-	local palette = NETWORK.theme.inv
-	local S = NETWORK.style
+	local palette = NETWORK.theme.tk
 
-	if (S and S.Card) then
-		S.Card(0, 0, width, height, self.alpha, {
-			radius = S.Radius("card"),
-			panel = self,
-			shadow = false,
-			fill = Color(9, 12, 15, 236)
-		})
-
-		return
-	end
-
-	local radius = math.max(Sc(8), 5)
-
-	NETWORK.util.DrawBlurRounded(self, 0, 0, width, height, radius, 4 * self.alpha)
-
-	draw.RoundedBox(radius, 0, 0, width, height, Color(9, 12, 15, 236 * self.alpha))
-
-	NETWORK.util.DrawRoundedBorder(0, 0, width, height, radius, 1,
-		Color(palette.line.r, palette.line.g, palette.line.b, 90 * self.alpha))
+	surface.SetDrawColor(palette.plate.r, palette.plate.g, palette.plate.b, 248 * self.alpha)
+	surface.DrawRect(0, 0, width, height)
+	surface.SetDrawColor(palette.line.r, palette.line.g, palette.line.b, 255 * self.alpha)
+	surface.DrawOutlinedRect(0, 0, width, height, 1)
 end
 
 vgui.Register("nwItemMenu", PANEL, "EditablePanel")
@@ -273,6 +261,18 @@ function NETWORK.gui.OpenItemMenu(slot)
 		menu:AddOption(L("itemEquip"), function()
 			NETWORK.inventory.Equip(source.index)
 		end, palette.text, "up")
+	end
+
+	if (source.list == "equipped" and NETWORK.inventory.GetWeaponClass(item)) then
+		if (NETWORK.inventory.IsInHands(item)) then
+			menu:AddOption(L("itemHolster"), function()
+				NETWORK.inventory.Holster()
+			end, palette.text, "down")
+		else
+			menu:AddOption(L("itemDraw"), function()
+				NETWORK.inventory.TakeInHands(item)
+			end, palette.text, "up")
+		end
 	end
 
 	if (source.list == "equipped") then
@@ -332,7 +332,7 @@ function NETWORK.gui.OpenItemMenu(slot)
 
 	menu:AddOption(L("itemDrop"), function()
 		NETWORK.inventory.Drop(source)
-	end, palette.accentSoft, "down")
+	end, palette.danger, "down")
 
 	menu:OpenAt(gui.MouseX() + NETWORK.util.Scale(4), gui.MouseY() + NETWORK.util.Scale(4))
 

@@ -184,6 +184,8 @@ NETWORK.lang.Register("en", {
 	optPickupHold = "Hold E",
 	itemEquip = "Equip",
 	itemUnequip = "Unequip",
+	itemHolster = "Holster",
+	itemDraw = "Draw",
 	handsKnock = "knocks on the door.",
 	optCatThird = "Third person",
 	settingThird = "Third person",

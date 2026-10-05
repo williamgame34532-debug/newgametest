@@ -186,7 +186,8 @@ function NETWORK.act.CanUseRadio(client)
 
 		for _, list in ipairs({"items", "storage", "equipped"}) do
 			for _, item in pairs(state[list]) do
-				if (item.id == "radio") then
+				if (NETWORK.radio and NETWORK.radio.IsRadioItem and
+					NETWORK.radio.IsRadioItem(item) or item.id == "radio") then
 					return true
 				end
 			end

@@ -184,6 +184,8 @@ NETWORK.lang.Register("ru", {
 	optPickupHold = "Удержание E",
 	itemEquip = "Надеть",
 	itemUnequip = "Снять",
+	itemHolster = "Убрать из рук",
+	itemDraw = "Взять в руки",
 	handsKnock = "стучит в дверь.",
 	optCatThird = "Третье лицо",
 	settingThird = "Третье лицо",

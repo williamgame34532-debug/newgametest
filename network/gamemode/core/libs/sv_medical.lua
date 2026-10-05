@@ -351,6 +351,7 @@ function M.Reset(client)
 	client:SetNWFloat("nwCritLeft", 0)
 	client:SetNWBool("nwUnconscious", false)
 	client:SetNWBool("nwTransfusing", false)
+	client:SetNWFloat("nwStimUntil", 0)
 
 	M.RefreshLimp(client)
 end
@@ -1310,6 +1311,79 @@ T.painkillers.Apply = function(medic, patient)
 	return "painNumbed", "good"
 end
 
+local function Strength(id, fallback)
+	local treatment = M.GetTreatment(id)
+
+	return treatment and treatment.strength or fallback
+end
+
+T.heal.CanApply = function(medic, patient)
+	if (patient:IsCritical() and M.HasActiveBleeding(patient)) then
+		return false, "medReviveUnstable"
+	end
+
+	if (patient:IsCritical() or WorstWound(patient) or
+		patient:Health() < patient:GetMaxHealth()) then
+		return true
+	end
+
+	return false, "medNothingToDo"
+end
+
+T.heal.Apply = function(medic, patient, part, id)
+	local amount = Strength(id, 25)
+
+	for _, data in ipairs(NETWORK.wound.parts) do
+		NETWORK.wound.Heal(patient, data.id, amount)
+	end
+
+	patient:EmitSound("items/medshot4.wav", 60, 105)
+
+	if (patient:IsCritical()) then
+		M.ExitCritical(patient, math.max(amount, 20))
+
+		return "medRevived", "good"
+	end
+
+	patient:SetHealth(math.min(patient:Health() + amount, patient:GetMaxHealth()))
+
+	return "medHealDone", "good", tostring(amount)
+end
+
+T.stim.CanApply = function(medic, patient)
+	if (patient:IsCritical()) then
+		return false, "medStimCritical"
+	end
+
+	return true
+end
+
+T.stim.Apply = function(medic, patient, part, id)
+	local amount = Strength(id, 25)
+	local duration = math.Clamp(30 + amount * 1.5, 30, 180)
+
+	patient:SetNWFloat("nwStimUntil", CurTime() + duration)
+	patient:SetHealth(math.min(patient:Health() + math.ceil(amount * 0.5), patient:GetMaxHealth()))
+
+	NETWORK.wound.Numb(patient, duration)
+
+	if (NETWORK.needs and NETWORK.needs.PushStamina and NETWORK.stamina) then
+		NETWORK.needs.PushStamina(patient, NETWORK.stamina.GetMax(patient), true)
+	end
+
+	NETWORK.movement.Apply(patient)
+
+	timer.Create("nwStim" .. patient:EntIndex(), duration + 0.1, 1, function()
+		if (IsValid(patient)) then
+			NETWORK.movement.Apply(patient)
+		end
+	end)
+
+	patient:EmitSound("framework/cmb/healthpen/inject1.mp3", 60, 110)
+
+	return "medStimDone", "good", tostring(math.Round(duration))
+end
+
 local function CountItem(client, id)
 	local count = 0
 	local state = NETWORK.inventory.GetState(client)
@@ -1348,7 +1422,7 @@ function M.CanTreat(medic, patient)
 end
 
 function M.Begin(medic, patient, id, part)
-	local treatment = T[id]
+	local treatment = M.GetTreatment(id)
 
 	if (!treatment) then
 		return false
@@ -1384,7 +1458,7 @@ function M.Begin(medic, patient, id, part)
 		return false
 	end
 
-	local bCan, result = treatment.CanApply(medic, patient, part)
+	local bCan, result = treatment.CanApply(medic, patient, part, id)
 
 	if (!bCan) then
 		Notice(medic, result or "medNothingToDo", "warn")
@@ -1410,10 +1484,11 @@ function M.Begin(medic, patient, id, part)
 		hits = 0,
 		origin = medic:GetPos(),
 
-		pauseAt = CurTime() + math.Rand(2, 3)
+		pauseAt = CurTime() + math.Rand(2, 3),
+		progress = "medProgress_" .. (treatment.effect or id)
 	}
 
-	Progress(medic, "medProgress_" .. id, time)
+	Progress(medic, medic.nwMedTask.progress, time)
 
 	medic.nwMedTask.part = part or "chest"
 
@@ -1470,7 +1545,7 @@ net.Receive("nwMedGameHit", function(_, client)
 
 	local left = math.max(task.finish - CurTime(), 0.05)
 
-	Progress(client, "medProgress_" .. task.id, left)
+	Progress(client, task.progress or ("medProgress_" .. task.id), left)
 end)
 
 function M.Finish(medic)
@@ -1483,13 +1558,13 @@ function M.Finish(medic)
 	net.Send(medic)
 
 	local patient = task.patient
-	local treatment = T[task.id]
+	local treatment = M.GetTreatment(task.id)
 
-	if (!M.CanTreat(medic, patient)) then
+	if (!treatment or !M.CanTreat(medic, patient)) then
 		return
 	end
 
-	local bCan, result = treatment.CanApply(medic, patient, task.part)
+	local bCan, result = treatment.CanApply(medic, patient, task.part, task.id)
 
 	if (!bCan) then
 		return Notice(medic, result or "medNothingToDo", "warn")
@@ -1508,7 +1583,7 @@ function M.Finish(medic)
 	patient.nwHealScale = math.Clamp(0.6 + medicine * NETWORK.skills.Effect("medicine", "heal"),
 		0.4, 1.6)
 
-	local key, tone, argument = treatment.Apply(medic, patient, part)
+	local key, tone, argument = treatment.Apply(medic, patient, part, task.id)
 
 	patient.nwHealScale = nil
 
@@ -1563,7 +1638,7 @@ timer.Create("nwMedicalTasks", 0.1, 0, function()
 		if (task.pauseAt and CurTime() >= task.pauseAt and task.finish - CurTime() > 1) then
 			task.bPaused = true
 
-			Progress(medic, "medProgress_" .. task.id, 0)
+			Progress(medic, task.progress or ("medProgress_" .. task.id), 0)
 
 			net.Start("nwMedGame")
 				net.WriteBool(true)

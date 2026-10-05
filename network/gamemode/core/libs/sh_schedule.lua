@@ -1,9 +1,33 @@
 NETWORK.schedule = NETWORK.schedule or {}
 
+NETWORK.schedule.curfewStart = 18
+NETWORK.schedule.curfewEnd = 6
+
+-- Уровень тревоги (/alert) общий для сервера и клиента, поэтому HUD видит
+-- и досрочный комендантский час, а не только обычный 18:00–06:00.
+function NETWORK.schedule.GetAlertLevel()
+	return NETWORK.alert and NETWORK.alert.GetLevel and NETWORK.alert.GetLevel() or "green"
+end
+
+function NETWORK.schedule.GetCurfewStart()
+	return NETWORK.schedule.GetAlertLevel() == "yellow" and 16 or NETWORK.schedule.curfewStart
+end
+
 function NETWORK.schedule.IsCurfew()
+	if (NETWORK.schedule.GetAlertLevel() == "red") then
+		return true
+	end
+
 	local hours = NETWORK.time.GetHours()
 
-	return hours >= 18 or hours < 6
+	return hours >= NETWORK.schedule.GetCurfewStart() or hours < NETWORK.schedule.curfewEnd
+end
+
+-- Сколько игровых часов осталось до момента target (0–24).
+function NETWORK.schedule.HoursUntil(target, hours)
+	hours = hours or NETWORK.time.GetHours()
+
+	return (target - hours) % 24
 end
 
 function NETWORK.schedule.IsRationTime()

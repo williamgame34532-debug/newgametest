@@ -314,6 +314,8 @@ function PANEL:PerformLayout(width, height)
 end
 
 function PANEL:PaintOver(width, height)
+	self:PaintLabels(width, height)
+
 	if (NETWORK.gui.grids[self.list]) then
 		return
 	end
@@ -974,84 +976,34 @@ function NETWORK.gui.DrawCellArt(kind, x, y, width, height, color)
 	return true
 end
 
+-- Пустые клетки в стиле Tarkov: квадратные, тонкая рамка, диагональная штриховка.
 function NETWORK.gui.DrawCellBackdrop(columns, rows, cellWidth, cell, gap, fill, border)
-	local radius = NETWORK.gui.CellRadius()
 	local stepX = cellWidth + gap
 	local stepY = cell + gap
-	local fillArt, lineArt = CellArt(cellWidth, cell)
+	local hatch = NETWORK.theme.tk and NETWORK.theme.tk.hatch or Color(255, 255, 255, 9)
+	local step = math.max(NETWORK.util.Scale(9), 5)
 
-	if (fillArt) then
-		surface.SetMaterial(fillArt)
-		surface.SetDrawColor(fill.r, fill.g, fill.b, fill.a or 255)
+	for row = 0, rows - 1 do
+		for column = 0, columns - 1 do
+			local x = column * stepX
+			local y = row * stepY
 
-		for row = 0, rows - 1 do
-			for column = 0, columns - 1 do
-				surface.DrawTexturedRect(column * stepX, row * stepY, cellWidth, cell)
+			surface.SetDrawColor(fill.r, fill.g, fill.b, fill.a or 255)
+			surface.DrawRect(x, y, cellWidth, cell)
+
+			NETWORK.tk.Hatch(x + 1, y + 1, cellWidth - 2, cell - 2, hatch, step)
+
+			if ((border.a or 255) > 0) then
+				surface.SetDrawColor(border.r, border.g, border.b, border.a or 255)
+				surface.DrawOutlinedRect(x, y, cellWidth, cell, 1)
 			end
 		end
-
-		if ((border.a or 255) > 0) then
-			surface.SetMaterial(lineArt)
-			surface.SetDrawColor(border.r, border.g, border.b, border.a or 255)
-
-			for row = 0, rows - 1 do
-				for column = 0, columns - 1 do
-					surface.DrawTexturedRect(column * stepX, row * stepY, cellWidth, cell)
-				end
-			end
-		end
-
-		draw.NoTexture()
-
-		return
 	end
-
-	for row = 0, rows - 1 do
-		for column = 0, columns - 1 do
-			draw.RoundedBox(radius, column * stepX, row * stepY, cellWidth, cell, fill)
-		end
-	end
-
-	if ((border.a or 255) <= 0) then
-		return
-	end
-
-	render.ClearStencil()
-	render.SetStencilEnable(true)
-	render.SetStencilWriteMask(255)
-	render.SetStencilTestMask(255)
-	render.SetStencilReferenceValue(1)
-	render.SetStencilCompareFunction(STENCIL_ALWAYS)
-	render.SetStencilPassOperation(STENCIL_REPLACE)
-	render.SetStencilFailOperation(STENCIL_KEEP)
-	render.SetStencilZFailOperation(STENCIL_KEEP)
-
-	render.OverrideColorWriteEnable(true, false)
-
-	for row = 0, rows - 1 do
-		for column = 0, columns - 1 do
-			draw.RoundedBox(math.max(radius - 1, 0), column * stepX + 1, row * stepY + 1,
-				cellWidth - 2, cell - 2, color_white)
-		end
-	end
-
-	render.OverrideColorWriteEnable(false, false)
-
-	render.SetStencilPassOperation(STENCIL_KEEP)
-	render.SetStencilCompareFunction(STENCIL_NOTEQUAL)
-
-	for row = 0, rows - 1 do
-		for column = 0, columns - 1 do
-			draw.RoundedBox(radius, column * stepX, row * stepY, cellWidth, cell, border)
-		end
-	end
-
-	render.SetStencilEnable(false)
 end
 
-local CELL_GLASS = Color(9, 12, 15)
+local CELL_GLASS = Color(17, 18, 19)
 
-local CELL_LINE = Color(150, 196, 220)
+local CELL_LINE = Color(66, 69, 71)
 
 function PANEL:Paint(width, height)
 	local Sc = NETWORK.util.Scale
@@ -1096,7 +1048,12 @@ function PANEL:Paint(width, height)
 		squareY = squareY + y
 
 		draw.RoundedBox(radius, 0, y, width, height,
-			Color(CELL_GLASS.r, CELL_GLASS.g, CELL_GLASS.b, 150 * reveal))
+			Color(CELL_GLASS.r, CELL_GLASS.g, CELL_GLASS.b, 225 * reveal))
+
+		if (!bItem and NETWORK.tk) then
+			NETWORK.tk.Hatch(1, y + 1, width - 2, height - 2,
+				Color(255, 255, 255, 8 * reveal), math.max(Sc(7), 4))
+		end
 
 		if (bSelected or bFilled) then
 			draw.RoundedBox(radius, 0, y, width, height,
@@ -1109,7 +1066,7 @@ function PANEL:Paint(width, height)
 		end
 
 		local border = CELL_LINE
-		local borderAlpha = 40
+		local borderAlpha = 220
 
 		if (bSelected) then
 			border = select
@@ -1209,12 +1166,18 @@ function PANEL:Paint(width, height)
 		return
 	end
 
-	-- Simplified flat cell: one plate, one hairline, an accent frame on hover/selection.
-	local P = NETWORK.theme.pda or {}
-	local plate = bFilled and (P.bg2 or CELL_GLASS) or (P.deep or CELL_GLASS)
+	-- Клетка в стиле Tarkov: серая плита у предмета, штриховка у пустой, тонкая рамка.
+	local P = NETWORK.theme.tk or {}
+	local plate = bFilled and (palette.cellBright or CELL_GLASS) or (palette.cell or CELL_GLASS)
 
-	surface.SetDrawColor(plate.r, plate.g, plate.b, (bFilled and 225 or 170) * reveal)
+	surface.SetDrawColor(plate.r, plate.g, plate.b, (bFilled and 235 or 210) * reveal)
 	surface.DrawRect(0, y, width, height)
+
+	if (!bFilled) then
+		NETWORK.tk.Hatch(1, y + 1, width - 2, height - 2,
+			ColorAlpha(P.hatch or Color(255, 255, 255, 9), (P.hatch and P.hatch.a or 9) * reveal),
+			math.max(Sc(7), 4))
+	end
 
 	if (hover > 0.01 or bSelected) then
 		local tint = bSelected and select or accent
@@ -1224,7 +1187,7 @@ function PANEL:Paint(width, height)
 	end
 
 	local border = P.line or CELL_LINE
-	local borderAlpha = bFilled and 200 or 120
+	local borderAlpha = bFilled and 255 or 200
 
 	if (hover > 0.01) then
 		border = Mix(border, accent, hover)
@@ -1382,9 +1345,48 @@ function PANEL:Paint(width, height)
 		end
 	end
 
-	if ((self.item.amount or 1) > 1) then
-		DrawAmountChip(tostring(self.item.amount), width - line - Sc(3), chipBottom,
-			reveal, palette)
+	-- Подписи рисуются в PaintOver, поверх иконки предмета.
+	self.labelTop = threadTop
+	self.labelBottom = chipBottom
+end
+
+-- Короткое название в правом верхнем углу, количество — в правом нижнем (как в Tarkov).
+function PANEL:PaintLabels(width, height)
+	local item = self.item
+	local drag = NETWORK.gui.drag
+	local reveal = self.reveal or 0
+
+	if (!item or self.bRow or reveal < 0.01 or (drag and drag.panel == self) or
+		!self.labelTop) then
+		return
+	end
+
+	local Sc = NETWORK.util.Scale
+	local util = NETWORK.util
+	local palette = NETWORK.theme.inv
+	local dim = NETWORK.gui.GetFilterDim and NETWORK.gui.GetFilterDim(item) or 1
+
+	reveal = reveal * math.min(dim, 1)
+
+	if (!self.bCompact and width >= Sc(34)) then
+		local name = NETWORK.item.GetShortName and NETWORK.item.GetShortName(item) or
+			NETWORK.item.GetName(item)
+
+		name = util.TruncateWidth(name, "nwTkCell", width - Sc(8))
+
+		draw.SimpleText(name, "nwTkCell", width - Sc(3) + 1, self.labelTop + Sc(1) + 1,
+			Color(0, 0, 0, 200 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+		draw.SimpleText(name, "nwTkCell", width - Sc(3), self.labelTop + Sc(1),
+			ColorAlpha(palette.text, 240 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+	end
+
+	if ((item.amount or 1) > 1) then
+		local text = tostring(item.amount)
+
+		draw.SimpleText(text, "nwTkCount", width - Sc(4) + 1, self.labelBottom + 1,
+			Color(0, 0, 0, 220 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
+		draw.SimpleText(text, "nwTkCount", width - Sc(4), self.labelBottom,
+			ColorAlpha(palette.text, 250 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
 	end
 end
 

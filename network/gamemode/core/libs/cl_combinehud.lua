@@ -387,16 +387,13 @@ function hud.DrawUnit(x, y, palette, alpha, client)
 end
 
 function hud.GetBrandHeight()
-	local material = NETWORK.util.GetMaterial(NETWORK.hud.bannerPath, "smooth")
-
-	if (!material or material:IsError()) then
+	if (!NETWORK.tk or !NETWORK.tk.GetBrandSize) then
 		return 0
 	end
 
-	local width = math.min(NETWORK.util.Scale(190), math.Round(ScrW() * 0.12))
+	local _, height = NETWORK.tk.GetBrandSize()
 
-	return math.Round(width * (material:Height() / math.max(material:Width(), 1))) +
-		NETWORK.util.Scale(18)
+	return height + NETWORK.util.Scale(18)
 end
 
 local ammo = {clip = 0, reserve = 0, alpha = 0, pop = 0}

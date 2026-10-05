@@ -109,14 +109,18 @@ function S.IsFridge(entity)
 end
 
 if (NETWORK.container and NETWORK.container.Register) then
+	-- Сохраняем лут и прочие поля из sh_container, если он загрузился раньше,
+	-- иначе перерегистрация затирала их и урезала холодильник до 12 слотов.
+	local existing = NETWORK.container.stored and NETWORK.container.stored[S.fridgeID] or {}
+
 	NETWORK.container.Register(S.fridgeID, {
 		name = (NETWORK.lang and NETWORK.lang.Exists("containerFridge")) and
 			L("containerFridge") or "Холодильник",
 		description = "Еда внутри не портится.",
-		model = "models/props_wasteland/kitchen_fridge001a.mdl",
-		slots = 12,
-		minItems = 0,
-		maxItems = 0,
-		loot = {}
+		model = existing.model or "models/props_wasteland/kitchen_fridge001a.mdl",
+		slots = math.max(existing.slots or 0, 20),
+		minItems = existing.minItems or 0,
+		maxItems = existing.maxItems or 0,
+		loot = existing.loot or {}
 	})
 end

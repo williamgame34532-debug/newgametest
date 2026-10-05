@@ -161,6 +161,24 @@ function NETWORK.item.IsContainer(item)
 	return base != nil and (base.storageSlots or 0) > 0
 end
 
+-- Короткая подпись для клетки инвентаря: ITEM.shortName или первое слово названия.
+function NETWORK.item.GetShortName(item)
+	local base = item and NETWORK.item.Get(item.id)
+
+	if (base and isstring(base.shortName) and base.shortName != "") then
+		return base.shortName
+	end
+
+	local name = NETWORK.item.GetName(item)
+	local first = string.match(name, "^[^%s\"(,]+") or name
+
+	if (utf8.len(first) and utf8.len(first) < 3) then
+		return name
+	end
+
+	return first
+end
+
 function NETWORK.item.GetName(item)
 	local base = item and NETWORK.item.Get(item.id)
 

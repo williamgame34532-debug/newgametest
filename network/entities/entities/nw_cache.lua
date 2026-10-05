@@ -11,7 +11,7 @@ NETWORK.cache = NETWORK.cache or {}
 
 local C = NETWORK.cache
 
-C.slots = 8
+C.slots = 12
 C.range = 110
 C.placeRange = 100
 C.placeTime = 3

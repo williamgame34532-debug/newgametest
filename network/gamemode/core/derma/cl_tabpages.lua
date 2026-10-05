@@ -14,38 +14,16 @@ local function BuildSectionLabel(parent, text, x, y, width, options)
 	panel:SetMouseInputEnabled(false)
 	panel.startTime = CurTime()
 	panel.Paint = function(self, panelWidth, panelHeight)
-		local palette = Palette()
 		local util = NETWORK.util
 		local reveal = util.EaseOut(util.Stagger(self.startTime, 0.04, 0.4))
-		local middle = math.Round(panelHeight * 0.5)
-		local glyphSize = Sc(12)
-		local textX = 0
+		local badgeText, badgeColor
 
-		if (options.glyph) then
-			NETWORK.gui.DrawGlyph(options.glyph, 0,
-				middle - math.Round(glyphSize * 0.5), glyphSize,
-				ColorAlpha(palette.textDim, 220 * reveal))
-
-			textX = glyphSize + Sc(8)
+		if (options.badge) then
+			badgeText, badgeColor = options.badge()
 		end
 
-		draw.SimpleText(caption, "nwInvHeader", textX, middle,
-			ColorAlpha(palette.text, 250 * reveal), TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-
-		if (!options.badge) then
-			return
-		end
-
-		local badgeText, badgeColor = options.badge()
-
-		if (!badgeText) then
-			return
-		end
-
-		draw.SimpleText(badgeText, "nwInvBadge", panelWidth, middle,
-			ColorAlpha(badgeColor or palette.textDim, 240 * reveal),
-			TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		NETWORK.tk.Header(0, 0, panelWidth, panelHeight, caption, reveal, badgeText,
+			badgeColor)
 	end
 
 	return panel
@@ -62,14 +40,7 @@ local function BuildPlate(parent, x, y, width, height)
 		local reveal = NETWORK.util.EaseOut(
 			NETWORK.util.Stagger(self.startTime, 0, 0.35))
 
-		NETWORK.gui.DrawSurface(0, 0, panelWidth, panelHeight, reveal, {
-			radius = math.max(NETWORK.util.Scale(10), 6),
-			base = Color(10, 11, 13),
-			baseAlpha = 150,
-			sheen = 10,
-			edge = 12,
-			lift = 0.25
-		})
+		NETWORK.tk.Frame(0, 0, panelWidth, panelHeight, reveal)
 	end
 
 	return plate
@@ -111,34 +82,40 @@ end
 
 function BUTTON:Paint(width, height)
 	local Sc = NETWORK.util.Scale
-	local palette = Palette()
-	local theme = NETWORK.theme
+	local palette = NETWORK.theme.tk
 	local hover = NETWORK.util.EaseInOut(self.hover)
 	local bDisabled = self:GetDisabled()
-	local accent = self.bPrimary and theme.combine or palette.textDim
+	local alpha = bDisabled and 0.45 or 1
+	local fill = palette.plateLight
+	local line = palette.line
 
-	surface.SetDrawColor(255, 255, 255, (10 + 16 * hover) * (bDisabled and 0.4 or 1))
+	surface.SetDrawColor(fill.r + 18 * hover, fill.g + 18 * hover, fill.b + 18 * hover,
+		230 * alpha)
 	surface.DrawRect(0, 0, width, height)
 
-	local bar = math.max(Sc(3), 2)
-	local barHeight = math.Round(height * (self.bPrimary and 0.55 or 0.55 * hover))
+	surface.SetDrawColor(line.r + 40 * hover, line.g + 40 * hover, line.b + 40 * hover,
+		255 * alpha)
+	surface.DrawOutlinedRect(0, 0, width, height, 1)
 
-	if (barHeight > 1) then
-		surface.SetDrawColor(accent.r, accent.g, accent.b,
-			(bDisabled and 100 or 240))
-		surface.DrawRect(0, math.Round((height - barHeight) * 0.5), bar,
-			barHeight)
+	if (self.bPrimary) then
+		surface.SetDrawColor(palette.active.r, palette.active.g, palette.active.b, 230 * alpha)
+		surface.DrawRect(0, 0, math.max(Sc(3), 2), height)
 	end
 
-	local color = Color(
+	local text = Color(
 		Lerp(hover, palette.textDim.r, palette.text.r),
 		Lerp(hover, palette.textDim.g, palette.text.g),
 		Lerp(hover, palette.textDim.b, palette.text.b),
-		bDisabled and 120 or 250
+		250 * alpha
 	)
 
-	draw.SimpleText(self.label, "nwInvButton", Sc(14) + math.Round(hover * Sc(4)),
-		math.Round(height * 0.5), color, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	if (self.glyph) then
+		NETWORK.gui.DrawGlyph(self.glyph, Sc(12), math.Round((height - Sc(12)) * 0.5), Sc(12),
+			ColorAlpha(text, 230 * alpha))
+	end
+
+	draw.SimpleText(self.label, "nwInvButton", self.glyph and Sc(32) or Sc(14),
+		math.Round(height * 0.5), text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 end
 
 vgui.Register("nwInvButton", BUTTON, "DButton")
@@ -199,7 +176,7 @@ function NETWORK.gui.BuildGrid(parent, list, source, data)
 
 		if (NETWORK.gui.DrawCellBackdrop) then
 			NETWORK.gui.DrawCellBackdrop(columns, rows, cellWidth, cell, gap,
-				Color(8, 12, 15, 115), Color(150, 196, 220, 34))
+				Color(20, 21, 22, 220), Color(66, 69, 71, 255))
 		end
 
 		local radius = NETWORK.gui.CellRadius and NETWORK.gui.CellRadius() or
@@ -571,7 +548,7 @@ local function BuildDetailWide(page, x, y, width, height)
 	end
 
 	if (NETWORK.medical and NETWORK.medical.IsTreatment(item.id)) then
-		local treatment = NETWORK.medical.treatments[item.id]
+		local treatment = NETWORK.medical.GetTreatment(item.id)
 
 		stats[#stats + 1] = {L("invStatApply"), treatment.time .. " " .. L("invSeconds")}
 	end
@@ -878,37 +855,16 @@ local function BuildTag(parent, text, x, y, width, options)
 	panel:SetMouseInputEnabled(false)
 	panel.startTime = CurTime()
 	panel.Paint = function(self, panelWidth, panelHeight)
-		local palette = Palette()
 		local util = NETWORK.util
 		local reveal = util.EaseOut(util.Stagger(self.startTime, 0.04, 0.4))
-		local middle = math.Round(panelHeight * 0.5)
-		local line = math.max(Sc(1), 1)
-		local captionWidth = util.DrawTextSpaced(caption, "nwInvKey", 0, middle,
-			ColorAlpha(palette.textFaint, 240 * reveal), math.max(Sc(2), 1),
-			TEXT_ALIGN_CENTER)
-		local lineRight = panelWidth
+		local badgeText, badgeColor
 
 		if (options.badge) then
-			local badgeText, badgeColor = options.badge()
-
-			if (badgeText) then
-				surface.SetFont("nwInvSub")
-
-				lineRight = panelWidth - surface.GetTextSize(badgeText) - Sc(10)
-
-				draw.SimpleText(badgeText, "nwInvSub", panelWidth, middle,
-					ColorAlpha(badgeColor or palette.accent, 245 * reveal),
-					TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-			end
+			badgeText, badgeColor = options.badge()
 		end
 
-		local lineX = captionWidth + Sc(10)
-		local lineWidth = math.Round((lineRight - lineX) * reveal)
-
-		if (lineWidth > 0) then
-			surface.SetDrawColor(150, 196, 220, 40 * reveal)
-			surface.DrawRect(lineX, middle, lineWidth, line)
-		end
+		NETWORK.tk.Header(0, 0, panelWidth, panelHeight, caption, reveal, badgeText,
+			badgeColor)
 
 		if (options.OnPaintOver and reveal > 0.01) then
 			options.OnPaintOver(panel, panelWidth, panelHeight, reveal)
@@ -1206,19 +1162,10 @@ NETWORK.gui.RegisterTab("inventory", {
 					return
 				end
 
-				if (S and S.Card) then
-					S.Card(0, 0, panelWidth, panelHeight, reveal, {
-						radius = radius,
-						blur = false,
-						shadow = false,
-						fill = Color(10, 22, 36, 200)
-					})
-				else
-					draw.RoundedBox(radius, 0, 0, panelWidth, panelHeight,
-						Color(9, 13, 16, 150 * reveal))
-				end
+				NETWORK.tk.Frame(0, 0, panelWidth, panelHeight, reveal,
+					Color(15, 16, 17, 225), NETWORK.theme.tk.lineSoft)
 
-				surface.SetDrawColor(104, 150, 196, 40 * reveal)
+				surface.SetDrawColor(66, 69, 71, 200 * reveal)
 				surface.DrawRect(dividerLeft, panelPad, 1, panelHeight - panelPad * 2)
 				surface.DrawRect(dividerRight, panelPad, 1, panelHeight - panelPad * 2)
 			end
@@ -1309,18 +1256,17 @@ NETWORK.gui.RegisterTab("inventory", {
 			local centerX = math.Round(panelWidth * 0.5)
 			local centerY = math.Round(panelHeight * 0.46)
 
-			draw.RoundedBox(radius, 0, 0, panelWidth, panelHeight,
-				Color(7, 15, 25, 190 * reveal))
+			-- Силуэт персонажа на тёмной плите со штриховкой, как в окне снаряжения Tarkov.
+			NETWORK.tk.Frame(0, 0, panelWidth, panelHeight, reveal, Color(17, 18, 19, 230))
+			NETWORK.tk.Hatch(1, 1, panelWidth - 2, panelHeight - 2,
+				Color(255, 255, 255, 6 * reveal), Sc(9))
 
 			local glowWidth = math.Round(panelWidth * 0.7)
 			local glowHeight = math.Round(panelHeight * 0.7)
 
 			util.DrawGlow(centerX - math.Round(glowWidth * 0.5),
 				centerY - math.Round(glowHeight * 0.5), glowWidth, glowHeight,
-				Color(accent.r, accent.g, accent.b, 20 * reveal))
-
-			util.DrawRoundedBorder(0, 0, panelWidth, panelHeight, radius,
-				math.max(Sc(1), 1), Color(104, 150, 196, 60 * reveal))
+				Color(accent.r, accent.g, accent.b, 14 * reveal))
 		end
 
 		local model = page:Add("DModelPanel")
@@ -1455,7 +1401,7 @@ NETWORK.gui.RegisterTab("inventory", {
 			local cursor = 0
 
 			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[1],
-				tostring(math.Round(health)), health / maxHealth, theme.positive, reveal)
+				tostring(math.Round(health)), health / maxHealth, NETWORK.theme.tk.good, reveal)
 			cursor = cursor + meterStep
 
 			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[2],
@@ -1463,11 +1409,11 @@ NETWORK.gui.RegisterTab("inventory", {
 			cursor = cursor + meterStep
 
 			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[3],
-				tostring(math.Round(thirst)), thirst / 100, theme.combine, reveal)
+				tostring(math.Round(thirst)), thirst / 100, NETWORK.theme.tk.water, reveal)
 			cursor = cursor + meterStep
 
 			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[4],
-				tostring(math.Round(stamina * 100)), stamina, STAMINA_COLOR, reveal)
+				tostring(math.Round(stamina * 100)), stamina, NETWORK.theme.tk.energy, reveal)
 			cursor = cursor + meterStep
 
 			local armour = math.max(client:Armor(), 0)

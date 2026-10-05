@@ -6,11 +6,11 @@ S.deliverTime = 60
 
 S.fixtures = {
 	{id = "counter", name = "Прилавок", cost = 150, model = "models/props_c17/FurnitureTable001a.mdl",
-		slots = 8},
-	{id = "shelf", name = "Стеллаж", cost = 120, model = "models/props_c17/FurnitureShelf001a.mdl",
 		slots = 12},
+	{id = "shelf", name = "Стеллаж", cost = 120, model = "models/props_c17/FurnitureShelf001a.mdl",
+		slots = 16},
 	{id = "display", name = "Витрина", cost = 200, model = "models/props_c17/display_cooler01a.mdl",
-		slots = 8},
+		slots = 12},
 	{id = "sign", name = "Вывеска", cost = 60, model = "models/props_c17/streetsign004e.mdl"}
 }
 

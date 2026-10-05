@@ -251,10 +251,11 @@ function PANEL:PerformLayout(width, height)
 		self.statusRight = width - margin
 	end
 
+	self.footerHeight = Sc(34)
 	self.contentX = margin
-	self.contentY = barHeight + Sc(22)
+	self.contentY = barHeight + Sc(16)
 	self.contentWidth = width - margin * 2
-	self.contentHeight = height - self.contentY - margin
+	self.contentHeight = height - self.contentY - self.footerHeight - Sc(10)
 
 	if (IsValid(self.page)) then
 		self.page:SetSize(self.contentWidth, self.contentHeight)
@@ -353,7 +354,7 @@ end
 function PANEL:PaintTopBar(width, height)
 	local Sc = NETWORK.util.Scale
 	local util = NETWORK.util
-	local theme = NETWORK.theme
+	local palette = NETWORK.theme.tk
 	local reveal = self:GetReveal(0, 0.45)
 
 	if (reveal < 0.01) then
@@ -366,27 +367,65 @@ function PANEL:PaintTopBar(width, height)
 	local brand = util.Upper(NETWORK.gui.tabBrand)
 	local schema = " // " .. util.Upper(L("tabBrandSchema"))
 
+	surface.SetDrawColor(palette.bg.r, palette.bg.g, palette.bg.b, 235 * reveal)
+	surface.DrawRect(0, 0, width, barHeight)
+
 	surface.SetFont("nwSideBrand")
 
 	local brandWidth = surface.GetTextSize(brand)
 
 	draw.SimpleText(brand, "nwSideBrand", margin, middle,
-		ColorAlpha(theme.text, 250 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		ColorAlpha(palette.text, 250 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	draw.SimpleText(schema, "nwSideBrand", margin + brandWidth, middle,
-		ColorAlpha(theme.textDim, 235 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		ColorAlpha(palette.textDim, 235 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
 	if (self.separatorX) then
-		surface.SetDrawColor(255, 255, 255, 22 * reveal)
-		surface.DrawRect(self.separatorX, middle - Sc(8), math.max(Sc(1), 1), Sc(16))
+		surface.SetDrawColor(palette.line.r, palette.line.g, palette.line.b, 200 * reveal)
+		surface.DrawRect(self.separatorX, middle - Sc(10), 1, Sc(20))
 	end
 
 	if (self.statusRight) then
 		draw.SimpleText(self:GetStatusText(), "nwHud", self.statusRight, middle,
-			ColorAlpha(theme.textDim, 235 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			ColorAlpha(palette.textDim, 235 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	end
 
-	surface.SetDrawColor(255, 255, 255, 24 * reveal)
-	surface.DrawRect(margin, barHeight, width - margin * 2, math.max(Sc(1), 1))
+	surface.SetDrawColor(palette.line.r, palette.line.g, palette.line.b, 220 * reveal)
+	surface.DrawRect(0, barHeight, width, 1)
+end
+
+-- Нижняя полоса как в Tarkov: слева версия сборки, справа — подпись проекта.
+function PANEL:PaintFooter(width, height)
+	local Sc = NETWORK.util.Scale
+	local palette = NETWORK.theme.tk
+	local reveal = self:GetReveal(0.05, 0.45)
+
+	if (reveal < 0.01) then
+		return
+	end
+
+	local footer = self.footerHeight or Sc(34)
+	local top = height - footer
+	local margin = self.margin or Sc(28)
+
+	surface.SetDrawColor(palette.bg.r, palette.bg.g, palette.bg.b, 240 * reveal)
+	surface.DrawRect(0, top, width, footer)
+	surface.SetDrawColor(palette.line.r, palette.line.g, palette.line.b, 220 * reveal)
+	surface.DrawRect(0, top, width, 1)
+
+	local version = tostring(NETWORK.version or "")
+
+	if (version != "") then
+		draw.SimpleText(version .. "  " .. L("tabFooterBuild"), "nwTkFoot", margin,
+			top + math.Round(footer * 0.5), ColorAlpha(palette.textFaint, 230 * reveal),
+			TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	end
+
+	if (NETWORK.tk and NETWORK.tk.DrawBrand) then
+		local _, brandHeight = NETWORK.tk.GetBrandSize()
+
+		NETWORK.tk.DrawBrand(width - margin,
+			top + math.Round((footer + brandHeight) * 0.5), reveal)
+	end
 end
 
 function PANEL:PaintOverlay(width, height)
@@ -409,7 +448,7 @@ function PANEL:Paint(width, height)
 	local middle = math.Round(height * 0.5)
 
 	surface.SetDrawColor(palette.background.r, palette.background.g,
-		palette.background.b, 232 * alpha)
+		palette.background.b, 246 * alpha)
 	surface.DrawRect(0, middle - half, width, half)
 	surface.DrawRect(0, middle, width, half)
 
@@ -428,6 +467,7 @@ function PANEL:Paint(width, height)
 	end
 
 	self:PaintTopBar(width, height)
+	self:PaintFooter(width, height)
 	self:PaintOverlay(width, height)
 end
 

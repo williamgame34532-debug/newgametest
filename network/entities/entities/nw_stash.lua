@@ -9,7 +9,7 @@ ENT.AdminOnly = true
 ENT.PhysgunDisabled = true
 
 ENT.Range = 110
-ENT.Slots = 20
+ENT.Slots = 24
 
 local MODELS = {
 	"models/props_c17/Lockers001a.mdl",

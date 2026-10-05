@@ -168,9 +168,9 @@ function TAB:SetRevealDelay(delay)
 end
 
 function TAB:GetLabelWidth()
-	surface.SetFont(self.fontName)
+	surface.SetFont("nwTkTab")
 
-	return (surface.GetTextSize(self.label))
+	return (surface.GetTextSize(NETWORK.util.Upper(self.label)))
 end
 
 function TAB:OnCursorEntered()
@@ -445,13 +445,15 @@ end
 function TAB:GetPreferredWidth()
 	local Sc = NETWORK.util.Scale
 
-	return self:GetLabelWidth() + Sc(28) + (self.iconMaterial and Sc(24) or 0)
+	return self:GetLabelWidth() + Sc(34) + (self.iconMaterial and Sc(24) or 0)
 end
 
+-- Вкладка в стиле Tarkov: плашка со скошенным правым краем, активная — светлая
+-- с тёмным текстом («ВЕЩИ» на скриншоте).
 function TAB:Paint(width, height)
 	local Sc = NETWORK.util.Scale
-	local theme = NETWORK.theme
 	local util = NETWORK.util
+	local palette = NETWORK.theme.tk or {}
 	local reveal = self.reveal
 
 	if (reveal < 0.01) then
@@ -460,51 +462,66 @@ function TAB:Paint(width, height)
 
 	local hover = util.EaseInOut(self.hover)
 	local active = util.EaseInOut(self.active)
-	local accent = theme.combine
-	local radius = math.max(Sc(6), 4)
 	local y = math.Round((1 - reveal) * -Sc(6))
-
-	if (hover > 0.01) then
-		draw.RoundedBox(radius, 0, y, width, height,
-			Color(255, 255, 255, 12 * hover * (1 - active) * reveal))
-	end
-
-	if (active > 0.01) then
-		draw.RoundedBox(radius, 0, y, width, height,
-			ColorAlpha(accent, 34 * active * reveal))
-
-		util.DrawRoundedBorder(0, y, width, height, radius, math.max(Sc(1), 1),
-			ColorAlpha(accent, 200 * active * reveal))
-	end
-
-	local lit = math.max(hover, active)
-	local dimColor = self.bSecondary and theme.textFaint or theme.textDim
-	local color = Color(
-		Lerp(lit, dimColor.r, theme.text.r),
-		Lerp(lit, dimColor.g, theme.text.g),
-		Lerp(lit, dimColor.b, theme.text.b),
-		255 * reveal
+	local slant = math.Round(height * 0.45)
+	local plate = palette.plateLight or Color(31, 33, 34)
+	local light = palette.active or Color(212, 212, 200)
+	local fill = Color(
+		Lerp(active, plate.r + 14 * hover, light.r),
+		Lerp(active, plate.g + 14 * hover, light.g),
+		Lerp(active, plate.b + 14 * hover, light.b),
+		(self.bSecondary and 150 or 215) * reveal + 40 * math.max(hover, active) * reveal
 	)
 
+	draw.NoTexture()
+	surface.SetDrawColor(fill.r, fill.g, fill.b, math.min(fill.a, 255))
+	surface.DrawPoly({
+		{x = 0, y = y},
+		{x = width - slant, y = y},
+		{x = width, y = y + height},
+		{x = 0, y = y + height}
+	})
+
+	if (active < 0.5) then
+		local line = palette.line or Color(66, 69, 71)
+
+		surface.SetDrawColor(line.r, line.g, line.b, 200 * reveal)
+		surface.DrawRect(0, y + height - 1, width, 1)
+	end
+
+	local dimColor = self.bSecondary and (palette.textFaint or Color(104, 105, 100)) or
+		(palette.textDim or Color(150, 150, 140))
+	local bright = palette.text or Color(222, 220, 208)
+	local dark = palette.activeText or Color(16, 17, 18)
+	local lit = math.max(hover, 0)
+	local idle = Color(Lerp(lit, dimColor.r, bright.r), Lerp(lit, dimColor.g, bright.g),
+		Lerp(lit, dimColor.b, bright.b))
+	local color = Color(
+		Lerp(active, idle.r, dark.r),
+		Lerp(active, idle.g, dark.g),
+		Lerp(active, idle.b, dark.b),
+		255 * reveal
+	)
+	local label = util.Upper(self.label)
 	local material = self.iconMaterial
 
 	if (material and !material:IsError()) then
-
 		local iconSize = Sc(16)
-		local iconX = Sc(14)
+		local iconX = Sc(12)
 
 		surface.SetDrawColor(color.r, color.g, color.b, color.a)
 		surface.SetMaterial(material)
 		surface.DrawTexturedRect(iconX, y + math.Round((height - iconSize) * 0.5),
 			iconSize, iconSize)
+		draw.NoTexture()
 
-		draw.SimpleText(self.label, self.fontName, iconX + iconSize + Sc(8),
+		draw.SimpleText(label, "nwTkTab", iconX + iconSize + Sc(8),
 			y + math.Round(height * 0.5), color, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
 		return
 	end
 
-	draw.SimpleText(self.label, self.fontName, math.Round(width * 0.5),
+	draw.SimpleText(label, "nwTkTab", math.Round((width - slant) * 0.5) + Sc(4),
 		y + math.Round(height * 0.5), color, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 end
 

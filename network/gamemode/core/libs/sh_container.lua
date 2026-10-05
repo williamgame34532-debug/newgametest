@@ -199,7 +199,7 @@ end
 NETWORK.container.Register("crate", {
 	name = "Деревянный ящик",
 	model = "models/props_junk/wood_crate001a.mdl",
-	slots = 8,
+	slots = 12,
 	minItems = 1,
 	maxItems = 4,
 	loot = {
@@ -217,7 +217,7 @@ NETWORK.container.Register("crate", {
 NETWORK.container.Register("locker", {
 	name = "Шкафчик",
 	model = "models/props_c17/lockers001a.mdl",
-	slots = 12,
+	slots = 18,
 	minItems = 2,
 	maxItems = 5,
 	loot = {
@@ -234,7 +234,7 @@ NETWORK.container.Register("locker", {
 NETWORK.container.Register("supply", {
 	name = "Ящик снабжения",
 	model = "models/items/ammocrate_smg1.mdl",
-	slots = 10,
+	slots = 14,
 	minItems = 2,
 	maxItems = 4,
 	loot = {
@@ -249,7 +249,7 @@ NETWORK.container.Register("supply", {
 NETWORK.container.Register("weapons", {
 	name = "Оружейный ящик",
 	model = "models/items/item_item_crate.mdl",
-	slots = 8,
+	slots = 12,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -264,7 +264,7 @@ NETWORK.container.Register("corpse", {
 	name = "Вещи погибшего",
 	description = "Всё, что осталось при себе.",
 	model = "models/props_c17/suitcase_passenger_physics.mdl",
-	slots = 16,
+	slots = 24,
 	minItems = 0,
 	maxItems = 0,
 	loot = {}
@@ -273,7 +273,7 @@ NETWORK.container.Register("corpse", {
 NETWORK.container.Register("crate_big", {
 	name = "Большой ящик",
 	model = "models/props_junk/wood_crate002a.mdl",
-	slots = 12,
+	slots = 18,
 	minItems = 2,
 	maxItems = 5,
 	loot = {
@@ -289,7 +289,7 @@ NETWORK.container.Register("crate_big", {
 NETWORK.container.Register("cardboard", {
 	name = "Картонная коробка",
 	model = "models/props_junk/cardboard_box001a.mdl",
-	slots = 6,
+	slots = 9,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -304,7 +304,7 @@ NETWORK.container.Register("cardboard", {
 NETWORK.container.Register("barrel", {
 	name = "Бочка",
 	model = "models/props_c17/oildrum001.mdl",
-	slots = 8,
+	slots = 12,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -318,8 +318,9 @@ NETWORK.container.Register("barrel", {
 
 NETWORK.container.Register("fridge", {
 	name = "Холодильник",
+	description = "Еда внутри не портится.",
 	model = "models/props_c17/FurnitureFridge001a.mdl",
-	slots = 10,
+	slots = 20,
 	minItems = 1,
 	maxItems = 4,
 	loot = {
@@ -335,7 +336,7 @@ NETWORK.container.Register("fridge", {
 NETWORK.container.Register("drawer", {
 	name = "Комод",
 	model = "models/props_c17/FurnitureDrawer001a.mdl",
-	slots = 10,
+	slots = 15,
 	minItems = 1,
 	maxItems = 4,
 	loot = {
@@ -351,7 +352,7 @@ NETWORK.container.Register("drawer", {
 NETWORK.container.Register("filecabinet", {
 	name = "Картотека",
 	model = "models/props_lab/filecabinet02.mdl",
-	slots = 8,
+	slots = 12,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -365,7 +366,7 @@ NETWORK.container.Register("filecabinet", {
 NETWORK.container.Register("medical", {
 	name = "Медицинский бокс",
 	model = "models/props_lab/box01a.mdl",
-	slots = 10,
+	slots = 14,
 	minItems = 2,
 	maxItems = 4,
 	loot = {
@@ -381,7 +382,7 @@ NETWORK.container.Register("medical", {
 NETWORK.container.Register("ammobox", {
 	name = "Патронный ящик",
 	model = "models/items/ammocrate_ar2.mdl",
-	slots = 8,
+	slots = 12,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -396,7 +397,7 @@ NETWORK.container.Register("ammobox", {
 NETWORK.container.Register("toolbox", {
 	name = "Ящик с инструментом",
 	model = "models/props_wasteland/controlroom_storagecloset001a.mdl",
-	slots = 10,
+	slots = 15,
 	minItems = 1,
 	maxItems = 4,
 	loot = {
@@ -411,7 +412,7 @@ NETWORK.container.Register("toolbox", {
 NETWORK.container.Register("trashbin", {
 	name = "Мусорный бак",
 	model = "models/props_junk/trashbin01a.mdl",
-	slots = 6,
+	slots = 9,
 	minItems = 1,
 	maxItems = 3,
 	loot = {
@@ -427,7 +428,7 @@ NETWORK.container.Register("trashbin", {
 NETWORK.container.Register("briefcase", {
 	name = "Портфель",
 	model = "models/props_c17/briefcase001a.mdl",
-	slots = 6,
+	slots = 9,
 	minItems = 1,
 	maxItems = 2,
 	loot = {

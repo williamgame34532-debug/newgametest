@@ -184,6 +184,8 @@ function E.OptionLabel(field, value)
 		return L(value)
 	elseif (field == "armourClass") then
 		return L("itemCreateArmour_" .. value)
+	elseif (field == "medEffect") then
+		return L("itemCreateMed_" .. value)
 	end
 
 	return tostring(value)

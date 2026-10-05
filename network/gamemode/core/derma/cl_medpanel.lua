@@ -344,7 +344,7 @@ function PANEL:GetOwnedTreatments()
 	local list = {}
 
 	for id, count in pairs(counts) do
-		list[#list + 1] = {id = id, count = count, order = M.treatments[id].order}
+		list[#list + 1] = {id = id, count = count, order = M.GetTreatment(id).order}
 	end
 
 	table.sort(list, function(a, b)
@@ -375,7 +375,7 @@ function PANEL:RebuildItems()
 
 	for _, entry in ipairs(list) do
 		local base = NETWORK.item.Get(entry.id)
-		local treatment = M.treatments[entry.id]
+		local treatment = M.GetTreatment(entry.id)
 		local button = self.items:Add("DButton")
 
 		button:SetText("")

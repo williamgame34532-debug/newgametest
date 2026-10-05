@@ -129,6 +129,38 @@ function NETWORK.inventory.Use(source)
 	})
 end
 
+-- Оружие из слота снаряжения: в руках ли оно сейчас и переключение «взять/убрать из рук».
+function NETWORK.inventory.GetWeaponClass(item)
+	local base = item and NETWORK.item.Get(item.id)
+
+	return base and !base.bConsumeOnEquip and base.weaponClass or nil
+end
+
+function NETWORK.inventory.IsInHands(item)
+	local class = NETWORK.inventory.GetWeaponClass(item)
+	local weapon = class and LocalPlayer():GetActiveWeapon()
+
+	return IsValid(weapon) and weapon:GetClass() == class
+end
+
+function NETWORK.inventory.TakeInHands(item)
+	local class = NETWORK.inventory.GetWeaponClass(item)
+	local weapon = class and LocalPlayer():GetWeapon(class)
+
+	if (IsValid(weapon)) then
+		input.SelectWeapon(weapon)
+	end
+end
+
+function NETWORK.inventory.Holster()
+	local hands = LocalPlayer():GetWeapon(NETWORK.weapon and NETWORK.weapon.hands or
+		"weapon_nwhands")
+
+	if (IsValid(hands)) then
+		input.SelectWeapon(hands)
+	end
+end
+
 function NETWORK.inventory.CanDrop(item, list, index, slot, fromList)
 	return NETWORK.inventory.CanPlace(NETWORK.inventory.state, item, list, index, slot, fromList)
 end

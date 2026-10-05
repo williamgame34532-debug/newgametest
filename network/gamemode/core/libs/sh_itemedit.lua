@@ -190,6 +190,9 @@ E.specs = {
 	ammoAmount = {kind = "int", min = 1, max = 500, step = 5, default = 30},
 
 	healWound = {kind = "int", min = 0, max = 100, step = 5, default = 25},
+	medEffect = {kind = "choice", options = {"heal", "stim", "bandage", "tourniquet", "chestseal",
+		"splint", "medkit", "syringe", "bloodbag", "morphine", "painkillers"}, default = "heal"},
+	medTime = {kind = "int", min = 0, max = 30, default = 0},
 	useCooldown = {kind = "int", min = 0, max = 600, step = 5, default = 0}
 }
 
@@ -233,7 +236,7 @@ E.bases = {
 		fields = {"ammoType", "ammoAmount"},
 		defaults = {ammoType = "Pistol", ammoAmount = 30, maxStack = 3}},
 	{id = "medical", icon = "icon16/heart.png", category = "medical",
-		fields = {"healWound", "useCooldown", "useSound"},
+		fields = {"medEffect", "healWound", "medTime", "useCooldown", "useSound"},
 		defaults = {healWound = 25, maxStack = 4}}
 }
 
@@ -618,7 +621,8 @@ function E.CleanCustom(id, payload, options)
 		clean.price = nil
 	end
 
-	for _, field in ipairs({"hunger", "thirst", "tokens", "useCooldown", "radProtection"}) do
+	for _, field in ipairs({"hunger", "thirst", "tokens", "useCooldown", "radProtection",
+		"medTime"}) do
 		if (clean[field] == 0) then
 			clean[field] = nil
 		end
@@ -679,11 +683,35 @@ function E.BuildItem(id, def)
 		data.OnUse = function(self, client)
 			return NETWORK.item.LoadAmmo(client, self)
 		end
+	elseif (base.id == "equipment" and data.equipSlot == "radio") then
+		-- Без OnUse самодельную рацию нельзя было настроить: частота не выставлялась,
+		-- и /r с голосовой передачей не работали.
+		data.bRadio = true
+		data.useLabel = data.useLabel or "radioItemUse"
+		data.OnUse = function(self, client)
+			if (SERVER and NETWORK.radio and NETWORK.radio.OpenMenu) then
+				NETWORK.radio.OpenMenu(client)
+			end
+
+			return false
+		end
 	elseif (base.id == "armour") then
 		data.bWearable = true
 	elseif (base.id == "medical") then
-		data.useLabel = data.useLabel or "itemApply"
-		data.OnUse = function() end
+		data.medEffect = data.medEffect or "heal"
+		data.useLabel = data.useLabel or (data.medEffect == "stim" or data.medEffect == "syringe" or
+			data.medEffect == "morphine") and "itemInject" or "itemApply"
+
+		-- Раньше OnUse был пустым, и созданное лекарство ничего не делало.
+		-- Теперь оно идёт через общую систему лечения: на себя из инвентаря,
+		-- на других — из медпанели и перетаскиванием на рану.
+		data.OnUse = function(self, client)
+			if (SERVER and NETWORK.medical and NETWORK.medical.Begin) then
+				NETWORK.medical.Begin(client, client, self.id)
+			end
+
+			return false
+		end
 	elseif (base.id == "drink") then
 		data.useLabel = data.useLabel or "itemDrink"
 	elseif (base.id == "food") then

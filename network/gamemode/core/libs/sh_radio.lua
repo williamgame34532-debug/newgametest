@@ -24,6 +24,22 @@ function R.Normalise(value)
 	return string.format("%.1f", number)
 end
 
+-- Рация — это штатный предмет "radio" или любой предмет со слотом "radio"
+-- (в том числе созданный в редакторе предметов).
+function R.IsRadioItem(item)
+	if (!istable(item) or !isstring(item.id)) then
+		return false
+	end
+
+	if (item.id == R.itemID) then
+		return true
+	end
+
+	local base = NETWORK.item and NETWORK.item.Get and NETWORK.item.Get(item.id)
+
+	return base != nil and (base.equipSlot == "radio" or base.bRadio == true)
+end
+
 function R.GetFreq(client)
 	return IsValid(client) and client:GetNWString("nwRadioFreq", "") or ""
 end
@@ -81,7 +97,7 @@ if (SERVER) then
 
 		for _, list in ipairs({"equipped", "items", "storage"}) do
 			for _, item in pairs(state[list] or {}) do
-				if (istable(item) and item.id == R.itemID) then
+				if (R.IsRadioItem(item)) then
 					return item
 				end
 			end

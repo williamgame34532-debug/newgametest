@@ -55,12 +55,70 @@ M.treatments = {
 	syringe = {time = 2, target = "body", order = 6, glyph = "chevron"},
 	bloodbag = {time = 8, target = "body", order = 7, glyph = "down"},
 	morphine = {time = 3, target = "body", order = 8, glyph = "chevron"},
-	painkillers = {time = 2, target = "body", order = 9, glyph = "dot"}
+	painkillers = {time = 2, target = "body", order = 9, glyph = "dot"},
+	heal = {time = 3, target = "body", order = 10, glyph = "plus"},
+	stim = {time = 2, target = "body", order = 11, glyph = "chevron"}
 }
 
-function M.IsTreatment(id)
-	return id != nil and M.treatments[id] != nil
+-- Эффекты, которые можно выбрать созданному в редакторе медицинскому предмету.
+M.effects = {"heal", "stim", "bandage", "tourniquet", "chestseal", "splint", "medkit",
+	"syringe", "bloodbag", "morphine", "painkillers"}
+
+M.stimSpeed = 1.15
+
+M.customTreatments = M.customTreatments or {}
+
+-- Встроенные предметы лечат по своему ID, созданные — по выбранному эффекту (medEffect).
+function M.GetTreatment(id)
+	if (!isstring(id)) then
+		return
+	end
+
+	local treatment = M.treatments[id]
+
+	if (treatment) then
+		return treatment
+	end
+
+	local base = NETWORK.item and NETWORK.item.Get and NETWORK.item.Get(id)
+	local effect = base and (base.medEffect or (base.customBase == "medical" and "heal"))
+	local template = isstring(effect) and M.treatments[effect]
+
+	if (!template) then
+		return
+	end
+
+	local cached = M.customTreatments[id]
+
+	if (cached and cached.base == base and cached.effect == effect) then
+		return cached.treatment
+	end
+
+	local time = tonumber(base.medTime)
+
+	treatment = setmetatable({
+		effect = effect,
+		strength = tonumber(base.healWound) or 25,
+		time = (time and time > 0) and time or template.time,
+		order = template.order + 0.5
+	}, {__index = template})
+
+	M.customTreatments[id] = {base = base, effect = effect, treatment = treatment}
+
+	return treatment
 end
+
+function M.IsTreatment(id)
+	return M.GetTreatment(id) != nil
+end
+
+hook.Add("NetworkMovementSpeed", "nwStim", function(client, walk, run)
+	if (client:GetNWFloat("nwStimUntil", 0) <= CurTime()) then
+		return
+	end
+
+	return walk, run * M.stimSpeed
+end)
 
 function M.IsLimb(part)
 	return M.limbs[part] == true

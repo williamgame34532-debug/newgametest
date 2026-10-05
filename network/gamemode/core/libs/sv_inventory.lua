@@ -887,7 +887,11 @@ function actions.use(client, state, payload)
 		return
 	end
 
-	if ((base.healWound or 0) > 0) then
+	-- Предметы с эффектом лечения идут через NETWORK.medical (OnUse ниже).
+	local bTreatment = NETWORK.medical and NETWORK.medical.IsTreatment and
+		NETWORK.medical.IsTreatment(item.id)
+
+	if ((base.healWound or 0) > 0 and !bTreatment) then
 		local worst, amount
 
 		for _, part in ipairs(NETWORK.wound.parts) do

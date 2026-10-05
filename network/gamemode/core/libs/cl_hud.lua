@@ -367,13 +367,10 @@ function NETWORK.hud.DrawAmmo()
 
 	local right = ScrW() - Sc(34)
 	local bottom = ScrH() - Sc(28)
-	local banner = util.GetMaterial(NETWORK.hud.bannerPath, "smooth")
+	if (NETWORK.tk and NETWORK.tk.GetBrandSize) then
+		local _, brandHeight = NETWORK.tk.GetBrandSize()
 
-	if (banner and !banner:IsError()) then
-		local bannerWidth = math.min(Sc(190), math.Round(ScrW() * 0.12))
-
-		bottom = bottom - math.Round(bannerWidth *
-			(banner:Height() / math.max(banner:Width(), 1))) - Sc(18)
+		bottom = bottom - brandHeight - Sc(18)
 	end
 
 	local y = bottom - Sc(18)
@@ -409,27 +406,14 @@ end
 NETWORK.hud.bannerPath = NETWORK.hud.bannerPath or "logos/banner.png"
 
 function NETWORK.hud.DrawBrand()
-	local Sc = NETWORK.util.Scale
-	local util = NETWORK.util
-	local material = util.GetMaterial(NETWORK.hud.bannerPath, "smooth")
-
-	if (!material or material:IsError()) then
+	-- Вместо картинки-баннера: иконка logos/n-logo.png и «Network: HL-A Roleplay».
+	if (!NETWORK.tk or !NETWORK.tk.DrawBrand) then
 		return
 	end
 
-	local width = math.min(Sc(190), math.Round(ScrW() * 0.12))
-	local source = math.max(material:Width(), 1)
-	local height = math.Round(width * (material:Height() / source))
-	local x = ScrW() - Sc(34) - width
-	local y = ScrH() - Sc(28) - height
+	local Sc = NETWORK.util.Scale
 
-	surface.SetDrawColor(0, 0, 0, 130)
-	surface.SetMaterial(material)
-	surface.DrawTexturedRect(x + 2, y + 2, width, height)
-
-	surface.SetDrawColor(255, 255, 255, 235)
-	surface.SetMaterial(material)
-	surface.DrawTexturedRect(x, y, width, height)
+	NETWORK.tk.DrawBrand(ScrW() - Sc(34), ScrH() - Sc(28), 1)
 end
 
 hook.Add("HUDPaint", "nwHud", function()
@@ -509,6 +493,11 @@ hook.Add("HUDPaint", "nwHudBrand", function()
 	end
 
 	if (NETWORK.hud.IsHidden(true)) then
+		return
+	end
+
+	-- Таб-меню рисует ту же подпись в своей нижней панели.
+	if (IsValid(NETWORK.gui.tabMenu)) then
 		return
 	end
 

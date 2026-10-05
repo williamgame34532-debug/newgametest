@@ -259,6 +259,15 @@ function NETWORK.mapents.Load()
 			end
 		end
 
+		-- Старые сохранения хранят прежний размер; не даём ему быть меньше текущего в реестре.
+		if (entry.class == "nw_container" and entity.SetContainerSlots) then
+			local data = NETWORK.container.Get(entity:GetContainerID())
+
+			if (data and entity:GetContainerSlots() < data.slots) then
+				entity:SetContainerSlots(data.slots)
+			end
+		end
+
 		if (entry.class == "nw_trader" and istable(entity.offers)) then
 			entity.offers = NETWORK.trade.CleanOffers(entity.offers)
 		end
