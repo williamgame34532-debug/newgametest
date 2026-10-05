@@ -1101,921 +1101,550 @@ local function StyleScrollBar(scroll)
 	end
 end
 
+-- Инвентарь: минималистичная раскладка в три колонки.
+-- Слева — персонаж: модель, вокруг неё слоты одежды и брони, снизу снаряжение, показатели, статусы.
+-- По центру — сумка-инвентарь и рюкзак. Справа — оружие и карточка выбранного предмета.
+local MIN_LINE = Color(255, 255, 255, 18)
+
+local function MinimalTitle(parent, text, x, y, width, badge)
+	local Sc = NETWORK.util.Scale
+	local panel = parent:Add("DPanel")
+	local caption = NETWORK.util.Upper(text)
+
+	panel:SetPos(x, y)
+	panel:SetSize(width, Sc(26))
+	panel:SetMouseInputEnabled(false)
+	panel.startTime = CurTime()
+	panel.Paint = function(self, w, h)
+		local palette = Palette()
+		local util = NETWORK.util
+		local reveal = util.EaseOut(util.Stagger(self.startTime, 0.03, 0.35))
+
+		util.DrawTextSpaced(caption, "nwInvKey", 0, h * 0.5 - Sc(2), ColorAlpha(palette.textDim, 235 * reveal),
+			math.max(Sc(2), 1), TEXT_ALIGN_CENTER)
+
+		if (badge) then
+			local text, color = badge()
+
+			if (text) then
+				draw.SimpleText(text, "nwInvSub", w, h * 0.5 - Sc(2),
+					ColorAlpha(color or palette.textFaint, 235 * reveal), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+			end
+		end
+
+		surface.SetDrawColor(MIN_LINE.r, MIN_LINE.g, MIN_LINE.b, MIN_LINE.a * reveal)
+		surface.DrawRect(0, h - 1, w * reveal, 1)
+	end
+
+	return panel
+end
+
+local function EquipTile(parent, data, x, y, size, order)
+	local slot = parent:Add("nwItemSlot")
+
+	slot:SetPos(x, y)
+	slot:SetSize(size, size)
+	slot:SetCompact(true)
+	slot:SetRevealDelay(0.04 + order * 0.012)
+	slot:SetSlotName(L(data.name))
+	slot:SetSource("equipped", 0, data.id)
+	slot:SetItem(NETWORK.inventory.GetEquipped(data.id))
+	slot.DoClick = function()
+		SelectOrQuick(slot, function()
+			NETWORK.inventory.Unequip(data.id)
+		end)
+	end
+
+	return slot
+end
+
+local function SlotData(id)
+	for _, group in ipairs(NETWORK.inventory.equipment) do
+		for _, data in ipairs(group.slots) do
+			if (data.id == id) then
+				return data
+			end
+		end
+	end
+end
+
+local function CountCells(source)
+	local used = 0
+
+	for _, item in pairs(source or {}) do
+		local itemWidth, itemHeight = NETWORK.item.GetSize(item)
+
+		used = used + (itemWidth or 1) * (itemHeight or 1)
+	end
+
+	return used
+end
+
+local function BuildInventoryPage(page, menu)
+	local Sc = NETWORK.util.Scale
+	local W, H = page:GetWide(), page:GetTall()
+	local columns, rows = NETWORK.inventory.columns, NETWORK.inventory.rows
+	local container = NETWORK.inventory.GetContainer()
+	local character = LocalPlayer():GetCharacter()
+	local gutter = Sc(36)
+	local leftW = math.Clamp(math.floor(W * 0.31), Sc(320), Sc(460))
+	local rightW = math.Clamp(math.floor(W * 0.25), Sc(280), Sc(380))
+	local centerX = leftW + gutter
+	local centerW = W - leftW - rightW - gutter * 2
+	local rightX = W - rightW
+	local tabPage = page
+
+	NETWORK.gui.ResetFilter()
+
+	-- Тонкие разделители колонок вместо тяжёлых плит.
+	local back = page:Add("DPanel")
+
+	back:SetPos(0, 0)
+	back:SetSize(W, H)
+	back:SetMouseInputEnabled(false)
+	back.Paint = function(_, w, h)
+		surface.SetDrawColor(MIN_LINE)
+		surface.DrawRect(leftW + gutter / 2, Sc(8), 1, h - Sc(16))
+		surface.DrawRect(rightX - gutter / 2, Sc(8), 1, h - Sc(16))
+	end
+
+	-- ЛЕВАЯ КОЛОНКА ------------------------------------------------------------------------
+	local identity = page:Add("DButton")
+
+	identity:SetText("")
+	identity:SetPos(0, 0)
+	identity:SetSize(leftW, Sc(52))
+	identity:SetCursor("hand")
+	identity.DoClick = function()
+		NETWORK.sound.Click()
+		NETWORK.gui.OpenDescriptionEditor()
+	end
+	identity.Paint = function(self, w, h)
+		local client = LocalPlayer()
+
+		if (!IsValid(client)) then
+			return
+		end
+
+		local palette = Palette()
+		local util = NETWORK.util
+		local faction = character and character:GetFactionTable()
+		local line = util.Upper(faction and L(faction.name) or "")
+
+		draw.SimpleText(util.TruncateWidth(client:GetCharacterName() or "", "nwInvTitle", w), "nwInvTitle", 0, Sc(14),
+			palette.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		util.DrawTextSpaced(util.TruncateWidth(line, "nwInvKey", w), "nwInvKey", 0, Sc(38),
+			ColorAlpha(faction and faction.color or palette.textDim, 230), math.max(Sc(2), 1), TEXT_ALIGN_CENTER)
+
+		if (self:IsHovered()) then
+			draw.SimpleText(util.Upper(L("descEditButton")), "nwInvKey", w, Sc(14), palette.textFaint,
+				TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		end
+	end
+
+	local vitalsH = Sc(5 * 22 + 8)
+	local statusH = Sc(44)
+	local extraH = Sc(58)
+	local modelTop = Sc(60)
+	local modelH = H - modelTop - extraH - vitalsH - statusH - Sc(24)
+	local sideSlots = {{"helmet", "hat", "glasses", "mask", "gloves"}, {"jacket", "vest", "armour", "pants", "boots"}}
+	local tile = math.Clamp(math.floor((modelH - Sc(6) * 4) / 5), Sc(44), Sc(70))
+	local modelX = tile + Sc(10)
+	local modelW = leftW - (tile + Sc(10)) * 2
+
+	-- модель персонажа
+	local model = page:Add("DModelPanel")
+
+	model:SetPos(modelX, modelTop)
+	model:SetSize(modelW, modelH)
+	model:SetModel(LocalPlayer():GetCharacterModel())
+	model:SetFOV(26)
+	model:SetCursor("hand")
+	model.rotation = 15
+	model.LayoutEntity = function(self, entity)
+		self:RunAnimation()
+
+		if (self.bDragging) then
+			local x = gui.MouseX()
+
+			self.rotation = self.rotation + (x - (self.lastX or x)) * 0.6
+			self.lastX = x
+		end
+
+		entity:SetAngles(Angle(0, self.rotation % 360, 0))
+	end
+	model.OnMousePressed = function(self, code)
+		if (code == MOUSE_LEFT) then
+			self.bDragging = true
+			self.lastX = gui.MouseX()
+			self:MouseCapture(true)
+		end
+	end
+	model.OnMouseReleased = function(self)
+		self.bDragging = false
+		self:MouseCapture(false)
+	end
+	model.PaintOver = function(self, w, h)
+		local drag = NETWORK.gui.drag
+
+		if (!drag or !self:IsHovered()) then
+			return
+		end
+
+		local palette = Palette()
+		local color = NETWORK.item.CanUse(drag.item) and palette.positive or palette.danger
+
+		NETWORK.util.DrawRoundedBorder(0, 0, w, h, math.max(Sc(6), 4), math.max(Sc(2), 2),
+			Color(color.r, color.g, color.b, 200))
+	end
+
+	NETWORK.gui.modelPanel = model
+
+	local entity = model:GetEntity()
+
+	if (IsValid(entity)) then
+		NETWORK.util.ApplyAppearance(model, LocalPlayer())
+
+		if (character) then
+			entity:SetModelScale(character:GetScale(), 0)
+		end
+
+		local sequence = entity:LookupSequence("idle_all_01")
+
+		if (sequence > 0) then
+			entity:ResetSequence(sequence)
+		end
+
+		NETWORK.util.FrameModelPanel(model, NETWORK.creation.GetFrameUnits(), 0.04, 1.05)
+	end
+
+	-- слоты одежды и брони по бокам модели
+	local order = 0
+	local slotsH = tile * 5 + Sc(6) * 4
+	local slotsY = modelTop + math.floor((modelH - slotsH) * 0.5)
+
+	for side, list in ipairs(sideSlots) do
+		local x = side == 1 and 0 or (leftW - tile)
+
+		for index, id in ipairs(list) do
+			local data = SlotData(id)
+
+			if (data) then
+				order = order + 1
+				EquipTile(page, data, x, slotsY + (index - 1) * (tile + Sc(6)), tile, order)
+			end
+		end
+	end
+
+	-- снаряжение рядом под моделью
+	local extra = {"backpack", "radio", "watch", "light", "cuffs"}
+	local extraTile = math.min(math.floor((leftW - Sc(6) * (#extra - 1)) / #extra), extraH)
+	local extraY = modelTop + modelH + Sc(8)
+
+	for index, id in ipairs(extra) do
+		local data = SlotData(id)
+
+		if (data) then
+			order = order + 1
+			EquipTile(page, data, (index - 1) * (extraTile + Sc(6)), extraY, extraTile, order)
+		end
+	end
+
+	-- показатели тонкими полосками
+	local vitalsY = extraY + extraH + Sc(10)
+	local meterLabels = {L("statHealth"), L("statHunger"), L("statThirst"), L("invStamina"), L("statArmour")}
+	local labelW = 0
+
+	surface.SetFont("nwInvStat")
+
+	for _, label in ipairs(meterLabels) do
+		labelW = math.max(labelW, (surface.GetTextSize(label)))
+	end
+
+	labelW = math.min(labelW + Sc(12), math.floor(leftW * 0.4))
+
+	local vitals = page:Add("DPanel")
+
+	vitals:SetPos(0, vitalsY)
+	vitals:SetSize(leftW, vitalsH)
+	vitals:SetMouseInputEnabled(false)
+	vitals.startTime = CurTime()
+	vitals.Paint = function(self, w, h)
+		local client = LocalPlayer()
+
+		if (!IsValid(client)) then
+			return
+		end
+
+		local tk = NETWORK.theme.tk
+		local reveal = NETWORK.util.EaseOut(NETWORK.util.Stagger(self.startTime, 0.1, 0.4))
+		local step = Sc(22)
+		local health = math.max(client:Health(), 0)
+		local stamina = client.GetStaminaFraction and client:GetStaminaFraction() or 1
+		local hunger = client.GetHunger and client:GetHunger() or 100
+		local thirst = client.GetThirst and client:GetThirst() or 100
+		local armour = math.max(client:Armor(), 0)
+		local rowsData = {
+			{tostring(math.Round(health)), health / math.max(client:GetMaxHealth(), 1), tk.good},
+			{tostring(math.Round(hunger)), hunger / 100, NETWORK.theme.warning},
+			{tostring(math.Round(thirst)), thirst / 100, tk.water},
+			{tostring(math.Round(stamina * 100)), stamina, tk.energy},
+			{tostring(armour), armour / math.max(client:GetMaxArmor(), 1), ARMOUR_COLOR}
+		}
+
+		for index, row in ipairs(rowsData) do
+			DrawMeter(0, (index - 1) * step, w, step, labelW, meterLabels[index], row[1], row[2], row[3],
+				reveal * ((index == 5 and armour <= 0) and 0.45 or 1))
+		end
+	end
+
+	-- статусы
+	local status = page:Add("DPanel")
+	local statusIcon = Sc(26)
+
+	status:SetPos(0, vitalsY + vitalsH + Sc(6))
+	status:SetSize(leftW, statusH)
+	status.icons = {}
+	status.nextRefresh = 0
+	status.Paint = function(self)
+		if (#self.icons == 0) then
+			local palette = Palette()
+
+			draw.SimpleText(L("statusNone"), "nwInvSub", 0, statusH * 0.5, ColorAlpha(palette.textFaint, 200),
+				TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		end
+	end
+	status.Think = function(self)
+		if (RealTime() < self.nextRefresh) then
+			return
+		end
+
+		self.nextRefresh = RealTime() + 1
+
+		local client = LocalPlayer()
+
+		if (!IsValid(client) or !NETWORK.status or !NETWORK.status.Active) then
+			return
+		end
+
+		local list = NETWORK.status.Active(client)
+		local signature = ""
+
+		for _, entry in ipairs(list) do
+			signature = signature .. entry.id .. ";"
+		end
+
+		if (signature == self.signature) then
+			return
+		end
+
+		self.signature = signature
+
+		for _, icon in ipairs(self.icons) do
+			if (IsValid(icon)) then
+				icon:Remove()
+			end
+		end
+
+		self.icons = {}
+
+		for index, entry in ipairs(list) do
+			local icon = self:Add("DPanel")
+
+			icon:SetSize(statusIcon, statusIcon)
+			icon:SetPos((index - 1) * (statusIcon + Sc(8)), math.floor((statusH - statusIcon) * 0.5))
+			icon.Paint = function(panel, w, h)
+				local material = NETWORK.util.GetMaterial("framework/status/" .. entry.id .. ".png", "smooth")
+
+				if (material and !material:IsError()) then
+					surface.SetMaterial(material)
+					surface.SetDrawColor(entry.color.r, entry.color.g, entry.color.b, panel:IsHovered() and 255 or 215)
+					surface.DrawTexturedRect(0, 0, w, h)
+				elseif (NETWORK.gui.DrawGlyph) then
+					NETWORK.gui.DrawGlyph(entry.glyph, 0, 0, w, ColorAlpha(entry.color, 230))
+				end
+			end
+			icon.OnCursorEntered = function(panel)
+				local owner = LocalPlayer()
+				local value = IsValid(owner) and NETWORK.status.Value and NETWORK.status.Value(owner, entry)
+
+				NETWORK.gui.SetTooltip(panel, {
+					title = L("status" .. entry.id),
+					color = entry.color,
+					lines = NETWORK.util.WrapText(L("status" .. entry.id .. "Desc"), "nwTipBody", Sc(360), 4),
+					footer = value and {{label = L("statusValue"), value = value, color = entry.color}} or nil
+				})
+			end
+			icon.OnCursorExited = function(panel)
+				NETWORK.gui.ClearTooltip(panel)
+			end
+
+			self.icons[#self.icons + 1] = icon
+		end
+	end
+
+	-- ЦЕНТР ----------------------------------------------------------------------------------
+	local center = page:Add("DScrollPanel")
+
+	center:SetPos(centerX, 0)
+	center:SetSize(centerW, H)
+	StyleScrollBar(center)
+
+	local gap = Sc(8)
+	local bagRows = container and math.ceil(NETWORK.item.GetStorageSlots(container) / columns) or 0
+	local titleH = Sc(26)
+	local available = H - titleH * 2 - Sc(40) - (bagRows > 0 and 0 or Sc(56))
+	local cell = math.floor((centerW - gap * (columns - 1)) / columns)
+
+	cell = math.Clamp(math.min(cell, math.floor(available / math.max(rows + bagRows, 1)) - gap), Sc(48), Sc(120))
+
+	local gridW = cell * columns + gap * (columns - 1)
+	local gridX = math.max(math.floor((centerW - gridW) * 0.5), 0)
+
+	MinimalTitle(center, L("tabInventory"), gridX, 0, gridW, function()
+		local current = NETWORK.inventory.GetWeight()
+		local maximum = NETWORK.inventory.MaxWeightFor and NETWORK.inventory.MaxWeightFor(LocalPlayer()) or
+			NETWORK.inventory.maxWeight
+		local palette = Palette()
+		local color = current > maximum and palette.danger or (current > maximum * 0.8 and palette.warning or nil)
+
+		return string.format("%.1f / %g %s", current, maximum, L("invWeightUnit")), color
+	end)
+
+	local gridY = titleH + Sc(12)
+
+	NETWORK.gui.BuildGrid(center, "items", NETWORK.inventory.state.items, {
+		x = gridX, y = gridY, cell = cell, cellWidth = cell, gap = gap, columns = columns, rows = rows,
+		OnClick = function(index, slot)
+			SelectOrQuick(slot, function()
+				local item = NETWORK.inventory.GetItem(index)
+
+				if (!item) then
+					return
+				end
+
+				if (NETWORK.item.GetEquipSlot(item)) then
+					NETWORK.inventory.Equip(index)
+				elseif (NETWORK.item.CanUse(item)) then
+					NETWORK.inventory.Use({list = "items", index = index})
+				end
+			end)
+		end
+	})
+
+	local cursorY = gridY + rows * (cell + gap) - gap + Sc(22)
+
+	MinimalTitle(center, container and NETWORK.item.GetName(container) or L("invBag"), gridX, cursorY, gridW, function()
+		if (!container) then
+			return
+		end
+
+		return CountCells(NETWORK.inventory.state.storage) .. " / " .. NETWORK.item.GetStorageSlots(container)
+	end)
+
+	cursorY = cursorY + titleH + Sc(12)
+
+	if (container) then
+		NETWORK.gui.BuildGrid(center, "storage", NETWORK.inventory.state.storage, {
+			x = gridX, y = cursorY, cell = cell, cellWidth = cell, gap = gap, columns = columns, rows = bagRows,
+			OnClick = function(index, slot)
+				SelectOrQuick(slot, function()
+					NETWORK.inventory.FromStorage(index)
+				end)
+			end
+		})
+
+		cursorY = cursorY + bagRows * (cell + gap)
+	else
+		local empty = center:Add("DPanel")
+
+		empty:SetPos(gridX, cursorY)
+		empty:SetSize(gridW, Sc(56))
+		empty:SetMouseInputEnabled(false)
+		empty.Paint = function(_, w, h)
+			local palette = Palette()
+
+			NETWORK.util.DrawRoundedBorder(0, 0, w, h, math.max(Sc(6), 4), 1, Color(255, 255, 255, 22))
+			draw.SimpleText(L("invNoBag"), "nwInvBody", w * 0.5, h * 0.5, ColorAlpha(palette.textFaint, 220),
+				TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		end
+
+		cursorY = cursorY + Sc(56)
+	end
+
+	center:GetCanvas():SetTall(cursorY + Sc(12))
+
+	-- ПРАВАЯ КОЛОНКА ------------------------------------------------------------------------
+	local weapons = GetGroup("weapons")
+	local rowH = Sc(46)
+	local y = 0
+
+	MinimalTitle(page, L("equipShortWeapons"), rightX, y, rightW)
+	y = y + titleH + Sc(10)
+
+	for index, data in ipairs(weapons and weapons.slots or {}) do
+		order = order + 1
+		BuildEquipRow(page, data, rightX, y, rightW, rowH, order)
+		y = y + rowH + Sc(6)
+	end
+
+	y = y + Sc(14)
+
+	local detailY = y
+	local buttonH = Sc(32)
+	local detailH = H - detailY - buttonH - Sc(12)
+
+	page.RebuildDetail = function()
+		if (IsValid(page.detail)) then
+			page.detail:Remove()
+		end
+
+		local selected = NETWORK.gui.selected
+
+		if (selected and NETWORK.gui.ItemAt(selected)) then
+			page.detail = BuildDetailWide(page, rightX, detailY, rightW, detailH)
+
+			return
+		end
+
+		page.detail = page:Add("DPanel")
+		page.detail:SetPos(rightX, detailY)
+		page.detail:SetSize(rightW, detailH)
+		page.detail:SetMouseInputEnabled(false)
+		page.detail.Paint = function(_, w, h)
+			local palette = Palette()
+
+			NETWORK.util.DrawRoundedBorder(0, 0, w, Sc(120), math.max(Sc(6), 4), 1, Color(255, 255, 255, 16))
+
+			for index, line in ipairs(NETWORK.util.WrapText(L("invSelectHint"), "nwInvSub", w - Sc(40), 3)) do
+				draw.SimpleText(line, "nwInvSub", w * 0.5, Sc(48) + (index - 1) * Sc(16),
+					ColorAlpha(palette.textFaint, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			end
+		end
+	end
+
+	page.RebuildDetail()
+	tabPage.RebuildDetail = page.RebuildDetail
+
+	local examine = page:Add("nwInvButton")
+
+	examine:SetPos(rightX, H - buttonH)
+	examine:SetSize(rightW, buttonH)
+	examine:Setup(L("invExamine"), "plus", false)
+	examine.DoClick = function()
+		net.Start("nwMedSelf")
+		net.SendToServer()
+
+		menu:Close()
+	end
+end
+
 NETWORK.gui.RegisterTab("inventory", {
 	name = "tabInventory",
 	order = 10,
 	glyph = "grid",
 	Build = function(page, menu)
-		local Sc = NETWORK.util.Scale
-		local width = page:GetWide()
-		local height = page:GetTall()
-		local columns = NETWORK.inventory.columns
-		local rows = NETWORK.inventory.rows
-		local gap = Sc(6)
-		local container = NETWORK.inventory.GetContainer()
-		local character = LocalPlayer():GetCharacter()
-
-		local chipsRow = Sc(34)
-		local chipsHolder = page:Add("DPanel")
-
-		chipsHolder:SetPos(0, 0)
-		chipsHolder:SetSize(width, chipsRow)
-		chipsHolder.Paint = function() end
-
-		local body = page:Add("DPanel")
-
-		body:SetPos(0, chipsRow)
-		body:SetSize(width, height - chipsRow)
-		body.Paint = function() end
-
-		local tabPage = page
-		local panelPad = Sc(16)
-		local inner = body:Add("DPanel")
-
-		inner:SetPos(panelPad, panelPad)
-		inner:SetSize(width - panelPad * 2, height - chipsRow - panelPad * 2)
-		inner.Paint = function() end
-
-		page = inner
-		width = width - panelPad * 2
-		height = height - chipsRow - panelPad * 2
-
-		local leftWidth = math.Clamp(math.floor(width * 0.2), Sc(240), Sc(300))
-		local rightWidth = math.Clamp(math.floor(width * 0.19), Sc(220), Sc(280))
-		local columnGap = Sc(28)
-		local centerX = leftWidth + columnGap
-		local centerWidth = width - leftWidth - rightWidth - columnGap * 2
-		local rightX = width - rightWidth
-
-		do
-			local dividerLeft = panelPad + leftWidth + math.floor(columnGap * 0.5)
-			local dividerRight = panelPad + rightX - math.floor(columnGap * 0.5)
-
-			body.startTime = CurTime()
-			body.Paint = function(self, panelWidth, panelHeight)
-				local util = NETWORK.util
-				local S = NETWORK.style
-				local reveal = util.EaseOut(util.Stagger(self.startTime, 0, 0.35))
-				local radius = (S and S.Radius) and S.Radius("panel") or math.max(Sc(12), 6)
-
-				if (reveal < 0.01) then
-					return
-				end
-
-				NETWORK.tk.Frame(0, 0, panelWidth, panelHeight, reveal,
-					Color(15, 16, 17, 225), NETWORK.theme.tk.lineSoft)
-
-				surface.SetDrawColor(66, 69, 71, 200 * reveal)
-				surface.DrawRect(dividerLeft, panelPad, 1, panelHeight - panelPad * 2)
-				surface.DrawRect(dividerRight, panelPad, 1, panelHeight - panelPad * 2)
-			end
-		end
-
-		local identityHeight = Sc(46)
-		local identity = page:Add("DButton")
-
-		identity:SetText("")
-		identity:SetCursor("hand")
-		identity:SetPos(0, 0)
-		identity:SetSize(leftWidth, identityHeight)
-		identity.hover = 0
-		identity.startTime = CurTime()
-		identity.Think = function(self)
-			self.hover = NETWORK.util.Approach(self.hover, self:IsHovered() and 1 or 0, 12)
-		end
-		identity.DoClick = function()
-			NETWORK.sound.Click()
-			NETWORK.gui.OpenDescriptionEditor()
-		end
-		identity.Paint = function(self, panelWidth, panelHeight)
-			local palette = Palette()
-			local theme = NETWORK.theme
-			local util = NETWORK.util
-			local client = LocalPlayer()
-
-			if (not IsValid(client)) then
-				return
-			end
-
-			local reveal = util.EaseOut(util.Stagger(self.startTime, 0.08, 0.4))
-			local faction = character and character:GetFactionTable()
-			local hintWidth = 0
-
-			if (self.hover > 0.01) then
-				local hint = util.Upper(L("descEditButton"))
-
-				surface.SetFont("nwInvKey")
-
-				hintWidth = surface.GetTextSize(hint) + Sc(8)
-
-				draw.SimpleText(hint, "nwInvKey", panelWidth, Sc(13),
-					ColorAlpha(theme.combine, 230 * self.hover), TEXT_ALIGN_RIGHT,
-					TEXT_ALIGN_CENTER)
-			end
-
-			draw.SimpleText(util.TruncateWidth(client:GetCharacterName() or "", "nwInvTitle",
-				panelWidth - hintWidth), "nwInvTitle", 0, Sc(13),
-				ColorAlpha(palette.text, 252 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-			local classID = client:GetNWString("nwClass", "")
-			local classTable = classID ~= "" and NETWORK.classes and
-				NETWORK.classes.Get(classID)
-			local line = util.Upper(faction and L(faction.name) or "")
-
-			if (classTable and classTable.bCivilianHud) then
-
-				line = util.Upper(L(classTable.name))
-			elseif (classTable and classTable.name) then
-				line = line .. "  ·  " .. util.Upper(L(classTable.name))
-			end
-
-			if (character and NETWORK.terminal and NETWORK.terminal.GetCitizenID and
-				not NETWORK.factions.IsAlliance(client)) then
-				line = line .. "  ·  CID " .. tostring(NETWORK.terminal.GetCitizenID(character))
-			end
-
-			util.DrawTextSpaced(util.TruncateWidth(line, "nwInvSub",
-				panelWidth - Sc(8) - util.Length(line)), "nwInvSub", 0, Sc(36),
-				ColorAlpha(theme.combine, 245 * reveal), 1, TEXT_ALIGN_CENTER)
-		end
-
-		local modelY = identityHeight + Sc(8)
-		local modelHeight = math.Clamp(math.floor(height * 0.38), Sc(200), Sc(340))
-		local modelBox = page:Add("DPanel")
-
-		modelBox:SetPos(0, modelY)
-		modelBox:SetSize(leftWidth, modelHeight)
-		modelBox:SetMouseInputEnabled(false)
-		modelBox.startTime = CurTime()
-		modelBox.Paint = function(self, panelWidth, panelHeight)
-			local util = NETWORK.util
-			local S = NETWORK.style
-			local reveal = util.EaseOut(util.Stagger(self.startTime, 0, 0.35))
-			local radius = (S and S.Radius) and S.Radius("card") or math.max(Sc(9), 5)
-			local accent = NETWORK.theme.combine
-			local centerX = math.Round(panelWidth * 0.5)
-			local centerY = math.Round(panelHeight * 0.46)
-
-			-- Силуэт персонажа на тёмной плите со штриховкой, как в окне снаряжения Tarkov.
-			NETWORK.tk.Frame(0, 0, panelWidth, panelHeight, reveal, Color(17, 18, 19, 230))
-			NETWORK.tk.Hatch(1, 1, panelWidth - 2, panelHeight - 2,
-				Color(255, 255, 255, 6 * reveal), Sc(9))
-
-			local glowWidth = math.Round(panelWidth * 0.7)
-			local glowHeight = math.Round(panelHeight * 0.7)
-
-			util.DrawGlow(centerX - math.Round(glowWidth * 0.5),
-				centerY - math.Round(glowHeight * 0.5), glowWidth, glowHeight,
-				Color(accent.r, accent.g, accent.b, 14 * reveal))
-		end
-
-		local model = page:Add("DModelPanel")
-
-		model:SetPos(Sc(2), modelY + Sc(2))
-		model:SetSize(leftWidth - Sc(4), modelHeight - Sc(4))
-		model:SetModel(LocalPlayer():GetCharacterModel())
-		model:SetFOV(28)
-		model:SetMouseInputEnabled(true)
-		model:SetCursor("hand")
-		model.rotation = 0
-		model.LayoutEntity = function(self, entity)
-			self:RunAnimation()
-
-			if (self.bDragging) then
-				local x = gui.MouseX()
-
-				self.rotation = self.rotation + (x - (self.lastX or x)) * 0.6
-				self.lastX = x
-			end
-
-			entity:SetAngles(Angle(0, self.rotation % 360, 0))
-		end
-		model.OnMousePressed = function(self, code)
-			if (code ~= MOUSE_LEFT) then
-				return
-			end
-
-			self.bDragging = true
-			self.lastX = gui.MouseX()
-
-			self:MouseCapture(true)
-		end
-		model.OnMouseReleased = function(self)
-			self.bDragging = false
-
-			self:MouseCapture(false)
-		end
-		model.OnCursorEntered = function(self)
-			if (not character) then
-				return
-			end
-
-			NETWORK.gui.SetTooltip(self, {
-				title = character:GetName(),
-				lines = {L("invModelHint")},
-				color = Palette().accent
-			})
-		end
-		model.OnCursorExited = function(self)
-			NETWORK.gui.ClearTooltip(self)
-		end
-		model.PaintOver = function(self, panelWidth, panelHeight)
-			local drag = NETWORK.gui.drag
-
-			if (not drag or not self:IsHovered()) then
-				return
-			end
-
-			local S = NETWORK.style
-			local bAllowed = NETWORK.item.CanUse(drag.item)
-			local palette = Palette()
-			local color = bAllowed and palette.positive or palette.danger
-			local radius = math.max(((S and S.Radius) and S.Radius("card") or Sc(9)) - Sc(2), 2)
-
-			NETWORK.util.DrawRoundedBorder(0, 0, panelWidth, panelHeight, radius,
-				math.max(Sc(2), 2), Color(color.r, color.g, color.b, 220))
-		end
-
-		NETWORK.gui.modelPanel = model
-
-		local entity = model:GetEntity()
-
-		if (IsValid(entity)) then
-			NETWORK.util.ApplyAppearance(model, LocalPlayer())
-
-			if (character) then
-				entity:SetModelScale(character:GetScale(), 0)
-			end
-
-			local sequence = entity:LookupSequence("idle_all_01")
-
-			if (sequence > 0) then
-				entity:ResetSequence(sequence)
-			end
-
-			NETWORK.util.FrameModelPanel(model, NETWORK.creation.GetFrameUnits(), 0.04, 1.1)
-		end
-
-		local meterLabels = {L("statHealth"), L("statHunger"), L("statThirst"), L("invStamina"),
-			L("statArmour")}
-		local meterLabelWidth = 0
-
-		surface.SetFont("nwInvStat")
-
-		for _, label in ipairs(meterLabels) do
-			meterLabelWidth = math.max(meterLabelWidth, (surface.GetTextSize(label)))
-		end
-
-		meterLabelWidth = math.min(meterLabelWidth + Sc(10), math.floor(leftWidth * 0.42))
-
-		for index, label in ipairs(meterLabels) do
-			meterLabels[index] = NETWORK.util.TruncateWidth(label, "nwInvStat",
-				meterLabelWidth - Sc(6))
-		end
-
-		local barsY = modelY + modelHeight + Sc(12)
-		local meterStep = Sc(22)
-		local barStep = Sc(30)
-		local barsHeight = meterStep * #meterLabels + Sc(6) + Sc(22) * 2
-
-		local bars = page:Add("DPanel")
-
-		bars:SetPos(0, barsY)
-		bars:SetSize(leftWidth, barsHeight)
-		bars:SetMouseInputEnabled(false)
-		bars.startTime = CurTime()
-		bars.Paint = function(self, panelWidth, panelHeight)
-			local client = LocalPlayer()
-
-			if (not IsValid(client)) then
-				return
-			end
-
-			local theme = NETWORK.theme
-			local reveal = NETWORK.util.EaseOut(NETWORK.util.Stagger(self.startTime, 0.12, 0.45))
-			local health = math.max(client:Health(), 0)
-			local maxHealth = math.max(client:GetMaxHealth(), 1)
-			local stamina = client.GetStaminaFraction and client:GetStaminaFraction() or 1
-			local hunger = client.GetHunger and client:GetHunger() or 100
-			local thirst = client.GetThirst and client:GetThirst() or 100
-			local cursor = 0
-
-			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[1],
-				tostring(math.Round(health)), health / maxHealth, NETWORK.theme.tk.good, reveal)
-			cursor = cursor + meterStep
-
-			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[2],
-				tostring(math.Round(hunger)), hunger / 100, theme.warning, reveal)
-			cursor = cursor + meterStep
-
-			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[3],
-				tostring(math.Round(thirst)), thirst / 100, NETWORK.theme.tk.water, reveal)
-			cursor = cursor + meterStep
-
-			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[4],
-				tostring(math.Round(stamina * 100)), stamina, NETWORK.theme.tk.energy, reveal)
-			cursor = cursor + meterStep
-
-			local armour = math.max(client:Armor(), 0)
-
-			DrawMeter(0, cursor, panelWidth, meterStep, meterLabelWidth, meterLabels[5],
-				tostring(armour), armour / math.max(client:GetMaxArmor(), 1), ARMOUR_COLOR,
-				reveal * (armour > 0 and 1 or 0.45))
-			cursor = cursor + meterStep + Sc(6)
-
-			local tokens = client.GetTokens and client:GetTokens() or 0
-
-			local playedMinutes = math.max(client:GetNWInt("nwPlaytime", 0), 0)
-			local playedText = playedMinutes >= 60 and
-				L("invPlayedFull", math.floor(playedMinutes / 60), playedMinutes % 60)
-				or L("invPlayedMinutes", playedMinutes)
-
-			DrawValueRow(0, cursor + Sc(11), panelWidth, L("invTokensLabel"),
-				string.Comma(tokens), reveal)
-			cursor = cursor + Sc(22)
-
-			DrawValueRow(0, cursor + Sc(11), panelWidth, L("invPlayed"), playedText, reveal)
-		end
-
-		local barTips = {
-			{L("statHealth"), "tipHealth", NETWORK.theme.positive, function(client)
-				return math.max(client:Health(), 0) .. " / " .. math.max(client:GetMaxHealth(), 1)
-			end},
-			{L("statHunger"), "tipHunger", NETWORK.theme.warning, function(client)
-				return math.Round(client.GetHunger and client:GetHunger() or 100) .. "%"
-			end},
-			{L("statThirst"), "tipThirst", NETWORK.theme.combine, function(client)
-				return math.Round(client.GetThirst and client:GetThirst() or 100) .. "%"
-			end},
-			{L("invStamina"), "tipStamina", STAMINA_COLOR, function(client)
-				local stamina = client.GetStaminaFraction and client:GetStaminaFraction() or 1
-
-				return math.Round(stamina * 100) .. "%"
-			end},
-
-			{L("statArmour"), "tipArmour", ARMOUR_COLOR, nil, function(client)
-				local footer = {{label = L("statArmour"), value = math.max(client:Armor(), 0) ..
-					" / " .. math.max(client:GetMaxArmor(), 1), color = ARMOUR_COLOR}}
-				local GetWorn = NETWORK.gui.GetWornProtection
-
-				if (GetWorn) then
-					footer[#footer + 1] = {label = L("invProtHead"),
-						value = NETWORK.gui.FormatPercent(GetWorn(client, "helmet")),
-						color = NETWORK.theme.combine}
-					footer[#footer + 1] = {label = L("invProtBody"),
-						value = NETWORK.gui.FormatPercent(GetWorn(client, "armour")),
-						color = NETWORK.theme.combine}
-				end
-
-				return footer
-			end}
-		}
-
-		for index, tip in ipairs(barTips) do
-			local hoverPanel = page:Add("DPanel")
-
-			hoverPanel:SetPos(0, barsY + (index - 1) * meterStep)
-			hoverPanel:SetSize(leftWidth, meterStep)
-			hoverPanel.hover = 0
-			hoverPanel.Think = function(self)
-				self.hover = NETWORK.util.Approach(self.hover, self:IsHovered() and 1 or 0, 12)
-			end
-			hoverPanel.Paint = function(self, panelWidth, panelHeight)
-				if (self.hover <= 0.01) then
-					return
-				end
-
-				draw.RoundedBox(math.max(Sc(4), 3), 0, 0, panelWidth, panelHeight,
-					Color(255, 255, 255, 10 * NETWORK.util.EaseOut(self.hover)))
-			end
-			hoverPanel.OnCursorEntered = function(self)
-				local client = LocalPlayer()
-
-				if (!IsValid(client)) then
-					return
-				end
-
-				NETWORK.gui.SetTooltip(self, {
-					title = tip[1],
-					color = tip[3],
-					lines = NETWORK.util.WrapText(L(tip[2]), "nwTipBody", Sc(360), 4),
-					footer = tip[5] and tip[5](client) or
-						{{label = L("statusValue"), value = tip[4](client), color = tip[3]}}
-				})
-			end
-			hoverPanel.OnCursorExited = function(self)
-				NETWORK.gui.ClearTooltip(self)
-			end
-		end
-
-		local statusY = barsY + barsHeight + Sc(10)
-		local statusHeight = Sc(50)
-		local statusIcon = Sc(26)
-
-		local status = page:Add("DPanel")
-
-		status:SetPos(0, statusY)
-		status:SetSize(leftWidth, statusHeight)
-		status.startTime = CurTime()
-		status.icons = {}
-		status.nextRefresh = 0
-		status.Paint = function(self, panelWidth, panelHeight)
-			local palette = Palette()
-			local reveal = NETWORK.util.EaseOut(NETWORK.util.Stagger(self.startTime, 0.14, 0.45))
-
-			draw.SimpleText(NETWORK.util.Upper(L("statusBlock")), "nwInvKey", 0, Sc(6),
-				ColorAlpha(palette.textFaint, 235 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-			if (#self.icons == 0) then
-				draw.SimpleText(L("statusNone"), "nwInvSub", 0, Sc(18) + math.Round(statusIcon * 0.5),
-					ColorAlpha(palette.textFaint, 200 * reveal), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			end
-		end
-		status.Refresh = function(self)
-			local client = LocalPlayer()
-
-			if (!IsValid(client) or !NETWORK.status or !NETWORK.status.Active) then
-				return
-			end
-
-			local list = NETWORK.status.Active(client)
-			local signature = ""
-
-			for _, entry in ipairs(list) do
-				signature = signature .. entry.id .. ";"
-			end
-
-			if (signature == self.signature) then
-				return
-			end
-
-			self.signature = signature
-
-			for _, icon in ipairs(self.icons) do
-				if (IsValid(icon)) then
-					icon:Remove()
-				end
-			end
-
-			self.icons = {}
-
-			local step = statusIcon + Sc(6)
-			local size = statusIcon
-
-			if (#list * step - Sc(6) > leftWidth) then
-				step = math.floor(leftWidth / #list)
-				size = math.max(step - Sc(4), Sc(12))
-			end
-
-			for index, entry in ipairs(list) do
-				local icon = self:Add("DPanel")
-
-				icon:SetSize(size, size)
-				icon:SetPos((index - 1) * step, Sc(18) + math.Round((statusIcon - size) * 0.5))
-				icon:SetCursor("hand")
-				icon.hover = 0
-				icon.startTime = CurTime()
-				icon.Think = function(panel)
-					panel.hover = NETWORK.util.Approach(panel.hover, panel:IsHovered() and 1 or 0, 12)
-				end
-				icon.Paint = function(panel, panelWidth, panelHeight)
-					local util = NETWORK.util
-					local reveal = util.EaseOut(util.Stagger(panel.startTime, 0, 0.3))
-					local hover = util.EaseOut(panel.hover)
-					local material = util.GetMaterial("framework/status/" .. entry.id .. ".png",
-						"smooth")
-
-					if (material and !material:IsError()) then
-						surface.SetMaterial(material)
-						surface.SetDrawColor(0, 0, 0, 150 * reveal)
-						surface.DrawTexturedRect(1, 2, panelWidth, panelHeight)
-						surface.SetDrawColor(entry.color.r, entry.color.g, entry.color.b,
-							(200 + 55 * hover) * reveal)
-						surface.DrawTexturedRect(0, 0, panelWidth, panelHeight)
-					elseif (NETWORK.gui.DrawGlyph) then
-						NETWORK.gui.DrawGlyph(entry.glyph, 0, 0, panelWidth,
-							ColorAlpha(entry.color, (200 + 55 * hover) * reveal))
-					end
-				end
-				icon.OnCursorEntered = function(panel)
-					local owner = LocalPlayer()
-					local value = IsValid(owner) and NETWORK.status.Value and
-						NETWORK.status.Value(owner, entry)
-					local footer
-
-					if (value) then
-						footer = {{label = L("statusValue"), value = value, color = entry.color}}
-					end
-
-					NETWORK.gui.SetTooltip(panel, {
-						title = L("status" .. entry.id),
-						color = entry.color,
-						lines = NETWORK.util.WrapText(L("status" .. entry.id .. "Desc"), "nwTipBody",
-							Sc(360), 4),
-						footer = footer
-					})
-				end
-				icon.OnCursorExited = function(panel)
-					NETWORK.gui.ClearTooltip(panel)
-				end
-
-				self.icons[#self.icons + 1] = icon
-			end
-		end
-		status.Think = function(self)
-			if (RealTime() < self.nextRefresh) then
-				return
-			end
-
-			self.nextRefresh = RealTime() + 1
-
-			self:Refresh()
-		end
-
-		status:Refresh()
-
-		local detailY = statusY + statusHeight + Sc(12)
-		local detailHeight = height - detailY
-
-		page.RebuildDetail = function()
-			if (IsValid(page.detail)) then
-				page.detail:Remove()
-			end
-
-			local selected = NETWORK.gui.selected
-
-			if (selected and NETWORK.gui.ItemAt(selected)) then
-				page.detail = BuildDetailWide(page, 0, detailY, leftWidth, detailHeight)
-
-				return
-			end
-
-			page.detail = page:Add("DPanel")
-			page.detail:SetPos(0, detailY)
-			page.detail:SetSize(leftWidth, detailHeight)
-			page.detail:SetMouseInputEnabled(false)
-			page.detail.startTime = CurTime()
-			page.detail.Paint = function(self, panelWidth, panelHeight)
-				local client = LocalPlayer()
-
-				if (not IsValid(client)) then
-					return
-				end
-
-				local palette = Palette()
-				local reveal = NETWORK.util.EaseOut(NETWORK.util.Stagger(self.startTime, 0.16, 0.45))
-				local cursor = 0
-				local vitals = GetVitalRows(client)
-
-				for index = 3, #vitals do
-					if (cursor + barStep > panelHeight - Sc(20)) then
-						break
-					end
-
-					local row = vitals[index]
-
-					DrawStatBar(0, cursor, panelWidth, row[1], nil, row[2], row[3], reveal)
-					cursor = cursor + barStep
-				end
-
-				draw.SimpleText(L("invSelectHint"), "nwHudSmall", 0, panelHeight - Sc(8),
-					ColorAlpha(palette.textFaint, 210 * reveal), TEXT_ALIGN_LEFT,
-					TEXT_ALIGN_BOTTOM)
-			end
-		end
-
-		page.RebuildDetail()
-
-		tabPage.RebuildDetail = page.RebuildDetail
-
-		local footerHeight = Sc(58)
-
-		local center = page:Add("DScrollPanel")
-
-		center:SetPos(centerX, 0)
-		center:SetSize(centerWidth, height - footerHeight)
-		StyleScrollBar(center)
-
-		local function CountCells(source)
-			local used = 0
-
-			for _, item in pairs(source or {}) do
-				local itemWidth, itemHeight = NETWORK.item.GetSize(item)
-
-				used = used + (itemWidth or 1) * (itemHeight or 1)
-			end
-
-			return used
-		end
-
-		local itemsBadge = CountCells(NETWORK.inventory.state.items) .. " / " ..
-			NETWORK.inventory.GetSize()
-		local searchWidth = math.min(Sc(220), math.floor(centerWidth * 0.45))
-
-		BuildTag(center, L("tabInventory"), 0, Sc(4),
-			math.max(centerWidth - searchWidth - Sc(14), Sc(60)), {
-				badge = function()
-					return itemsBadge
-				end
-			})
-
-		NETWORK.gui.ResetFilter()
-
-		local gridY = NETWORK.gui.BuildFilterBar(center, 0, 0, centerWidth,
-			{parent = chipsHolder, x = 0, y = Sc(4)}) + Sc(8)
-
-		local bagRows = container and
-			math.ceil(NETWORK.item.GetStorageSlots(container) / columns) or 0
-		local bagOverhead = Sc(14) + Sc(30) + (bagRows > 0 and 0 or Sc(60))
-		local cell = math.min(Sc(112), math.floor((centerWidth - gap * (columns - 1)) / columns))
-		local fitCell = math.floor((height - footerHeight - gridY - bagOverhead) /
-			math.max(rows + bagRows, 1)) - gap
-
-		cell = math.Clamp(math.min(cell, fitCell), Sc(40), Sc(112))
-
-		local cellWidth = cell
-		local gridWidth = cellWidth * columns + gap * (columns - 1)
-
-		local gridX = math.max(math.floor((centerWidth - Sc(10) - gridWidth) * 0.5), 0)
-
-		NETWORK.gui.BuildGrid(center, "items", NETWORK.inventory.state.items, {
-			x = gridX,
-			y = gridY,
-			cell = cell,
-			cellWidth = cellWidth,
-			gap = gap,
-			columns = columns,
-			rows = rows,
-			OnClick = function(index, slot)
-				SelectOrQuick(slot, function()
-					local item = NETWORK.inventory.GetItem(index)
-
-					if (not item) then
-						return
-					end
-
-					if (NETWORK.item.GetEquipSlot(item)) then
-						NETWORK.inventory.Equip(index)
-					elseif (NETWORK.item.CanUse(item)) then
-						NETWORK.inventory.Use({list = "items", index = index})
-					end
-				end)
-			end
-		})
-
-		local cursorY = gridY + rows * (cell + gap) - gap + Sc(14)
-
-		BuildTag(center, L("invBag"), gridX, cursorY, gridWidth, {
-			badge = function()
-				if (not container) then
-					return
-				end
-
-				return CountCells(NETWORK.inventory.state.storage) .. " / " ..
-					NETWORK.item.GetStorageSlots(container)
-			end
-		})
-
-		cursorY = cursorY + Sc(30)
-
-		if (container) then
-			NETWORK.gui.BuildGrid(center, "storage", NETWORK.inventory.state.storage, {
-				x = gridX,
-				y = cursorY,
-				cell = cell,
-				cellWidth = cellWidth,
-				gap = gap,
-				columns = columns,
-				rows = bagRows,
-				OnClick = function(index, slot)
-					SelectOrQuick(slot, function()
-						NETWORK.inventory.FromStorage(index)
-					end)
-				end
-			})
-
-			cursorY = cursorY + bagRows * (cell + gap)
-		else
-			local empty = center:Add("DPanel")
-
-			empty:SetPos(gridX, cursorY)
-			empty:SetSize(gridWidth, Sc(60))
-			empty:SetMouseInputEnabled(false)
-			empty.Paint = function(self, panelWidth, panelHeight)
-				local palette = Palette()
-				local radius = NETWORK.gui.CellRadius and NETWORK.gui.CellRadius() or
-					math.max(Sc(6), 4)
-
-				draw.RoundedBox(radius, 0, 0, panelWidth, panelHeight, Color(8, 12, 15, 115))
-
-				NETWORK.util.DrawRoundedBorder(0, 0, panelWidth, panelHeight, radius,
-					math.max(Sc(1), 1), Color(150, 196, 220, 30))
-
-				draw.SimpleText(L("invNoBag"), "nwInvBody", math.Round(panelWidth * 0.5),
-					math.Round(panelHeight * 0.5), ColorAlpha(palette.textFaint, 210),
-					TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-			end
-
-			cursorY = cursorY + Sc(60)
-		end
-
-		center:GetCanvas():SetTall(cursorY + Sc(12))
-
-		local weightRow = page:Add("DPanel")
-
-		weightRow:SetPos(centerX + gridX, height - footerHeight + Sc(2))
-		weightRow:SetSize(gridWidth, Sc(30))
-		weightRow:SetMouseInputEnabled(false)
-		weightRow.Paint = function(self, panelWidth, panelHeight)
-			local palette = Palette()
-			local theme = NETWORK.theme
-			local textY = Sc(9)
-			local lineY = panelHeight - Sc(6)
-			local current = NETWORK.inventory.GetWeight()
-			local maximum = NETWORK.inventory.MaxWeightFor and
-				NETWORK.inventory.MaxWeightFor(LocalPlayer()) or NETWORK.inventory.maxWeight
-			local fraction = current / math.max(maximum, 0.001)
-			local fill = theme.combine
-			local numberColor = palette.text
-
-			if (current > maximum) then
-				fill = palette.danger
-				numberColor = palette.danger
-			elseif (fraction > 0.8) then
-				fill = palette.warning
-				numberColor = palette.warning
-			end
-
-			local currentText = string.format("%.1f", current)
-			local limitText = " / " .. string.format("%g", maximum) .. L("invWeightUnit")
-
-			surface.SetFont("nwInvSub")
-
-			local limitWidth = surface.GetTextSize(limitText)
-
-			NETWORK.util.DrawTextSpaced(NETWORK.util.Upper(L("invWeight")), "nwInvKey", 0,
-				textY, ColorAlpha(palette.textFaint, 235), math.max(Sc(2), 1), TEXT_ALIGN_CENTER)
-
-			draw.SimpleText(limitText, "nwInvSub", panelWidth, textY,
-				ColorAlpha(palette.textDim, 235), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-
-			draw.SimpleText(currentText, "nwInvSub", panelWidth - limitWidth, textY,
-				ColorAlpha(numberColor, 250), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-
-			local barHeight = math.max(Sc(3), 2)
-			local barFill = math.Round(panelWidth * math.Clamp(fraction, 0, 1))
-
-			surface.SetDrawColor(255, 255, 255, 30)
-			surface.DrawRect(0, lineY, panelWidth, 1)
-
-			if (barFill >= barHeight) then
-				draw.RoundedBox(math.floor(barHeight * 0.5), 0, lineY - math.floor(barHeight * 0.5),
-					barFill, barHeight, Color(fill.r, fill.g, fill.b, 235))
-			end
-
-			surface.SetDrawColor(palette.warning.r, palette.warning.g, palette.warning.b, 220)
-			surface.DrawRect(math.Round(panelWidth * 0.8), lineY - Sc(3), 1, Sc(7))
-		end
-
-		BuildKeyHints(page, centerX + gridX, height - Sc(22), gridWidth, {
-			{L("invKeyDouble"), L("invHintQuick")},
-			{L("invKeyRMB"), L("invHintMenu")},
-			{"R", L("invHintRotate")}
-		})
-
-		local right = page:Add("DScrollPanel")
-
-		right:SetPos(rightX, 0)
-		right:SetSize(rightWidth, height)
-		StyleScrollBar(right)
-
-		local weapons = GetGroup("weapons")
-		local slotCount = #(weapons and weapons.slots or {})
-
-		for _, groupID in ipairs(EQUIP_ROWS) do
-			local group = GetGroup(groupID)
-
-			slotCount = slotCount + #(group and group.slots or {})
-		end
-
-		local rowGap = Sc(5)
-		local rowsOverhead = Sc(4) + Sc(28) + Sc(8) * (#EQUIP_ROWS - 1) + Sc(18) + Sc(28)
-		local rowHeight = math.Clamp(math.floor((height - rowsOverhead) /
-			math.max(slotCount, 1)) - rowGap, Sc(34), Sc(48))
-		local rowWidth = rightWidth - Sc(10)
-		local order = 0
-		local y = Sc(4)
-
-		local function CountWorn(slots, worn, total)
-			for _, data in ipairs(slots or {}) do
-				total = total + 1
-
-				if (NETWORK.inventory.GetEquipped(data.id)) then
-					worn = worn + 1
-				end
-			end
-
-			return worn, total
-		end
-
-		BuildTag(right, L("invGear"), 0, y, rowWidth, {
-			badge = function()
-				local worn, total = 0, 0
-
-				for _, groupID in ipairs(EQUIP_ROWS) do
-					local group = GetGroup(groupID)
-
-					worn, total = CountWorn(group and group.slots, worn, total)
-				end
-
-				return worn .. " / " .. total
-			end
-		})
-
-		y = y + Sc(28)
-
-		for groupIndex, groupID in ipairs(EQUIP_ROWS) do
-			local group = GetGroup(groupID)
-
-			if (groupIndex > 1) then
-				y = y + Sc(8)
-			end
-
-			for _, data in ipairs(group and group.slots or {}) do
-				order = order + 1
-
-				BuildEquipRow(right, data, 0, y, rowWidth, rowHeight, order)
-
-				y = y + rowHeight + rowGap
-			end
-		end
-
-		y = y + Sc(18) - rowGap
-
-		BuildTag(right, L("equipShortWeapons"), 0, y, rowWidth, {
-			badge = function()
-				local worn, total = CountWorn(weapons and weapons.slots, 0, 0)
-
-				return worn .. " / " .. total
-			end
-		})
-
-		y = y + Sc(28)
-
-		for _, data in ipairs(weapons and weapons.slots or {}) do
-			order = order + 1
-
-			BuildEquipRow(right, data, 0, y, rowWidth, rowHeight, order)
-
-			y = y + rowHeight + rowGap
-		end
-
-		y = y + Sc(14)
-
-		local examine = right:Add("nwInvButton")
-
-		examine:SetPos(0, y)
-		examine:SetSize(rowWidth, Sc(30))
-		examine:Setup(L("invExamine"), "plus", false)
-		examine.DoClick = function()
-			net.Start("nwMedSelf")
-			net.SendToServer()
-
-			menu:Close()
-		end
-
-		y = y + Sc(30) + Sc(20)
-
-		local journal = NETWORK.journal and NETWORK.journal.GetOwn() or {}
-
-		if (#journal > 0) then
-			BuildTag(right, L("invJournal"), 0, y, rowWidth)
-
-			y = y + Sc(28)
-
-			for index = 1, math.min(3, #journal) do
-				local entry = journal[index]
-				local kind = NETWORK.journal.GetKind(entry.kind)
-				local block = right:Add("EditablePanel")
-
-				block:SetPos(0, y)
-				block:SetSize(rowWidth, Sc(40))
-				block.Paint = function(panel, panelWidth, panelHeight)
-					local palette = Palette()
-
-					draw.SimpleText(entry.text, "nwInvBodyBold", 0, Sc(9), palette.text,
-						TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-					draw.SimpleText(NETWORK.util.Upper(L(kind.name)) .. "  ·  " ..
-						NETWORK.journal.Ago(entry.time), "nwInvKey", 0, Sc(27),
-						palette.textFaint, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-				end
-
-				y = y + Sc(44)
-			end
-		end
-
-		right:GetCanvas():SetTall(y + Sc(20))
+		BuildInventoryPage(page, menu)
 	end
 })
 

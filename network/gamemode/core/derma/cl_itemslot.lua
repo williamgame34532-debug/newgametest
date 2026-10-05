@@ -976,27 +976,16 @@ function NETWORK.gui.DrawCellArt(kind, x, y, width, height, color)
 	return true
 end
 
--- Пустые клетки в стиле Tarkov: квадратные, тонкая рамка, диагональная штриховка.
+-- Пустые клетки: мягкие скруглённые плашки без рамок (минималистичный инвентарь).
 function NETWORK.gui.DrawCellBackdrop(columns, rows, cellWidth, cell, gap, fill, border)
 	local stepX = cellWidth + gap
 	local stepY = cell + gap
-	local hatch = NETWORK.theme.tk and NETWORK.theme.tk.hatch or Color(255, 255, 255, 9)
-	local step = math.max(NETWORK.util.Scale(9), 5)
+	local radius = math.max(NETWORK.util.Scale(5), 3)
+	local color = Color(255, 255, 255, 9)
 
 	for row = 0, rows - 1 do
 		for column = 0, columns - 1 do
-			local x = column * stepX
-			local y = row * stepY
-
-			surface.SetDrawColor(fill.r, fill.g, fill.b, fill.a or 255)
-			surface.DrawRect(x, y, cellWidth, cell)
-
-			NETWORK.tk.Hatch(x + 1, y + 1, cellWidth - 2, cell - 2, hatch, step)
-
-			if ((border.a or 255) > 0) then
-				surface.SetDrawColor(border.r, border.g, border.b, border.a or 255)
-				surface.DrawOutlinedRect(x, y, cellWidth, cell, 1)
-			end
+			draw.RoundedBox(radius, column * stepX, row * stepY, cellWidth, cell, color)
 		end
 	end
 end
@@ -1050,10 +1039,6 @@ function PANEL:Paint(width, height)
 		draw.RoundedBox(radius, 0, y, width, height,
 			Color(CELL_GLASS.r, CELL_GLASS.g, CELL_GLASS.b, 225 * reveal))
 
-		if (!bItem and NETWORK.tk) then
-			NETWORK.tk.Hatch(1, y + 1, width - 2, height - 2,
-				Color(255, 255, 255, 8 * reveal), math.max(Sc(7), 4))
-		end
 
 		if (bSelected or bFilled) then
 			draw.RoundedBox(radius, 0, y, width, height,
@@ -1066,7 +1051,7 @@ function PANEL:Paint(width, height)
 		end
 
 		local border = CELL_LINE
-		local borderAlpha = 220
+		local borderAlpha = 70
 
 		if (bSelected) then
 			border = select
@@ -1166,51 +1151,17 @@ function PANEL:Paint(width, height)
 		return
 	end
 
-	-- Клетка в стиле Tarkov: серая плита у предмета, штриховка у пустой, тонкая рамка.
-	local P = NETWORK.theme.tk or {}
-	local plate = bFilled and (palette.cellBright or CELL_GLASS) or (palette.cell or CELL_GLASS)
+	-- Минималистичная клетка: мягкая плашка, рамка только при наведении/выделении.
+	local cellRadius = math.max(Sc(5), 3)
 
-	surface.SetDrawColor(plate.r, plate.g, plate.b, (bFilled and 235 or 210) * reveal)
-	surface.DrawRect(0, y, width, height)
+	draw.RoundedBox(cellRadius, 0, y, width, height,
+		Color(255, 255, 255, ((bFilled and 16 or 9) + 10 * hover) * reveal))
 
-	if (!bFilled) then
-		NETWORK.tk.Hatch(1, y + 1, width - 2, height - 2,
-			ColorAlpha(P.hatch or Color(255, 255, 255, 9), (P.hatch and P.hatch.a or 9) * reveal),
-			math.max(Sc(7), 4))
-	end
-
-	if (hover > 0.01 or bSelected) then
+	if (bSelected or hover > 0.01) then
 		local tint = bSelected and select or accent
 
-		surface.SetDrawColor(tint.r, tint.g, tint.b, (bSelected and 36 or 18 * hover) * reveal)
-		surface.DrawRect(0, y, width, height)
-	end
-
-	local border = P.line or CELL_LINE
-	local borderAlpha = bFilled and 255 or 200
-
-	if (hover > 0.01) then
-		border = Mix(border, accent, hover)
-		borderAlpha = borderAlpha + (255 - borderAlpha) * hover
-	end
-
-	if (bSelected) then
-		border = select
-		borderAlpha = 255
-	end
-
-	surface.SetDrawColor(border.r, border.g, border.b, math.min(borderAlpha, 255) * reveal)
-	surface.DrawOutlinedRect(0, y, width, height, line)
-
-	if (bSelected or hover > 0.5) then
-		local tick = math.max(Sc(6), 4)
-		local tint = bSelected and select or accent
-
-		surface.SetDrawColor(tint.r, tint.g, tint.b, 255 * reveal)
-		surface.DrawRect(0, y, tick, line * 2)
-		surface.DrawRect(0, y, line * 2, tick)
-		surface.DrawRect(width - tick, y + height - line * 2, tick, line * 2)
-		surface.DrawRect(width - line * 2, y + height - tick, line * 2, tick)
+		util.DrawRoundedBorder(0, y, width, height, cellRadius, line,
+			Color(tint.r, tint.g, tint.b, (bSelected and 230 or 120 * hover) * reveal))
 	end
 
 	local threadTop = y + line
