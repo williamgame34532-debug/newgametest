@@ -6,14 +6,14 @@ C.responses = C.responses or {}
 
 local THEMES = {
 	alliance = {
-		bg = Color(10, 22, 36), bg2 = Color(15, 31, 49), line = Color(44, 70, 96), text = Color(228, 238, 246),
-		muted = Color(122, 146, 168), accent = Color(104, 170, 228), good = Color(110, 200, 150),
+		bg = Color(9, 12, 16), bg2 = Color(17, 21, 27), line = Color(56, 64, 74), text = Color(226, 230, 234),
+		muted = Color(128, 138, 150), accent = Color(140, 185, 225), good = Color(110, 200, 150),
 		warn = Color(232, 176, 86), bad = Color(230, 92, 84),
 		tag = "C24 // CIVIL PROTECTION", lockTitle = "C24 // ГРАЖДАНСКАЯ ОБОРОНА"
 	},
 	cwu = {
-		bg = Color(19, 19, 17), bg2 = Color(29, 28, 24), line = Color(76, 68, 54), text = Color(238, 232, 220),
-		muted = Color(160, 150, 128), accent = Color(226, 180, 92), good = Color(132, 196, 120),
+		bg = Color(13, 12, 10), bg2 = Color(23, 21, 18), line = Color(74, 68, 58), text = Color(236, 232, 222),
+		muted = Color(156, 148, 130), accent = Color(220, 180, 110), good = Color(132, 196, 120),
 		warn = Color(232, 150, 80), bad = Color(226, 96, 80),
 		tag = "ГСР // CWU SERVICE PAD", lockTitle = "ГСР // СЛУЖЕБНЫЙ ТЕРМИНАЛ"
 	}
@@ -337,10 +337,232 @@ local function Body(frame)
 		draw.RoundedBox(2, 0, 0, w, h, ColorAlpha(theme.accent, 120))
 	end
 
+	if (frame.bEmbedded) then
+		body:DockMargin(S(18), S(6), S(18), S(8))
+		body.Paint = function(_, w, h)
+			local theme = Theme()
+
+			surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 160)
+			surface.DrawOutlinedRect(0, 0, w, h, 1)
+		end
+		body:GetCanvas():DockPadding(S(12), S(10), S(12), S(10))
+	end
+
 	frame.body = body
 
 	return body
 end
+
+-- Новый интерфейс горизонтального КПК ------------------------------------------------------
+local PAGE_HINTS = {
+	home = "Служебный терминал C24. Выберите раздел.",
+	profile = "Служебный профиль и записи в личном деле.",
+	cameras = "Камеры наблюдения C24 в зоне доступа.",
+	feed = "Прямая трансляция с выбранной камеры.",
+	logs = "Последние действия в журнале ГСР.",
+	database = "Поиск гражданина по CID или имени.",
+	record = "Карточка гражданина из базы CID.",
+	housing = "Реестр жилья и адреса граждан.",
+	production = "Сборка у терминала ГСР."
+}
+
+local TAB_OF = {feed = "cameras", record = "database"}
+
+function C.GetApps(client)
+	local apps = {{"home", "Главная"}, {"profile", "Дело"}, {"cameras", "Камеры"}, {"logs", "Журнал"}}
+
+	if (C.IsAlliance(client)) then
+		apps[#apps + 1] = {"database", "База CID"}
+		apps[#apps + 1] = {"housing", "Жильё"}
+	end
+
+	if (IsValid(C.frame) and C.frame.terminal and C.IsCWU(client)) then
+		apps[#apps + 1] = {"production", "Производство"}
+	end
+
+	return apps
+end
+
+local function DrawSignal(x, y, theme)
+	for i = 0, 3 do
+		local barH = S(3 + i * 2)
+
+		surface.SetDrawColor(i < 3 and theme.text or theme.muted)
+		surface.DrawRect(x + i * S(5), y - barH, S(3), barH)
+	end
+end
+
+local function DrawBattery(x, y, theme)
+	surface.SetDrawColor(theme.muted)
+	surface.DrawOutlinedRect(x, y - S(5), S(20), S(10), 1)
+	surface.DrawRect(x + S(20), y - S(2), S(2), S(4))
+	surface.SetDrawColor(theme.text)
+	surface.DrawRect(x + S(2), y - S(3), S(13), S(6))
+end
+
+local function NewChrome(screen, frame, theme)
+	-- шапка
+	local head = screen:Add("DPanel")
+
+	head:Dock(TOP)
+	head:SetTall(S(50))
+	head:DockMargin(S(18), S(12), S(18), 0)
+	head.Paint = function(this, w, h)
+		local mid = h / 2
+		local tag = C.IsCWU(LocalPlayer()) and "ГСР" or "C24"
+
+		surface.SetFont(F("status"))
+
+		local tw = surface.GetTextSize(tag) + S(16)
+
+		surface.SetDrawColor(theme.muted)
+		surface.DrawOutlinedRect(0, mid - S(12), tw, S(24), 1)
+		draw.SimpleText(tag, F("status"), tw / 2, mid, theme.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+		local titleX = tw + S(14)
+
+		if (IsValid(frame.backButton) and frame.backButton:IsVisible()) then
+			titleX = titleX + frame.backButton:GetWide() + S(10)
+		end
+
+		draw.SimpleText(Upper(frame.title or ""), F("title"), titleX, mid, theme.text, TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
+
+		-- справа: статус, время, связь, батарея (крестик закрытия — отдельная кнопка)
+		local right = w - S(40)
+
+		DrawBattery(right - S(24), mid, theme)
+		DrawSignal(right - S(52), mid + S(5), theme)
+		draw.SimpleText(os.date("%H:%M"), F("status"), right - S(62), mid, theme.text, TEXT_ALIGN_RIGHT,
+			TEXT_ALIGN_CENTER)
+		draw.SimpleText("СЕТЬ // УЧТЁН", F("status"), right - S(120), mid, theme.muted, TEXT_ALIGN_RIGHT,
+			TEXT_ALIGN_CENTER)
+	end
+
+	local back = head:Add("DButton")
+
+	back:SetText("")
+	back:SetSize(S(84), S(24))
+	back.Think = function(this)
+		this:SetVisible(#frame.history > 0)
+
+		surface.SetFont(F("status"))
+
+		local tag = C.IsCWU(LocalPlayer()) and "ГСР" or "C24"
+
+		this:SetPos(surface.GetTextSize(tag) + S(16) + S(14), (head:GetTall() - this:GetTall()) / 2)
+	end
+	back.Paint = function(this, w, h)
+		PaintChip(this, w, h, "< НАЗАД", theme.text)
+	end
+	back.DoClick = function()
+		C.Back()
+	end
+
+	frame.backButton = back
+
+	local close = head:Add("DButton")
+
+	close:SetText("")
+	close:SetSize(S(26), S(26))
+	close.Paint = function(this, w, h)
+		local color = this:IsHovered() and theme.text or theme.muted
+
+		surface.SetDrawColor(color)
+		surface.DrawOutlinedRect(0, 0, w, h, 1)
+		surface.DrawLine(S(8), S(8), w - S(8), h - S(8))
+		surface.DrawLine(w - S(8), S(8), S(8), h - S(8))
+	end
+	close.DoClick = function()
+		frame:Close()
+	end
+	head.PerformLayout = function(this, w, h)
+		close:SetPos(w - close:GetWide(), (h - close:GetTall()) / 2)
+	end
+
+	-- вкладки
+	local tabs = screen:Add("DPanel")
+
+	tabs:Dock(TOP)
+	tabs:SetTall(S(38))
+	tabs:DockMargin(S(18), S(6), S(18), 0)
+	tabs.Paint = function(_, w, h)
+		surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 200)
+		surface.DrawRect(0, h - 1, w, 1)
+	end
+
+	local x = 0
+
+	for _, app in ipairs(C.GetApps(LocalPlayer())) do
+		local button = tabs:Add("DButton")
+		local label = Upper(app[2])
+
+		surface.SetFont(F("button"))
+
+		local bw = surface.GetTextSize(label) + S(34)
+
+		button:SetText("")
+		button:SetPos(x, 0)
+		button:SetSize(bw, S(37))
+		button.Paint = function(this, w, h)
+			local page = frame.page and (TAB_OF[frame.page] or frame.page)
+			local bActive = page == app[1]
+
+			if (bActive) then
+				surface.SetDrawColor(theme.bg2.r + 18, theme.bg2.g + 18, theme.bg2.b + 18, 255)
+				surface.DrawRect(0, S(3), w, h - S(3))
+				surface.SetDrawColor(theme.text)
+				surface.DrawRect(0, h - S(2), w, S(2))
+			elseif (this:IsHovered()) then
+				surface.SetDrawColor(255, 255, 255, 10)
+				surface.DrawRect(0, S(3), w, h - S(3))
+			end
+
+			draw.SimpleText(label, F("button"), w / 2, h / 2 + S(1), bActive and theme.text or theme.muted,
+				TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		end
+		button.DoClick = function()
+			surface.PlaySound("buttons/lightswitch2.wav")
+			frame.history = {}
+			C.Open(app[1], true)
+		end
+
+		x = x + bw + S(4)
+	end
+
+	-- пояснение к разделу
+	local hint = screen:Add("DPanel")
+
+	hint:Dock(TOP)
+	hint:SetTall(S(24))
+	hint:DockMargin(S(18), S(4), S(18), 0)
+	hint.Paint = function(_, w, h)
+		draw.SimpleText(PAGE_HINTS[frame.page or ""] or "", F("small"), 0, h / 2, theme.muted, TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
+	end
+
+	-- служебная строка
+	local footer = screen:Add("DPanel")
+
+	footer:Dock(BOTTOM)
+	footer:SetTall(S(28))
+	footer:DockMargin(S(18), 0, S(18), S(8))
+	footer.Paint = function(_, w, h)
+		local text = C.IsCWU(LocalPlayer()) and "ГРАЖДАНСКАЯ АДМИНИСТРАЦИЯ // КАНАЛ ПРОТОКОЛИРУЕТСЯ" or
+			"ГРАЖДАНСКАЯ ОБОРОНА // КАНАЛ ЗАЩИЩЁН"
+
+		draw.SimpleText(text, F("status"), 0, h / 2, theme.muted, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+		surface.SetDrawColor(theme.muted)
+
+		for i = 0, 5 do
+			local hx = w - S(54) + i * S(8)
+
+			surface.DrawLine(hx + S(4), h / 2 - S(5), hx, h / 2 + S(5))
+		end
+	end
+end
+
 
 local function StatusBar(screen, theme)
 	local bar = screen:Add("DPanel")
@@ -437,6 +659,21 @@ local function PaintScreen(panel, w, h, theme)
 	end
 end
 
+-- Рамка экрана с крестиками сверху и снизу, как на служебных планшетах.
+local function PaintEmbeddedScreen(panel, w, h, theme)
+	PaintScreen(panel, w, h, theme)
+
+	local m = S(8)
+
+	surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 220)
+	surface.DrawOutlinedRect(m, m, w - m * 2, h - m * 2, 1)
+
+	for _, y in ipairs({m, h - m}) do
+		surface.DrawRect(w / 2 - S(8), y, S(17), 1)
+		surface.DrawRect(w / 2, y - S(8), 1, S(17))
+	end
+end
+
 -- Stand-alone tablet bezel (terminal mode, no view model).
 local function PaintBezel(frame, w, h)
 	local m = frame.margin
@@ -505,13 +742,21 @@ function C.Show(page, terminal)
 	screen:DockMargin(frame.margin, frame.margin, frame.margin, frame.margin + frame.chin)
 
 	screen.Paint = function(this, w, h)
-		PaintScreen(this, w, h, theme)
+		if (frame.bEmbedded) then
+			PaintEmbeddedScreen(this, w, h, theme)
+		else
+			PaintScreen(this, w, h, theme)
+		end
 	end
 	frame.screen = screen
 
-	StatusBar(screen, theme)
-	Header(screen, frame, theme)
-	Footer(screen, theme)
+	if (frame.bEmbedded) then
+		NewChrome(screen, frame, theme)
+	else
+		StatusBar(screen, theme)
+		Header(screen, frame, theme)
+		Footer(screen, theme)
+	end
 
 	frame.Close = function(this)
 		this:Remove()
@@ -519,6 +764,8 @@ function C.Show(page, terminal)
 	frame.OnRemove = function(this)
 		if (this.bEmbedded) then
 			gui.EnableScreenClicker(false)
+
+			timer.Simple(0, C.SyncRaise)
 		end
 
 		C.feed = nil
@@ -647,6 +894,10 @@ function C.Show(page, terminal)
 	end
 
 	C.Open(page or "home", true)
+
+	if (frame.bEmbedded) then
+		timer.Simple(0, C.SyncRaise)
+	end
 end
 
 -- Navigation ----------------------------------------------------------------------------------
@@ -783,18 +1034,19 @@ function PAGES.home.Draw(body, data)
 	end
 
 	grid.PerformLayout = function(this, w)
+		local cols = (IsValid(C.frame) and C.frame.bEmbedded) and 3 or 2
 		local gap = S(10)
-		local tw = (w - gap) / 2
+		local tw = (w - gap * (cols - 1)) / cols
 		local th = S(96)
 
 		for index, tile in ipairs(tiles) do
-			local col, row = (index - 1) % 2, math.floor((index - 1) / 2)
+			local col, row = (index - 1) % cols, math.floor((index - 1) / cols)
 
 			tile:SetPos(math.Round(col * (tw + gap)), row * (th + gap))
 			tile:SetSize(math.Round(tw), th)
 		end
 
-		this:SetTall(math.ceil(#tiles / 2) * (th + gap))
+		this:SetTall(math.ceil(#tiles / cols) * (th + gap))
 	end
 end
 
@@ -1150,11 +1402,16 @@ function C.IsLandscape()
 	return C.bLandscape
 end
 
+-- Экран горизонтального планшета: 10.4 x 6.5, центр смещён вверх на 0.35.
+C.screenAspect = 10.4 / 6.5
+
 function C.ScreenCorners()
 	if (C.IsLandscape()) then
 		local z = 1.29
 
-		return {Vector(-4.8, 2.7, z), Vector(4.8, 2.7, z), Vector(4.8, -2.7, z), Vector(-4.8, -2.7, z)},
+		z = 1.03
+
+		return {Vector(-5.2, 3.6, z), Vector(5.2, 3.6, z), Vector(5.2, -2.9, z), Vector(-5.2, -2.9, z)},
 			Vector(0, 0, 0.02), true
 	end
 
@@ -1170,10 +1427,10 @@ function C.EmbedRect()
 	local w, h
 
 	if (bLandscape) then
-		-- Экран КПК 16:9 (9.6 x 5.4).
+		-- Экран планшета 16:10.
 		h = math.Round(math.min(ScrH() * 0.72, 700))
-		w = math.min(math.Round(h * 16 / 9), math.Round(ScrW() * 0.94))
-		h = math.Round(w * 9 / 16)
+		w = math.min(math.Round(h * C.screenAspect), math.Round(ScrW() * 0.94))
+		h = math.Round(w / C.screenAspect)
 	else
 		h = math.min(ScrH() - 120, 780)
 		w = math.Round(h * (9.12 / 12.77))
@@ -1503,6 +1760,18 @@ function C.DrawScreenQuad(world)
 end
 
 -- ПКМ: мышь в игру (осмотреться, ходить) и обратно в КПК. Меню на экране остаётся.
+-- КПК в руках поднимается к лицу, когда мышь в меню, и опускается, когда мышь в игре.
+function C.SyncRaise()
+	local client = LocalPlayer()
+	local weapon = IsValid(client) and client:GetActiveWeapon()
+
+	if (IsValid(weapon) and weapon.SetRaised) then
+		local frame = C.frame
+
+		weapon:SetRaised(IsValid(frame) and frame.bEmbedded and frame.bFocused == true)
+	end
+end
+
 function C.SetFocus(bFocus)
 	local frame = C.frame
 
@@ -1529,6 +1798,7 @@ function C.SetFocus(bFocus)
 	end
 
 	surface.PlaySound("buttons/lightswitch2.wav")
+	C.SyncRaise()
 end
 
 -- Каждый клик по меню — анимация нажатия пальцем.

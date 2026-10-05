@@ -62,6 +62,8 @@ function SWEP:Deploy()
 	self.nwHolsterAt = nil
 	self.nwHolsterTo = nil
 	self.nwHolstered = nil
+	self.nwRaised = false
+	self.nwClientIdleAt = nil
 
 	-- Экран «загружается», затем интерфейс открывается на КПК (мышь пока в игре).
 	if (CLIENT and NETWORK.city and IsFirstTimePredicted()) then
@@ -101,13 +103,31 @@ function SWEP:Press()
 		NETWORK.city.pressAt = RealTime()
 	end
 
-	if (self.bKPKViewModel) then
+	if (self.bKPKViewModel and self.nwRaised and !self.nwRaising) then
 		local duration = self:PlaySequence("press")
 
 		if (duration > 0) then
 			self.nwClientIdleAt = RealTime() + duration
 		end
 	end
+end
+
+-- Поднять КПК к лицу (мышь в КПК) или опустить вниз (мышь в игре). Только визуально, на клиенте.
+function SWEP:SetRaised(bRaised)
+	if (!CLIENT or !self.bKPKViewModel or self.nwRaised == bRaised or self.nwHolsterAt) then
+		return
+	end
+
+	self.nwRaised = bRaised
+
+	local duration = self:PlaySequence(bRaised and "raise" or "lower")
+
+	self.nwRaising = bRaised or nil
+	self.nwClientIdleAt = RealTime() + math.max(duration, 0.1)
+end
+
+function SWEP:GetIdleSequence()
+	return self.nwRaised and "idle_up" or "idle"
 end
 
 function SWEP:Think()
@@ -139,7 +159,8 @@ function SWEP:Think()
 
 	if (CLIENT and self.nwClientIdleAt and self.nwClientIdleAt <= RealTime()) then
 		self.nwClientIdleAt = nil
-		self:PlaySequence("idle")
+		self.nwRaising = nil
+		self:PlaySequence(self:GetIdleSequence())
 	end
 end
 
@@ -191,11 +212,13 @@ function SWEP:Holster(weapon)
 	local duration
 
 	if (self.bKPKViewModel) then
-		self:SendWeaponAnim(ACT_VM_HOLSTER)
+		-- 12 кадров при 30 fps; анимация из текущего положения играется на клиенте.
+		duration = 0.42
 
-		local vm = IsValid(self:GetOwner()) and self:GetOwner():GetViewModel()
-
-		duration = IsValid(vm) and vm:SequenceDuration() or 0.4
+		if (CLIENT) then
+			self.nwClientIdleAt = nil
+			self:PlaySequence(self.nwRaised and "holster_up" or "holster")
+		end
 	else
 		duration = math.max(self:PlaySequence("fists_holster"), 0.4)
 	end
