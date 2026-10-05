@@ -57,6 +57,24 @@ end
 
 function SWEP:Deploy()
 	self.equipAt = CurTime()
+	self.nwHolsterAt = nil
+	self.nwHolsterTo = nil
+	self.nwHolstered = nil
+
+	-- Экран «загружается», затем интерфейс открывается на КПК (мышь пока в игре).
+	if (CLIENT and NETWORK.city and IsFirstTimePredicted()) then
+		NETWORK.city.bootAt = RealTime()
+	end
+
+	if (SERVER) then
+		local owner = self:GetOwner()
+
+		timer.Simple(1.2, function()
+			if (IsValid(self) and IsValid(owner) and owner:GetActiveWeapon() == self) then
+				NETWORK.city.OpenPDA(owner, true)
+			end
+		end)
+	end
 
 	if (self.bKPKViewModel) then
 		self:SendWeaponAnim(ACT_VM_DRAW)
@@ -91,6 +109,23 @@ function SWEP:Press()
 end
 
 function SWEP:Think()
+	if (self.nwHolsterAt and self.nwHolsterAt <= CurTime()) then
+		self.nwHolsterAt = nil
+		self.nwHolstered = true
+
+		local owner = self:GetOwner()
+		local target = self.nwHolsterTo
+
+		if (SERVER and IsValid(owner) and IsValid(target)) then
+			owner:SelectWeapon(target:GetClass())
+		end
+
+		return
+	end
+
+	if (self.nwHolsterAt) then
+		return
+	end
 	if (self.nwIdleAt and self.nwIdleAt <= CurTime()) then
 		if (self.bKPKViewModel) then
 			self.nwIdleAt = nil
@@ -108,6 +143,10 @@ end
 
 function SWEP:PrimaryAttack()
 	self:SetNextPrimaryFire(CurTime() + 0.6)
+
+	if (self.nwHolsterAt) then
+		return
+	end
 
 	if (CLIENT and IsFirstTimePredicted()) then
 		self:Press()
@@ -133,7 +172,48 @@ function SWEP:Reload()
 	end
 end
 
-function SWEP:Holster()
+-- Убирание с анимацией: смена оружия откладывается, пока КПК опускается.
+function SWEP:Holster(weapon)
+	if (self.nwHolstered or !IsValid(weapon) or weapon == self) then
+		self:FinishHolster()
+
+		return true
+	end
+
+	if (self.nwHolsterAt) then
+		return false
+	end
+
+	self.nwHolsterTo = weapon
+
+	local duration
+
+	if (self.bKPKViewModel) then
+		self:SendWeaponAnim(ACT_VM_HOLSTER)
+
+		local vm = IsValid(self:GetOwner()) and self:GetOwner():GetViewModel()
+
+		duration = IsValid(vm) and vm:SequenceDuration() or 0.4
+	else
+		duration = math.max(self:PlaySequence("fists_holster"), 0.4)
+	end
+
+	self.nwHolsterAt = CurTime() + math.Clamp(duration, 0.2, 1)
+
+	if (CLIENT) then
+		if (IsValid(NETWORK.city.frame) and !NETWORK.city.frame.terminal) then
+			NETWORK.city.frame:Close()
+		end
+
+		NETWORK.city.offAt = RealTime()
+	end
+
+	return false
+end
+
+function SWEP:FinishHolster()
+	self.nwHolsterAt = nil
+
 	if (CLIENT) then
 		if (IsValid(NETWORK.city.frame) and !NETWORK.city.frame.terminal) then
 			NETWORK.city.frame:Close()
@@ -141,8 +221,6 @@ function SWEP:Holster()
 
 		self:RestoreViewModel()
 	end
-
-	return true
 end
 
 function SWEP:OnRemove()
@@ -204,6 +282,18 @@ function SWEP:GetKPKMatrix(vm)
 	local scale = math.Clamp(span / grip, 0.25, 2) * math.Clamp(tune.scale:GetFloat(), 0.1, 3)
 
 	pos = pos + right * tune.y:GetFloat() + up * tune.z:GetFloat() + forward * tune.x:GetFloat()
+
+	-- Доставание снизу и убирание вниз (для варианта без c_kpk.mdl).
+	local rise = math.Clamp((CurTime() - (self.equipAt or 0)) / 0.45, 0, 1)
+	local lower = 0
+
+	if (self.nwHolsterAt) then
+		lower = 1 - math.Clamp((self.nwHolsterAt - CurTime()) / 0.4, 0, 1)
+	end
+
+	local away = math.max(1 - rise * rise * (3 - 2 * rise), lower * lower * (3 - 2 * lower))
+
+	pos = pos - up * 12 * away - forward * 3 * away
 
 	-- Нажатие: устройство коротко уходит от камеры и чуть наклоняется.
 	local press = C and C.pressAt and math.Clamp(1 - (RealTime() - C.pressAt) / 0.22, 0, 1) or 0
@@ -301,20 +391,8 @@ function SWEP:DrawWorldModel()
 	end
 end
 
+-- Подсказок на экране нет: всё управление видно на самом КПК.
 function SWEP:DrawHUD()
-	local frame = NETWORK.city.frame
-
-	if (IsValid(frame)) then
-		if (frame.bEmbedded and !frame.bFocused) then
-			draw.SimpleTextOutlined("ПКМ — курсор в КПК  •  R — закрыть", "nwChatSmall", ScrW() / 2,
-				ScrH() - 80, Color(200, 220, 228), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 160))
-		end
-
-		return
-	end
-
-	draw.SimpleTextOutlined("ЛКМ — открыть КПК  •  R — закрыть", "nwChatSmall", ScrW() / 2,
-		ScrH() - 80, Color(200, 220, 228), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 160))
 end
 
 -- Окно подгонки положения КПК в руке.

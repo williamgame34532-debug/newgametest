@@ -413,10 +413,16 @@ local function Footer(screen, theme)
 		surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 160)
 		surface.DrawRect(S(22), 0, w - S(44), 1)
 		local frame = C.frame
-		local hint = (IsValid(frame) and frame.bEmbedded) and
-			"ЛКМ — ВЫБОР   ·   ПКМ — МЫШЬ В ИГРУ   ·   R — ЗАКРЫТЬ" or "ЛКМ — ВЫБОР   ·   R — ЗАКРЫТЬ"
 
-		draw.SimpleText(hint, F("status"), w / 2, h / 2, theme.muted, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		if (IsValid(frame) and frame.bEmbedded) then
+			draw.SimpleText(Upper(theme.tag), F("status"), w / 2, h / 2, theme.muted, TEXT_ALIGN_CENTER,
+				TEXT_ALIGN_CENTER)
+
+			return
+		end
+
+		draw.SimpleText("ЛКМ — ВЫБОР   ·   R — ЗАКРЫТЬ", F("status"), w / 2, h / 2, theme.muted,
+			TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 end
 
@@ -542,9 +548,9 @@ function C.Show(page, terminal)
 			-- Системная стрелка не нужна: курсор рисуется на экране КПК.
 			local hovered = vgui.GetHoveredPanel()
 
-			if (IsValid(hovered) and hovered != this and hovered:HasParent(this) and
-				hovered:GetCursor() != "blank") then
+			if (IsValid(hovered) and hovered != this.nwBlankCursor and hovered:HasParent(this)) then
 				hovered:SetCursor("blank")
+				this.nwBlankCursor = hovered
 			end
 
 			-- Курсор не уходит с экрана КПК.
@@ -563,15 +569,76 @@ function C.Show(page, terminal)
 			return
 		end
 
+		local t = RealTime()
+
+		-- Нажатая кнопка коротко подсвечивается.
+		local pressed = C.pressedPanel
+
+		if (IsValid(pressed) and C.pressedAt and t - C.pressedAt < 0.25) then
+			local k = 1 - (t - C.pressedAt) / 0.25
+			local px, py = this:ScreenToLocal(pressed:LocalToScreen(0, 0))
+
+			surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, 70 * k)
+			surface.DrawRect(px, py, pressed:GetWide(), pressed:GetTall())
+			surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, 220 * k)
+			surface.DrawOutlinedRect(px, py, pressed:GetWide(), pressed:GetTall(), 2)
+		end
+
+		-- Волна от точки клика.
+		if (C.rippleAt and t - C.rippleAt < 0.4) then
+			local k = (t - C.rippleAt) / 0.4
+
+			NETWORK.util.DrawCircleOutline(C.rippleX, C.rippleY, S(6) + S(34) * k,
+				ColorAlpha(theme.accent, 230 * (1 - k)), 2)
+		end
+
+		if (this.bEmbedded and !this.bFocused) then
+			return
+		end
+
+		-- Собственный курсор КПК: стрелка с обводкой, при клике чуть сжимается.
 		local x, y = this:CursorPos()
 
 		if (x > 0 and y > 0 and x < this:GetWide() and y < this:GetTall()) then
-			local accent = theme.accent
+			local click = C.rippleAt and math.Clamp(1 - (t - C.rippleAt) / 0.15, 0, 1) or 0
+			local size = S(18) * (1 - click * 0.2)
+			local arrow = {
+				{x = x, y = y},
+				{x = x + size * 0.72, y = y + size * 0.62},
+				{x = x + size * 0.36, y = y + size * 0.66},
+				{x = x + size * 0.56, y = y + size * 1.02},
+				{x = x + size * 0.42, y = y + size * 1.08},
+				{x = x + size * 0.22, y = y + size * 0.72},
+				{x = x, y = y + size * 0.92}
+			}
+			-- DrawPoly рисует только выпуклые фигуры: голова-треугольник + хвост.
+			local head = {arrow[1], arrow[2], arrow[7]}
+			local tail = {arrow[3], arrow[4], arrow[5], arrow[6]}
 
-			surface.SetDrawColor(accent)
-			surface.DrawOutlinedRect(x - 3, y - 3, 7, 7, 1)
-			surface.DrawLine(x + 6, y, x + 14, y)
-			surface.DrawLine(x, y + 6, x, y + 14)
+			local function Shift(poly)
+				local out = {}
+
+				for index, point in ipairs(poly) do
+					out[index] = {x = point.x + 1, y = point.y + 1}
+				end
+
+				return out
+			end
+
+			draw.NoTexture()
+			surface.SetDrawColor(0, 0, 0, 200)
+			surface.DrawPoly(Shift(head))
+			surface.DrawPoly(Shift(tail))
+			surface.SetDrawColor(theme.text.r, theme.text.g, theme.text.b, 250)
+			surface.DrawPoly(head)
+			surface.DrawPoly(tail)
+			surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, 255)
+
+			for index = 1, #arrow do
+				local a, b = arrow[index], arrow[index % #arrow + 1]
+
+				surface.DrawLine(a.x, a.y, b.x, b.y)
+			end
 		end
 	end
 
@@ -597,6 +664,7 @@ function C.Open(page, bRoot, payload)
 	frame.page = page
 	frame.payload = payload
 	C.feed = nil
+	C.transitionAt = RealTime()
 
 	local def = PAGES[page]
 
@@ -1116,33 +1184,128 @@ local screenMat = CreateMaterial("nwPDAScreenMat", "UnlitGeneric", {
 	["$basetexture"] = screenRT:GetName()
 })
 
--- Экран ожидания, пока меню закрыто.
+-- Экран, пока меню ещё не пришло с сервера: шапка, «радар» и подсказка.
 local function DrawStandby(rect)
 	local theme = C.Theme(LocalPlayer())
 	local x, y, w, h = rect.x, rect.y, rect.w, rect.h
+	local t = RealTime()
 
 	surface.SetDrawColor(theme.bg)
 	surface.DrawRect(x, y, w, h)
 
-	surface.SetDrawColor(255, 255, 255, 5)
+	-- шапка
+	surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, 200)
+	surface.DrawRect(x, y + 30, w, 1)
+	draw.SimpleText(Upper(theme.tag), "nwPDAStandbySmall", x + 16, y + 15, theme.accent,
+		TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	draw.SimpleText(os.date("%H:%M"), "nwPDAStandbySmall", x + w - 16, y + 15, theme.text,
+		TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 
-	for line = y, y + h, 3 do
-		surface.DrawRect(x, line, w, 1)
+	-- вращающиеся дуги поиска сети
+	local cx, cy = x + w / 2, y + h / 2 - 6
+	local r = math.min(w, h) * 0.2
+
+	for i = 0, 2 do
+		local start = (t * (60 + i * 35) + i * 120) % 360
+
+		NETWORK.util.DrawArc(cx, cy, r + i * 10, 2, 0.22, ColorAlpha(theme.accent, 200 - i * 50), 32, start)
 	end
 
-	surface.SetDrawColor(theme.line)
-	surface.DrawOutlinedRect(x + 12, y + 12, w - 24, h - 24, 2)
+	local pulse = 0.5 + math.abs(math.sin(t * 2)) * 0.5
 
-	local pulse = 0.6 + math.abs(math.sin(RealTime() * 1.6)) * 0.4
+	NETWORK.util.DrawCircle(cx, cy, 5 + pulse * 3, ColorAlpha(theme.accent, 220))
 
-	draw.SimpleText("КПК", "nwPDAStandbyBig", x + w / 2, y + h / 2 - h * 0.06, theme.text,
+	local dots = string.rep(".", math.floor(t * 2) % 4)
+
+	draw.SimpleText("ПОДКЛЮЧЕНИЕ К СЕТИ" .. dots, "nwPDAStandbySmall", cx, cy + r + 40, theme.muted,
 		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	draw.SimpleText(Upper(theme.tag), "nwPDAStandbySmall", x + w / 2, y + 34, theme.muted,
-		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	draw.SimpleText("ЛКМ — ОТКРЫТЬ", "nwPDAStandbySmall", x + w / 2, y + h - 40,
-		ColorAlpha(theme.accent, 255 * pulse), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	draw.SimpleText(os.date("%H:%M"), "nwPDAStandbySmall", x + w - 30, y + 34, theme.text,
-		TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+end
+
+-- Эффекты экрана поверх интерфейса: загрузка, смена страниц, развёртка, виньетка.
+local function DrawScreenFX(rect)
+	local theme = C.Theme(LocalPlayer())
+	local x, y, w, h = rect.x, rect.y, rect.w, rect.h
+	local t = RealTime()
+
+	-- бегущая полоса развёртки
+	local band = y + ((t * 0.35) % 1) * (h + 60) - 30
+
+	for i = 0, 29 do
+		surface.SetDrawColor(255, 255, 255, 5 * (1 - math.abs(i - 15) / 15))
+		surface.DrawRect(x, band + i, w, 1)
+	end
+
+	-- виньетка по краям
+	for i = 0, 11 do
+		local a = (12 - i) * 5
+
+		surface.SetDrawColor(0, 0, 0, a)
+		surface.DrawOutlinedRect(x + i, y + i, w - i * 2, h - i * 2, 1)
+	end
+
+	-- смена страницы: вспышка и шторка сверху вниз
+	local tr = C.transitionAt and (t - C.transitionAt) / 0.28 or 1
+
+	if (tr < 1) then
+		surface.SetDrawColor(theme.bg.r, theme.bg.g, theme.bg.b, 255 * (1 - tr))
+		surface.DrawRect(x, y + h * tr, w, h * (1 - tr))
+		surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, 220 * (1 - tr))
+		surface.DrawRect(x, y + h * tr, w, 2)
+	end
+
+	-- выключение экрана при убирании: картинка схлопывается в линию
+	local off = C.offAt and (t - C.offAt) / 0.35 or 99
+
+	if (off < 1.5) then
+		local k = math.Clamp(off, 0, 1)
+		local keep = h * (1 - k) * 0.5
+
+		surface.SetDrawColor(0, 0, 0, 255)
+		surface.DrawRect(x, y, w, h / 2 - keep)
+		surface.DrawRect(x, y + h / 2 + keep, w, h / 2 - keep)
+		surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, 255 * (1 - math.Clamp(off - 1, 0, 0.5) * 2))
+		surface.DrawRect(x + w * 0.5 * k * 0.8, y + h / 2 - 1, w * (1 - k * 0.8), 2)
+	end
+
+	-- загрузка при доставании КПК
+	local boot = C.bootAt and (t - C.bootAt) or 99
+
+	if (boot < 1.6) then
+		local fade = boot > 1.25 and (1 - (boot - 1.25) / 0.35) or 1
+
+		surface.SetDrawColor(4, 6, 8, 255 * fade)
+		surface.DrawRect(x, y, w, h)
+
+		if (boot > 0.12) then
+			local a = 255 * fade
+			local cx, cy = x + w / 2, y + h / 2
+
+			-- «включение» экрана: горизонтальная линия раскрывается
+			local open = math.Clamp((boot - 0.12) / 0.2, 0, 1)
+
+			surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, a * (1 - open * 0.7))
+			surface.DrawRect(cx - w * 0.5 * open, cy - 1, w * open, 2)
+
+			if (boot > 0.3) then
+				draw.SimpleText(Upper(theme.tag), "nwPDAStandbySmall", cx, cy - 34, ColorAlpha(theme.text, a),
+					TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+				local progress = math.Clamp((boot - 0.35) / 0.85, 0, 1)
+				local bw = w * 0.4
+
+				surface.SetDrawColor(theme.line.r, theme.line.g, theme.line.b, a)
+				surface.DrawOutlinedRect(cx - bw / 2, cy + 16, bw, 8, 1)
+				surface.SetDrawColor(theme.accent.r, theme.accent.g, theme.accent.b, a)
+				surface.DrawRect(cx - bw / 2 + 2, cy + 18, (bw - 4) * progress, 4)
+
+				local stage = progress < 0.4 and "ЗАГРУЗКА ЯДРА" or progress < 0.8 and "ПРОВЕРКА ДОСТУПА" or
+					"ПОДКЛЮЧЕНИЕ К СЕТИ"
+
+				draw.SimpleText(stage, "nwPDAStandbySmall", cx, cy + 44, ColorAlpha(theme.muted, a),
+					TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			end
+		end
+	end
 end
 
 hook.Add("PreRender", "nwPDAScreen", function()
@@ -1173,6 +1336,8 @@ hook.Add("PreRender", "nwPDAScreen", function()
 			else
 				DrawStandby(rect)
 			end
+
+			DrawScreenFX(rect)
 		cam.End2D()
 	render.PopRenderTarget()
 end)
@@ -1275,6 +1440,11 @@ hook.Add("VGUIMousePressed", "nwPDAPress", function(panel, code)
 		return
 	end
 
+	C.rippleX, C.rippleY = frame:CursorPos()
+	C.rippleAt = RealTime()
+	C.pressedPanel = panel != frame and panel or nil
+	C.pressedAt = RealTime()
+
 	local weapon = LocalPlayer():GetActiveWeapon()
 
 	if (IsValid(weapon) and weapon.Press) then
@@ -1291,13 +1461,22 @@ end)
 
 -- Network -------------------------------------------------------------------------------------
 net.Receive("nwPDAOpen", function()
+	local bBackground = net.ReadBool()
+
 	if (IsValid(C.frame) and C.frame.bEmbedded) then
-		C.SetFocus(true)
+		if (!bBackground) then
+			C.SetFocus(true)
+		end
 
 		return
 	end
 
 	C.Show("home", false)
+
+	-- Интерфейс сразу на экране КПК, а мышь остаётся в игре до ЛКМ/ПКМ.
+	if (bBackground) then
+		C.SetFocus(false)
+	end
 end)
 
 net.Receive("nwCityReply", function()

@@ -72,10 +72,13 @@ function C.CanTerminal(p)
   p:GetPos():DistToSqr(e:GetPos())<180*180
 end
 -- The PDA has no weapon: using the item opens the tablet as a stand-alone panel.
-function C.OpenPDA(p)
- if (!p:Alive() or !C.HasPDA(p)) then return Notice(p,"Этот КПК недоступен вашей фракции.") end
+function C.OpenPDA(p,bBackground)
+ if (!p:Alive() or !C.HasPDA(p)) then
+  if (!bBackground) then Notice(p,"Этот КПК недоступен вашей фракции.") end
+  return
+ end
  p.nwPDAChar=p:GetCharacterID()
- net.Start("nwPDAOpen") net.Send(p)
+ net.Start("nwPDAOpen") net.WriteBool(bBackground==true) net.Send(p)
 end
 C.pdaWeapon = "weapon_nw_pda"
 
@@ -87,7 +90,7 @@ function C.TakePDA(p)
  if (!IsValid(weapon)) then return C.OpenPDA(p) end
  if (p:GetActiveWeapon()==weapon) then return C.OpenPDA(p) end
  p:SelectWeapon(C.pdaWeapon)
- timer.Simple(0.5,function()
+ timer.Simple(1.3,function()
   if (IsValid(p) and p:Alive() and IsValid(p:GetActiveWeapon()) and p:GetActiveWeapon():GetClass()==C.pdaWeapon) then
    C.OpenPDA(p)
   end
