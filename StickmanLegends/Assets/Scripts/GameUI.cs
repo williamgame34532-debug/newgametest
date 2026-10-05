@@ -451,6 +451,7 @@ namespace StickWars
             }
             float want = fight ? Mathf.Clamp01(battle.SlowAmount / 0.6f) : 0f;
             if (fight && battle.phase == Battle.Phase.Intro && battle.mode == Battle.Mode.Fight) want = 1f;
+            if (fight && battle.cutsceneOn) want = 1.4f;
             if (replay) want = 1f;
             letterbox = Mathf.MoveTowards(letterbox, want, Time.unscaledDeltaTime * 3f);
             if (letterbox > 0.01f)
@@ -1284,10 +1285,45 @@ namespace StickWars
         }
 
         // HUD режима «Один против всех»
+        // катсцена: затемнение, диалог с печатающимся текстом, кнопка «Пропустить»
+        void CutsceneOverlay()
+        {
+            var b = battle;
+            if (b.cutBlack > 0.01f) Box(new Rect(0, 0, VW, VH), new Color(0, 0, 0, b.cutBlack), 0);
+            if (!string.IsNullOrEmpty(b.dialogText) && b.dialogT > 0f)
+            {
+                float age = b.dialogMax - b.dialogT;
+                int chars = Mathf.Clamp((int)(age * 38f), 0, b.dialogText.Length);
+                float fade = Mathf.Clamp01(b.dialogT / 0.25f) * Mathf.Clamp01(age / 0.15f);
+                float bw = Mathf.Min(1300f, VW - 200f), bh = 150f;
+                Rect box = new Rect((VW - bw) / 2f, VH - 133f - bh - 20f, bw, bh);
+                Box(box, new Color(0.02f, 0.02f, 0.03f, 0.85f * fade), 16);
+                Border(box, Draw.A(b.dialogCol, 0.9f * fade), 3, 16);
+                // портрет: силуэт с глазами
+                Rect pr = new Rect(box.x + 22, box.y + 20, 110, 110);
+                Box(pr, Draw.A(Color.Lerp(b.dialogCol, Color.black, 0.75f), fade), 55);
+                Box(new Rect(pr.x + 20, pr.y + 18, 70, 70), Draw.A(b.hero != null ? b.hero.B.color : Color.black, fade), 35);
+                Box(new Rect(pr.x + 50, pr.y + 44, 14, 6), Draw.A(Color.white, fade), 3);
+                Box(new Rect(pr.x + 68, pr.y + 44, 14, 6), Draw.A(Color.white, fade), 3);
+                Txt(new Rect(box.x + 156, box.y + 12, bw - 180, 40), b.dialogWho ?? "", 28, Draw.A(b.dialogCol, fade), TextAnchor.MiddleLeft, true);
+                Outline(new Rect(box.x + 156, box.y + 52, bw - 180, bh - 60), b.dialogText.Substring(0, chars), 30, Draw.A(Color.white, fade), new Color(0, 0, 0, fade), TextAnchor.UpperLeft, 1.5f);
+            }
+            if (Btn(new Rect(VW - 300, VH - 120, 260, 56), "Пропустить ▶", 22) || (Event.current.type == EventType.KeyDown && (Event.current.keyCode == KeyCode.Space || Event.current.keyCode == KeyCode.Return)))
+                b.SkipCutscene();
+        }
+
         void SurvivalHud()
         {
             var b = battle;
             float t = Time.unscaledTime;
+            if (b.cutsceneOn) { CutsceneOverlay(); return; }
+            // подписи над усилителями
+            foreach (var bo in b.boosts)
+            {
+                if (bo.go == null || !bo.go.activeSelf) continue;
+                Vector2 g = W2G(bo.pos + Vector2.up * 0.9f);
+                Outline(new Rect(g.x - 120, g.y - 16, 240, 30), Battle.BoostNames[bo.kind], 18, Battle.BoostCols[bo.kind], Color.black, TextAnchor.MiddleCenter, 1.5f);
+            }
             Rect mid = new Rect(VW / 2 - 190, 10, 380, 110);
             Box(mid, new Color(0, 0, 0, 0.75f), 14);
             Border(mid, new Color(0.9f, 0.1f, 0.08f, 0.9f), 2, 14);
@@ -1308,6 +1344,37 @@ namespace StickWars
             Txt(new Rect(er.x + 18, er.y + 6, er.width - 40, 40), b.intermission ? "ПЕРЕДЫШКА" : "ВРАГОВ ОСТАЛОСЬ", 22, new Color(0.85f, 0.8f, 0.8f), TextAnchor.MiddleRight, true);
             string big = b.intermission ? Mathf.CeilToInt(Mathf.Max(0f, b.interT)).ToString() : b.EnemiesLeft.ToString();
             Outline(new Rect(er.x + 18, er.y + 40, er.width - 40, 50), big, 40, b.intermission ? new Color(0.5f, 1f, 0.55f) : new Color(1f, 0.3f, 0.25f), Color.black, TextAnchor.MiddleRight, 2f);
+            // собранные усилители
+            float bx0 = 16f, by0 = 118f;
+            for (int i = 0; i < b.boostTaken.Length; i++)
+            {
+                if (b.boostTaken[i] == 0) continue;
+                Box(new Rect(bx0, by0, 34, 34), Battle.BoostCols[i], 17);
+                Outline(new Rect(bx0 + 38, by0, 120, 34), Battle.BoostNames[i].Substring(0, Mathf.Min(6, Battle.BoostNames[i].Length)) + " x" + b.boostTaken[i], 16, Color.white, Color.black, TextAnchor.MiddleLeft, 1.5f);
+                bx0 += 150f;
+            }
+            // умения героя по клавишам
+            if (b.hero != null && !b.hero.dead)
+            {
+                string[] keys = { "R", "T", "Y", "H", "" };
+                var acts = b.hero.ActiveAbilities();
+                float ax = 16f, ay = VH - 150f - letterbox * 95f;
+                for (int i = 0; i < acts.Count && i < 4; i++)
+                {
+                    var ab = acts[i];
+                    float cdk = b.hero.CooldownOf(ab) / Mathf.Max(0.1f, Info.Cooldown(ab) * b.hero.B.cdMul);
+                    var spc = b.hero.B.SpecOf(ab);
+                    Color rc = spc != null ? spc.col : new Color(1f, 0.85f, 0.2f);
+                    Rect cell = new Rect(ax, ay, 230, 44);
+                    Box(cell, new Color(0, 0, 0, 0.6f), 10);
+                    Box(new Rect(cell.x, cell.y, cell.width * (1f - Mathf.Clamp01(cdk)), cell.height), Draw.A(rc, cdk <= 0f ? 0.55f : 0.25f), 10);
+                    Txt(new Rect(cell.x + 8, cell.y, 30, cell.height), keys[i], 20, Color.white, TextAnchor.MiddleLeft, true);
+                    string an = b.hero.B.AbilityName(ab);
+                    if (an.Length > 20) an = an.Substring(0, 19) + "…";
+                    Txt(new Rect(cell.x + 34, cell.y, cell.width - 40, cell.height), an, 16, Color.white, TextAnchor.MiddleLeft);
+                    ax += 240f;
+                }
+            }
             if (b.bossAlive && Mathf.Repeat(t, 0.8f) < 0.55f)
                 Outline(new Rect(VW / 2 - 300, mid.yMax + 54, 600, 40), "⚠ БОСС НА АРЕНЕ ⚠", 28, new Color(1f, 0.15f, 0.1f), Color.black, TextAnchor.MiddleCenter, 2f);
             if (b.intermission)

@@ -618,6 +618,7 @@ namespace StickWars
             desperCd -= dt;
             if (petrifyT > 0f) { PetrifyTick(dt); Render(); return; }
             if (despPendT > 0f) { despPendT -= dt; if (despPendT <= 0f) FireDesperation(despPend); }
+            BladeTick(dt);
             if (morphT > 0f)
             {
                 morphT -= dt;
@@ -1519,7 +1520,7 @@ namespace StickWars
                     break;
                 default: return false;
             }
-            cd[a] = Info.Cooldown(a);
+            cd[a] = Info.Cooldown(a) * B.cdMul;
             battle.Popup(B.AbilityName(a).ToUpper() + "!", J[2] + Vector2.up * 0.7f, Color.Lerp(mainCol, Color.white, 0.4f), 0.8f);
             return true;
         }
@@ -1638,7 +1639,7 @@ namespace StickWars
             {
                 Vector2 at = target != null ? target.Center + Vector2.up * 0.3f : c + new Vector2(facing * 4f, 0.5f);
                 bool tornado = sp.name != null && sp.name.StartsWith("Вихр");
-                battle.BlackHole(at, this, col, desperate ? 3.4f : 2.6f, 18f * pw, sp.lethal, tornado);
+                battle.BlackHole(at, this, col, desperate ? 3.4f : 2.6f, 18f * pw, sp.lethal, tornado, sp.effect2);
                 return;
             }
             if (sp.effect == AbilitySpec.TimeSlow)
@@ -1651,6 +1652,11 @@ namespace StickWars
             {
                 int n = desperate ? 9 : 7;
                 Vector2 baseDir = target != null ? (target.Center - c).normalized : new Vector2(facing, 0.1f);
+                // клинки прорезаются из рук и спины, потом срываются в полёт
+                bladeHold = 1.6f;
+                battle.BladeSprout(J[4], (J[4] - J[3]).normalized, col, Size);
+                battle.BladeSprout(J[6], (J[6] - J[5]).normalized, col, Size);
+                battle.BladeSprout(J[1] - new Vector2(facing * 0.1f, 0), new Vector2(-facing, 0.7f).normalized, col, Size);
                 for (int i = 0; i < n; i++)
                 {
                     float ang = (i - (n - 1) * 0.5f) * (desperate ? 14f : 10f);
@@ -1741,14 +1747,25 @@ namespace StickWars
                     }
                 default:
                     {
-                        var h = MakeHit(15f * pw, sp.elem == Element.None ? DmgType.Shadow : Info.ToType(sp.elem), sp.elem, 6f, 0.35f);
-                        h.extra |= HF.Magic | HF.Custom;
-                        h.customTag = sp.tag;
-                        h.knockdown = true;
-                        h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col; h.effForm = sp.form;
-                        if (sp.effect == AbilitySpec.Control || sp.effect == AbilitySpec.Polymorph) { h.dmg *= 0.4f; h.knockdown = false; }
-                        battle.SpawnProjectile(Projectile.Kind.Bolt, J[4] + aim * 0.3f, aim * 15f, this, h, col);
-                        battle.Shock(J[4], 1.2f, col);
+                        // вид снаряда — по описанию (бомбы, стрелы, иглы, шары...), несколько штук веером
+                        var kind = sp.proj >= 0 ? (Projectile.Kind)sp.proj : Projectile.Kind.Bolt;
+                        Vector2 from = sp.fromEyes ? J[2] + new Vector2(facing * 0.12f * Size, 0.04f * Size) : J[4] + aim * 0.3f;
+                        Vector2 dir0 = target != null ? (target.Center - from).normalized : aim;
+                        int n = Mathf.Clamp(sp.count + (desperate ? 2 : 0), 1, 9);
+                        float spd = kind == Projectile.Kind.Grenade ? 11f : kind == Projectile.Kind.Bullet ? 30f : kind == Projectile.Kind.Arrow ? 22f : 16f;
+                        for (int i = 0; i < n; i++)
+                        {
+                            var h = MakeHit(15f * pw / Mathf.Sqrt(n), sp.elem == Element.None ? (kind == Projectile.Kind.Bullet || kind == Projectile.Kind.Arrow ? DmgType.Pierce : DmgType.Shadow) : Info.ToType(sp.elem), sp.elem, 6f, 0.35f);
+                            h.extra |= HF.Magic | HF.Custom;
+                            h.customTag = sp.tag;
+                            h.knockdown = n == 1;
+                            h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col; h.effForm = sp.form;
+                            if (sp.effect == AbilitySpec.Control || sp.effect == AbilitySpec.Polymorph) { h.dmg *= 0.4f; h.knockdown = false; }
+                            Vector2 d = (Vector2)(Quaternion.Euler(0, 0, (i - (n - 1) * 0.5f) * 9f) * dir0);
+                            if (kind == Projectile.Kind.Grenade) d = (d + Vector2.up * 0.6f).normalized;
+                            battle.SpawnProjectile(kind, from, d * spd, this, h, col);
+                        }
+                        battle.Shock(from, 1.2f, col);
                         battle.audio.Sfx("zap", 0.8f);
                         break;
                     }
@@ -1756,6 +1773,60 @@ namespace StickWars
         }
 
         float sphereT;
+        public bool cutHidden; // катсцена: герой ещё не появился
+
+        // катсцена: снаряжение появляется со вспышкой
+        public void RevealAs(FighterBuild full)
+        {
+            Vector2 c = Center;
+            battle.Flash(0.2f, new Color(1, 1, 1, 0.95f));
+            battle.Shock(c, 3f, Color.Lerp(full.color, Color.white, 0.6f));
+            for (int i = 0; i < 40; i++) battle.fx.Emit(c + Random.insideUnitCircle * 0.6f, Random.insideUnitCircle * 7f, new Color(1f, 0.95f, 0.7f), 0.1f, 0.6f, 0f, false, 2f, true, 1, 1, true);
+            battle.audio.Sfx("cine", 1f, 0f); battle.audio.Sfx("shing", 0.8f, 0f);
+            MorphNow(full, 0f, false);
+            battle.Popup("СНАРЯЖЕНИЕ!", J[2] + Vector2.up * 1.2f, new Color(1f, 0.9f, 0.5f), 1f);
+        }
+
+        // катсцена: впервые применяет свою силу (лучше атакующее умение, а не превращение)
+        public void CutsceneAbility()
+        {
+            aim = new Vector2(facing, 0.05f).normalized;
+            AbilitySpec pick = null;
+            foreach (var sp in B.specs) if (sp.effect != AbilitySpec.Transform && sp.effect != AbilitySpec.Clone && sp.effect != AbilitySpec.Polymorph && sp.effect != AbilitySpec.Control) { pick = sp; break; }
+            if (pick == null && B.specs.Count > 0) pick = B.specs[0];
+            if (pick != null) { DoSpec(pick, false); return; }
+            foreach (var a in new[] { Ability.Lightning, Ability.Fireball, Ability.IceShard, Ability.Laser, Ability.GroundSlam, Ability.Telekinesis, Ability.Summon, Ability.Shield })
+                if (B.HasAb(a))
+                {
+                    if (a == Ability.Laser) { DoSpec(new AbilitySpec { shape = AbilitySpec.Beam, elem = Element.Fire, col = new Color(1f, 0.2f, 0.2f), name = "Лазер", fromEyes = true }, false); return; }
+                    if (a == Ability.GroundSlam) { DoSpec(new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Knock, col = new Color(1f, 0.8f, 0.5f), name = "Удар по земле" }, false); return; }
+                    if (a == Ability.Shield) { shieldT = 3f; battle.Shock(Center, 1.8f, new Color(0.4f, 0.9f, 1f)); battle.PowerMoment(this, "Щит", new Color(0.4f, 0.9f, 1f), false); return; }
+                    castAb = a; castFromStaff = false; DoCast();
+                    battle.PowerMoment(this, B.AbilityName(a), Color.Lerp(mainCol, Color.white, 0.5f), false);
+                    return;
+                }
+            // способностей нет — сила вырывается волной
+            DoSpec(new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Knock, col = Color.Lerp(mainCol, Color.white, 0.5f), name = "Пробуждение силы" }, false);
+        }
+        // выдвижные клинки: 0 — спрятаны в руке, 1 — выдвинуты
+        float bladeK = 1f, bladeHold;
+        void BladeTick(float dt)
+        {
+            if (weapon == null || !weapon.retract) { bladeK = 1f; return; }
+            bool want = (act == Act.Move && mv != null && mv.weapon) || act == Act.Block || battle.phase != Battle.Phase.Fight && false;
+            if (want) bladeHold = 1.4f; else bladeHold -= dt;
+            float target = bladeHold > 0f ? 1f : 0f;
+            float prev = bladeK;
+            bladeK = Mathf.MoveTowards(bladeK, target, dt * (target > bladeK ? 9f : 3f));
+            if (prev < 0.05f && bladeK >= 0.05f)
+            {
+                // клинки с лязгом вырываются из рук
+                battle.audio.Sfx("shing", 0.9f);
+                Vector2 hnd = J[4];
+                for (int i = 0; i < 10; i++) battle.fx.Emit(hnd, Random.insideUnitCircle * 4f, Color.Lerp(weapon.color, Color.white, 0.6f), 0.06f, 0.25f, 0f, false, 2f, true, 1, 1, true);
+                battle.fx.Blood(hnd, Vector2.up, 3);
+            }
+        }
 
         void DoSpecNova(AbilitySpec sp, float pw, bool desperate)
         {
@@ -1966,7 +2037,7 @@ namespace StickWars
                     if (B.HasAb(a) && CooldownOf(a) <= 0f) { pick = a; break; }
             if ((int)pick < 0) return false;
             desperCd = 5f;
-            cd[pick] = Info.Cooldown(pick);
+            cd[pick] = Info.Cooldown(pick) * B.cdMul;
             // вырывается: подпрыгивает, взрыв вокруг откидывает всех, а на пике прыжка — само умение
             Color bc = B.SpecOf(pick) != null ? B.SpecOf(pick).col : Color.Lerp(mainCol, Color.white, 0.5f);
             BreakoutJump(bc);
@@ -3169,6 +3240,7 @@ namespace StickWars
             float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : (iframes > 0 && act == Act.GetUp ? 0.6f + 0.4f * Mathf.Sin(animT * 40f) : 1f);
             if (replaying) alpha = replayAlpha;
             if (sphereT > 0f) { sphereT -= Time.deltaTime; alpha = 0f; }
+            if (cutHidden) alpha = 0f;
             if (styleMode != 0 && flash <= 0) StyleColors(ref c, ref cb);
             if (petrifyT > 0f || shattered) { c = petrifyCol; cb = Draw.Mul(petrifyCol, 0.78f); }
             lastAlpha = alpha;
@@ -3219,7 +3291,7 @@ namespace StickWars
             Vector2 fd = P[4] - P[3];
             weaponRoot.position = P[4];
             weaponRoot.rotation = Quaternion.Euler(0, 0, Mathf.Atan2(fd.y, fd.x) * Mathf.Rad2Deg);
-            weaponRoot.localScale = new Vector3(1, rf, 1);
+            weaponRoot.localScale = new Vector3(Mathf.Max(0.001f, bladeK), rf * (0.6f + 0.4f * bladeK), 1);
             foreach (var r in weaponRends) SetAlpha(r, alpha);
 
             float t = animT;

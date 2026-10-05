@@ -67,7 +67,8 @@ namespace StickWars
         public bool recordVideo = false; // записывать видео каждого боя
         public bool classicStick = true; // (старое) классический стикман
         public bool cine3d = true;
-        public bool always3d = true;     // постоянный 3D-вид камеры
+        public bool always3d = true;
+        public bool survivalIntro = true; // катсцена перед «Один против всех»     // постоянный 3D-вид камеры
         public bool grim = true;         // мрачная атмосфера: виньетка, пепел, тёмная цветокоррекция
         public bool screenBlood = true;  // брызги крови на экран       // 3D-переходы камеры в эпичные моменты
         public int stickLook = 0;        // 0 — Dojo (толстые силуэты), 1 — классический (контур, суставы), 2 — простой
@@ -102,7 +103,8 @@ namespace StickWars
         public int ammo = 0;
         public int pellets = 1;
         public bool bleed, axe, bat, rifle, explode, scythe, killer, homing, alwaysHead, knives, summon, katana, glowBlade;
-        public bool cleave, dismember, dark;   // «пронзает всех», «отрезает части», тёмное лезвие
+        public bool cleave, dismember, dark;
+        public bool retract;                   // клинки из тела: выдвигаются при атаке и прячутся в покое   // «пронзает всех», «отрезает части», тёмное лезвие
         public AbilitySpec onHit;              // что делает при попадании: окаменение, заморозка, поджог...
         public List<string> traits = new List<string>();
         public string customTag, summonName;
@@ -148,7 +150,9 @@ namespace StickWars
         public float power = 1f;
         public string name, tag;
         public string form;   // в кого превращается / превращает
-        public bool sphere, fromEyes, fan; // превращается в сферу и взрывается / лучи из глаз / веер клинков из тела
+        public bool sphere, fromEyes, fan;
+        public int proj = -1, count = 1;
+        public int effect2;   // эффект вихря / чёрной дыры («торнадо, которые замораживают»)   // вид снаряда (Projectile.Kind) и сколько их за раз // превращается в сферу и взрывается / лучи из глаз / веер клинков из тела
         public StageMods stage;            // своя «стадия»: злая форма, режим ярости...
         public bool goo;      // жижа / слизь
         public static string EffectName(int e)
@@ -197,6 +201,7 @@ namespace StickWars
     public class FighterBuild
     {
         public float atkSpeed = 1f;       // скорость атак («бьёт в 3 раза быстрее»)
+        public float cdMul = 1f;          // множитель перезарядки умений (усилители)
         public List<AbilitySpec> specs = new List<AbilitySpec>(); // свои умения героя из описания (до 4)
         public AbilitySpec spec { get { return specs.Count > 0 ? specs[0] : null; } set { specs.Clear(); if (value != null) specs.Add(value); } }
         public static bool IsCustom(Ability a) { return a == Ability.Custom || a == Ability.Custom2 || a == Ability.Custom3 || a == Ability.Custom4; }

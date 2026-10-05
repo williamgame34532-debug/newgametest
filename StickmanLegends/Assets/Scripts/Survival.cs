@@ -76,6 +76,8 @@ namespace StickWars
             intermission = true;
             interT = 7f;
             Announce("ВОЛНА " + wave + " ЗАЧИЩЕНА — ПЕРЕДЫШКА", new Color(0.5f, 1f, 0.55f), 2.4f);
+            // награда: усилители с неба
+            if (hero != null) for (int i = 0; i < (wave % 5 == 0 ? 3 : 2); i++) SpawnBoost(Random.Range(0, 6), hero.pos.x + (i - 0.5f) * 4f);
             audio.Sfx("gong", 0.5f, 0f);
             SlowMo(0.8f);
             // оружие с неба в награду

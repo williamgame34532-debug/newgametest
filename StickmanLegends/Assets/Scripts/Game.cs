@@ -163,6 +163,7 @@ namespace StickWars
             if (data.red.Count == 0) data.red.Add(Parser.RandomFighter(rng));
             var hero = Parser.BuildFighter(data.red[0], data.weapons);
             if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.End();
+            battle.playCutscene = S.survivalIntro;
             battle.Setup(Battle.Mode.Survival, new List<FighterBuild> { hero }, new List<FighterBuild>(), DropPool(), data.drops, data.dropInterval * 1.6f, data.p1Control, false, false);
             scr = Scr.Battle;
             audio.PlayMusic(true, true);

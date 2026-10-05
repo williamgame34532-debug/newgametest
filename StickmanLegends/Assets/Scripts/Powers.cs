@@ -129,7 +129,7 @@ namespace StickWars
         }
 
         // чёрная дыра / вихрь: затягивает врагов, крутит, бьёт, в конце — выброс
-        public void BlackHole(Vector2 at, Fighter caster, Color col, float dur, float dmg, bool lethal, bool tornado)
+        public void BlackHole(Vector2 at, Fighter caster, Color col, float dur, float dmg, bool lethal, bool tornado, int effect2 = 0)
         {
             var go = new GameObject("blackhole");
             go.transform.SetParent(transform, false);
@@ -180,6 +180,7 @@ namespace StickWars
                     if (hit && dist < 2.2f)
                     {
                         var h = new HitInfo { dmg = dmg * 0.25f, type = DmgType.Shadow, elem = Element.Shadow, attacker = caster, dir = Random.insideUnitCircle.normalized, point = e.Center, knock = 1f, stun = 0.3f, blast = true };
+                        h.effect = effect2; h.effCol = col;
                         h.extra |= HF.Magic | HF.Custom;
                         h.customTag = caster.B.customAbilityTag;
                         e.TakeHit(h);
@@ -241,6 +242,30 @@ namespace StickWars
                 core.transform.localScale = Vector3.one * r * 0.6f; shell.transform.localScale = Vector3.one * r; glowS.transform.localScale = Vector3.one * r * (3f + k * 3f);
                 if (Random.value < 0.8f) { Vector2 from = at + Random.insideUnitCircle.normalized * 2.5f; fx.Emit(from, (at - from) * 4f, Draw.A(col, 0.9f), 0.07f, 0.25f, 0f, false, 0f, true, 1, 1, true); }
                 if (k >= 0.98f && !fired) { fired = true; go.SetActive(false); if (boom != null) boom(); }
+            });
+        }
+
+        // клинки, прорезающиеся из тела: несколько лезвий растут и тают
+        public void BladeSprout(Vector2 at, Vector2 dir, Color col, float size)
+        {
+            var go = new GameObject("bladeSprout");
+            go.transform.SetParent(transform, false);
+            var ls = new List<LineRenderer>(); var ds = new List<Vector2>();
+            for (int i = 0; i < 3; i++)
+            {
+                var l = Draw.Line(go.transform, "b", 1f, Color.Lerp(col, Color.white, 0.6f), 120, true, 0);
+                Draw.Taper(l, 0.09f * size, 0.005f);
+                ls.Add(l); ds.Add((Vector2)(Quaternion.Euler(0, 0, (i - 1) * 22f) * dir));
+            }
+            fx.Blood(at, dir, 4);
+            AddFx(go, 0.45f, (t, k) =>
+            {
+                float len = Mathf.Min(1f, t * 8f) * 0.85f * size;
+                for (int i = 0; i < ls.Count; i++)
+                {
+                    Draw.Set(ls[i], at, at + ds[i] * len * (0.8f + i * 0.15f));
+                    Draw.Col(ls[i], Draw.A(Color.Lerp(col, Color.white, 0.6f), 1f - Mathf.Max(0f, k - 0.6f) / 0.4f));
+                }
             });
         }
 

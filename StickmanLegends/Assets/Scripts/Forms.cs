@@ -18,8 +18,38 @@ namespace StickWars
             return Has(f, "лягуш", "жаб", "кур", "цыпл", "овц", "овеч", "барaн", "баран", "крол", "заяц", "зайц", "мыш", "крыс", "свин", "поросен", "кот", "кошк", "котен", "собак", "щен", "утк", "утен", "голуб", "пингвин", "улитк", "черепах", "хомяк", "бабоч", "frog", "toad", "chicken", "sheep", "rabbit", "mouse", "rat", "pig", "cat", "dog", "duck", "snail", "turtle");
         }
 
+        // форма из нескольких слов: «металлического воина», «огненного демона» — сначала существительное, потом прилагательное
         public static string Display(string f)
         {
+            if (string.IsNullOrEmpty(f)) return "Форма";
+            var parts = f.Trim().Split(' ');
+            if (parts.Length > 1)
+            {
+                string noun = Display1(parts[parts.Length - 1]);
+                if (noun != Cap1(parts[parts.Length - 1])) return noun;
+                string adj = Display1(parts[0]);
+                if (adj != Cap1(parts[0])) return adj;
+                return noun;
+            }
+            return Display1(f);
+        }
+
+        static string Cap1(string s) { s = s.Trim(); return s.Length > 0 ? char.ToUpper(s[0]) + s.Substring(1) : s; }
+
+        static string Display1(string f)
+        {
+            if (Has(f, "паук", "spider")) return "Паук";
+            if (Has(f, "вампир", "vampire")) return "Вампир";
+            if (Has(f, "орк", "гоблин", "тролл", "orc", "goblin", "troll")) return "Орк";
+            if (Has(f, "змe", "змея", "змею", "змей", "змеи", "snake", "serpent")) return "Змей";
+            if (Has(f, "феникс", "phoenix")) return "Феникс";
+            if (Has(f, "слиз", "жиж", "желе", "slime")) return "Слизь";
+            if (Has(f, "молни", "электр", "lightning")) return "Молния";
+            if (Has(f, "голем", "камен", "golem", "stone")) return "Голем";
+            if (Has(f, "кристал", "алмаз", "crystal", "diamond")) return "Кристалл";
+            if (Has(f, "металл", "стальн", "желез", "metal", "steel", "iron")) return "Сталь";
+            if (Has(f, "огромн", "гигантск", "великан", "huge", "giant")) return "Титан";
+            if (Has(f, "невидим", "призрачн", "invisible")) return "Тень";
             if (Has(f, "дракон", "dragon")) return "Дракон";
             if (Has(f, "волк", "оборот", "wolf", "werewolf")) return "Волк";
             if (Has(f, "тигр", "лев", "льв", "медвед", "зверь", "звер", "beast", "tiger", "lion", "bear")) return "Зверь";
@@ -96,6 +126,36 @@ namespace StickWars
                 case "Тень":
                     b.agi *= 1.6f; b.spd *= 1.3f; b.color = new Color(0.04f, 0.03f, 0.06f);
                     b.accCol[Acc.Eyes] = new Color(0.8f, 0.2f, 1f); Aura(b, 3, new Color(0.3f, 0.05f, 0.5f)); Ab(b, Ability.Invisibility); Ab(b, Ability.Teleport); break;
+                case "Паук":
+                    b.agi *= 1.7f; b.spd *= 1.4f; b.color = new Color(0.08f, 0.06f, 0.08f); b.style = Style.Acrobat;
+                    b.accCol[Acc.Eyes] = new Color(1f, 0.1f, 0.1f); b.eyes2 = true; b.eyeCol2 = new Color(1f, 0.1f, 0.1f);
+                    Ab(b, Ability.Telekinesis); b.affinity = Element.Poison; break;
+                case "Вампир":
+                    b.str *= 1.4f; b.agi *= 1.3f; b.color = new Color(0.12f, 0.05f, 0.08f);
+                    Add(b, Acc.Cape, new Color(0.45f, 0.02f, 0.06f)); Add(b, Acc.Wings, new Color(0.15f, 0.03f, 0.06f));
+                    b.accCol[Acc.Eyes] = new Color(1f, 0.05f, 0.1f); Ab(b, Ability.Vampire); Ab(b, Ability.Teleport); break;
+                case "Орк":
+                    b.size *= 1.4f; b.str *= 1.7f; b.hp *= 1.5f; b.spd *= 0.9f; b.style = Style.Brute;
+                    b.color = new Color(0.3f, 0.5f, 0.18f); Add(b, Acc.Horns, new Color(0.9f, 0.88f, 0.75f)); Ab(b, Ability.Rage); break;
+                case "Змей":
+                    b.agi *= 1.5f; b.spd *= 1.3f; b.color = new Color(0.2f, 0.55f, 0.2f);
+                    Add(b, Acc.Tail, new Color(0.15f, 0.45f, 0.15f)); b.accCol[Acc.Eyes] = new Color(1f, 0.9f, 0.1f); b.affinity = Element.Poison; break;
+                case "Феникс":
+                    b.color = new Color(1f, 0.55f, 0.1f); Add(b, Acc.Wings, new Color(1f, 0.4f, 0.05f)); Add(b, Acc.Tail, new Color(1f, 0.6f, 0.1f));
+                    Aura(b, 1, new Color(1f, 0.5f, 0.1f)); Ab(b, Ability.Fireball); Ab(b, Ability.Regen); b.affinity = Element.Fire; break;
+                case "Слизь":
+                    b.size *= 1.2f; b.def *= 1.8f; b.color = new Color(0.4f, 0.9f, 0.3f); Aura(b, 0, new Color(0.5f, 1f, 0.4f)); b.affinity = Element.Poison; break;
+                case "Молния":
+                    b.spd *= 1.8f; b.agi *= 1.6f; b.color = new Color(1f, 0.95f, 0.5f); Aura(b, 2, new Color(1f, 1f, 0.5f));
+                    Ab(b, Ability.Lightning); Ab(b, Ability.Dash); b.affinity = Element.Lightning; break;
+                case "Голем":
+                    b.size = Mathf.Max(b.size, 1f) * 1.8f; b.def *= 2.2f; b.str *= 1.7f; b.hp *= 1.8f; b.spd *= 0.7f; b.style = Style.Brute;
+                    b.color = new Color(0.5f, 0.47f, 0.42f); Add(b, Acc.Runes, new Color(0.4f, 1f, 0.9f)); Ab(b, Ability.GroundSlam); break;
+                case "Кристалл":
+                    b.def *= 2f; b.color = new Color(0.55f, 0.85f, 1f); b.headKind = 5; b.headCol = new Color(0.6f, 0.9f, 1f); Aura(b, 4, new Color(0.6f, 0.9f, 1f)); Ab(b, Ability.IceShard); break;
+                case "Сталь":
+                    b.def *= 2.2f; b.str *= 1.3f; b.color = new Color(0.6f, 0.63f, 0.68f);
+                    Add(b, Acc.Helmet, new Color(0.55f, 0.58f, 0.63f)); Add(b, Acc.Armor, new Color(0.5f, 0.53f, 0.58f)); Add(b, Acc.Greaves, new Color(0.5f, 0.53f, 0.58f)); break;
                 case "Нежить":
                     b.hp *= 1.4f; b.color = new Color(0.9f, 0.88f, 0.8f); b.headKind = 1; b.headCol = new Color(0.93f, 0.9f, 0.82f);
                     b.accCol[Acc.Eyes] = new Color(0.3f, 1f, 0.5f); Ab(b, Ability.Summon); b.summonName = "Скелет"; break;

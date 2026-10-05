@@ -99,7 +99,10 @@ namespace StickWars
                 return;
             }
 
-            if (m == Mode.Survival) Spawn(red[0], 0, 0, new Vector2(0f, 0), 1);
+            bool cut = m == Mode.Survival && playCutscene;
+            playCutscene = false;
+            cutsceneOn = false;
+            if (m == Mode.Survival) Spawn(cut ? PlainBuild(red[0]) : red[0], 0, 0, new Vector2(0f, 0), 1);
             else for (int i = 0; i < red.Count; i++) Spawn(red[i], 0, i, new Vector2(-5f - i * 1.7f, 0), 1);
             for (int i = 0; i < blue.Count; i++) Spawn(blue[i], 1, i, new Vector2(5f + i * 1.7f, 0), -1);
             foreach (var f in fighters)
@@ -122,9 +125,13 @@ namespace StickWars
             if (m == Mode.Survival)
             {
                 SurvivalInit();
-                Cinematic3D(new Vector2(0f, 1.2f), IntroTime * 0.85f, -70f, 0f, 12f, 7f);
-                Announce("ОДИН ПРОТИВ ВСЕХ", new Color(1f, 0.2f, 0.15f), 2f);
-                audio.Sfx("gong", 0.9f, 0f);
+                if (cut) StartCutscene(red[0]);
+                else
+                {
+                    Cinematic3D(new Vector2(0f, 1.2f), IntroTime * 0.85f, -70f, 0f, 12f, 7f);
+                    Announce("ОДИН ПРОТИВ ВСЕХ", new Color(1f, 0.2f, 0.15f), 2f);
+                    audio.Sfx("gong", 0.9f, 0f);
+                }
             }
             else ClearCrowd();
             if (m == Mode.Fight) BuildDuels(5); else if (m == Mode.Survival) BuildDuels(3); else ClearDuels();
@@ -177,6 +184,8 @@ namespace StickWars
             popups.Clear();
             announce = ""; announceT = 0;
             fx.Clear(!keepStains);
+            ClearBoosts();
+            cutsceneOn = false; dialogText = null; cutBlack = 0f;
         }
 
         // ===================== ЦИКЛ =====================
@@ -209,6 +218,7 @@ namespace StickWars
                 }
             CrowdTick(dt);
             DuelsTick(dt);
+            BoostsTick(dt);
             for (int i = projs.Count - 1; i >= 0; i--)
             {
                 var p = projs[i];
@@ -255,6 +265,7 @@ namespace StickWars
             switch (phase)
             {
                 case Phase.Intro:
+                    if (cutsceneOn) { CutsceneTick(raw); break; }
                     float it = mode == Mode.Demo ? 0.6f : IntroTime;
                     if (phaseT >= it)
                     {
