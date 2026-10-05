@@ -414,7 +414,7 @@ namespace StickWars
         public bool heavy;
         public bool noFlinch;
         public int effect;             // эффект умения/оружия (AbilitySpec.effect)
-        public bool effLethal, dismember;
+        public bool effLethal, dismember, blast; // blast — волна отчаяния (не вызывает ответное умение)
         public Color effCol = Color.white;
         public HF extra;               // голова/спина/взрыв/падение/магия/без оружия
         public bool launcher, slam, knockdown;

@@ -601,6 +601,15 @@ namespace StickWars
             if (dead) { DeadTick(dt); Render(); return; }
             desperCd -= dt;
             if (petrifyT > 0f) { PetrifyTick(dt); Render(); return; }
+            if (despPendT > 0f) { despPendT -= dt; if (despPendT <= 0f) FireDesperation(despPend); }
+            if (rallyT > 0f)
+            {
+                // окно контратаки: враги лежат — герой бьёт быстрее и сильнее, ИИ сразу бросается добивать
+                rallyT -= dt;
+                atkCd = Mathf.Min(atkCd, 0.08f);
+                think = Mathf.Min(think, 0.05f);
+                if (Random.value < dt * 20f) battle.fx.Emit(Center + Random.insideUnitCircle * 0.5f * Size, Vector2.up * Random.Range(1f, 2.5f), Draw.A(Color.Lerp(mainCol, Color.white, 0.6f), 0.8f), 0.08f, 0.4f, 0f, false, 1f, true, 1, 1, true);
+            }
 
             flash -= dt; hurtT -= dt; stun -= dt; atkCd -= dt; shieldT -= dt; invisT -= dt; regenBlock -= dt; slowT -= dt; staffCd -= dt;
             iframes -= dt; landT -= dt; popupCd -= dt; comboT -= dt; secCd -= dt;
@@ -927,7 +936,9 @@ namespace StickWars
                 // ложится: на спину или на живот, скользит по земле
                 body = BodyS.Down;
                 downTarget = sp >= -10f ? 90f : -90f;
-                downT = human ? 0.6f : Random.Range(0.55f, 1.0f) / Mathf.Sqrt(B.agi);
+                downT = (human ? 0.6f : Random.Range(0.55f, 1.0f) / Mathf.Sqrt(B.agi)) + dazeDown;
+                if (dazeDown > 0f) battle.Popup("ОГЛУШЁН", J[2] + Vector2.up * 0.6f, new Color(1f, 0.95f, 0.6f), 0.6f);
+                dazeDown = 0f;
                 vel.y = 0;
                 vel.x *= 0.9f;
                 battle.fx.Dust(pos, 12);
@@ -1303,6 +1314,7 @@ namespace StickWars
                 mvHitList.Add(e);
                 bool wpn = mv.weapon && weapon != null;
                 float dmg = wpn ? weapon.dmg * mv.dmg * (0.6f + 0.4f * B.str) : mv.dmg * B.str;
+                if (rallyT > 0f) dmg *= 1.35f;
                 DmgType type = wpn ? (mv.stab && weapon.kind == WeaponKind.Blade ? DmgType.Pierce : weapon.Type) : DmgType.Blunt;
                 Element el = wpn ? weapon.element : B.affinity;
                 var h = MakeHit(dmg, type, el, mv.knock.x * (wpn ? weapon.knock : 1f) * Mathf.Pow(B.str, 0.3f), mv.stun);
@@ -1742,28 +1754,97 @@ namespace StickWars
                     if (B.HasAb(a) && CooldownOf(a) <= 0f) { pick = a; break; }
             if ((int)pick < 0) return false;
             desperCd = 5f;
+            cd[pick] = Info.Cooldown(pick);
+            // вырывается: подпрыгивает, взрыв вокруг откидывает всех, а на пике прыжка — само умение
+            Color bc = B.spec != null && pick == Ability.Custom ? B.spec.col : Color.Lerp(mainCol, Color.white, 0.5f);
+            BreakoutJump(bc);
+            despPend = pick; despPendT = 0.32f;
+            return true;
+        }
+
+        Ability despPend;
+        float dazeDown, rallyT; // rallyT — окно контратаки после взрыва
+        float despPendT;
+
+        void BreakoutJump(Color col)
+        {
+            if (heldBy != null) { heldBy.grabbed = null; heldBy = null; }
+            if (grabbed != null) { grabbed.heldBy = null; grabbed = null; }
+            bool wasDown = body != BodyS.Normal;
+            body = BodyS.Normal; act = Act.None; mv = null;
+            hurtT = 0f; stun = 0f; downT = 0f; tumbleSpin = 0f; spinVel = 0f;
+            pos.y = Mathf.Max(pos.y, 0.05f);
+            vel = new Vector2(0f, wasDown ? 15f : 13f);
+            grounded = false;
+            StartAirFlip(-facing);
+            iframes = Mathf.Max(iframes, 1.1f);
+            rallyT = 3.2f;
+            battle.Popup("КОНТРАТАКА!", J[2] + Vector2.up * 1.3f, Color.Lerp(col, Color.white, 0.4f), 1.1f);
+            Vector2 c = new Vector2(pos.x, 0.7f * Size);
+            float R = 5.5f * Size;
+            // взрывная волна
+            battle.Shock(c, R, col);
+            battle.Shock(c, R * 0.6f, Color.Lerp(col, Color.white, 0.6f));
+            battle.Shock(new Vector2(pos.x, 0.05f), R * 0.8f, new Color(1f, 1f, 1f, 0.7f));
+            battle.fx.Explosion(c, 1.3f);
+            battle.fx.Dust(new Vector2(pos.x, 0.05f), 24);
+            for (int i = 0; i < 40; i++)
+            {
+                float a = i / 40f * Mathf.PI * 2f;
+                battle.fx.Emit(c, new Vector2(Mathf.Cos(a), Mathf.Abs(Mathf.Sin(a)) * 0.6f + 0.1f) * Random.Range(9f, 16f), col, Random.Range(0.1f, 0.22f), 0.45f, -6f, false, 2f, true, 1, 1, true);
+            }
+            battle.Crack(new Vector2(pos.x, 0f), false);
+            battle.cam.Shake(1f); battle.cam.Kick(1f);
+            battle.Flash(0.1f, Draw.A(Color.Lerp(col, Color.white, 0.5f), 0.7f));
+            battle.audio.Sfx("explosion", 1f);
+            battle.audio.Sfx("heavy", 0.9f);
+            battle.Impact(25f, c, true);
+            foreach (var e in battle.fighters)
+            {
+                if (e.team == team || e.dead || e == this) continue;
+                Vector2 rel = e.Center - c;
+                if (rel.magnitude > R) continue;
+                float side = Mathf.Sign(e.pos.x - pos.x + (e.pos.x == pos.x ? facing : 0f));
+                float k = 1f - rel.magnitude / R * 0.5f;
+                var h = MakeHit(6f * k, DmgType.Blunt, Element.None, 14f * k, 0.5f);
+                h.dir = new Vector2(side, 0.6f).normalized;
+                h.point = e.Center;
+                h.knockdown = true; h.heavy = true; h.lift = 8f * k;
+                h.blast = true;
+                e.iframes = 0f;
+                e.TakeHit(h);
+                if (!e.dead)
+                {
+                    e.vel = new Vector2(side * 13f * k, 8f * k);
+                    if (e.body == BodyS.Down) e.downT += 1.4f; else e.dazeDown = 1.4f; // приходят в себя не сразу
+                    e.stun = Mathf.Max(e.stun, 0.6f);
+                }
+            }
+        }
+
+        void FireDesperation(Ability pick)
+        {
+            if (dead) return;
             aim = AimAt(target);
             string nm = pick == Ability.Custom && B.customAbility != null ? B.customAbility : Info.Name(pick).Replace(" (пассив)", "");
             switch (pick)
             {
                 case Ability.Custom:
-                    if (B.spec != null) { cd[pick] = Info.Cooldown(pick); DoSpec(B.spec, true); iframes = Mathf.Max(iframes, 0.5f); return true; }
+                    if (B.spec != null) { DoSpec(B.spec, true); iframes = Mathf.Max(iframes, 0.5f); return; }
                     castAb = pick; DoCast(); break;
                 case Ability.Lightning: case Ability.Fireball: case Ability.IceShard: case Ability.Telekinesis: case Ability.Summon:
                     castAb = pick; castFromStaff = false; DoCast(); break;
                 case Ability.GroundSlam:
                     DoSpec(new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Knock, col = new Color(1f, 0.8f, 0.5f), name = nm }, true);
-                    cd[pick] = Info.Cooldown(pick); iframes = Mathf.Max(iframes, 0.5f); return true;
+                    iframes = Mathf.Max(iframes, 0.5f); return;
                 case Ability.Laser:
                     DoSpec(new AbilitySpec { shape = AbilitySpec.Beam, elem = Element.Fire, col = new Color(1f, 0.2f, 0.2f), name = nm }, true);
-                    cd[pick] = Info.Cooldown(pick); return true;
+                    return;
                 case Ability.Shield: shieldT = 3.5f; battle.Shock(Center, 1.6f, new Color(0.4f, 0.9f, 1f, 0.8f)); break;
                 case Ability.Invisibility: invisT = 3f; battle.fx.Smoke(Center, 14, new Color(0.3f, 0.3f, 0.35f, 0.6f), 0.5f, 0.6f); break;
             }
-            cd[pick] = Info.Cooldown(pick);
             iframes = Mathf.Max(iframes, 0.5f);
             battle.PowerMoment(this, nm, Color.Lerp(mainCol, Color.white, 0.5f), true);
-            return true;
         }
 
         // свойства оружия при ударе: в голову, эффекты, расчленение
@@ -2024,7 +2105,7 @@ namespace StickWars
             if (h.effect != AbilitySpec.None) ApplyEffect(h);
             // колоссальный удар / нокдаун / лежит — герой сам применяет своё умение
             bool big = lost >= 12f || h.heavy || h.knockdown || h.launcher || h.slam || body != BodyS.Normal || lost >= maxHp * 0.1f;
-            if (big && !minion) TryDesperation();
+            if (big && !minion && !h.blast) TryDesperation();
         }
 
         void TakeHitCore(HitInfo h)
