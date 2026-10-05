@@ -295,6 +295,7 @@ namespace StickWars
             GUI.matrix = Matrix4x4.TRS(Vector3.zero, Quaternion.identity, new Vector3(sc, sc, 1f));
             Styles();
 
+            if (scr == Scr.Splash) { SplashScreen(); return; }
             if (battle.mode != Battle.Mode.Showroom) WorldOverlay();
 
             switch (scr)
@@ -342,6 +343,58 @@ namespace StickWars
             vignette.SetPixels(px);
             vignette.Apply();
             return vignette;
+        }
+
+        // Заставка студии в стиле игры: закат, силуэты, росчерк клинка, логотип
+        Texture2D splashBg, splashLogo;
+        float splashT = -1f;
+        bool splashSfx1, splashSfx2;
+        void SplashScreen()
+        {
+            if (splashT < 0f)
+            {
+                splashT = 0f;
+                splashBg = Resources.Load<Texture2D>("Branding/SplashBG");
+                splashLogo = Resources.Load<Texture2D>("Branding/Logo");
+            }
+            if (Event.current.type == EventType.Repaint) splashT += Time.unscaledDeltaTime;
+            float t = splashT;
+            Box(new Rect(0, 0, VW, VH), Color.black, 0);
+            if (Event.current.type == EventType.Repaint && splashBg != null)
+            {
+                float z = 1.08f - Mathf.Min(t, 4f) * 0.02f;          // медленный наезд
+                float w = VW * z, h = Mathf.Max(VH * z, w * splashBg.height / (float)splashBg.width);
+                float shake = t > 1.15f && t < 1.45f ? (1.45f - t) * 30f : 0f;
+                Rect r = new Rect((VW - w) / 2 + Random.Range(-shake, shake), (VH - h) / 2 + Random.Range(-shake, shake), w, h);
+                GUI.DrawTexture(r, splashBg, ScaleMode.ScaleAndCrop, false, 0, new Color(1, 1, 1, Mathf.Clamp01(t / 0.6f)), 0, 0);
+            }
+            // росчерк клинка через весь экран
+            if (t > 0.85f && t < 1.25f)
+            {
+                float k = (t - 0.85f) / 0.4f;
+                var m = GUI.matrix;
+                GUIUtility.RotateAroundPivot(-14f, new Vector2(VW / 2, VH * 0.45f));
+                float x0 = Mathf.Lerp(-VW * 0.3f, VW * 1.1f, Mathf.Min(1f, k * 1.6f));
+                Box(new Rect(-200, VH * 0.45f - 6, x0 + 200, 12), new Color(1, 1, 1, 1f - k), 6);
+                Box(new Rect(-200, VH * 0.45f - 30, x0 + 200, 60), new Color(1f, 0.3f, 0.2f, 0.25f * (1f - k)), 30);
+                GUI.matrix = m;
+                if (!splashSfx1) { splashSfx1 = true; audio.Sfx("shing", 1f, 0f); audio.Sfx("swing", 0.8f, 0f); }
+            }
+            if (t > 1.1f && t < 1.3f) Box(new Rect(0, 0, VW, VH), new Color(1, 1, 1, (1.3f - t) / 0.2f * 0.8f), 0);
+            // логотип впечатывается
+            if (t > 1.15f && splashLogo != null && Event.current.type == EventType.Repaint)
+            {
+                float k = Mathf.Clamp01((t - 1.15f) / 0.18f);
+                float sc2 = Mathf.Lerp(1.7f, 1f, 1f - (1f - k) * (1f - k));
+                float lw = Mathf.Min(1150f, VW * 0.8f) * sc2, lh = lw * splashLogo.height / splashLogo.width;
+                GUI.DrawTexture(new Rect((VW - lw) / 2, VH * 0.06f + (1f - sc2) * 40f, lw, lh), splashLogo, ScaleMode.ScaleToFit, true, 0, new Color(1, 1, 1, k), 0, 0);
+                if (!splashSfx2) { splashSfx2 = true; audio.Sfx("gong", 0.9f, 0f); audio.Sfx("heavy", 1f, 0f); }
+            }
+            if (t > 1.6f) Txt(new Rect(0, VH - 90, VW, 40), "нажми любую клавишу", 22, new Color(1, 1, 1, 0.4f + 0.3f * Mathf.Sin(t * 4f)), TextAnchor.MiddleCenter);
+            // уход в меню
+            if (t > 3.4f) Box(new Rect(0, 0, VW, VH), new Color(0, 0, 0, Mathf.Clamp01((t - 3.4f) / 0.5f)), 0);
+            bool skip = t > 0.4f && (Event.current.type == EventType.KeyDown || Event.current.type == EventType.MouseDown);
+            if (t > 3.9f || skip) { scr = Scr.Main; if (skip) Event.current.Use(); }
         }
 
         // Кат-ин умения: косая полоса через весь экран с силуэтом бойца, именем и названием умения
