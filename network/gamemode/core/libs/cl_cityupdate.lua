@@ -1,5 +1,5 @@
--- Service PDA interface. Opens as a stand-alone tablet in the centre of the screen, both from the
--- PDA item and from the CWU terminal (there is no PDA weapon / view model).
+-- Service PDA interface. From the CWU terminal it opens as a stand-alone tablet in the centre of the
+-- screen; with the PDA weapon in hand it is rendered onto the screen of the device (see "КПК в руке").
 local C = NETWORK.city
 
 C.responses = C.responses or {}
@@ -460,13 +460,30 @@ function C.Show(page, terminal)
 
 	local screenH = math.min(ScrH() - 120, 780)
 
-	BuildFonts(screenH / 700)
+	-- В руке меню рисуется прямо на экране КПК: панель стоит невидимой там же,
+	-- где её копия в текстуре, поэтому мышь попадает в кнопки как обычно.
+	frame.bEmbedded = !terminal and C.CanEmbed()
 
-	frame.margin = S(34)
-	frame.chin = S(40)
-	frame:SetSize(math.Round(screenH * 0.737) + frame.margin * 2, math.Round(screenH) + frame.margin * 2 + frame.chin)
-	frame:Center()
-	frame.Paint = PaintBezel
+	if (frame.bEmbedded) then
+		local rect = C.EmbedRect()
+
+		BuildFonts(rect.h / (rect.bLandscape and 520 or 700))
+
+		frame.margin = 0
+		frame.chin = 0
+		frame:SetSize(rect.w, rect.h)
+		frame:SetPos(rect.x, rect.y)
+		frame.Paint = function() end
+		frame:SetPaintedManually(true)
+	else
+		BuildFonts(screenH / 700)
+
+		frame.margin = S(34)
+		frame.chin = S(40)
+		frame:SetSize(math.Round(screenH * 0.737) + frame.margin * 2, math.Round(screenH) + frame.margin * 2 + frame.chin)
+		frame:Center()
+		frame.Paint = PaintBezel
+	end
 
 	frame:MakePopup()
 	frame:SetKeyboardInputEnabled(true)
@@ -503,6 +520,26 @@ function C.Show(page, terminal)
 	frame.Think = function(this)
 		if (!LocalPlayer():Alive()) then
 			this:Close()
+
+			return
+		end
+
+		if (this.bEmbedded) then
+			if (!C.InHand()) then
+				this:Close()
+
+				return
+			end
+
+			-- Курсор не уходит с экрана КПК.
+			local x, y = this:GetPos()
+			local cx, cy = input.GetCursorPos()
+			local nx = math.Clamp(cx, x + 1, x + this:GetWide() - 2)
+			local ny = math.Clamp(cy, y + 1, y + this:GetTall() - 2)
+
+			if (nx != cx or ny != cy) then
+				input.SetCursorPos(nx, ny)
+			end
 		end
 	end
 	frame.PaintOver = function(this)
@@ -985,6 +1022,202 @@ function PAGES.production.Build(body)
 		UI.Button(body, "Собрать: " .. craft[1], function() C.Request(craft[3]) end, {filled = true})
 	end
 end
+
+-- КПК в руке --------------------------------------------------------------------------------
+local inHandConVar = CreateClientConVar("network_pda_inhand", "1", true, false,
+	"Показывать меню КПК на экране устройства в руках")
+
+C.kpkModel = "models/network/kpk.mdl"
+
+function C.InHand()
+	local client = LocalPlayer()
+	local weapon = IsValid(client) and client:GetActiveWeapon()
+
+	return IsValid(weapon) and weapon:GetClass() == "weapon_nw_pda"
+end
+
+function C.CanEmbed()
+	return inHandConVar:GetBool() and C.InHand()
+end
+
+function C.HasKPKModel()
+	if (C.bKPKChecked == nil) then
+		C.bKPKChecked = util.IsValidModel(C.kpkModel)
+	end
+
+	return C.bKPKChecked
+end
+
+-- Углы экрана в локальных координатах устройства: TL, TR, BR, BL и смещение по нормали.
+-- kpk.mdl — горизонтальный 2:1, экран смотрит в +Z; запасной меш C24 — вертикальный, в +X.
+function C.ScreenCorners()
+	if (C.HasKPKModel()) then
+		local z = 1.29
+
+		return {Vector(-4.1, 2.05, z), Vector(4.1, 2.05, z), Vector(4.1, -2.05, z), Vector(-4.1, -2.05, z)},
+			Vector(0, 0, 0.02), true
+	end
+
+	local x = 0.86
+
+	return {Vector(x, -4.56, 6.635), Vector(x, 4.56, 6.635), Vector(x, 4.56, -6.135), Vector(x, -4.56, -6.135)},
+		Vector(0.02, 0, 0), false
+end
+
+-- Где на мониторе стоит (невидимая) панель меню и какой кусок текстуры уходит на экран.
+function C.EmbedRect()
+	local _, _, bLandscape = C.ScreenCorners()
+	local w, h
+
+	if (bLandscape) then
+		h = math.Round(math.min(ScrH() * 0.62, 560))
+		w = math.min(h * 2, math.Round(ScrW() * 0.92))
+		h = math.Round(w / 2)
+	else
+		h = math.min(ScrH() - 120, 780)
+		w = math.Round(h * (9.12 / 12.77))
+	end
+
+	return {x = math.Round((ScrW() - w) * 0.5), y = math.Round((ScrH() - h) * 0.5), w = w, h = h,
+		bLandscape = bLandscape}
+end
+
+local screenRT = GetRenderTargetEx("nwPDAScreenRT", ScrW(), ScrH(), RT_SIZE_FULL_FRAME_BUFFER,
+	MATERIAL_RT_DEPTH_NONE, 2, 0, IMAGE_FORMAT_RGBA8888)
+local screenMat = CreateMaterial("nwPDAScreenMat", "UnlitGeneric", {
+	["$basetexture"] = screenRT:GetName(),
+	["$model"] = "1"
+})
+
+-- Экран ожидания, пока меню закрыто.
+local function DrawStandby(rect)
+	local theme = C.Theme(LocalPlayer())
+	local x, y, w, h = rect.x, rect.y, rect.w, rect.h
+
+	surface.SetDrawColor(theme.bg)
+	surface.DrawRect(x, y, w, h)
+
+	surface.SetDrawColor(255, 255, 255, 5)
+
+	for line = y, y + h, 3 do
+		surface.DrawRect(x, line, w, 1)
+	end
+
+	surface.SetDrawColor(theme.line)
+	surface.DrawOutlinedRect(x + 12, y + 12, w - 24, h - 24, 2)
+
+	local pulse = 0.6 + math.abs(math.sin(RealTime() * 1.6)) * 0.4
+
+	draw.SimpleText("КПК", "nwPDAStandbyBig", x + w / 2, y + h / 2 - h * 0.06, theme.text,
+		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText(Upper(theme.tag), "nwPDAStandbySmall", x + w / 2, y + 34, theme.muted,
+		TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText("ЛКМ — ОТКРЫТЬ", "nwPDAStandbySmall", x + w / 2, y + h - 40,
+		ColorAlpha(theme.accent, 255 * pulse), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText(os.date("%H:%M"), "nwPDAStandbySmall", x + w - 30, y + 34, theme.text,
+		TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+end
+
+hook.Add("PreRender", "nwPDAScreen", function()
+	if (C.rendering or !C.InHand()) then
+		return
+	end
+
+	local rect = C.EmbedRect()
+
+	if (C.standbyFontH != rect.h) then
+		C.standbyFontH = rect.h
+
+		local face = NETWORK.fonts and NETWORK.fonts.display or "Russo One"
+
+		surface.CreateFont("nwPDAStandbyBig", {font = face, size = math.Round(rect.h * 0.36),
+			weight = 800, extended = true})
+		surface.CreateFont("nwPDAStandbySmall", {font = NETWORK.fonts and NETWORK.fonts.mono or "Consolas",
+			size = math.max(12, math.Round(rect.h * 0.045)), weight = 600, extended = true})
+	end
+
+	render.PushRenderTarget(screenRT)
+		render.Clear(0, 0, 0, 255, true, true)
+		cam.Start2D()
+			local frame = C.frame
+
+			if (IsValid(frame) and frame.bEmbedded) then
+				frame:PaintManual()
+			else
+				DrawStandby(rect)
+			end
+		cam.End2D()
+	render.PopRenderTarget()
+end)
+
+-- Вызывается из weapon_nw_pda:PostDrawViewModel — рисует КПК и живой экран на нём.
+function C.DrawDevice(pos, ang, scale, weapon)
+	if (C.HasKPKModel()) then
+		if (!IsValid(C.vmDevice)) then
+			C.vmDevice = ClientsideModel(C.kpkModel, RENDERGROUP_VIEWMODEL)
+
+			if (IsValid(C.vmDevice)) then
+				C.vmDevice:SetNoDraw(true)
+			end
+		end
+
+		if (IsValid(C.vmDevice)) then
+			if (C.vmDevice.nwScale != scale) then
+				C.vmDevice.nwScale = scale
+				C.vmDevice:SetModelScale(scale, 0)
+			end
+
+			C.vmDevice:SetRenderOrigin(pos)
+			C.vmDevice:SetRenderAngles(ang)
+			C.vmDevice:SetupBones()
+			C.vmDevice:DrawModel()
+		end
+	elseif (NETWORK.cityModels) then
+		NETWORK.cityModels.Draw("pda_", pos, ang, scale, 0)
+	end
+
+	local corners, lift = C.ScreenCorners()
+	local rect = C.EmbedRect()
+	local u0, v0 = rect.x / ScrW(), rect.y / ScrH()
+	local u1, v1 = (rect.x + rect.w) / ScrW(), (rect.y + rect.h) / ScrH()
+	local uv = {{u0, v0}, {u1, v0}, {u1, v1}, {u0, v1}}
+
+	render.SetMaterial(screenMat)
+	mesh.Begin(MATERIAL_QUADS, 1)
+
+	for index = 1, 4 do
+		local world = LocalToWorld((corners[index] + lift) * scale, angle_zero, pos, ang)
+
+		mesh.Position(world)
+		mesh.TexCoord(0, uv[index][1], uv[index][2])
+		mesh.Color(255, 255, 255, 255)
+		mesh.AdvanceVertex()
+	end
+
+	mesh.End()
+end
+
+-- Каждый клик по меню — анимация нажатия пальцем.
+hook.Add("VGUIMousePressed", "nwPDAPress", function(panel)
+	local frame = C.frame
+
+	if (!IsValid(frame) or !frame.bEmbedded or !IsValid(panel)) then
+		return
+	end
+
+	if (panel != frame and !panel:HasParent(frame)) then
+		return
+	end
+
+	if ((C.nextPress or 0) > RealTime()) then
+		return
+	end
+
+	C.nextPress = RealTime() + 0.2
+
+	net.Start("nwPDAPress")
+	net.SendToServer()
+end)
 
 -- Network -------------------------------------------------------------------------------------
 net.Receive("nwPDAOpen", function()
