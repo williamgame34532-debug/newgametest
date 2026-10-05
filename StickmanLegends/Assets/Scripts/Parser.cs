@@ -380,7 +380,7 @@ namespace StickWars
             }
         }
 
-        static readonly string[] STOP = { "его", "ее", "их", "он", "она", "оно", "они", "можно", "нельзя", "только", "лишь", "от", "к", "ко", "перед", "это", "является", "в", "во", "на", "с", "со", "из", "по", "при", "для", "и", "или", "но", "а", "же", "удар", "удары", "ударами", "ударом", "урон", "уроном", "боится", "слабость", "слабое", "место", "сильно", "очень", "всего", "всех", "все", "всё", "кроме", "ничем", "ничего", "помощью", "him", "her", "the", "a", "only", "by", "to", "of", "with", "убить", "победить", "умирает", "смерть", "его", "через", "если", "когда", "будет", "можно", "есть", "был", "была", "том", "тем", "этом", "этим" };
+        static readonly string[] STOP = { "раза", "раз", "стадию", "стадии", "стадия", "режим", "форму", "его", "ее", "их", "он", "она", "оно", "они", "можно", "нельзя", "только", "лишь", "от", "к", "ко", "перед", "это", "является", "в", "во", "на", "с", "со", "из", "по", "при", "для", "и", "или", "но", "а", "же", "удар", "удары", "ударами", "ударом", "урон", "уроном", "боится", "слабость", "слабое", "место", "сильно", "очень", "всего", "всех", "все", "всё", "кроме", "ничем", "ничего", "помощью", "him", "her", "the", "a", "only", "by", "to", "of", "with", "убить", "победить", "умирает", "смерть", "его", "через", "если", "когда", "будет", "можно", "есть", "был", "была", "том", "тем", "этом", "этим" };
 
         static bool IsStop(string w)
         {
@@ -457,6 +457,10 @@ namespace StickWars
             b.color = d.color;
             b.drawing = d.drawing ?? new List<Stroke>();
             string full = Compose(d);
+            // «стадии» (злая форма, режим ярости) разбираются отдельно — их плащ, глаза и скорость не должны
+            // доставаться бойцу постоянно
+            var stageSents = new List<string>();
+            if (!inStage) full = ExtractStages(full, stageSents);
             var t = Tokenize(Dedup(full) + " . " + d.name);
             var rnd = new System.Random(Hash(d.name + full));
 
@@ -628,7 +632,7 @@ namespace StickWars
                 foreach (int i in FindAll(t, ac.k))
                 {
                     if (Negated(t, i) || b.acc.Contains(ac.a)) continue;
-                    if (ac.a == Acc.Eyes && !NearAny(t, i, 3, "красн", "светящ", "горящ", "сверка", "злы", "злой", "демонич", "огненн", "син", "зелен", "желт", "фиолет", "бел", "золот", "голуб", "оранж", "glow", "red", "evil")) continue;
+                    if (ac.a == Acc.Eyes && !NearAny(t, i, 3, "красн", "светящ", "горящ", "сверка", "злы", "злой", "демонич", "огненн", "син", "зелен", "желт", "фиолет", "бел", "золот", "голуб", "оранж", "черн", "темн", "пуст", "кроваво", "багров", "черные", "glow", "red", "evil", "black")) continue;
                     if (ac.a == Acc.Tail && NearAny(t, i, 2, "волос", "конск")) { b.acc.Add(Acc.Hair); break; }
                     if (ac.a == Acc.CowboyHat && (b.acc.Contains(Acc.WizardHat) || NearAny(t, i, 2, "чародей", "волшеб", "маг", "ведьм", "колдун", "wizard"))) { if (!b.acc.Contains(Acc.WizardHat)) { b.acc.Add(Acc.WizardHat); b.understood.Add("шляпа мага"); } break; }
                     b.acc.Add(ac.a);
@@ -713,6 +717,22 @@ namespace StickWars
                 b.understood.Add("урон/сила ударов " + ns.ToString("0.0") + " (число из описания)");
                 break;
             }
+            // «бьёт / атакует в 3 раза быстрее» — это скорость ударов, а не бега
+            foreach (int i in FindAll(t, new[] { "бьет", "бить", "атаку", "удары", "ударяет", "машет", "наносит удар", "attacks", "hits", "strikes" }))
+            {
+                int s0 = SentStart(t, i), s1 = SentEnd(t, i);
+                int q = First(t, new[] { "быстр", "чаще", "fast", "quick" }, s0, s1);
+                if (q < 0) continue;
+                float v; bool o10, times;
+                float mul = NumberNear(t, q, 1, out v, out o10, out times) && v > 1f && v <= 10f ? v : 1.5f;
+                b.atkSpeed = Mathf.Clamp(mul, 1f, 4f);
+                b.spd = Mathf.Min(b.spd, 1.3f);
+                b.understood.RemoveAll(u => u.StartsWith("скорость"));
+                b.understood.Add("удары в " + b.atkSpeed.ToString("0.#") + " раза быстрее");
+                break;
+            }
+            if (!inStage) BuildStages(d, b, stageSents);
+
             // длинные тексты (с сайтов) не должны раздувать характеристики и список «понял»
             b.str = Mathf.Clamp(b.str, 0.4f, 3f); b.spd = Mathf.Clamp(b.spd, 0.4f, 2.5f); b.def = Mathf.Clamp(b.def, 0.4f, 3f); b.agi = Mathf.Clamp(b.agi, 0.4f, 2.5f);
             b.size = Mathf.Clamp(b.size, 0.5f, 2.2f);
@@ -961,7 +981,7 @@ namespace StickWars
         static bool IsAdj(string w)
         {
             foreach (var e in new[] { "ый", "ий", "ая", "яя", "ое", "ее", "ые", "ие", "ой", "ую", "юю", "ых", "их", "ым", "ими", "ыми", "ого", "его" })
-                if (w.Length > 4 && w.EndsWith(e)) return true;
+                if (w.Length > 3 && w.EndsWith(e)) return true;
             return false;
         }
 
@@ -1097,7 +1117,7 @@ namespace StickWars
         static readonly string[] E_HOLE = { "черная дыра", "черную дыру", "черной дыры", "воронк", "вихрь", "вихря", "торнадо", "смерч", "black hole", "vortex", "tornado" };
         static readonly string[] E_CLONE = { "клон", "двойник", "копии себя", "копий себя", "иллюзии себя", "clones", "doubles" };
         static readonly string[] GOO = { "жиж", "слиз", "слизь", "жидкост", "тягуч", "goo", "slime", "ooze" };
-        static readonly string[] E_LETHAL = { "убива", "убьет", "умира", "смерт", "рассыпа", "разбива", "уничтож", "разруш", "погиба", "насмерть", "kill", "shatter", "death" };
+        static readonly string[] E_LETHAL = { "полностью", "дотла", "испепел", "в пепел", "в прах", "убива", "убьет", "умира", "смерт", "рассыпа", "разбива", "уничтож", "разруш", "погиба", "насмерть", "kill", "shatter", "death" };
 
         static int EffectOf(Tx t, int from, int to, out bool lethal)
         {
@@ -1157,7 +1177,7 @@ namespace StickWars
             return AbilitySpec.None;
         }
 
-        static readonly string[] SH_NOVA = { "вокруг себя", "вокруг него", "вокруг нее", "вокруг$", "во все стороны", "кругом", "по кругу", "around" };
+        static readonly string[] SH_NOVA = { "по окружност", "всем вокруг", "во все стороны", "вокруг себя", "вокруг него", "вокруг нее", "вокруг$", "во все стороны", "кругом", "по кругу", "around" };
         static readonly string[] SH_SKY = { "с неба", "с небес", "сверху", "из облак", "from the sky" };
         static readonly string[] SH_BEAM = { "луч", "лазер", "beam", "ray" };
         static readonly string[] SH_WAVE = { "из земли", "по земле", "волн", "трещин", "shockwave", "wave" };
@@ -1206,6 +1226,10 @@ namespace StickWars
                 ReadElement(t, s0, s1, probe);
                 bool hasElem = probe.elem != Element.None || probe.dark || goo;
                 bool strong = eff == AbilitySpec.Transform || eff == AbilitySpec.Control || eff == AbilitySpec.Polymorph || eff == AbilitySpec.TimeSlow || eff == AbilitySpec.BlackHole || eff == AbilitySpec.Clone;
+                // «достаёт из себя клинки», «выпускает лезвия» — веер клинков
+                bool fanBlades = First(t, new[] { "клинк", "лезви", "кинжал", "нож", "мечи$", "шип", "blades", "knives" }, s0, s1) >= 0
+                    && First(t, new[] { "доста", "вытаск", "выпуск", "выращ", "из себя", "из тела", "из рук", "из спины", "выстрел", "мета", "бросает", "пуска" }, s0, s1) >= 0;
+                if (fanBlades) { strong = true; if (shape < 0) shape = AbilitySpec.Bolt; }
                 if (!strong && !(eff != AbilitySpec.None && (verb || hasElem) || shape >= 0 && (hasElem || eff != AbilitySpec.None))) continue;
                 // это описание оружия («меч, пронзает...») — пусть разбирает оружие
                 bool weaponSent = false;
@@ -1213,6 +1237,10 @@ namespace StickWars
                 if (weaponSent && shape < 0 && !strong) continue;
                 var sp = probe;
                 sp.form = form; sp.goo = goo;
+                // «превращается в сферу и взрывается» — это не превращение, а взрыв вокруг себя
+                if (eff == AbilitySpec.Transform && First(t, E_EXPLODE, s0, s1) >= 0) { eff = AbilitySpec.Explode; shape = AbilitySpec.Nova; sp.sphere = true; lethal = true; }
+                if (First(t, new[] { "глаз", "eyes" }, s0, s1) >= 0 && (shape == AbilitySpec.Beam || First(t, SH_BEAM, s0, s1) >= 0)) { sp.fromEyes = true; shape = AbilitySpec.Beam; }
+                if (eff == AbilitySpec.Burn && First(t, new[] { "испепел", "дотла", "полностью" }, s0, s1) >= 0) lethal = true;
                 if (goo) { sp.col = probe.dark ? new Color(0.45f, 0.1f, 0.6f) : new Color(0.45f, 0.95f, 0.25f); if (sp.elem == Element.None) sp.elem = Element.Poison; }
                 if (eff == AbilitySpec.Transform || eff == AbilitySpec.Clone) shape = AbilitySpec.Self;
                 if (eff == AbilitySpec.TimeSlow && shape < 0) shape = AbilitySpec.Nova;
@@ -1221,6 +1249,8 @@ namespace StickWars
                 if (eff == AbilitySpec.TimeSlow && !hasElem) sp.col = new Color(0.6f, 0.85f, 1f);
                 if (eff == AbilitySpec.BlackHole && !hasElem) sp.col = new Color(0.4f, 0.15f, 0.7f);
                 sp.shape = shape < 0 ? (eff == AbilitySpec.Heal ? AbilitySpec.Self : AbilitySpec.Bolt) : shape;
+                if (fanBlades) { sp.fan = true; if (!hasElem) sp.col = new Color(0.85f, 0.88f, 0.95f); }
+                if (First(t, new[] { "много урон", "огромн урон", "большой урон", "колоссал", "смертоносн", "мощн", "огромн", "сильно" }, s0, s1) >= 0) sp.power = Mathf.Max(sp.power, 1.6f);
                 sp.effect = eff;
                 sp.lethal = lethal || eff == AbilitySpec.Explode;
                 if (First(t, INT_UP, s0, s1) >= 0 || First(t, new[] { "мощн", "огромн", "колоссал", "гигант", "massive", "huge" }, s0, s1) >= 0) sp.power = 1.4f;
@@ -1233,13 +1263,25 @@ namespace StickWars
                     words.Add(t.w[ek]);
                 }
                 string nm;
-                if (eff == AbilitySpec.Transform) { nm = "Превращение: " + Cap(Lemma(form)); words.Clear(); words.Add(form); }
+                if (eff == AbilitySpec.Transform) { nm = "Превращение в " + form; words.Clear(); words.Add(form); }
                 else if (eff == AbilitySpec.Polymorph) { nm = "Враги → " + Lemma(form); words.Clear(); words.Add(form); }
                 else if (eff == AbilitySpec.Control) { nm = goo ? "Управляющая жижа" : "Контроль разума"; words.Clear(); words.Add("контрол"); }
                 else if (eff == AbilitySpec.TimeSlow) { nm = "Замедление времени"; words.Clear(); words.Add("время"); }
                 else if (eff == AbilitySpec.BlackHole) { nm = First(t, new[] { "торнадо", "смерч", "вихр" }, s0, s1) >= 0 ? "Вихрь" : "Чёрная дыра"; words.Clear(); words.Add("дыр"); }
                 else if (eff == AbilitySpec.Clone) { nm = "Клоны"; words.Clear(); words.Add("клон"); }
-                else if (words.Count > 0) nm = Cap(string.Join(" ", words.ToArray()));
+                else if (sp.fan || sp.sphere || sp.fromEyes || true)
+                {
+                    // имя — начало строки, как его написал игрок: «Тёмные лазеры из глаз», «Достаёт из себя клинки»
+                    var nw = new List<string>();
+                    for (int k = s0; k < s1 && nw.Count < 5; k++)
+                    {
+                        string w = t.w[k];
+                        if (w == "," || w == "которые" || w == "который" || w == "которая" || w == "которое" || w == "что" || w == "-") break;
+                        if (w == "и" && nw.Count >= 3) break;
+                        nw.Add(w);
+                    }
+                    nm = nw.Count > 0 ? Cap(string.Join(" ", nw.ToArray())) : (words.Count > 0 ? Cap(string.Join(" ", words.ToArray())) : "Умение");
+                }
                 else
                 {
                     string[] gen = { "Сгусток силы", "Взрыв силы", "Луч силы", "Кара с небес", "Ударная волна", "Исцеление" };
@@ -1262,13 +1304,15 @@ namespace StickWars
                 b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
                 b.understood.RemoveAll(u => u.StartsWith("новое умение"));
                 if (eff == AbilitySpec.Transform) b.understood.Add("превращение в «" + Lemma(form) + "» (сила, размер и вид меняются на время)");
-                b.understood.Add("умение " + b.specs.Count + " «" + nm + "»: " + AbilitySpec.ShapeName(sp.shape) + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает и само в нокдауне)");
-                if (b.specs.Count >= 4) break;
+                string shapeTxt = sp.fan ? "веер клинков из тела" + (sp.power > 1.3f ? ", огромный урон" : "") : sp.sphere ? "сворачивается в сферу и взрывается" : sp.fromEyes ? "лучи из глаз" : AbilitySpec.ShapeName(sp.shape);
+                b.understood.Add("умение " + b.specs.Count + " «" + nm + "»: " + shapeTxt + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает и само в нокдауне)");
+                if (b.specs.Count >= 99) break;
             }
             if (b.specs.Count == 0) return;
+            foreach (var sp0 in b.specs) if (sp0.shape == AbilitySpec.Beam) b.abilities.Remove(Ability.Laser);
             // свои умения встают первыми: клавиши R, T, Y, H
             foreach (var ca in new[] { Ability.Custom, Ability.Custom2, Ability.Custom3, Ability.Custom4 }) b.abilities.Remove(ca);
-            for (int k = b.specs.Count - 1; k >= 0; k--) b.abilities.Insert(0, FighterBuild.CustomSlot(k));
+            for (int k = Math.Min(4, b.specs.Count) - 1; k >= 0; k--) b.abilities.Insert(0, FighterBuild.CustomSlot(k));
             while (b.abilities.Count > 5) b.abilities.RemoveAt(b.abilities.Count - 1);
         }
 
@@ -1321,6 +1365,83 @@ namespace StickWars
                 w.onHit = sp;
                 w.traits.Add(AbilitySpec.EffectName(eff) + (lethal ? " насмерть" : ""));
             }
+        }
+
+        [ThreadStatic] static bool inStage;
+        static readonly System.Text.RegularExpressions.Regex STAGE_NOUN = new System.Text.RegularExpressions.Regex(@"(стади|фаз[аеуы]|режим|ипостас|форм[аеуы]\b|форме\b|облик|состояни|stage|phase|mode)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        static readonly System.Text.RegularExpressions.Regex STAGE_FEAT = new System.Text.RegularExpressions.Regex(@"(появля|становит|быстрее|сильнее|больше|выше|глаз|плащ|аур|рог|крыль|растут|отраст|бьет|бьёт|урон|броня|светит|горят|чёрн|черн)", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+        static string ExtractStages(string full, List<string> stages)
+        {
+            const int MaxStages = 20;
+            var keep = new System.Text.StringBuilder();
+            foreach (var part in System.Text.RegularExpressions.Regex.Split(full, @"(?<=[\.!\?\n;])"))
+            {
+                string p = part.Trim();
+                if (p.Length == 0) continue;
+                if (stages.Count < MaxStages && STAGE_NOUN.IsMatch(p) && STAGE_FEAT.IsMatch(p)) { stages.Add(p); continue; }
+                keep.Append(p).Append(' ');
+            }
+            return keep.ToString();
+        }
+
+        // каждая стадия — своё умение-превращение: разбираем её предложение как отдельного бойца и берём разницу
+        static void BuildStages(FighterDef d, FighterBuild b, List<string> stages)
+        {
+            foreach (var st in stages)
+            {
+                FighterBuild sb;
+                inStage = true;
+                try { sb = BuildFighter(new FighterDef { name = "stage", description = st, color = d.color }, null); }
+                finally { inStage = false; }
+                var m = new StageMods();
+                foreach (var a in sb.acc) if (!b.acc.Contains(a)) m.acc.Add(a);
+                foreach (var kv in sb.accCol) m.accCol[kv.Key] = kv.Value;
+                m.spd = sb.spd; m.str = sb.str; m.atk = sb.atkSpeed; m.size = sb.size; m.def = sb.def;
+                if (sb.acc.Contains(Acc.Aura)) m.auraKind = sb.auraKind;
+                m.headKind = sb.headKind; m.eyes2 = sb.eyes2; m.eyeCol2 = sb.eyeCol2;
+                foreach (var u in sb.understood)
+                    if (!u.StartsWith("слабость") && !u.StartsWith("новое оружие") && !u.StartsWith("оружие") && !u.StartsWith("предмет") && !u.StartsWith("в запасе")) m.text.Add(u);
+                // чёрные глаза на тёмном силуэте не видно — делаем их «пустыми» с багровым свечением
+                Color ec;
+                if (m.accCol.TryGetValue(Acc.Eyes, out ec) && ec.r + ec.g + ec.b < 0.4f) m.accCol[Acc.Eyes] = new Color(0.55f, 0.02f, 0.05f);
+                var tt = Tokenize(st);
+                int ni = -1;
+                for (int i = 0; i < tt.w.Count; i++) if (STAGE_NOUN.IsMatch(tt.w[i])) { ni = i; break; }
+                string nm = "Особая стадия";
+                if (ni >= 0)
+                {
+                    string noun = NomLemma(tt.w[ni]);
+                    string adj = ni > 0 && IsAdj(tt.w[ni - 1]) ? NomLemma(tt.w[ni - 1]) : "";
+                    string tail = ni + 1 < tt.w.Count && !IsStop(tt.w[ni + 1]) && !IsVerb(tt.w[ni + 1]) && tt.w[ni + 1] != "," && !tt.w[ni + 1].StartsWith("котор") && !IsAdj(tt.w[ni + 1]) ? " " + tt.w[ni + 1] : "";
+                    nm = Cap((adj.Length > 0 ? adj + " " : "") + noun + tail);
+                }
+                m.name = nm;
+                var sp = new AbilitySpec { shape = AbilitySpec.Self, effect = AbilitySpec.Transform, stage = m, name = nm, form = nm, col = new Color(0.7f, 0.1f, 0.15f), tag = "stage" };
+                if (m.accCol.ContainsKey(Acc.Aura)) sp.col = m.accCol[Acc.Aura];
+                if (b.specs.Count < 99)
+                {
+                    b.specs.Add(sp);
+                    var slot = FighterBuild.CustomSlot(Math.Min(3, b.specs.Count - 1));
+                    b.abilities.Remove(slot);
+                    b.abilities.Insert(Math.Min(Math.Min(3, b.specs.Count - 1), b.abilities.Count), slot);
+                    while (b.abilities.Count > 5) b.abilities.RemoveAt(b.abilities.Count - 1);
+                    b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
+                    string what = m.text.Count > 0 ? string.Join(", ", m.text.ToArray()) : "сильнее";
+                    b.understood.Add("стадия «" + nm + "» (на 15 сек): " + what);
+                }
+            }
+        }
+
+        // «злую стадию» -> «злая стадия»
+        static string NomLemma(string w)
+        {
+            if (w.EndsWith("ую")) return w.Substring(0, w.Length - 2) + "ая";
+            if (w.EndsWith("юю")) return w.Substring(0, w.Length - 2) + "яя";
+            if (w.EndsWith("ию")) return w.Substring(0, w.Length - 2) + "ия";
+            if (w.EndsWith("ой") && w.Length > 4) return w.Substring(0, w.Length - 2) + "ая";
+            if (w.EndsWith("у") && w.Length > 3) return w.Substring(0, w.Length - 1) + "а";
+            return w;
         }
 
         // все поля редактора собираются в один текст: каждая способность — отдельное предложение
@@ -1536,6 +1657,8 @@ namespace StickWars
                 if (w.element == Element.None && !FindColor(d.name + " " + d.description, out c0)) w.color = new Color(0.35f, 1f, 0.45f);
             }
             if (Any(t, "легендар", "эпичн", "божеств", "мифическ", "legendary", "epic", "divine", "mythic")) w.dmg *= 1.15f;
+            if (Any(t, "много урон", "огромн урон", "большой урон", "колоссал", "смертоносн", "massive damage")) { w.dmg *= 1.8f; w.traits.Add("огромный урон"); }
+            if (Any(t, "из себя", "из тела", "из рук", "из спины")) { w.name = Cap(w.name) + " из тела"; w.glowBlade = w.glowBlade || Any(t, "темн", "черн", "свет"); }
             if (Any(t, "два$", "две$", "двойн", "парн", "dual", "twin")) w.rate *= 1.2f;
             if (Any(t, "маленьк", "мини", "small", "mini", "tiny")) { w.size = 0.8f; w.rate *= 1.1f; w.dmg *= 0.9f; }
             foreach (int i in FindAll(t, DMG))

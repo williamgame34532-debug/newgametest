@@ -1049,7 +1049,7 @@ namespace StickWars
             act = Act.Move; actT = 0; actFired = false;
             float sp = Mathf.Sqrt(B.spd) * (RageOn ? 1.2f : 1f);
             float r = (m.weapon && weapon != null) ? Mathf.Sqrt(weapon.rate) : 1f;
-            actDur = Mathf.Max(0.1f, m.dur / (sp * r) * (B.style == Style.Brute ? 1.1f : 1f) * 0.88f);
+            actDur = Mathf.Max(0.07f, m.dur / (sp * r * Mathf.Max(0.5f, B.atkSpeed)) * (B.style == Style.Brute ? 1.1f : 1f) * 0.88f);
             mvHit = false; mvHitList.Clear(); queued = null;
             if (m.hopX != 0 || m.hopY != 0)
             {
@@ -1589,7 +1589,7 @@ namespace StickWars
                 case Ability.Custom2:
                 case Ability.Custom3:
                 case Ability.Custom4:
-                    { var sp2 = B.SpecOf(castAb); if (sp2 != null) DoSpec(sp2, false); break; }
+                    { var sp2 = B.SpecOf(castAb); if (sp2 != null) DoSpec(sp2, false); B.Advance(castAb); break; }
                 case Ability.Custom:
                     {
                         if (B.spec != null) { DoSpec(B.spec, false); break; }
@@ -1617,8 +1617,8 @@ namespace StickWars
             // умения «на себя»: превращение, клоны, чёрная дыра
             if (sp.effect == AbilitySpec.Transform && morphOrig == null)
             {
-                var nb = Forms.Apply(B, sp.form, false);
-                float dur = desperate ? 14f : 12f;
+                var nb = sp.stage != null ? Forms.ApplyStage(B, sp.stage) : Forms.Apply(B, sp.form, false);
+                float dur = sp.stage != null ? (desperate ? 18f : 15f) : (desperate ? 14f : 12f);
                 battle.Defer(() => { if (!dead && !remove) MorphNow(nb, dur, true); });
                 return;
             }
@@ -1646,34 +1646,40 @@ namespace StickWars
                 battle.FlashStyle(2, 0.18f);
                 battle.Announce("ВРЕМЯ ЗАМЕДЛЕНО", new Color(0.7f, 0.9f, 1f), 1.2f);
             }
+            // веер клинков, вырывающихся из тела
+            if (sp.fan)
+            {
+                int n = desperate ? 9 : 7;
+                Vector2 baseDir = target != null ? (target.Center - c).normalized : new Vector2(facing, 0.1f);
+                for (int i = 0; i < n; i++)
+                {
+                    float ang = (i - (n - 1) * 0.5f) * (desperate ? 14f : 10f);
+                    Vector2 dir = (Vector2)(Quaternion.Euler(0, 0, ang) * baseDir);
+                    var h = MakeHit(10f * pw, DmgType.Blade, sp.elem, 3f, 0.25f);
+                    h.extra |= HF.Custom; h.customTag = sp.tag;
+                    h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col;
+                    var pr = battle.SpawnProjectile(Projectile.Kind.Knife, c + dir * 0.4f * Size, dir * 21f, this, h, Color.Lerp(col, Color.white, 0.3f));
+                    if (pr != null) pr.bleed = true;
+                }
+                for (int i = 0; i < 18; i++) battle.fx.Emit(c + Random.insideUnitCircle * 0.4f * Size, Random.insideUnitCircle * 6f, Color.Lerp(col, Color.white, 0.5f), 0.07f, 0.3f, 0f, false, 2f, true, 1, 1, true);
+                battle.fx.Blood(c, Vector2.up, 6);
+                battle.audio.Sfx("shing", 1f); battle.audio.Sfx("whoosh", 0.9f);
+                battle.cam.Shake(0.3f);
+                return;
+            }
+            // превращается в сферу и взрывается
+            if (sp.sphere)
+            {
+                var sp2 = new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Explode, elem = sp.elem, col = col, dark = sp.dark, power = Mathf.Max(1.3f, sp.power), lethal = sp.lethal, tag = sp.tag, name = sp.name };
+                sphereT = 0.42f;
+                battle.SphereCharge(this, col, 0.42f, () => { if (!dead) { sphereT = 0f; DoSpecNova(sp2, pw * 1.4f, desperate); battle.fx.Explosion(Center, 1.6f); battle.audio.Sfx("explosion", 1f); battle.cam.Shake(0.9f); } });
+                return;
+            }
             switch (sp.shape)
             {
                 case AbilitySpec.Nova:
-                    {
-                        float R = 4.6f * Size * Mathf.Sqrt(sp.power) * (desperate ? 1.2f : 1f);
-                        battle.Shock(c, R, col);
-                        battle.Shock(c, R * 0.55f, Color.Lerp(col, Color.white, 0.5f));
-                        // молнии/лучи во все стороны, даже где нет врагов
-                        for (int i = 0; i < 7; i++)
-                        {
-                            float a = i / 7f * Mathf.PI * 2f + Random.value * 0.5f;
-                            Vector2 end = c + new Vector2(Mathf.Cos(a), Mathf.Abs(Mathf.Sin(a)) * 0.8f + 0.1f) * R;
-                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, end, col, sp.dark);
-                            else battle.fx.Emit(c, (end - c) * 3f, col, 0.25f, 0.4f, 0f, false, 1f, true, 1, 1, true);
-                        }
-                        foreach (var e in battle.fighters)
-                        {
-                            if (e.team == team || e.dead) continue;
-                            Vector2 rel = e.Center - c;
-                            if (rel.magnitude > R) continue;
-                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, e.Center, col, sp.dark);
-                            SpecHit(e, sp, 16f * pw, rel.sqrMagnitude > 0.01f ? rel.normalized : new Vector2(facing, 0));
-                        }
-                        battle.cam.Shake(0.7f);
-                        battle.audio.Sfx(sp.elem == Element.Fire ? "fire" : "zap", 1f);
-                        battle.audio.Sfx("explosion", 0.5f);
-                        break;
-                    }
+                    DoSpecNova(sp, pw, desperate);
+                    break;
                 case AbilitySpec.Sky:
                     {
                         var list = new List<Fighter>();
@@ -1691,9 +1697,11 @@ namespace StickWars
                     }
                 case AbilitySpec.Beam:
                     {
-                        Vector2 dir = target != null ? (target.Center - J[2]).normalized : new Vector2(facing, 0);
-                        Vector2 a = J[4], b = a + dir * 14f;
+                        Vector2 src = sp.fromEyes ? J[2] + new Vector2(facing * 0.12f * Size, 0.04f * Size) : J[4];
+                        Vector2 dir = target != null ? (target.Center - src).normalized : new Vector2(facing, 0);
+                        Vector2 a = src, b = a + dir * 14f;
                         battle.BeamVisual(a, b, col, sp.dark);
+                        if (sp.fromEyes) battle.BeamVisual(a + new Vector2(0, -0.08f * Size), b + new Vector2(0, -0.3f), Color.Lerp(col, Color.black, 0.3f), sp.dark);
                         foreach (var e in battle.fighters)
                         {
                             if (e.team == team || e.dead) continue;
@@ -1747,6 +1755,37 @@ namespace StickWars
             }
         }
 
+        float sphereT;
+
+        void DoSpecNova(AbilitySpec sp, float pw, bool desperate)
+        {
+            Color col = sp.col;
+            Vector2 c = Center;
+                        float R = 4.6f * Size * Mathf.Sqrt(sp.power) * (desperate ? 1.2f : 1f);
+                        battle.Shock(c, R, col);
+                        battle.Shock(c, R * 0.55f, Color.Lerp(col, Color.white, 0.5f));
+                        // молнии/лучи во все стороны, даже где нет врагов
+                        for (int i = 0; i < 7; i++)
+                        {
+                            float a = i / 7f * Mathf.PI * 2f + Random.value * 0.5f;
+                            Vector2 end = c + new Vector2(Mathf.Cos(a), Mathf.Abs(Mathf.Sin(a)) * 0.8f + 0.1f) * R;
+                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, end, col, sp.dark);
+                            else battle.fx.Emit(c, (end - c) * 3f, col, 0.25f, 0.4f, 0f, false, 1f, true, 1, 1, true);
+                        }
+                        foreach (var e in battle.fighters)
+                        {
+                            if (e.team == team || e.dead) continue;
+                            Vector2 rel = e.Center - c;
+                            if (rel.magnitude > R) continue;
+                            if (sp.elem == Element.Lightning || sp.dark) battle.BoltBetween(c, e.Center, col, sp.dark);
+                            SpecHit(e, sp, 16f * pw, rel.sqrMagnitude > 0.01f ? rel.normalized : new Vector2(facing, 0));
+                        }
+                        battle.cam.Shake(0.7f);
+                        battle.audio.Sfx(sp.elem == Element.Fire ? "fire" : "zap", 1f);
+                        battle.audio.Sfx("explosion", 0.5f);
+                        
+                            }
+
         void SpecHit(Fighter e, AbilitySpec sp, float dmg, Vector2 dir)
         {
             var h = MakeHit(dmg, sp.elem == Element.None ? DmgType.Shadow : Info.ToType(sp.elem), sp.elem, 6f, 0.5f);
@@ -1756,6 +1795,7 @@ namespace StickWars
             h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = sp.col; h.effForm = sp.form;
             if (sp.effect == AbilitySpec.Control || sp.effect == AbilitySpec.Polymorph || sp.effect == AbilitySpec.TimeSlow) { h.dmg *= 0.4f; h.knock = 1f; }
             if (sp.effect == AbilitySpec.Knock || sp.effect == AbilitySpec.None || sp.effect == AbilitySpec.Explode) { h.knockdown = true; h.knock = 9f; h.lift = 4f; }
+            if (sp.effect == AbilitySpec.Burn && sp.lethal) h.dmg *= 1.4f;
             e.TakeHit(h);
         }
 
@@ -1775,7 +1815,11 @@ namespace StickWars
                     for (int i = 0; i < 16; i++) battle.fx.Emit(Center + Random.insideUnitCircle * 0.6f * Size, Random.insideUnitCircle * 2f, Draw.A(h.effCol, 0.9f), 0.12f, 0.5f, 0f, false, 1f, true, 1, 1, true);
                     break;
                 case AbilitySpec.Freeze: slowT = Mathf.Max(slowT, 3f); stun = Mathf.Max(stun, 1.3f); battle.fx.Sparks(Center, Vector2.up, 14, new Color(0.7f, 0.95f, 1f)); if (h.effLethal && hp < maxHp * 0.3f) { petrifyCol = new Color(0.65f, 0.88f, 1f); petrifyT = 1.2f; petrifyLethal = true; petrifier = a; } break;
-                case AbilitySpec.Burn: burnT = Mathf.Max(burnT, 3.5f); burnBy = a; break;
+                case AbilitySpec.Burn:
+                    burnT = Mathf.Max(burnT, h.effLethal ? 5f : 3.5f); burnBy = a;
+                    // «испепеляет полностью»: ослабленный враг сгорает дотла
+                    if (h.effLethal && hp < maxHp * 0.4f) Incinerate(a, h.effCol);
+                    break;
                 case AbilitySpec.Poison: poisonT = Mathf.Max(poisonT, 4.5f); poisonBy = a; break;
                 case AbilitySpec.Knock: vel += h.dir * 8f + Vector2.up * 4f; break;
                 case AbilitySpec.Pull: if (a != null) vel = new Vector2(Mathf.Sign(a.pos.x - pos.x) * 11f, 4f); break;
@@ -1862,6 +1906,22 @@ namespace StickWars
             if (sGoo != null) { Destroy(sGoo.gameObject); sGoo = null; }
             if (sGooGlow != null) { Destroy(sGooGlow.gameObject); sGooGlow = null; }
             if (!dead) battle.Popup("ОЧНУЛСЯ", J[2] + Vector2.up * 0.8f, new Color(0.8f, 0.8f, 0.8f), 0.7f);
+        }
+
+        void Incinerate(Fighter by, Color col)
+        {
+            shattered = true; petrifyCol = new Color(0.08f, 0.06f, 0.06f); // обугленный силуэт
+            for (int i = 0; i < 50; i++)
+                battle.fx.Emit(Center + Random.insideUnitCircle * 0.7f * Size, new Vector2(Random.Range(-1f, 1f), Random.Range(1f, 4f)), i % 3 == 0 ? Color.Lerp(col, Color.white, 0.3f) : new Color(0.15f, 0.13f, 0.12f, 0.9f), Random.Range(0.06f, 0.16f) * Size, Random.Range(0.8f, 1.8f), 0.5f, false, 0.8f, true, 1, 1, true);
+            battle.fx.Fire(Center, 20, 0.6f * Size);
+            battle.Popup("ИСПЕПЕЛЁН!", J[2] + Vector2.up * 1f, Color.Lerp(col, Color.white, 0.4f), 1.1f);
+            battle.audio.Sfx("fire", 1f);
+            var h = new HitInfo { dmg = hp + 999f, type = DmgType.Fire, elem = Element.Fire, attacker = by, dir = Vector2.up, point = Center, knock = 2f, stun = 0.2f, noFlinch = true };
+            h.extra |= HF.Magic | HF.Custom | HF.Fire;
+            if (by != null) h.customTag = by.B.customAbilityTag;
+            iframes = 0f;
+            TakeHitCore(h);
+            if (!dead) { shattered = false; petrifyCol = new Color(0.6f, 0.58f, 0.54f); }
         }
 
         void PetrifyTick(float dt)
@@ -1986,7 +2046,7 @@ namespace StickWars
             if (dead) return;
             aim = AimAt(target);
             string nm = B.AbilityName(pick);
-            if (B.SpecOf(pick) != null) { DoSpec(B.SpecOf(pick), true); iframes = Mathf.Max(iframes, 0.5f); return; }
+            if (B.SpecOf(pick) != null) { DoSpec(B.SpecOf(pick), true); B.Advance(pick); iframes = Mathf.Max(iframes, 0.5f); return; }
             switch (pick)
             {
                 case Ability.Custom:
@@ -3108,6 +3168,7 @@ namespace StickWars
             }
             float alpha = invisT > 0 ? (human ? 0.35f : 0.1f) : (iframes > 0 && act == Act.GetUp ? 0.6f + 0.4f * Mathf.Sin(animT * 40f) : 1f);
             if (replaying) alpha = replayAlpha;
+            if (sphereT > 0f) { sphereT -= Time.deltaTime; alpha = 0f; }
             if (styleMode != 0 && flash <= 0) StyleColors(ref c, ref cb);
             if (petrifyT > 0f || shattered) { c = petrifyCol; cb = Draw.Mul(petrifyCol, 0.78f); }
             lastAlpha = alpha;

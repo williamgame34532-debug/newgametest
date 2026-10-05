@@ -116,6 +116,28 @@ namespace StickWars
             return b;
         }
 
+        // своя стадия из описания: плащ, глаза, скорость ударов, сила...
+        public static FighterBuild ApplyStage(FighterBuild src, StageMods m)
+        {
+            var b = src.Clone();
+            b.name = src.name + " (" + m.name + ")";
+            foreach (var a in m.acc) if (!b.acc.Contains(a)) b.acc.Add(a);
+            foreach (var kv in m.accCol) b.accCol[kv.Key] = kv.Value;
+            if (m.auraKind >= 0) b.auraKind = m.auraKind;
+            if (m.headKind != 0) b.headKind = m.headKind;
+            if (m.eyes2) { b.eyes2 = true; b.eyeCol2 = m.eyeCol2; }
+            b.spd *= Mathf.Clamp(m.spd, 0.5f, 2f); b.str *= Mathf.Clamp(m.str, 0.5f, 3f); b.def *= Mathf.Clamp(m.def, 0.5f, 3f);
+            b.atkSpeed = Mathf.Clamp(b.atkSpeed * m.atk, 0.5f, 4f);
+            b.size = Mathf.Clamp(b.size * m.size, 0.5f, 2.3f);
+            // стадия — всегда мощнее: если ничего не сказано про силу, чуть сильнее и с аурой
+            if (m.str <= 1f && m.atk <= 1f) b.str *= 1.25f;
+            if (!b.acc.Contains(Acc.Aura)) { b.acc.Add(Acc.Aura); b.accCol[Acc.Aura] = new Color(0.6f, 0.05f, 0.1f); b.auraKind = 3; }
+            if (!b.acc.Contains(Acc.Eyes)) b.acc.Add(Acc.Eyes);
+            // стадия не включается повторно внутри себя
+            b.specs = new System.Collections.Generic.List<AbilitySpec>(src.specs);
+            return b;
+        }
+
         static void Add(FighterBuild b, Acc a, Color c) { if (!b.acc.Contains(a)) b.acc.Add(a); b.accCol[a] = c; }
         static void Aura(FighterBuild b, int kind, Color c) { Add(b, Acc.Aura, c); b.auraKind = kind; }
         static void Ab(FighterBuild b, Ability a) { if (!b.abilities.Contains(a)) { if (b.abilities.Count >= 4) b.abilities.RemoveAt(b.abilities.Count - 1); b.abilities.Add(a); } }

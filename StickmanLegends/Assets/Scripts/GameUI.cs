@@ -761,7 +761,7 @@ namespace StickWars
             }
             y += 40;
             string cur = descTab == 0 ? editDef.abilitiesText : descTab == 1 ? editDef.appearance : editDef.description;
-            int lim = descTab == 2 ? DescLimit : 3000;
+            int lim = descTab == 1 ? 3000 : DescLimit;
             float th = Mathf.Max(112f, stArea.CalcHeight(new GUIContent(cur ?? ""), w - 20));
             descScroll = GUI.BeginScrollView(new Rect(x, y, w, 112), descScroll, new Rect(0, 0, w - 20, th));
             cur = GUI.TextArea(new Rect(0, 0, w - 20, th), cur ?? "", lim, stArea);
@@ -786,7 +786,7 @@ namespace StickWars
             }
             else
             {
-                Txt(new Rect(x, y, w, 22), descTab == 0 ? "До 4 своих умений: клавиши R, T, Y, H. В нокдауне боец применит их сам." : "Всё, что надето и описано, появится на стикмане.", 15, P.sub);
+                Txt(new Rect(x, y, w, 22), descTab == 0 ? "До 99 умений, каждое с новой строки: R, T, Y — первые три, H — по очереди все остальные. В нокдауне — само." : "Всё, что надето и описано, появится на стикмане.", 15, P.sub);
                 y += 24;
             }
 

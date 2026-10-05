@@ -148,6 +148,8 @@ namespace StickWars
         public float power = 1f;
         public string name, tag;
         public string form;   // в кого превращается / превращает
+        public bool sphere, fromEyes, fan; // превращается в сферу и взрывается / лучи из глаз / веер клинков из тела
+        public StageMods stage;            // своя «стадия»: злая форма, режим ярости...
         public bool goo;      // жижа / слизь
         public static string EffectName(int e)
         {
@@ -180,17 +182,34 @@ namespace StickWars
         }
     }
 
+    // что меняется в стадии: «злая стадия — появляется плащ, чёрные глаза, бьёт в 3 раза быстрее»
+    public class StageMods
+    {
+        public string name;
+        public List<Acc> acc = new List<Acc>();
+        public Dictionary<Acc, Color> accCol = new Dictionary<Acc, Color>();
+        public float spd = 1f, str = 1f, atk = 1f, size = 1f, def = 1f;
+        public int auraKind = -1, headKind;
+        public bool eyes2; public Color eyeCol2;
+        public List<string> text = new List<string>();
+    }
+
     public class FighterBuild
     {
+        public float atkSpeed = 1f;       // скорость атак («бьёт в 3 раза быстрее»)
         public List<AbilitySpec> specs = new List<AbilitySpec>(); // свои умения героя из описания (до 4)
         public AbilitySpec spec { get { return specs.Count > 0 ? specs[0] : null; } set { specs.Clear(); if (value != null) specs.Add(value); } }
         public static bool IsCustom(Ability a) { return a == Ability.Custom || a == Ability.Custom2 || a == Ability.Custom3 || a == Ability.Custom4; }
         public static Ability CustomSlot(int i) { return i == 0 ? Ability.Custom : i == 1 ? Ability.Custom2 : i == 2 ? Ability.Custom3 : Ability.Custom4; }
+        // умений может быть до 99: первые три — на своих клавишах, четвёртая клавиша по очереди перебирает остальные
+        public int rot;
         public AbilitySpec SpecOf(Ability a)
         {
             int i = a == Ability.Custom ? 0 : a == Ability.Custom2 ? 1 : a == Ability.Custom3 ? 2 : a == Ability.Custom4 ? 3 : -1;
+            if (i == 3 && specs.Count > 4) i = 3 + rot % (specs.Count - 3);
             return i >= 0 && i < specs.Count ? specs[i] : null;
         }
+        public void Advance(Ability a) { if (a == Ability.Custom4 && specs.Count > 4) rot++; }
         public string AbilityName(Ability a)
         {
             var sp = SpecOf(a);

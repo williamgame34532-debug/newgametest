@@ -222,6 +222,28 @@ namespace StickWars
             }
         }
     
+        // боец сворачивается в светящуюся сферу, она пульсирует и взрывается
+        public void SphereCharge(Fighter f, Color col, float dur, System.Action boom)
+        {
+            var go = new GameObject("sphere");
+            go.transform.SetParent(transform, false);
+            var core = Draw.Spr(go.transform, "core", Draw.Circle, Color.Lerp(col, Color.white, 0.5f), 340);
+            var shell = Draw.Spr(go.transform, "shell", Draw.Circle, Draw.A(col, 0.85f), 339);
+            var glowS = Draw.Spr(go.transform, "glow", Draw.Soft, Draw.A(col, 0.7f), 338);
+            bool fired = false;
+            audio.Sfx("charge", 1f);
+            AddFx(go, dur + 0.05f, (t, k) =>
+            {
+                Vector2 at = f != null ? f.Center : Vector2.zero;
+                float pulse = 1f + Mathf.Sin(t * 60f) * 0.08f * k;
+                float r = Mathf.Lerp(1.4f, 0.9f, k) * (f != null ? f.Size : 1f) * pulse;
+                core.transform.position = at; shell.transform.position = at; glowS.transform.position = at;
+                core.transform.localScale = Vector3.one * r * 0.6f; shell.transform.localScale = Vector3.one * r; glowS.transform.localScale = Vector3.one * r * (3f + k * 3f);
+                if (Random.value < 0.8f) { Vector2 from = at + Random.insideUnitCircle.normalized * 2.5f; fx.Emit(from, (at - from) * 4f, Draw.A(col, 0.9f), 0.07f, 0.25f, 0f, false, 0f, true, 1, 1, true); }
+                if (k >= 0.98f && !fired) { fired = true; go.SetActive(false); if (boom != null) boom(); }
+            });
+        }
+
         // кат-ин (рисует GameUI)
         public float cutInT, cutInMax;
         public string cutInName, cutInAb;
