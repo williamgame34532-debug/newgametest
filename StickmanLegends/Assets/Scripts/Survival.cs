@@ -19,7 +19,7 @@ namespace StickWars
 
         public int EnemiesAlive
         {
-            get { int n = 0; foreach (var f in fighters) if (f.team == 1 && !f.dead && !f.minion) n++; return n; }
+            get { int n = 0; foreach (var f in fighters) if ((f.team == 1 || f.origTeam == 1) && !f.dead && !f.minion && !f.remove) n++; return n; }
         }
         public int EnemiesLeft { get { return EnemiesAlive + Mathf.Max(0, waveTotal - waveSpawned); } }
 

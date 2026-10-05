@@ -21,8 +21,52 @@ namespace StickWars
         FighterBuild editBuild;
         WeaponStats editWeaponBuild;
         bool editDirty;
+        Vector2 descScroll;
         float editChangeT;
         string lastName, lastDesc, lastWeap;
+        string editUrl = "", urlLoadStatus = "";
+        bool urlLoading;
+        // кэш разбора: раньше список бойцов разбирал все описания на каждой перерисовке — отсюда лаги
+        readonly Dictionary<string, FighterBuild> buildCache = new Dictionary<string, FighterBuild>();
+        FighterBuild CachedBuild(FighterDef d)
+        {
+            string key = (d.name ?? "") + "\u0001" + (d.description ?? "") + "\u0001" + (d.weaponDesc ?? "") + "\u0001" + d.color + "\u0001" + (d.drawing != null ? d.drawing.Count : 0) + "\u0001" + data.weapons.Count;
+            FighterBuild b;
+            if (buildCache.TryGetValue(key, out b)) return b;
+            if (buildCache.Count > 64) buildCache.Clear();
+            b = Parser.BuildFighter(d, data.weapons);
+            buildCache[key] = b;
+            return b;
+        }
+
+        // описание персонажа с сайта: скачиваем страницу, вычищаем HTML, берём текст
+        System.Collections.IEnumerator LoadDescriptionFromUrl(string url)
+        {
+            urlLoading = true; urlLoadStatus = "Загрузка страницы...";
+            url = url.Trim();
+            if (!url.StartsWith("http")) url = "https://" + url;
+            using (var req = UnityEngine.Networking.UnityWebRequest.Get(url))
+            {
+                req.timeout = 20;
+                yield return req.SendWebRequest();
+                if (req.result != UnityEngine.Networking.UnityWebRequest.Result.Success)
+                {
+                    urlLoadStatus = "Не удалось загрузить: " + req.error;
+                    urlLoading = false;
+                    yield break;
+                }
+                string title;
+                string text = WebText.Extract(req.downloadHandler.text, out title);
+                if (string.IsNullOrEmpty(text)) { urlLoadStatus = "На странице не найден текст"; urlLoading = false; yield break; }
+                if (text.Length > DescLimit) text = text.Substring(0, DescLimit);
+                editDef.description = text;
+                if (!string.IsNullOrEmpty(title) && (string.IsNullOrEmpty(editDef.name) || editDef.name == "Боец")) editDef.name = title.Length > 40 ? title.Substring(0, 40) : title;
+                urlLoadStatus = "Загружено " + text.Length + " символов — арена разбирает описание";
+                MarkDirty();
+            }
+            urlLoading = false;
+        }
+        const int DescLimit = 12000;
         Stroke curStroke;
         Color penColor = Color.black;
         float penWidth = 0.12f;
@@ -495,7 +539,7 @@ namespace StickWars
                 Box(new Rect(row.x + 14, row.y + 16, 36, 36), d.color, 18);
                 Border(new Rect(row.x + 14, row.y + 16, 36, 36), Draw.A(P.text, 0.5f), 2, 18);
                 Txt(new Rect(row.x + 62, row.y + 8, row.width - 250, 40), d.name, 26, P.text, TextAnchor.MiddleLeft, true);
-                var b = Parser.BuildFighter(d, data.weapons);
+                var b = CachedBuild(d);
                 string ab = "";
                 foreach (var a in b.abilities) ab += (ab.Length > 0 ? ", " : "") + Info.Name(a).Replace(" (пассив)", "");
                 Txt(new Rect(row.x + 62, row.y + 46, row.width - 80, 28), ab, 18, P.sub);
@@ -602,7 +646,7 @@ namespace StickWars
             }
             else
             {
-                b = Parser.BuildFighter(editDef, data.weapons);
+                b = CachedBuild(editDef);
                 editBuild = b;
             }
             battle.Setup(Battle.Mode.Showroom, new List<FighterBuild> { b }, null, null, false, 9f, false, false, false);
@@ -636,15 +680,23 @@ namespace StickWars
             }
             y += 58;
 
-            Txt(new Rect(x, y, w, 34), "Опиши героя: внешность, способности, характер, слабость", 23, P.sub, TextAnchor.MiddleLeft, true);
+            Txt(new Rect(x, y, w - 200, 34), "Опиши героя: внешность, способности, превращения, слабость", 23, P.sub, TextAnchor.MiddleLeft, true);
+            Txt(new Rect(x + w - 200, y, 200, 34), (editDef.description ?? "").Length + " / " + DescLimit, 17, P.sub, TextAnchor.MiddleRight);
             y += 38;
-            editDef.description = GUI.TextArea(new Rect(x, y, w, 136), editDef.description ?? "", 600, stArea);
+            descScroll = GUI.BeginScrollView(new Rect(x, y, w, 136), descScroll, new Rect(0, 0, w - 20, Mathf.Max(136f, stArea.CalcHeight(new GUIContent(editDef.description ?? ""), w - 20))));
+            editDef.description = GUI.TextArea(new Rect(0, 0, w - 20, Mathf.Max(136f, stArea.CalcHeight(new GUIContent(editDef.description ?? ""), w - 20))), editDef.description ?? "", DescLimit, stArea);
+            GUI.EndScrollView();
             y += 142;
-            Txt(new Rect(x, y, w, 52), "Пример: «Очень быстрый ниндзя в повязке, телепортируется и кидает огненные шары. Боится льда». Бессмертие запрещено — у каждого есть слабость.", 18, P.sub, TextAnchor.UpperLeft, false, true);
-            y += 56;
+            // ссылка на страницу с описанием персонажа
+            Txt(new Rect(x, y + 2, 120, 40), "Сайт", 20, P.sub, TextAnchor.MiddleLeft, true);
+            editUrl = GUI.TextField(new Rect(x + 80, y, w - 300, 40), editUrl ?? "", 500, stField);
+            if (Btn(new Rect(x + w - 210, y, 210, 40), urlLoading ? "загрузка..." : "Взять описание", 17) && !urlLoading && !string.IsNullOrEmpty(editUrl)) StartCoroutine(LoadDescriptionFromUrl(editUrl));
+            y += 44;
+            Txt(new Rect(x, y, w, 26), string.IsNullOrEmpty(urlLoadStatus) ? "Можно вставить готовый текст или ссылку на страницу персонажа. Бессмертие отключается, слабость ищется в тексте." : urlLoadStatus, 16, P.sub, TextAnchor.UpperLeft, false, true);
+            y += 28;
 
             Txt(new Rect(x, y, 200, 40), "Оружие", 24, P.sub, TextAnchor.MiddleLeft, true);
-            editDef.weaponDesc = GUI.TextField(new Rect(x + 120, y, w - 120, 46), editDef.weaponDesc ?? "", 80, stField);
+            editDef.weaponDesc = GUI.TextField(new Rect(x + 120, y, w - 120, 46), editDef.weaponDesc ?? "", 600, stField);
             y += 52;
             float cx = x + 120;
             if (Btn(new Rect(cx, y, 150, 36), "Без оружия", 17, false, string.IsNullOrEmpty(editDef.weaponDesc))) { editDef.weaponDesc = ""; MarkDirty(); }
@@ -766,7 +818,7 @@ namespace StickWars
             y += 62;
             Txt(new Rect(x, y, w, 34), "Опиши: что это, из чего, какая стихия", 23, P.sub, TextAnchor.MiddleLeft, true);
             y += 38;
-            editWeapon.description = GUI.TextArea(new Rect(x, y, w, 130), editWeapon.description ?? "", 300, stArea);
+            editWeapon.description = GUI.TextArea(new Rect(x, y, w, 130), editWeapon.description ?? "", 4000, stArea);
             y += 136;
             Txt(new Rect(x, y, w, 52), "Примеры: «огромный огненный топор», «ледяной лук», «автомат», «ядовитые сюрикены», «бензопила», «посох молний», «гранаты».", 18, P.sub, TextAnchor.UpperLeft, false, true);
             y += 60;
@@ -920,8 +972,9 @@ namespace StickWars
             float x = r.x + 50, cw = r.width - 100, y = r.y + 90;
 
             S.musicOn = Toggle(new Rect(x, y, cw, 50), "Музыка", S.musicOn, 26); y += 60;
-            S.musicVol = Slider(new Rect(x, y, cw, 70), "Громкость музыки", S.musicVol, 0f, 1f, Mathf.RoundToInt(S.musicVol * 100) + "%"); y += 78;
-            S.sfxVol = Slider(new Rect(x, y, cw, 70), "Громкость звуков", S.sfxVol, 0f, 1f, Mathf.RoundToInt(S.sfxVol * 100) + "%"); y += 84;
+            float hv = (cw - 30) / 2f;
+            S.musicVol = Slider(new Rect(x, y, hv, 70), "Музыка", S.musicVol, 0f, 1f, Mathf.RoundToInt(S.musicVol * 100) + "%");
+            S.sfxVol = Slider(new Rect(x + hv + 30, y, hv, 70), "Звуки", S.sfxVol, 0f, 1f, Mathf.RoundToInt(S.sfxVol * 100) + "%"); y += 80;
 
             Txt(new Rect(x, y, cw, 34), "Своя музыка: прямая ссылка на .mp3 / .ogg / .wav или путь к файлу", 22, P.text, TextAnchor.MiddleLeft, true); y += 40;
             S.musicUrl = GUI.TextField(new Rect(x, y, cw - 200, 50), S.musicUrl ?? "", 500, stField);
@@ -936,6 +989,19 @@ namespace StickWars
                 y += 52;
             }
             else y += 10;
+            // своя музыка для «Один против всех»
+            Txt(new Rect(x, y, 330, 44), "«Один против всех»:", 19, P.text, TextAnchor.MiddleLeft, true);
+            S.survivalMusicUrl = GUI.TextField(new Rect(x + 330, y, cw - 330 - 200, 44), S.survivalMusicUrl ?? "", 500, stField);
+            if (Btn(new Rect(x + cw - 186, y, 186, 44), audio.loadingUrl ? "..." : "ЗАГРУЗИТЬ", 19) && !audio.loadingUrl) { audio.LoadUrl(S.survivalMusicUrl, 1); Save(); }
+            y += 48;
+            if (audio.HasCustomSurvival)
+            {
+                bool b0 = S.useCustomSurvival;
+                S.useCustomSurvival = Toggle(new Rect(x, y, cw, 40), "Своя музыка в режиме выживания  " + audio.urlStatus2, S.useCustomSurvival, 18);
+                if (b0 != S.useCustomSurvival) audio.RefreshMusic();
+                y += 44;
+            }
+            else { Txt(new Rect(x, y, cw, 26), string.IsNullOrEmpty(audio.urlStatus2) ? "Без ссылки играет встроенный тяжёлый трек выживания." : audio.urlStatus2, 17, P.sub); y += 30; }
 
             string bl = S.blood < 0.05f ? "без крови" : S.blood < 0.6f ? "немного" : S.blood < 1.4f ? "норма" : "МОРЕ КРОВИ";
             S.blood = Slider(new Rect(x, y, cw, 70), "Кровь", S.blood, 0f, 2f, bl); y += 84;

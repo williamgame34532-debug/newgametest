@@ -129,13 +129,13 @@ namespace StickWars
             float th1 = 45f * s + 8f, th2 = -45f * s + 8f;
             float kb1 = 20f + 70f * Mathf.Max(0f, -c), kb2 = 20f + 70f * Mathf.Max(0f, c);
             if (ninja) return new Pose(30, -72, -55, -78, -60, th1, th1 - kb1, th2, th2 - kb2);
-            return new Pose(18, -40f * s + 30f, -40f * s + 115f, 40f * s + 30f, 40f * s + 115f, th1, th1 - kb1, th2, th2 - kb2);
+            return new Pose(20, -55f * s + 30f, -30f * s + 110f, 55f * s + 30f, 30f * s + 110f, th1, th1 - kb1, th2, th2 - kb2);
         }
     }
 
     public static class Skel
     {
-        public const float Torso = 0.8f, Upper = 0.43f, Fore = 0.41f, Thigh = 0.53f, Shin = 0.53f, HeadR = 0.29f, Width = 0.21f;
+        public const float Torso = 0.93f, Upper = 0.48f, Fore = 0.46f, Thigh = 0.62f, Shin = 0.62f, HeadR = 0.29f, Width = 0.21f; // выше и длиннее, как в анимациях
 
         public static Vector2 Down(float deg, int f)
         {

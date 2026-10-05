@@ -127,6 +127,7 @@ namespace StickWars
                 audio.Sfx("gong", 0.9f, 0f);
             }
             else ClearCrowd();
+            if (m == Mode.Fight) BuildDuels(5); else if (m == Mode.Survival) BuildDuels(3); else ClearDuels();
             if (m == Mode.Fight)
             {
                 StartRecording();
@@ -198,6 +199,7 @@ namespace StickWars
             if (!paused) PhaseLogic(praw, dt);
 
             for (int i = 0; i < fighters.Count; i++) fighters[i].Tick(dt);
+            RunDeferred();
             for (int i = fighters.Count - 1; i >= 0; i--)
                 if (fighters[i].remove)
                 {
@@ -206,6 +208,7 @@ namespace StickWars
                     fighters.RemoveAt(i);
                 }
             CrowdTick(dt);
+            DuelsTick(dt);
             for (int i = projs.Count - 1; i >= 0; i--)
             {
                 var p = projs[i];
@@ -302,7 +305,7 @@ namespace StickWars
                     }
                     if (mode == Mode.Survival) { SurvivalTick(dt); break; }
                     bool r = false, b = false;
-                    foreach (var f in fighters) { if (f.dead || f.minion) continue; if (f.team == 0) r = true; else b = true; }
+                    foreach (var f in fighters) { if (f.dead || f.minion || f.remove) continue; int tm = f.origTeam >= 0 ? f.origTeam : f.team; if (tm == 0) r = true; else b = true; }
                     if (!r || !b)
                     {
                         phase = Phase.Victory; phaseT = 0;
@@ -401,6 +404,7 @@ namespace StickWars
             cam.Shake(Mathf.Min(0.6f, dmg * 0.018f + (heavy ? 0.25f : 0f)));
             if (dmg > 12f || heavy) cam.Kick(Mathf.Min(1f, dmg / 25f));
             if (heavy && dmg > 10f) Flash(0.05f, new Color(1f, 1f, 1f, 0.3f));
+            if (Epic && heavy && dmg > 16f && Random.value < 0.3f) { int[] fl = { 2, 3, 12, 13, 6 }; FlashStyle(fl[Random.Range(0, fl.Length)], 0.09f); }
             if (Epic && heavy && dmg > 12f && !c3d && c3dCooldown <= 0f && Random.value < (mode == Mode.Survival ? 0.12f : 0.3f)) { float side = Random.value < 0.5f ? -1f : 1f; Cinematic3D(at, 0.8f, side * 30f, side * 18f, 5.5f, 4.2f); }
             else if (Epic && (heavy || dmg > 14f) && Random.value < (mode == Mode.Survival ? 0.12f : 0.35f)) cam.Cut(at + Vector2.up * 0.4f, Random.Range(2.6f, 3.4f), Random.Range(0.35f, 0.6f));
         }

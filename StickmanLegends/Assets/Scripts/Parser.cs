@@ -61,9 +61,14 @@ namespace StickWars
         }
 
         // совпадение фразы, начиная с токена i; возвращает длину или 0
+        static readonly Dictionary<string, string[]> splitCache = new Dictionary<string, string[]>();
         static int MatchAt(Tx t, int i, string key)
         {
-            var parts = key.Split(' ');
+            string[] parts;
+            lock (splitCache)
+                if (!splitCache.TryGetValue(key, out parts)) { parts = key.Split(' '); splitCache[key] = parts; }
+            // быстрый отсев по первой букве
+            if (parts.Length > 0 && parts[0].Length > 0 && i < t.w.Count && t.w[i].Length > 0 && t.w[i][0] != parts[0][0]) return 0;
             int k = i;
             foreach (var p in parts)
             {
@@ -451,7 +456,7 @@ namespace StickWars
             b.name = string.IsNullOrEmpty(d.name) ? "Безымянный" : d.name;
             b.color = d.color;
             b.drawing = d.drawing ?? new List<Stroke>();
-            var t = Tokenize(d.description + " . " + d.name);
+            var t = Tokenize(Dedup(d.description) + " . " + d.name);
             var rnd = new System.Random(Hash(d.name + d.description));
 
             // --- бессмертие
@@ -679,6 +684,7 @@ namespace StickWars
             CustomAbility(t, b);
             HeadParse(t, b);
             SpecParse(t, b);
+            EyesParse(t, b);
             string sn = SummonName(t, 0, t.w.Count);
             if (sn != null) b.summonName = sn;
             if ((b.weapon != null && b.weapon.summon) || (b.secondary != null && b.secondary.summon))
@@ -690,6 +696,12 @@ namespace StickWars
             if (b.weapon != null) b.understood.Add("оружие: " + b.weapon.name + (b.weapon.traits.Count > 0 ? " (" + string.Join(", ", b.weapon.traits.ToArray()) + ")" : ""));
             if (b.secondary != null) b.understood.Add("в запасе: " + b.secondary.name + (b.secondary.ammo > 0 ? " x" + b.secondary.ammo : "") + (b.secondary.alwaysHead ? " (точно в голову)" : ""));
             if (b.HasAb(Ability.Summon)) b.understood.Add("призывает помощников");
+            // длинные тексты (с сайтов) не должны раздувать характеристики и список «понял»
+            b.str = Mathf.Clamp(b.str, 0.4f, 3f); b.spd = Mathf.Clamp(b.spd, 0.4f, 2.5f); b.def = Mathf.Clamp(b.def, 0.4f, 3f); b.agi = Mathf.Clamp(b.agi, 0.4f, 2.5f);
+            b.size = Mathf.Clamp(b.size, 0.5f, 2.2f);
+            var uniq = new List<string>(); var seenU = new HashSet<string>();
+            foreach (var u in b.understood) { string key = u.Contains("(число") ? u.Substring(0, Math.Max(1, u.IndexOf(' '))) : u; if (seenU.Add(key)) uniq.Add(u); }
+            b.understood = uniq;
             return b;
         }
 
@@ -1061,11 +1073,61 @@ namespace StickWars
         static readonly string[] E_STUN = { "оглуш", "парализ", "обездвиж", "оцепен", "stun", "paraly" };
         static readonly string[] E_DRAIN = { "высасыв", "поглоща", "крадет жизн", "забирает жизн", "вампир", "drain" };
         static readonly string[] E_EXPLODE = { "взрыв", "взрыва", "explod" };
+        static readonly string[] E_SELFMORPH = { "превращается", "превращаться", "превратиться", "превратится", "становится", "стать$", "обращается", "оборачивается", "трансформир", "перевоплощ", "принимает облик", "принимает форму", "мутирует", "turns into", "transforms", "becomes" };
+        static readonly string[] E_POLY = { "превращает", "превратит", "обращает", "turns enemies", "turns them" };
+        static readonly string[] E_CONTROL = { "управля", "контрол", "подчиня", "гипноз", "зомбир", "порабощ", "завладева", "одержим", "марионет", "переманива", "mind control", "control", "hypno" };
+        static readonly string[] E_TIME = { "замедляет время", "останавливает время", "остановка времени", "время замедл", "время останав", "замедляет врагов", "stops time", "slows time" };
+        static readonly string[] E_HOLE = { "черная дыра", "черную дыру", "черной дыры", "воронк", "вихрь", "вихря", "торнадо", "смерч", "black hole", "vortex", "tornado" };
+        static readonly string[] E_CLONE = { "клон", "двойник", "копии себя", "копий себя", "иллюзии себя", "clones", "doubles" };
+        static readonly string[] GOO = { "жиж", "слиз", "слизь", "жидкост", "тягуч", "goo", "slime", "ooze" };
         static readonly string[] E_LETHAL = { "убива", "убьет", "умира", "смерт", "рассыпа", "разбива", "уничтож", "разруш", "погиба", "насмерть", "kill", "shatter", "death" };
 
         static int EffectOf(Tx t, int from, int to, out bool lethal)
         {
+            string dummy;
+            return EffectOf(t, from, to, out lethal, out dummy);
+        }
+
+        // форма превращения: слово после «в»/«во» за глаголом
+        static string FormAfter(Tx t, int vi, int to)
+        {
+            for (int k = vi + 1; k < to && k < vi + 6; k++)
+            {
+                if (t.w[k] != "в" && t.w[k] != "во" && t.w[k] != "into" && t.w[k] != "in") continue;
+                for (int m = k + 1; m < to && m < k + 4; m++)
+                {
+                    string w = t.w[m];
+                    if (IsStop(w) || w == ",") continue;
+                    if (IsAdj(w) && m + 1 < to && !IsStop(t.w[m + 1]) && t.w[m + 1] != ",") continue;
+                    return w;
+                }
+            }
+            // «становится драконом»
+            if (vi + 1 < to && !IsStop(t.w[vi + 1]) && t.w[vi + 1] != "в") return t.w[vi + 1];
+            return null;
+        }
+
+        static int EffectOf(Tx t, int from, int to, out bool lethal, out string form)
+        {
             lethal = First(t, E_LETHAL, from, to) >= 0;
+            form = null;
+            if (First(t, E_TIME, from, to) >= 0) return AbilitySpec.TimeSlow;
+            if (First(t, E_HOLE, from, to) >= 0) return AbilitySpec.BlackHole;
+            int ci = First(t, E_CONTROL, from, to);
+            if (ci >= 0 && !Negated(t, ci) && First(t, new[] { "враг", "противник", "всех", "люд", "ими$", "разум", "сознан", "enem", "minds" }, from, to) >= 0) return AbilitySpec.Control;
+            int si = First(t, E_SELFMORPH, from, to);
+            if (si >= 0 && !Negated(t, si))
+            {
+                form = FormAfter(t, si, to);
+                if (form != null && First(t, E_PETRIFY, si, si + 4) < 0) return AbilitySpec.Transform;
+            }
+            int pi = First(t, E_POLY, from, to);
+            if (pi >= 0 && !Negated(t, pi) && First(t, E_PETRIFY, from, to) < 0 && First(t, E_FREEZE, from, to) < 0)
+            {
+                form = FormAfter(t, pi, to);
+                if (form != null) return AbilitySpec.Polymorph;
+            }
+            if (First(t, E_CLONE, from, to) >= 0) return AbilitySpec.Clone;
             var order = new[] { E_PETRIFY, E_FREEZE, E_DRAIN, E_EXPLODE, E_LIFT, E_PULL, E_KNOCK, E_STUN, E_BURN, E_POISON, E_HEAL };
             var ids = new[] { AbilitySpec.Petrify, AbilitySpec.Freeze, AbilitySpec.Drain, AbilitySpec.Explode, AbilitySpec.Lift, AbilitySpec.Pull, AbilitySpec.Knock, AbilitySpec.Stun, AbilitySpec.Burn, AbilitySpec.Poison, AbilitySpec.Heal };
             for (int i = 0; i < order.Length; i++)
@@ -1116,19 +1178,29 @@ namespace StickWars
                 i = s1;
                 if (s1 <= s0) { i = s0 + 1; continue; }
                 // предложение про оружие разбирается отдельно
-                bool lethal;
-                int eff = EffectOf(t, s0, s1, out lethal);
+                bool lethal; string form;
+                int eff = EffectOf(t, s0, s1, out lethal, out form);
+                bool goo = First(t, GOO, s0, s1) >= 0;
                 int shape = First(t, SH_SELF, s0, s1) >= 0 ? AbilitySpec.Self : First(t, SH_NOVA, s0, s1) >= 0 ? AbilitySpec.Nova : First(t, SH_SKY, s0, s1) >= 0 ? AbilitySpec.Sky : First(t, SH_BEAM, s0, s1) >= 0 ? AbilitySpec.Beam : First(t, SH_WAVE, s0, s1) >= 0 ? AbilitySpec.Wave : -1;
                 bool verb = First(t, ACT_VERB, s0, s1) >= 0;
                 var probe = new AbilitySpec();
                 ReadElement(t, s0, s1, probe);
-                bool hasElem = probe.elem != Element.None || probe.dark;
-                if (!(eff != AbilitySpec.None && (verb || hasElem) || shape >= 0 && (hasElem || eff != AbilitySpec.None))) continue;
+                bool hasElem = probe.elem != Element.None || probe.dark || goo;
+                bool strong = eff == AbilitySpec.Transform || eff == AbilitySpec.Control || eff == AbilitySpec.Polymorph || eff == AbilitySpec.TimeSlow || eff == AbilitySpec.BlackHole || eff == AbilitySpec.Clone;
+                if (!strong && !(eff != AbilitySpec.None && (verb || hasElem) || shape >= 0 && (hasElem || eff != AbilitySpec.None))) continue;
                 // это описание оружия («меч, пронзает...») — пусть разбирает оружие
                 bool weaponSent = false;
                 foreach (var wk in WKINDS) foreach (var key in wk.w) if (First(t, new[] { key }, s0, s1) >= 0) weaponSent = true;
-                if (weaponSent && shape < 0) continue;
+                if (weaponSent && shape < 0 && !strong) continue;
                 var sp = probe;
+                sp.form = form; sp.goo = goo;
+                if (goo) { sp.col = probe.dark ? new Color(0.45f, 0.1f, 0.6f) : new Color(0.45f, 0.95f, 0.25f); if (sp.elem == Element.None) sp.elem = Element.Poison; }
+                if (eff == AbilitySpec.Transform || eff == AbilitySpec.Clone) shape = AbilitySpec.Self;
+                if (eff == AbilitySpec.TimeSlow && shape < 0) shape = AbilitySpec.Nova;
+                if (eff == AbilitySpec.Transform && !hasElem) sp.col = new Color(1f, 0.85f, 0.4f);
+                if (eff == AbilitySpec.Control && !hasElem) sp.col = new Color(0.75f, 0.3f, 1f);
+                if (eff == AbilitySpec.TimeSlow && !hasElem) sp.col = new Color(0.6f, 0.85f, 1f);
+                if (eff == AbilitySpec.BlackHole && !hasElem) sp.col = new Color(0.4f, 0.15f, 0.7f);
                 sp.shape = shape < 0 ? (eff == AbilitySpec.Heal ? AbilitySpec.Self : AbilitySpec.Bolt) : shape;
                 sp.effect = eff;
                 sp.lethal = lethal || eff == AbilitySpec.Explode;
@@ -1142,7 +1214,13 @@ namespace StickWars
                     words.Add(t.w[ek]);
                 }
                 string nm;
-                if (words.Count > 0) nm = Cap(string.Join(" ", words.ToArray()));
+                if (eff == AbilitySpec.Transform) { nm = "Превращение: " + Cap(Lemma(form)); words.Clear(); words.Add(form); }
+                else if (eff == AbilitySpec.Polymorph) { nm = "Враги → " + Lemma(form); words.Clear(); words.Add(form); }
+                else if (eff == AbilitySpec.Control) { nm = goo ? "Управляющая жижа" : "Контроль разума"; words.Clear(); words.Add("контрол"); }
+                else if (eff == AbilitySpec.TimeSlow) { nm = "Замедление времени"; words.Clear(); words.Add("время"); }
+                else if (eff == AbilitySpec.BlackHole) { nm = First(t, new[] { "торнадо", "смерч", "вихр" }, s0, s1) >= 0 ? "Вихрь" : "Чёрная дыра"; words.Clear(); words.Add("дыр"); }
+                else if (eff == AbilitySpec.Clone) { nm = "Клоны"; words.Clear(); words.Add("клон"); }
+                else if (words.Count > 0) nm = Cap(string.Join(" ", words.ToArray()));
                 else
                 {
                     string[] gen = { "Сгусток силы", "Взрыв силы", "Луч силы", "Кара с небес", "Ударная волна", "Исцеление" };
@@ -1164,8 +1242,33 @@ namespace StickWars
                 while (b.abilities.Count > 4) b.abilities.RemoveAt(b.abilities.Count - 1);
                 b.notes.RemoveAll(n => n.StartsWith("Способности не описаны"));
                 b.understood.RemoveAll(u => u.StartsWith("новое умение"));
+                if (eff == AbilitySpec.Transform) b.understood.Add("превращение в «" + Lemma(form) + "» (сила, размер и вид меняются на время)");
                 b.understood.Add("умение «" + nm + "»: " + AbilitySpec.ShapeName(sp.shape) + ", " + AbilitySpec.EffectName(sp.effect) + (sp.lethal && sp.effect != AbilitySpec.Explode ? " и убивает" : "") + " (сработает само в нокдауне и под тяжёлыми ударами)");
                 return;
+            }
+        }
+
+        // разноцветные глаза: «один глаз красный, другой синий», «разноцветные глаза», «гетерохромия»
+        static void EyesParse(Tx t, FighterBuild b)
+        {
+            foreach (int i in FindAll(t, new[] { "глаз", "eye" }))
+            {
+                var cols = new List<Color>();
+                for (int k = Math.Max(0, i - 6); k < Math.Min(t.w.Count, i + 8); k++)
+                {
+                    if (t.sent[k] != t.sent[i]) continue;
+                    foreach (var ck in COLORS) foreach (var key in ck.k) if (WordMatch(t.w[k], key)) { bool dup = false; foreach (var c in cols) if (Mathf.Abs(c.r - ck.c.r) + Mathf.Abs(c.g - ck.c.g) + Mathf.Abs(c.b - ck.c.b) < 0.1f) dup = true; if (!dup) cols.Add(ck.c); }
+                }
+                bool multi = First(t, new[] { "разноцвет", "гетерохром", "разные глаза", "разного цвета", "другой глаз", "второй глаз", "heterochrom" }, Math.Max(0, i - 4), Math.Min(t.w.Count, i + 8)) >= 0;
+                if (cols.Count >= 2 || multi)
+                {
+                    if (!b.acc.Contains(Acc.Eyes)) b.acc.Add(Acc.Eyes);
+                    b.accCol[Acc.Eyes] = cols.Count > 0 ? cols[0] : new Color(1f, 0.15f, 0.1f);
+                    b.eyeCol2 = cols.Count > 1 ? cols[1] : new Color(0.2f, 0.6f, 1f);
+                    b.eyes2 = true;
+                    b.understood.Add("разноцветные глаза");
+                    return;
+                }
             }
         }
 
@@ -1194,6 +1297,21 @@ namespace StickWars
                 w.onHit = sp;
                 w.traits.Add(AbilitySpec.EffectName(eff) + (lethal ? " насмерть" : ""));
             }
+        }
+
+        // одинаковые предложения учитываются один раз (вики-страницы любят повторяться)
+        static string Dedup(string s)
+        {
+            if (string.IsNullOrEmpty(s) || s.Length < 400) return s ?? "";
+            var sb = new System.Text.StringBuilder();
+            var seen = new HashSet<string>();
+            foreach (var part in System.Text.RegularExpressions.Regex.Split(s, @"(?<=[\.!\?\n;])"))
+            {
+                string k = part.Trim().ToLowerInvariant();
+                if (k.Length == 0 || !seen.Add(k)) continue;
+                sb.Append(part.Trim()).Append(' ');
+            }
+            return sb.ToString();
         }
 
         static string Cap(string s) { return string.IsNullOrEmpty(s) ? s : char.ToUpper(s[0]) + s.Substring(1); }
@@ -1321,6 +1439,22 @@ namespace StickWars
             int best = int.MaxValue; w.kind = WeaponKind.Blade;
             foreach (var wk in WKINDS)
                 foreach (int i in FindAll(t, wk.w)) { if (i < best) { best = i; w.kind = wk.k; } break; }
+            // явный тип: «тип: лук», «тип оружия — пистолет», «это копьё»
+            foreach (int ti in FindAll(t, new[] { "тип", "вид оружия", "класс", "type", "это$" }))
+                foreach (var wk in WKINDS)
+                    if (First(t, wk.w, ti + 1, Math.Min(t.w.Count, ti + 5)) >= 0) { w.kind = wk.k; best = -1; }
+            // незнакомое оружие: тип по тому, что оно делает
+            if (best == int.MaxValue)
+            {
+                if (Any(t, "стреля", "пул", "выстрел", "заряд", "патрон", "ствол", "shoot", "fires", "bullet")) w.kind = WeaponKind.Gun;
+                else if (Any(t, "стрел", "тетив", "arrow")) w.kind = WeaponKind.Bow;
+                else if (Any(t, "мета", "броса", "кида", "швыря", "летит", "бумеранг", "throw", "boomerang")) w.kind = WeaponKind.Thrown;
+                else if (Any(t, "колет", "пронза", "длинн", "древк", "шест", "алебард", "трезуб", "pierc", "pole", "trident")) w.kind = WeaponKind.Spear;
+                else if (Any(t, "дроб", "крош", "плющ", "тяжел", "увесист", "булав", "кистен", "моргенш", "crush", "smash", "mace", "flail")) w.kind = WeaponKind.Blunt;
+                else if (Any(t, "колдов", "магич", "заклин", "жезл", "скипетр", "палоч", "посох", "магия", "wand", "scepter", "magic")) w.kind = WeaponKind.Staff;
+                else if (Any(t, "пил", "жужж", "вращ", "saw", "spinning")) w.kind = WeaponKind.Chainsaw;
+                else w.kind = WeaponKind.Blade;
+            }
 
             switch (w.kind)
             {

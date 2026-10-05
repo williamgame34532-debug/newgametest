@@ -60,6 +60,7 @@ namespace StickWars
             battle.Init(cam, audio);
             battle.SetTheme(data.theme);
             if (!string.IsNullOrEmpty(S.musicUrl) && S.useCustomMusic) audio.LoadUrl(S.musicUrl);
+            if (!string.IsNullOrEmpty(S.survivalMusicUrl) && S.useCustomSurvival) StartCoroutine(LoadSurvLater());
             StartDemo();
         }
 
@@ -155,6 +156,8 @@ namespace StickWars
         }
 
         // «Один против всех»: герой — первый красный боец
+        System.Collections.IEnumerator LoadSurvLater() { while (audio.loadingUrl) yield return null; yield return null; audio.LoadUrl(S.survivalMusicUrl, 1); }
+
         public void StartSurvival()
         {
             if (data.red.Count == 0) data.red.Add(Parser.RandomFighter(rng));
@@ -162,7 +165,7 @@ namespace StickWars
             if (VideoRecorder.I != null && VideoRecorder.I.Active) VideoRecorder.I.End();
             battle.Setup(Battle.Mode.Survival, new List<FighterBuild> { hero }, new List<FighterBuild>(), DropPool(), data.drops, data.dropInterval * 1.6f, data.p1Control, false, false);
             scr = Scr.Battle;
-            audio.PlayMusic(true);
+            audio.PlayMusic(true, true);
             if (S.recordVideo && VideoRecorder.I != null) VideoRecorder.I.Begin(false, "survival");
             Save();
         }

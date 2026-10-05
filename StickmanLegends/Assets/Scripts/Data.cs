@@ -49,6 +49,8 @@ namespace StickWars
         public float sfxVol = 0.8f;
         public string musicUrl = "";
         public bool useCustomMusic = false;
+        public string survivalMusicUrl = "";  // своя музыка для «Один против всех»
+        public bool useCustomSurvival = false;
         public float blood = 1f;          // 0 = без крови, 2 = море крови
         public bool shake = true;
         public bool slowmo = true;
@@ -131,7 +133,8 @@ namespace StickWars
     public class AbilitySpec
     {
         public const int Bolt = 0, Nova = 1, Beam = 2, Sky = 3, Wave = 4, Self = 5;
-        public const int None = 0, Petrify = 1, Freeze = 2, Burn = 3, Knock = 4, Pull = 5, Heal = 6, Poison = 7, Lift = 8, Stun = 9, Drain = 10, Explode = 11;
+        public const int None = 0, Petrify = 1, Freeze = 2, Burn = 3, Knock = 4, Pull = 5, Heal = 6, Poison = 7, Lift = 8, Stun = 9, Drain = 10, Explode = 11,
+            Transform = 12, Polymorph = 13, Control = 14, TimeSlow = 15, BlackHole = 16, Clone = 17;
         public int shape;
         public Element elem = Element.None;
         public Color col = new Color(0.6f, 0.3f, 1f);
@@ -139,6 +142,8 @@ namespace StickWars
         public int effect;
         public float power = 1f;
         public string name, tag;
+        public string form;   // в кого превращается / превращает
+        public bool goo;      // жижа / слизь
         public static string EffectName(int e)
         {
             switch (e)
@@ -154,6 +159,12 @@ namespace StickWars
                 case Stun: return "оглушает";
                 case Drain: return "высасывает жизнь";
                 case Explode: return "взрывает";
+                case Transform: return "превращается";
+                case Polymorph: return "превращает врагов";
+                case Control: return "берёт врагов под контроль";
+                case TimeSlow: return "замедляет время";
+                case BlackHole: return "чёрная дыра затягивает";
+                case Clone: return "создаёт клонов";
             }
             return "урон";
         }
@@ -171,6 +182,17 @@ namespace StickWars
         public string headName;
         public Color headCol = Color.white;
         public bool skullArmor;           // броня с черепами
+        public bool eyes2; public Color eyeCol2; // разноцветные глаза
+        public float morphDur;            // для временной формы
+        public FighterBuild Clone()
+        {
+            var c = (FighterBuild)MemberwiseClone();
+            c.abilities = new List<Ability>(abilities); c.killMasks = new List<int>(killMasks);
+            c.understood = new List<string>(understood); c.notes = new List<string>(notes);
+            c.acc = new List<Acc>(acc); c.accCol = new Dictionary<Acc, Color>(accCol);
+            c.items = new List<CustomItem>(items);
+            return c;
+        }
         public string name;
         public Color color;
         public float hp = 100, str = 1, spd = 1, def = 1, agi = 1, size = 1;
@@ -416,6 +438,7 @@ namespace StickWars
         public int effect;             // эффект умения/оружия (AbilitySpec.effect)
         public bool effLethal, dismember, blast; // blast — волна отчаяния (не вызывает ответное умение)
         public Color effCol = Color.white;
+        public string effForm;
         public HF extra;               // голова/спина/взрыв/падение/магия/без оружия
         public bool launcher, slam, knockdown;
         public float lift;

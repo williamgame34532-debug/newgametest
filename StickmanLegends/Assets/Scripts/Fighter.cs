@@ -571,7 +571,23 @@ namespace StickWars
                 lFootF = Draw.Line(transform, "footF", w * 1.1f, mainCol, baseOrder + 6, true, 4);
                 lFootB = Draw.Line(transform, "footB", w * 1.1f, backCol, baseOrder + 0, true, 4);
             }
-            if (eyes)
+            if (eyes && B.eyes2)
+            {
+                // разноцветные глаза: два отдельных светящихся глаза
+                Color[] ec = { eyeCol, B.eyeCol2 };
+                for (int i = 0; i < 2; i++)
+                {
+                    var e2 = Draw.Line(headRoot, "eye" + i, 1f, ec[i], o + 2, false, 2);
+                    float x0 = hr * (0.25f + i * 0.36f);
+                    Draw.Set(e2, new Vector2(x0, hr * (0.2f - i * 0.04f)), new Vector2(x0 + hr * 0.24f, hr * (0.15f - i * 0.04f)));
+                    Draw.Taper(e2, 0.075f * s, 0.05f * s);
+                    var g2 = Draw.Spr(headRoot, "eyeGlow" + i, Draw.Soft, Draw.A(ec[i], 0.75f), o + 1);
+                    g2.transform.localPosition = new Vector3(x0 + hr * 0.12f, hr * 0.16f, 0);
+                    g2.transform.localScale = new Vector3(hr * 1.3f, hr * 1.0f, 1);
+                    headRends.Add(e2); headRends.Add(g2);
+                }
+            }
+            else if (eyes)
             {
                 var e = Draw.Line(headRoot, "eye", 1f, eyeCol, o + 2, false, 1);
                 Draw.Set(e, new Vector2(hr * 0.28f, hr * 0.22f), new Vector2(hr * 0.85f, hr * 0.08f));
@@ -602,6 +618,17 @@ namespace StickWars
             desperCd -= dt;
             if (petrifyT > 0f) { PetrifyTick(dt); Render(); return; }
             if (despPendT > 0f) { despPendT -= dt; if (despPendT <= 0f) FireDesperation(despPend); }
+            if (morphT > 0f)
+            {
+                morphT -= dt;
+                if (morphT <= 0f && morphOrig != null) { var o = morphOrig; battle.Defer(() => { if (!dead && !remove) MorphNow(o, 0f, true); }); }
+            }
+            if (controlT > 0f)
+            {
+                controlT -= dt;
+                if (sGoo != null && Random.value < dt * 6f) battle.fx.Emit(J[2] + Random.insideUnitCircle * 0.2f * Size, new Vector2(0, -1f), sGoo.color, 0.07f, 1.2f, -10f, false, 0.3f, true);
+                if (controlT <= 0f || controller == null || controller.dead) EndControl();
+            }
             if (rallyT > 0f)
             {
                 // окно контратаки: враги лежат — герой бьёт быстрее и сильнее, ИИ сразу бросается добивать
@@ -1341,7 +1368,8 @@ namespace StickWars
             combo++;
             comboT = 1.2f;
             if (combo > maxCombo) maxCombo = combo;
-            if (combo == 5 || combo == 10) battle.FlashStyle(2, 0.09f);
+            // на комбо рисовка вспыхивает разными стилями
+            if (combo >= 3 && combo % 3 == 0) { int[] fl = { 2, 6, 10, 12, 13, 3 }; battle.FlashStyle(fl[(combo / 3) % fl.Length], 0.1f + Mathf.Min(0.08f, combo * 0.008f)); }
             if (combo >= 3) battle.Popup(combo + " HITS!", J[2] + new Vector2(-facing * 0.6f, 1.1f), Color.Lerp(mainCol, Color.white, 0.5f), 0.7f + Mathf.Min(0.6f, combo * 0.05f));
             atkCd = Mathf.Min(atkCd, 0.05f);
             if (h.type == DmgType.Blade || h.type == DmgType.Pierce) { battle.audio.Sfx("slice", 0.9f); battle.audio.Sfx("shing", 0.35f); }
@@ -1579,6 +1607,38 @@ namespace StickWars
             Color col = sp.col;
             Vector2 c = Center;
             battle.PowerMoment(this, sp.name ?? "Умение", col, desperate);
+            // умения «на себя»: превращение, клоны, чёрная дыра
+            if (sp.effect == AbilitySpec.Transform && morphOrig == null)
+            {
+                var nb = Forms.Apply(B, sp.form, false);
+                float dur = desperate ? 14f : 12f;
+                battle.Defer(() => { if (!dead && !remove) MorphNow(nb, dur, true); });
+                return;
+            }
+            if (sp.effect == AbilitySpec.Transform)
+            {
+                // уже в форме — мощный рёв: волна откидывает всех вокруг
+                sp = new AbilitySpec { shape = AbilitySpec.Nova, effect = AbilitySpec.Knock, col = col, name = sp.name, power = 1.2f };
+            }
+            if (sp.effect == AbilitySpec.Clone)
+            {
+                int n = desperate ? 3 : 2;
+                battle.Defer(() => { if (!dead) battle.SpawnMinions(this, n, "Клон"); });
+                battle.Shock(c, 2f, col);
+                return;
+            }
+            if (sp.effect == AbilitySpec.BlackHole)
+            {
+                Vector2 at = target != null ? target.Center + Vector2.up * 0.3f : c + new Vector2(facing * 4f, 0.5f);
+                bool tornado = sp.name != null && sp.name.StartsWith("Вихр");
+                battle.BlackHole(at, this, col, desperate ? 3.4f : 2.6f, 18f * pw, sp.lethal, tornado);
+                return;
+            }
+            if (sp.effect == AbilitySpec.TimeSlow)
+            {
+                battle.FlashStyle(2, 0.18f);
+                battle.Announce("ВРЕМЯ ЗАМЕДЛЕНО", new Color(0.7f, 0.9f, 1f), 1.2f);
+            }
             switch (sp.shape)
             {
                 case AbilitySpec.Nova:
@@ -1670,7 +1730,8 @@ namespace StickWars
                         h.extra |= HF.Magic | HF.Custom;
                         h.customTag = sp.tag;
                         h.knockdown = true;
-                        h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col;
+                        h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = col; h.effForm = sp.form;
+                        if (sp.effect == AbilitySpec.Control || sp.effect == AbilitySpec.Polymorph) { h.dmg *= 0.4f; h.knockdown = false; }
                         battle.SpawnProjectile(Projectile.Kind.Bolt, J[4] + aim * 0.3f, aim * 15f, this, h, col);
                         battle.Shock(J[4], 1.2f, col);
                         battle.audio.Sfx("zap", 0.8f);
@@ -1685,7 +1746,8 @@ namespace StickWars
             h.extra |= HF.Magic | HF.Custom;
             h.customTag = sp.tag;
             h.dir = dir; h.point = e.Center;
-            h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = sp.col;
+            h.effect = sp.effect; h.effLethal = sp.lethal; h.effCol = sp.col; h.effForm = sp.form;
+            if (sp.effect == AbilitySpec.Control || sp.effect == AbilitySpec.Polymorph || sp.effect == AbilitySpec.TimeSlow) { h.dmg *= 0.4f; h.knock = 1f; }
             if (sp.effect == AbilitySpec.Knock || sp.effect == AbilitySpec.None || sp.effect == AbilitySpec.Explode) { h.knockdown = true; h.knock = 9f; h.lift = 4f; }
             e.TakeHit(h);
         }
@@ -1714,7 +1776,85 @@ namespace StickWars
                 case AbilitySpec.Stun: stun = Mathf.Max(stun, 1.6f); battle.Popup("ОГЛУШЁН", J[2] + Vector2.up * 0.8f, new Color(1f, 1f, 0.5f), 0.7f); break;
                 case AbilitySpec.Drain: if (a != null && !a.dead) { a.hp = Mathf.Min(a.maxHp, a.hp + h.dmg * 0.6f); battle.BoltBetween(Center, a.Center, new Color(0.8f, 0.1f, 0.2f), true); } break;
                 case AbilitySpec.Explode: battle.fx.Explosion(Center, 1.4f); battle.audio.Sfx("explosion", 0.8f); battle.cam.Shake(0.5f); break;
+                case AbilitySpec.TimeSlow: slowT = Mathf.Max(slowT, 5f); stun = Mathf.Max(stun, 0.8f); battle.Popup("ЗАМЕДЛЕН", J[2] + Vector2.up * 0.8f, new Color(0.7f, 0.9f, 1f), 0.7f); break;
+                case AbilitySpec.Control: if (a != null) StartControl(a, h.effCol); break;
+                case AbilitySpec.Polymorph:
+                    if (morphOrig == null && !string.IsNullOrEmpty(h.effForm))
+                    {
+                        var nb = Forms.Apply(B, h.effForm, true);
+                        float dur = boss ? 2.5f : 5f;
+                        battle.Defer(() => { if (!dead && !remove) MorphNow(nb, dur, true); });
+                    }
+                    break;
             }
+        }
+
+        // ---------- превращение: боец заменяется бойцом с новой сборкой, потом возвращается ----------
+        void MorphNow(FighterBuild nb, float dur, bool fx)
+        {
+            var f = battle.SpawnAt(nb, team, slot, pos, facing);
+            f.human = human; f.pindex = pindex; f.minion = minion; f.owner = owner; f.life = life; f.boss = boss;
+            f.hp = Mathf.Max(1f, hp / Mathf.Max(1f, maxHp) * f.maxHp); f.hpTrail = f.hp;
+            f.kills = kills; f.dmgDealt = dmgDealt; f.maxCombo = maxCombo;
+            f.morphOrig = dur > 0f ? (morphOrig ?? B) : null; f.morphT = dur;
+            f.origTeam = origTeam; f.controlT = controlT; f.controller = controller;
+            if (controlT > 0f) f.MakeGoo(sGoo != null ? sGoo.color : new Color(0.5f, 0.9f, 0.3f));
+            f.vel = vel; f.iframes = 0.6f; f.desperCd = Mathf.Max(desperCd, 2f);
+            foreach (var kv in cd) f.cd[kv.Key] = kv.Value;
+            bool critter = nb.size < 0.5f;
+            if (weapon != null && !critter && (dur <= 0f || nb.weapon == null)) f.SetWeapon(weapon, ammo);
+            foreach (var o in battle.fighters) { if (o.owner == this) o.owner = f; if (o.controller == this) o.controller = f; if (o.target == this) o.target = f; }
+            if (battle.hero == this) battle.hero = f;
+            remove = true;
+            gameObject.SetActive(false);
+            if (fx)
+            {
+                Color c = Color.Lerp(nb.color, Color.white, 0.5f);
+                battle.Shock(Center, critter ? 1.5f : 3.2f, c);
+                battle.fx.Smoke(Center, 26, new Color(0.85f, 0.85f, 0.9f, 0.7f), 0.8f * Size, 0.9f);
+                for (int i = 0; i < 30; i++) battle.fx.Emit(Center, Random.insideUnitCircle * 8f, c, 0.14f, 0.5f, 0f, false, 2f, true, 1, 1, true);
+                battle.audio.Sfx(critter ? "teleport" : "charge", 1f);
+                battle.audio.Sfx("explosion", critter ? 0.3f : 0.6f);
+                battle.cam.Shake(critter ? 0.2f : 0.6f);
+                battle.Popup(dur > 0f ? Forms.Display(nb.name.Contains("(") ? nb.name.Substring(nb.name.LastIndexOf('(') + 1).TrimEnd(')') : nb.name).ToUpper() + "!" : "ПРЕВРАЩЕНИЕ СПАЛО", J[2] + Vector2.up * 1.2f, c, 1.1f);
+            }
+        }
+
+        // ---------- контроль разума (жижа на голове) ----------
+        void StartControl(Fighter by, Color col)
+        {
+            if (by == null || by.team == team || minion) return;
+            if (origTeam < 0) origTeam = team;
+            team = by.team; controller = by;
+            controlT = boss ? 3f : 6.5f;
+            act = Act.None; mv = null; target = null;
+            MakeGoo(col);
+            battle.Popup("ПОД КОНТРОЛЕМ!", J[2] + Vector2.up * 1f, Color.Lerp(col, Color.white, 0.3f), 1f);
+            battle.audio.Sfx("splat", 0.9f);
+            battle.fx.Smoke(J[2], 10, Draw.A(col, 0.6f), 0.3f, 0.4f);
+        }
+
+        void MakeGoo(Color col)
+        {
+            if (sGoo != null) return;
+            float hr = Skel.HeadR * Size;
+            sGoo = Draw.Spr(headRoot, "goo", Draw.Circle, col, baseOrder + 15);
+            sGoo.transform.localPosition = new Vector3(-hr * 0.1f, hr * 0.75f, 0); sGoo.transform.localScale = new Vector3(hr * 2.3f, hr * 1.3f, 1f);
+            sGooGlow = Draw.Spr(headRoot, "gooGlow", Draw.Soft, Draw.A(col, 0.5f), baseOrder + 14);
+            sGooGlow.transform.localPosition = sGoo.transform.localPosition; sGooGlow.transform.localScale = Vector3.one * hr * 4f;
+            var drip = Draw.Line(headRoot, "gooDrip", hr * 0.25f, col, baseOrder + 15, false, 2);
+            Draw.Set(drip, new Vector2(hr * 0.5f, hr * 0.5f), new Vector2(hr * 0.75f, -hr * 0.4f));
+            drip.transform.SetParent(sGoo.transform, true);
+        }
+
+        void EndControl()
+        {
+            controlT = 0f;
+            if (origTeam >= 0) team = origTeam;
+            origTeam = -1; controller = null; target = null;
+            if (sGoo != null) { Destroy(sGoo.gameObject); sGoo = null; }
+            if (sGooGlow != null) { Destroy(sGooGlow.gameObject); sGooGlow = null; }
+            if (!dead) battle.Popup("ОЧНУЛСЯ", J[2] + Vector2.up * 0.8f, new Color(0.8f, 0.8f, 0.8f), 0.7f);
         }
 
         void PetrifyTick(float dt)
@@ -1763,7 +1903,14 @@ namespace StickWars
         }
 
         Ability despPend;
-        float dazeDown, rallyT; // rallyT — окно контратаки после взрыва
+        float dazeDown, rallyT;
+        // превращение и контроль разума
+        public FighterBuild morphOrig;
+        public float morphT;
+        public int origTeam = -1;
+        public float controlT;
+        Fighter controller;
+        SpriteRenderer sGoo, sGooGlow; // rallyT — окно контратаки после взрыва
         float despPendT;
 
         void BreakoutJump(Color col)
@@ -2618,11 +2765,13 @@ namespace StickWars
                 }
             }
             // пружинистая боевая стойка
-            float bob = Mathf.Sin(animT * 7f * Mathf.Sqrt(B.spd));
-            p.lean += bob * 2f;
-            p.f1 += 6f + bob * 6f; p.f2 -= 8f + bob * 8f;
-            p.k1 -= 2f + bob * 5f; p.k2 -= 10f + bob * 8f;
-            p.a2 += Mathf.Sin(animT * 7f + 1f) * 4f;
+            float bob = Mathf.Sin(animT * 7.5f * Mathf.Sqrt(B.spd));
+            float sway = Mathf.Sin(animT * 2.3f + slot);           // медленный перенос веса — живее
+            p.lean += bob * 2.5f + sway * 4f;
+            p.f1 += 7f + bob * 8f + sway * 4f; p.f2 -= 9f + bob * 10f;
+            p.k1 -= 3f + bob * 6f - sway * 3f; p.k2 -= 12f + bob * 10f;
+            p.a1 += Mathf.Sin(animT * 3.1f + 2f) * 6f; p.b1 += Mathf.Sin(animT * 2.7f) * 6f;
+            p.a2 += Mathf.Sin(animT * 7f + 1f) * 6f;
             if (B.style == Style.Boxer) { p.a1 = 50f; p.a2 = 165f; p.b1 = 40f; p.b2 = 160f; }
             return p;
         }
@@ -2755,6 +2904,7 @@ namespace StickWars
                 runPhase += dt * Mathf.Abs(vel.x) * 1.9f / Size;
                 bool ninja = (weapon == null || weapon.kind == WeaponKind.Blade) && (B.spd > 1.2f || B.style == Style.Acrobat);
                 Pose r = Pose.Run(runPhase, ninja);
+                r.lean += Mathf.Min(14f, Mathf.Abs(vel.x) * 1.1f) * (Mathf.Sign(vel.x) == facing ? 1f : 0f); // чем быстрее — тем сильнее наклон
                 if (weapon != null && !ninja) { r.a1 = 35f; r.a2 = weapon.kind == WeaponKind.Gun ? 80f : 95f; }
                 if (Mathf.Sign(vel.x) != facing) { r = Pose.Lerp(r, rest, 0.4f); r.lean = -5f; }
                 return r;
@@ -2831,6 +2981,7 @@ namespace StickWars
                 }
                 prevTip = tip;
             }
+            SlashSmear(dt);
             if (trailPts.Count >= 2)
             {
                 lTrail.enabled = true;
@@ -2838,6 +2989,64 @@ namespace StickWars
                 lTrail.SetPositions(trailPts.ToArray());
             }
             else lTrail.enabled = false;
+        }
+
+        // Белый «серп» взмаха оружием: заливка между рукоятью и концом клинка, быстро тает
+        Mesh smearMesh;
+        MeshRenderer smearMr;
+        readonly List<Vector2> smB = new List<Vector2>(), smT = new List<Vector2>();
+        readonly List<float> smAge = new List<float>();
+        const float SmearLife = 0.16f;
+
+        void SlashSmear(float dt)
+        {
+            for (int i = 0; i < smAge.Count; i++) smAge[i] += dt;
+            while (smAge.Count > 0 && smAge[0] > SmearLife) { smAge.RemoveAt(0); smB.RemoveAt(0); smT.RemoveAt(0); }
+            bool melee = weapon != null && !weapon.Ranged && act == Act.Move && mv != null && mv.limb == 4;
+            if (melee)
+            {
+                float u = actT / actDur;
+                if (u > mv.hitAt * 0.35f && u < mv.hitAt + 0.25f)
+                {
+                    Vector2 tip = Tip(4), hand = J[4];
+                    Vector2 bse = Vector2.Lerp(hand, tip, 0.3f);
+                    if (smT.Count == 0 || (smT[smT.Count - 1] - tip).sqrMagnitude > 0.0025f) { smB.Add(bse); smT.Add(tip); smAge.Add(0f); }
+                }
+            }
+            if (smearMesh == null)
+            {
+                var go = new GameObject("slashSmear");
+                go.transform.SetParent(transform, false);
+                smearMesh = new Mesh(); smearMesh.MarkDynamic();
+                go.AddComponent<MeshFilter>().sharedMesh = smearMesh;
+                smearMr = go.AddComponent<MeshRenderer>();
+                smearMr.sharedMaterial = Draw.LineMat;
+                smearMr.sortingOrder = baseOrder + 13;
+            }
+            int n = smT.Count;
+            if (n < 2) { smearMr.enabled = false; return; }
+            smearMr.enabled = true;
+            var v = new Vector3[n * 2]; var c = new Color[n * 2]; var tri = new int[(n - 1) * 6];
+            Color wc = weapon != null && (weapon.dark || weapon.glowBlade || weapon.element != Element.None)
+                ? Color.Lerp(weapon.element != Element.None ? Info.ElemColor(weapon.element) : weapon.dark ? new Color(0.6f, 0.3f, 1f) : weapon.color, Color.white, 0.55f)
+                : Color.white;
+            for (int i = 0; i < n; i++)
+            {
+                float k = 1f - smAge[i] / SmearLife;          // свежие — ярче
+                float pos = i / (float)(n - 1);
+                v[i * 2] = smB[i]; v[i * 2 + 1] = smT[i];
+                c[i * 2] = Draw.A(wc, 0.15f * k * pos);
+                c[i * 2 + 1] = Draw.A(wc, 0.9f * k * pos);
+            }
+            for (int i = 0; i < n - 1; i++)
+            {
+                int t0 = i * 6, a = i * 2;
+                tri[t0] = a; tri[t0 + 1] = a + 1; tri[t0 + 2] = a + 3;
+                tri[t0 + 3] = a; tri[t0 + 4] = a + 3; tri[t0 + 5] = a + 2;
+            }
+            smearMesh.Clear();
+            smearMesh.vertices = v; smearMesh.colors = c; smearMesh.triangles = tri;
+            smearMesh.RecalculateBounds();
         }
 
         // ===================== ОТРИСОВКА =====================
@@ -3670,10 +3879,11 @@ namespace StickWars
                             headRends.Add(so);
                             if (eyes)
                             {
-                                var g = Draw.Spr(headRoot, "socketGlow", Draw.Circle, eyeC, o + 2);
+                                Color ecI = i == 1 && B.eyes2 ? B.eyeCol2 : eyeC;
+                                var g = Draw.Spr(headRoot, "socketGlow", Draw.Circle, ecI, o + 2);
                                 g.transform.localPosition = so.transform.localPosition; g.transform.localScale = Vector3.one * hr * 0.17f;
                                 headRends.Add(g);
-                                var gg = Draw.Spr(headRoot, "socketGlow2", Draw.Soft, Draw.A(eyeC, 0.6f), o + 2);
+                                var gg = Draw.Spr(headRoot, "socketGlow2", Draw.Soft, Draw.A(ecI, 0.6f), o + 2);
                                 gg.transform.localPosition = so.transform.localPosition; gg.transform.localScale = Vector3.one * hr * 0.8f;
                                 headRends.Add(gg);
                             }

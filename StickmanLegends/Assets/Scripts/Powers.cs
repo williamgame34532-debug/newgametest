@@ -117,6 +117,92 @@ namespace StickWars
             });
         }
 
+        public Fighter SpawnAt(FighterBuild b, int team, int slot, Vector2 p, int face) { return Spawn(b, team, slot, p, face); }
+
+        // изменения состава бойцов посреди перебора списка откладываем до конца кадра
+        readonly List<System.Action> deferred = new List<System.Action>();
+        public void Defer(System.Action a) { deferred.Add(a); }
+        void RunDeferred()
+        {
+            for (int i = 0; i < deferred.Count && i < 64; i++) deferred[i]();
+            deferred.Clear();
+        }
+
+        // чёрная дыра / вихрь: затягивает врагов, крутит, бьёт, в конце — выброс
+        public void BlackHole(Vector2 at, Fighter caster, Color col, float dur, float dmg, bool lethal, bool tornado)
+        {
+            var go = new GameObject("blackhole");
+            go.transform.SetParent(transform, false);
+            var core = Draw.Spr(go.transform, "core", Draw.Circle, tornado ? Draw.A(col, 0.5f) : new Color(0.02f, 0f, 0.03f), 330);
+            var halo = Draw.Spr(go.transform, "halo", Draw.Soft, Draw.A(col, 0.7f), 329);
+            core.transform.position = at; halo.transform.position = at;
+            var rings = new List<LineRenderer>();
+            for (int i = 0; i < 3; i++)
+            {
+                var l = Draw.Line(go.transform, "ring", 0.06f, Draw.A(Color.Lerp(col, Color.white, 0.3f), 0.8f), 331, true, 0);
+                l.positionCount = 24; l.loop = true; rings.Add(l);
+            }
+            float tick = 0f;
+            audio.Sfx("charge", 0.9f); audio.Sfx("cine", 0.6f, 0f);
+            Popup(tornado ? "ВИХРЬ!" : "ЧЁРНАЯ ДЫРА!", at + Vector2.up * 1.5f, Color.Lerp(col, Color.white, 0.4f), 1.1f);
+            AddFx(go, dur, (t, k) =>
+            {
+                float grow = Mathf.Min(1f, t * 3f) * (k > 0.9f ? (1f - k) / 0.1f : 1f);
+                float r = (tornado ? 1.6f : 1.1f) * grow;
+                core.transform.localScale = tornado ? new Vector3(r * 1.2f, r * 3f, 1f) : Vector3.one * r * 1.6f;
+                halo.transform.localScale = Vector3.one * r * 5f;
+                for (int i = 0; i < rings.Count; i++)
+                {
+                    float rr = r * (1.4f + i * 0.55f), sp = t * (6f + i * 3f);
+                    for (int j = 0; j < 24; j++)
+                    {
+                        float a = j / 24f * Mathf.PI * 2f + sp;
+                        rings[i].SetPosition(j, at + new Vector2(Mathf.Cos(a) * rr, Mathf.Sin(a) * rr * (tornado ? 2.2f : 0.45f)));
+                    }
+                }
+                if (Random.value < 0.6f)
+                {
+                    Vector2 from = at + Random.insideUnitCircle.normalized * Random.Range(2.5f, 5f);
+                    fx.Emit(from, (at - from) * 2.5f, Draw.A(col, 0.9f), 0.08f, 0.4f, 0f, false, 0f, true, 1, 1, true);
+                }
+                float dt = Time.deltaTime * (Frozen ? 0f : 1f);
+                tick -= dt;
+                bool hit = tick <= 0f;
+                if (hit) tick = 0.35f;
+                foreach (var e in fighters)
+                {
+                    if (caster == null || e.dead || e.team == caster.team) continue;
+                    Vector2 d = at - e.Center;
+                    float dist = d.magnitude;
+                    if (dist > 6.5f) continue;
+                    e.vel = Vector2.Lerp(e.vel, d.normalized * Mathf.Lerp(14f, 5f, dist / 6.5f) + Vector2.up * (tornado ? 6f : 1.5f), dt * 5f);
+                    e.grounded = false;
+                    if (hit && dist < 2.2f)
+                    {
+                        var h = new HitInfo { dmg = dmg * 0.25f, type = DmgType.Shadow, elem = Element.Shadow, attacker = caster, dir = Random.insideUnitCircle.normalized, point = e.Center, knock = 1f, stun = 0.3f, blast = true };
+                        h.extra |= HF.Magic | HF.Custom;
+                        h.customTag = caster.B.customAbilityTag;
+                        e.TakeHit(h);
+                    }
+                }
+                if (k >= 0.98f && go.activeSelf)
+                {
+                    go.SetActive(false);
+                    Shock(at, 4f, col);
+                    fx.Explosion(at, 1.2f);
+                    cam.Shake(0.7f);
+                    audio.Sfx("explosion", 0.9f);
+                    foreach (var e in fighters)
+                    {
+                        if (caster == null || e.dead || e.team == caster.team || (e.Center - at).magnitude > 4f) continue;
+                        var h = new HitInfo { dmg = lethal ? dmg * 2.5f : dmg, type = DmgType.Blunt, attacker = caster, dir = (e.Center - at).normalized + Vector2.up * 0.5f, point = e.Center, knock = 12f, stun = 0.5f, knockdown = true, heavy = true, blast = true };
+                        h.extra |= HF.Magic | HF.Custom | HF.Explosion;
+                        e.TakeHit(h);
+                    }
+                }
+            });
+        }
+
         // эпичный момент умения: замедление, вспышка, облёт камеры в 3D
         public void PowerMoment(Fighter f, string name, Color col, bool desperate)
         {

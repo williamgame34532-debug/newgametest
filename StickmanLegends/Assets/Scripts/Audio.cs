@@ -17,8 +17,10 @@ namespace StickWars
         int poolIdx;
         readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
 
-        AudioClip battleTrack, menuTrack, customClip;
-        float[] battleData, menuData;
+        AudioClip battleTrack, menuTrack, survTrack, customClip, customSurvClip;
+        float[] battleData, menuData, survData;
+        bool wantSurvival;
+        public string urlStatus2 = "";
         volatile bool musicReady;
         bool wantBattle;
         public string urlStatus = "";
@@ -46,6 +48,7 @@ namespace StickWars
                 {
                     battleData = Track(true);
                     menuData = Track(false);
+                    survData = SurvivalTrack();
                 }
                 catch (System.Exception) { }
                 musicReady = true;
@@ -62,7 +65,8 @@ namespace StickWars
                 battleTrack.SetData(battleData, 0);
                 menuTrack = AudioClip.Create("menu", menuData.Length, 1, SR, false);
                 menuTrack.SetData(menuData, 0);
-                PlayMusic(wantBattle);
+                if (survData != null) { survTrack = AudioClip.Create("survival", survData.Length, 1, SR, false); survTrack.SetData(survData, 0); }
+                PlayMusic(wantBattle, wantSurvival);
             }
             var s = Game.I != null ? Game.I.S : null;
             if (s != null)
@@ -79,11 +83,18 @@ namespace StickWars
 
         public void Duck(float v) { duck = Mathf.Min(duck, v); }
 
-        public void PlayMusic(bool battle)
+        public void PlayMusic(bool battle) { PlayMusic(battle, false); }
+
+        // у дуэли и у режима «Один против всех» — разная музыка (и своя ссылка для каждого)
+        public void PlayMusic(bool battle, bool survival)
         {
-            wantBattle = battle;
+            wantBattle = battle; wantSurvival = battle && survival;
             var s = Game.I != null ? Game.I.S : null;
-            AudioClip c = (s != null && s.useCustomMusic && customClip != null) ? customClip : (battle ? battleTrack : menuTrack);
+            AudioClip c;
+            if (wantSurvival)
+                c = (s != null && s.useCustomSurvival && customSurvClip != null) ? customSurvClip : (s != null && s.useCustomMusic && customClip != null && customSurvClip == null) ? customClip : (survTrack ?? battleTrack);
+            else
+                c = (s != null && s.useCustomMusic && customClip != null) ? customClip : (battle ? battleTrack : menuTrack);
             if (c == null) return;
             if (music.clip != c)
             {
@@ -94,7 +105,7 @@ namespace StickWars
             else if (!music.isPlaying) music.Play();
         }
 
-        public void RefreshMusic() { music.clip = null; PlayMusic(wantBattle); }
+        public void RefreshMusic() { music.clip = null; PlayMusic(wantBattle, wantSurvival); }
 
         public void Sfx(string name, float vol = 1f, float pitchVar = 0.08f)
         {
@@ -114,13 +125,23 @@ namespace StickWars
         }
 
         // ---------- музыка по ссылке ----------
-        public void LoadUrl(string url)
+        public void LoadUrl(string url) { LoadUrl(url, 0); }
+        int loadSlot;
+        public void LoadUrl(string url, int slot)
         {
-            if (string.IsNullOrEmpty(url)) { urlStatus = "Пустая ссылка"; return; }
+            if (string.IsNullOrEmpty(url)) { if (slot == 0) urlStatus = "Пустая ссылка"; else urlStatus2 = "Пустая ссылка"; return; }
+            loadSlot = slot;
             StartCoroutine(LoadRoutine(url.Trim()));
         }
 
         IEnumerator LoadRoutine(string url)
+        {
+            int slot = loadSlot;
+            yield return LoadRoutineInner(url, slot);
+            if (slot == 1) { urlStatus2 = urlStatus; urlStatus = ""; }
+        }
+
+        IEnumerator LoadRoutineInner(string url, int slot)
         {
             loadingUrl = true;
             urlStatus = "Загрузка...";
@@ -153,11 +174,11 @@ namespace StickWars
                     try { c = DownloadHandlerAudioClip.GetContent(req); } catch (System.Exception e) { urlStatus = "Ошибка формата: " + e.Message; }
                     if (c != null && c.length > 0.1f)
                     {
-                        customClip = c;
+                        if (slot == 1) { customSurvClip = c; if (Game.I != null) Game.I.S.useCustomSurvival = true; }
+                        else { customClip = c; if (Game.I != null) Game.I.S.useCustomMusic = true; }
                         urlStatus = "Загружено! (" + Mathf.RoundToInt(c.length) + " сек)";
-                        if (Game.I != null) Game.I.S.useCustomMusic = true;
                         music.clip = null;
-                        PlayMusic(wantBattle);
+                        PlayMusic(wantBattle, wantSurvival);
                     }
                     else if (c != null) urlStatus = "Файл пустой или неподдерживаемый формат";
                 }
@@ -166,6 +187,70 @@ namespace StickWars
         }
 
         public bool HasCustom { get { return customClip != null; } }
+        public bool HasCustomSurvival { get { return customSurvClip != null; } }
+
+        // «Один против всех»: 168 bpm, фригийский ми-минор, двойная бочка, рубленые гитарные риффы, хор, тремоло-мелодия
+        static float[] SurvivalTrack()
+        {
+            var r = new System.Random(11);
+            float bpm = 168f, beat = 60f / bpm, step = beat / 4f;
+            int bars = 16;
+            int n = (int)(bars * 4 * beat * SR);
+            var d = new float[n];
+            int[] roots = { 40, 40, 41, 40, 40, 43, 41, 38, 40, 40, 41, 40, 36, 38, 41, 40 };
+            int[] lead = { 76, 77, 76, 74, 72, 74, 76, 79, 77, 76, 74, 71, 72, 74, 76, 76 };
+            for (int bar = 0; bar < bars; bar++)
+            {
+                int root = roots[bar];
+                float bt = bar * 4 * beat;
+                // хор/пэд: квинта + октава, тёмный
+                foreach (int iv in new[] { 12, 19, 24 })
+                {
+                    Tone(d, bt, 4 * beat, Mtof(root + iv), 0.035f, 1, 0.3f, 0.5f, 700f, 0.005f);
+                    Tone(d, bt, 4 * beat, Mtof(root + iv) * 1.008f, 0.025f, 1, 0.35f, 0.5f, 650f, 0.005f);
+                }
+                // рубленый рифф (палм-мьют) шестнадцатыми: квинта-аккорд
+                int[] riff = { 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0, 1, 1 };
+                for (int s = 0; s < 16; s++)
+                {
+                    if (riff[s] == 0) continue;
+                    int note = root + (bar % 4 == 3 && s >= 12 ? (s - 11) : 0);
+                    Tone(d, bt + s * step, step * 0.55f, Mtof(note), 0.13f, 1, 0.002f, 0.03f, 900f);
+                    Tone(d, bt + s * step, step * 0.55f, Mtof(note + 7), 0.08f, 2, 0.002f, 0.03f, 1100f);
+                    Tone(d, bt + s * step, step * 0.55f, Mtof(note - 12), 0.1f, 1, 0.002f, 0.03f, 400f);
+                }
+                // двойная бочка, малый на 2 и 4
+                for (int s = 0; s < 16; s++)
+                {
+                    if (bar >= 4 || s % 2 == 0) Kick(d, bt + s * step, s % 4 == 0 ? 0.8f : 0.55f);
+                    if (s == 4 || s == 12) Snare(d, bt + s * step, 0.7f, r);
+                    if (s % 2 == 0) Hat(d, bt + s * step, 0.18f, r);
+                }
+                if (bar % 4 == 3) for (int s = 8; s < 16; s++) Taiko(d, bt + s * step, 0.25f + s * 0.02f, r);
+                if (bar % 2 == 0) Taiko(d, bt, 0.55f, r);
+                // тремоло-мелодия во второй половине
+                if (bar >= 8)
+                {
+                    int ln = lead[bar];
+                    for (int s = 0; s < 16; s++)
+                    {
+                        int note = s < 8 ? ln : lead[(bar + 1) % lead.Length];
+                        Tone(d, bt + s * step, step * 0.8f, Mtof(note), 0.05f, 1, 0.003f, 0.04f, 2600f, 0.004f);
+                    }
+                }
+                else if (bar % 2 == 1)
+                {
+                    // «медь»: тревожный подъём
+                    Tone(d, bt, beat * 2f, Mtof(root + 13), 0.05f, 1, 0.05f, 0.3f, 1400f);
+                    Tone(d, bt + beat * 2f, beat * 2f, Mtof(root + 12), 0.05f, 1, 0.05f, 0.3f, 1400f);
+                }
+            }
+            float peak = 0.001f;
+            for (int i = 0; i < n; i++) { d[i] = (float)System.Math.Tanh(d[i] * 1.5f); peak = Mathf.Max(peak, Mathf.Abs(d[i])); }
+            float g = 0.9f / peak;
+            for (int i = 0; i < n; i++) d[i] *= g;
+            return d;
+        }
 
         // ================== СИНТЕЗ МУЗЫКИ ==================
         static float Mtof(float m) { return 440f * Mathf.Pow(2f, (m - 69f) / 12f); }
