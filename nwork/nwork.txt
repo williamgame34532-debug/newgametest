@@ -1,0 +1,12 @@
+"nwork"
+{
+	"base"			"sandbox"
+	"title"			"N-work"
+	"maps"			""
+	"menusystem"	"1"
+	"category"		"rp"
+
+	"settings"
+	{
+	}
+}
