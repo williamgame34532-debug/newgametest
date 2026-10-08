@@ -1,0 +1,12 @@
+"networkhla"
+{
+	"base"			"base"
+	"title"			"Network - HL:A RP"
+	"maps"			"^rp_"
+	"menusystem"	"1"
+	"workshopid"	""
+
+	"settings"
+	{
+	}
+}
