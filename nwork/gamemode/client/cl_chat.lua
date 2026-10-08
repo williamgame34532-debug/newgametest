@@ -8,13 +8,17 @@
 	который гаснет через ~10 секунд. В меню чат не показывается.
 
 	Типы речи (у каждого свой размер шрифта и дистанция на сервере):
+	Формат строк повторяет Monarch: имя приглушённым серым, глагол
+	жирным белым, реплика белым; рация — вся строка голубая; эмоуты —
+	курсив светло-жёлтым; OOC — красная метка и серый текст.
+
 		обычное        Имя говорит "текст"
 		/w, /whisp     Имя шепчет "текст"        (мелко, ~120 юнитов)
 		/y, /yell      Имя кричит "текст"        (крупно, ~640 юнитов)
 		/me, /it       ** эмоуты
-		/r             Имя передаёт по рации "<:: текст. ::>"
-		//             [OOC] Имя: текст
-		/event         СОБЫТИЕ: текст            (только админ)
+		/r             Имя передаёт по рации "<:: текст ::>"
+		//             (OOC) Имя: текст
+		/event         текст события             (только админ)
 		/help          список команд
 
 	Незнакомые персонажи пишут как «Неизвестный» — см. систему
@@ -27,12 +31,14 @@ local T = NWORK.Theme
 
 local C_BASE   = Color( 104, 108, 113, 165 )  -- тело панели (серый, как в референсе)
 local C_ENTRY  = Color( 24, 25, 27, 240 )
-local C_NAME   = Color( 176, 200, 224 )
-local C_TEXT   = Color( 240, 243, 247 )
-local C_EMOTE  = Color( 210, 214, 220 )
+-- строки чата — как в Monarch: приглушённое имя, жирный глагол, белая реплика
+local C_NAME   = Color( 146, 156, 158 )
+local C_TEXT   = Color( 236, 238, 240 )
+local C_EMOTE  = Color( 232, 226, 190 )
 local C_WHIS   = Color( 196, 200, 206 )
-local C_RADIO  = Color( 130, 200, 140 )
-local C_OOC    = Color( 224, 170, 104 )
+local C_RADIO  = Color( 92, 204, 236 )
+local C_OOC    = Color( 205, 72, 62 )
+local C_OOCTXT = Color( 190, 194, 198 )
 local C_EVENT  = Color( 236, 200, 120 )
 local C_SYS    = Color( 168, 172, 178 )
 local C_DIM    = Color( 158, 164, 172 )
@@ -56,6 +62,14 @@ NWORK.Commands = {
 --------------------------------------------------------- имя с учётом знакомств
 
 NWORK.Recognized = NWORK.Recognized or {}
+
+-- Маркер смены шрифта внутри строки: Push( "Nwork.Chat", C_NAME, name, NWORK.ChatFont( "Nwork.ChatBold" ), " говорит " ... )
+function NWORK.ChatFont( font )
+	return { nworkFont = font }
+end
+
+local BOLD = NWORK.ChatFont( "Nwork.ChatBold" )
+local REG  = NWORK.ChatFont( "Nwork.Chat" )
 
 function NWORK.CharName( ply )
 	if not IsValid( ply ) then return "Console" end
@@ -96,7 +110,7 @@ function PANEL:Init()
 		math.Clamp( cookie.GetNumber( "nwork_chat_h", defH ), 160, h - 40 ) )
 	self:SetPos(
 		math.Clamp( cookie.GetNumber( "nwork_chat_x", math.floor( 16 * k ) ), 0, w - 260 ),
-		math.Clamp( cookie.GetNumber( "nwork_chat_y", h - defH - math.floor( 16 * k ) ), 0, h - 160 ) )
+		math.Clamp( cookie.GetNumber( "nwork_chat_y", math.floor( h * 0.77 ) - defH ), 0, h - 160 ) )
 
 	self.LastMsg = -1e5
 	self.IsOpen  = false
@@ -147,25 +161,25 @@ function PANEL:TextWidth()
 end
 
 local function WrapLine( line, maxw )
-	surface.SetFont( line.font )
-
-	local rows, cur, curw = {}, {}, 0
+	local rows, cur, curw, curh = {}, {}, 0, 0
 	local function push()
 		if #cur > 0 then
-			rows[ #rows + 1 ] = { font = line.font, h = FontH( line.font ), parts = cur }
-			cur, curw = {}, 0
+			rows[ #rows + 1 ] = { font = line.font, h = curh, parts = cur }
+			cur, curw, curh = {}, 0, 0
 		end
 	end
 
 	for _, seg in ipairs( line.segs ) do
+		local font = seg.f or line.font
 		for token in string.gmatch( seg.t, "%S+%s*" ) do
-			surface.SetFont( line.font )
+			surface.SetFont( font )
 			local tw = surface.GetTextSize( token )
 
 			if curw + tw > maxw and curw > 0 then push() end
 
-			cur[ #cur + 1 ] = { c = seg.c, t = token }
+			cur[ #cur + 1 ] = { c = seg.c, t = token, f = font }
 			curw = curw + tw
+			curh = math.max( curh, FontH( font ) )
 		end
 	end
 
@@ -187,14 +201,17 @@ end
 function PANEL:AddLine( font, ... )
 	local segs = {}
 	local cur  = C_TEXT
+	local curF = nil
 
 	for _, v in ipairs( { ... } ) do
 		if IsColor( v ) then
 			cur = v
+		elseif istable( v ) and v.nworkFont then
+			curF = v.nworkFont
 		elseif isentity( v ) and IsValid( v ) and v:IsPlayer() then
-			segs[ #segs + 1 ] = { c = C_NAME, t = NWORK.CharName( v ) }
+			segs[ #segs + 1 ] = { c = C_NAME, t = NWORK.CharName( v ), f = curF }
 		else
-			segs[ #segs + 1 ] = { c = cur, t = tostring( v ) }
+			segs[ #segs + 1 ] = { c = cur, t = tostring( v ), f = curF }
 		end
 	end
 
@@ -260,13 +277,21 @@ function PANEL:Paint( w, h )
 		y = y - row.h
 		if y < top then break end
 
+		-- части строки выравниваются по низу (разные шрифты), с мягкой тенью
 		local x = self.Pad
-		surface.SetFont( row.font )
 		for _, part in ipairs( row.parts ) do
-			surface.SetTextColor( part.c )
-			surface.SetTextPos( x, y )
+			surface.SetFont( part.f or row.font )
+			local tw, th = surface.GetTextSize( part.t )
+			local ty = y + row.h - th
+
+			surface.SetTextColor( 0, 0, 0, 170 )
+			surface.SetTextPos( x + 1, ty + 1 )
 			surface.DrawText( part.t )
-			x = x + select( 1, surface.GetTextSize( part.t ) )
+
+			surface.SetTextColor( part.c )
+			surface.SetTextPos( x, ty )
+			surface.DrawText( part.t )
+			x = x + tw
 		end
 	end
 end
@@ -573,6 +598,8 @@ local function Mirror( ... )
 	for _, v in ipairs( { ... } ) do
 		if IsColor( v ) then
 			cur = v
+		elseif istable( v ) and v.nworkFont then
+			-- маркер шрифта, в консоль не печатается
 		elseif isentity( v ) and IsValid( v ) and v:IsPlayer() then
 			MsgC( cur, NWORK.CharName( v ) )
 		else
@@ -614,19 +641,24 @@ end )
 
 --------------------------------------------------------------- форматы речи
 
+-- точка в конце эмоута, если игрок не поставил знак сам
+local function Period( t )
+	return string.match( t, "[%.!%?…]$" ) and t or ( t .. "." )
+end
+
 hook.Add( "OnPlayerChat", "Nwork.Chat", function( ply, text )
 	local name = NWORK.CharName( ply )
 
 	local ooc = string.match( text, "^//%s*(.+)" )
 	if ooc then
-		Push( "Nwork.Chat", C_OOC, "[OOC] ", C_NAME, name, C_TEXT, ": " .. ooc )
+		Push( "Nwork.Chat", C_OOC, "(OOC) ", C_OOCTXT, name .. ": " .. ooc )
 		return true
 	end
 
 	local event = string.match( text, "^/event%s+(.+)" )
 	if event then
 		if IsValid( ply ) and ply:IsAdmin() then
-			Push( "Nwork.ChatYell", C_EVENT, "СОБЫТИЕ: " .. event )
+			Push( "Nwork.ChatYell", C_EVENT, event )
 		end
 		return true
 	end
@@ -645,23 +677,24 @@ hook.Add( "OnPlayerChat", "Nwork.Chat", function( ply, text )
 
 	local it = string.match( text, "^/it%s+(.+)" )
 	if it then
-		Push( "Nwork.Chat", C_EMOTE, "** " .. it .. "." )
+		Push( "Nwork.ChatItalic", C_EMOTE, "** " .. Period( it ) )
 		return true
 	end
 
 	local me = string.match( text, "^/me%s+(.+)" )
 	if me then
-		Push( "Nwork.Chat", C_EMOTE, "** " .. name .. " " .. me .. "." )
+		Push( "Nwork.ChatItalic", C_EMOTE, "** " .. name .. " " .. Period( me ) )
 		return true
 	end
 
+	-- рация — вся строка голубая, как «radios in tac» в Monarch
 	local radio = string.match( text, "^/r%s+(.+)" )
 	if radio then
-		Push( "Nwork.Chat", C_NAME, name, C_RADIO, " передаёт по рации \"<:: " .. radio .. ". ::>\"" )
+		Push( "Nwork.ChatRadio", C_RADIO, name .. " передаёт по рации \"<:: " .. radio .. " ::>\"" )
 		return true
 	end
 
-	Push( "Nwork.Chat", C_NAME, name, C_TEXT, " говорит \"" .. text .. "\"" )
+	Push( "Nwork.Chat", C_NAME, name, BOLD, C_TEXT, " говорит ", REG, "\"" .. text .. "\"" )
 	return true
 end )
 
@@ -683,9 +716,9 @@ net.Receive( "nwork_recog", function()
 	local name  = net.ReadString()
 
 	if self_ then
-		Push( "Nwork.Chat", C_EMOTE, "** Вы представляетесь окружающим как " .. name .. "." )
+		Push( "Nwork.ChatItalic", C_EMOTE, "** Вы представляетесь окружающим как " .. name .. "." )
 	else
 		NWORK.Recognized[ id ] = true
-		Push( "Nwork.Chat", C_EMOTE, "** " .. name .. " представляется." )
+		Push( "Nwork.ChatItalic", C_EMOTE, "** " .. name .. " представляется." )
 	end
 end )

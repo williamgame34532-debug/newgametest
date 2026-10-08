@@ -6,7 +6,7 @@
 DeriveGamemode( "sandbox" )
 
 NWORK = NWORK or {}
-NWORK.Version = "0.7.0"
+NWORK.Version = "0.8.0"
 
 GM.Name    = "N-work"
 GM.Author  = "N-work"

@@ -36,3 +36,4 @@ include( "server/sv_items.lua" )
 -- Иконка главного меню раздаётся клиентам
 resource.AddFile( "materials/nwork/menu_icon.png" )
 resource.AddFile( "materials/nwork/fac_citizen.png" )
+resource.AddFile( "materials/nwork/watermark.png" )

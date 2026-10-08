@@ -77,6 +77,14 @@ T.CameraPaths = {
 
 T.Watermark = {
 	Enabled  = true,
+
+	-- Логотип-материал справа снизу (стиль PROJECT SYNAPSE).
+	-- Файл: content/materials/nwork/watermark.png (1024x200, белый на прозрачном).
+	-- Если материала нет — рисуется старый текстовый λ-вотермарк ниже.
+	Mat      = "nwork/watermark.png",
+	MatAlpha = 170,   -- прозрачность 0..255
+	MatWidth = 300,   -- ширина в пикселях при 1080p
+
 	Title    = "PRIVATE ALPHA",
 	Sub      = "WORK IN PROGRESS",
 	Color    = Color( 158, 48, 44 ),   -- красный, как в референсе
@@ -112,7 +120,11 @@ local function Rebuild()
 
 	F( "Nwork.Rules",    { font = "Roboto", size = math.max( 11, math.floor( 14 * k ) ), weight = 500 } )
 
-	F( "Nwork.Chat",      { font = "Roboto", size = math.floor( 19 * k ), weight = 500 } )
+	-- чат как в Monarch: Roboto (встроен в GMod), обычный + жирный глагол
+	F( "Nwork.Chat",       { font = "Roboto", size = math.floor( 19 * k ), weight = 400 } )
+	F( "Nwork.ChatBold",   { font = "Roboto", size = math.floor( 19 * k ), weight = 700 } )
+	F( "Nwork.ChatItalic", { font = "Roboto", size = math.floor( 19 * k ), weight = 400, italic = true } )
+	F( "Nwork.ChatRadio",  { font = "Roboto", size = math.floor( 19 * k ), weight = 500 } )
 	F( "Nwork.ChatEntry", { font = "Roboto", size = math.floor( 20 * k ), weight = 500 } )
 	F( "Nwork.ChatHint",  { font = "Roboto", size = math.floor( 14 * k ), weight = 500 } )
 	F( "Nwork.CmdName",   { font = "Roboto", size = math.floor( 21 * k ), weight = 800 } )

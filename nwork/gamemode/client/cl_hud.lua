@@ -6,7 +6,8 @@
 	* слева сверху — локация и время (курсивом, полупрозрачно);
 	* при наведении на игрока — карточка: рамка с «?», имя персонажа,
 	  под ним фракция;
-	* справа снизу — λ-вотермарк BETA STAGE (настраивается в теме).
+	* справа снизу — логотип-материал nwork/watermark.png (стиль
+	  PROJECT SYNAPSE), без материала — текстовый λ-вотермарк.
 ---------------------------------------------------------------------------]]
 
 local T = NWORK.Theme
@@ -113,6 +114,29 @@ hook.Add( "PlayerBindPress", "Nwork.Introduce", function( _, bind, pressed )
 	return true
 end )
 
+--------------------------------------------------------------------- вотермарк
+
+local wmMat
+
+local function DrawWatermarkMat( w, h, k )
+	local wm = T.Watermark
+	if not wm.Mat then return false end
+
+	if wmMat == nil then
+		local m = Material( wm.Mat, "smooth mips" )
+		wmMat = ( m and not m:IsError() ) and m or false
+	end
+	if not wmMat then return false end
+
+	local mw = math.floor( ( wm.MatWidth or 300 ) * k )
+	local mh = math.floor( mw * wmMat:Height() / math.max( 1, wmMat:Width() ) )
+
+	surface.SetMaterial( wmMat )
+	surface.SetDrawColor( 255, 255, 255, wm.MatAlpha or 170 )
+	surface.DrawTexturedRect( w - mw - math.floor( 28 * k ), h - mh - math.floor( 22 * k ), mw, mh )
+	return true
+end
+
 --------------------------------------------------------------------- отрисовка
 
 hook.Add( "HUDPaint", "Nwork.HUD", function()
@@ -136,8 +160,10 @@ hook.Add( "HUDPaint", "Nwork.HUD", function()
 
 	DrawNameplate()
 
-	-- вотермарк
-	if wm.Enabled then
+	-- вотермарк: логотип-материал, если есть, иначе текстовый
+	if wm.Enabled and DrawWatermarkMat( w, h, k ) then
+		-- нарисован материал
+	elseif wm.Enabled then
 		local x = w - math.floor( 24 * k )
 		local y = h - math.floor( 30 * k )
 
