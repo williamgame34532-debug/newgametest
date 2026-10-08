@@ -53,4 +53,4 @@ HLARP.IncludeDir("config")
 HLARP.IncludeDir("core")
 HLARP.IncludeDir("modules", true)
 
-MsgC(Color(242, 140, 40), "[Network HL:A RP] ", color_white, "Framework v" .. HLARP.Version .. " loaded (" .. (SERVER and "server" or "client") .. ")\n")
+MsgC(HLARP.Config.Colors.Primary, "[Network HL:A RP] ", color_white, "Framework v" .. HLARP.Version .. " loaded (" .. (SERVER and "server" or "client") .. ")\n")

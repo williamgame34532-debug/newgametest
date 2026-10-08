@@ -4,7 +4,7 @@ local cfg = HLARP.Config
 cfg.ServerName = "Network - HL:A RP"
 
 cfg.Colors = {
-	Primary    = Color(242, 140, 40),  -- оранжевый лямбда
+	Primary    = Color(255, 77, 59),   -- акцент логотипа
 	Combine    = Color(70, 190, 230),
 	Background = Color(18, 20, 24),
 	Text       = Color(236, 238, 240),
