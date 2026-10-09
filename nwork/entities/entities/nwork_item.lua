@@ -30,7 +30,7 @@ if SERVER then
 	-- прямое E тоже подбирает (клиент обычно перехватывает и показывает кнопку)
 	function ENT:Use( activator )
 		if IsValid( activator ) and activator:IsPlayer() then
-			NWORK.PickupItem( activator, self )
+			NWORK.Inventory.Pickup( activator, self )
 		end
 	end
 
