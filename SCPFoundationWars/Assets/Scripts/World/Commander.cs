@@ -62,6 +62,46 @@ public class TeamCommander
         objectiveName = best != null ? best.displayName : "Центр комплекса";
     }
 
+    // Подкрепления: вылетают позже, по прибытии командир включает их в текущий этап операции
+    void Reinforcements(Vector3 dir)
+    {
+        foreach (var s in squads)
+        {
+            if (!s.reinforce) continue;
+            if (!s.announced && Time.time >= s.arriveAt)
+            {
+                s.announced = true;
+                Say("Подкрепление " + s.def.name + " вылетело, расчётное время — минута.");
+            }
+            if (s.orderSet || !Landed(s) || s.Alive == 0) continue;
+            s.orderSet = true;
+            if (phase == OrderPhase.Landing)
+            {
+                s.orderPos = s.lz + dir * 16f; s.hold = true;
+                s.orderText = "Занять оборону у точки высадки";
+                continue;
+            }
+            // роль — туда, где меньше живых бойцов
+            int l = 0, r = 0;
+            foreach (var o in squads) if (o != s && o.orderSet && !o.overwatch) { if (o.flank < 0) l += o.Alive; else if (o.flank > 0) r += o.Alive; }
+            bool ow = s.def.primary == "svd" || s.def.primary == "dmr";
+            s.overwatch = ow;
+            s.flank = l <= r ? -1 : 1;
+            s.hold = phase == OrderPhase.Regroup || phase == OrderPhase.Briefing;
+            s.orderPos = s.lz + dir * 16f;
+            s.orderText = "Подкрепление: " + RoleName(s.flank, ow) + " → " + objectiveName;
+            s.Leader?.anim.DoSignal(Signal.MoveUp);
+            Say(s.def.name + " на земле. Выдвигайтесь на " + RoleName(s.flank, ow) + ", поддержите наступление.");
+        }
+    }
+
+    public float NextReinforcement(out string name)
+    {
+        float best = float.MaxValue; name = null;
+        foreach (var s in squads) if (s.reinforce && !s.announced && s.arriveAt - Time.time < best) { best = s.arriveAt - Time.time; name = s.def.name; }
+        return best;
+    }
+
     static string RoleName(int flank, bool overwatch) => overwatch ? "снайперское прикрытие" : flank < 0 ? "левый фланг" : flank > 0 ? "правый фланг" : "центр";
 
     public void Tick(float dt)
@@ -77,6 +117,8 @@ public class TeamCommander
         Vector3 dir = dist > 0.1f ? toObj / dist : Vector3.forward;
         Vector3 perp = Vector3.Cross(Vector3.up, dir);
 
+        Reinforcements(dir);
+
         switch (phase)
         {
             case OrderPhase.Landing:
@@ -89,8 +131,9 @@ public class TeamCommander
                     s.hold = true;
                     s.Leader?.anim.DoSignal(Signal.Regroup);
                 }
-                bool all = squads.Count > 0;
-                foreach (var s in squads) if (!s.orderSet) all = false;
+                bool all = false;
+                foreach (var s in squads) if (!s.reinforce) all = true;
+                foreach (var s in squads) if (!s.orderSet && !s.reinforce) all = false;
                 if (all || phaseT > 80f) { phase = OrderPhase.Regroup; phaseT = 0; Say("Все отряды на земле. Закрепиться, ждать приказа."); }
                 break;
 
@@ -103,6 +146,7 @@ public class TeamCommander
                     var parts = new List<string>();
                     foreach (var s in squads)
                     {
+                        if (s.reinforce && !s.orderSet) { s.flank = 0; continue; }
                         bool ow = s.def.primary == "svd" || s.def.primary == "dmr";
                         s.overwatch = ow;
                         s.flank = ow ? (idx % 2 == 0 ? -1 : 1) : n == 1 ? 0 : (idx % 3 == 0 ? 0 : idx % 3 == 1 ? -1 : 1);
@@ -112,6 +156,7 @@ public class TeamCommander
                     Say("Цель: " + (objectiveScp != null || objectiveName.StartsWith("SCP") ? "захватить " + objectiveName : "зачистить центр комплекса") + ". " + string.Join(", ", parts) + ".");
                     foreach (var s in squads)
                     {
+                        if (s.reinforce && !s.orderSet) continue;
                         s.orderText = (s.overwatch ? "Прикрывать огнём" : "Готовиться к наступлению: " + RoleName(s.flank, false)) + " → " + objectiveName;
                         s.Leader?.anim.DoSignal(Signal.Hold);
                     }
@@ -138,7 +183,7 @@ public class TeamCommander
                     float lat = s.flank * Mathf.Clamp(dist * 0.18f, 12f, 35f) * (1f - f * 0.5f);
                     s.orderPos = basePos + dir * dist * f + perp * lat;
                     s.orderText = (s.overwatch ? "Прикрытие с позиции, " : "Наступление, " + RoleName(s.flank, false) + ", ") + "этап " + (stage + 1) + " → " + objectiveName;
-                    if (s.Alive == 0) continue;
+                    if (s.Alive == 0 || (s.reinforce && !s.orderSet)) continue;
                     alive++;
                     int near = 0, cnt = 0;
                     foreach (var m in s.members) if (m != null && m.alive) { cnt++; if ((m.transform.position - s.orderPos).sqrMagnitude < 400f) near++; }

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SquadPick { public SquadDef def; public int count; }
+public class SquadPick { public SquadDef def; public int count; public float delay; }   // delay — задержка вылета (подкрепление), с
 public class ScpPick { public ScpDef def; public int count; }
 
 public class BattleConfig
@@ -131,7 +131,7 @@ public class Battle : MonoBehaviour
             bool playerHere = cfg.playerFps && i == cfg.playerSquad;
             var lz = lzF[i];
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
-            var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz };
+            var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 4f + i * 4f + pick.delay };
             squads.Add(sq);
             int bots = playerHere ? pick.count - 1 : pick.count;
             int seat = playerHere ? 1 : 0;
@@ -150,7 +150,7 @@ public class Battle : MonoBehaviour
             }
             Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 70f, -620f);
             Vector3 exit = new Vector3(lz.x * 2f, lz.y + 90f, -640f);
-            heli.Launch(entry, lz, exit, 4f + i * 4f);
+            heli.Launch(entry, lz, exit, 4f + i * 4f + pick.delay);
             helis.Add(heli);
         }
         // ХАОС
@@ -160,7 +160,7 @@ public class Battle : MonoBehaviour
             var lz = lzC[i];
             bool rope = pick.def.fastRope;
             var heli = Helicopter.Create(Team.Chaos, pick.def.label, new Color(0.24f, 0.26f, 0.17f), pick.def.look.accent, Mathf.Max(pick.count, 2), rope);
-            var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz };
+            var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 6f + i * 4f + pick.delay };
             squads.Add(sq);
             for (int k = 0; k < pick.count; k++)
             {
@@ -172,7 +172,7 @@ public class Battle : MonoBehaviour
             }
             Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 70f, 620f);
             Vector3 exit = new Vector3(lz.x * 2f, lz.y + 90f, 640f);
-            heli.Launch(entry, lz, exit, 6f + i * 4f);
+            heli.Launch(entry, lz, exit, 6f + i * 4f + pick.delay);
             helis.Add(heli);
         }
         // SCP — в контейнерах на тросе

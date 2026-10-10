@@ -251,6 +251,9 @@ public partial class Game
             GUILayout.Label(" " + pick[d.id] + " ", h2, GUILayout.Width(44));
             if (GUILayout.Button("+", btn, GUILayout.Width(40), GUILayout.Height(30))) pick[d.id] = Mathf.Min(d.maxCount, n + 1);
             GUILayout.FlexibleSpace();
+            arrive.TryGetValue(d.id, out int ar);
+            if (GUILayout.Button(ar == 0 ? "Прибытие: сразу" : "Прибытие: +" + ar + " мин", ar == 0 ? toggleOff : toggleOn, GUILayout.Width(190), GUILayout.Height(30)))
+            { Sfx.Play2D("ui"); arrive[d.id] = (ar + 1) % 4; }
             if (foundation && playerFps)
             {
                 bool me = playerSquadId == d.id;
@@ -348,6 +351,12 @@ public partial class Game
             Rect(new Rect(W / 2 - 300, H / 2 + 72, 600, 8), new Color(0.2f, 0.2f, 0.2f));
             Rect(new Rect(W / 2 - 300, H / 2 + 72, 600 * b.loadProgress, 8), new Color(0.85f, 0.6f, 0.1f));
             return;
+        }
+        if (b.cmdF != null)
+        {
+            float t = b.cmdF.NextReinforcement(out string rn);
+            if (rn != null && t < 600f)
+                Shadowed(new Rect(W / 2 - 300, 8, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
         }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);

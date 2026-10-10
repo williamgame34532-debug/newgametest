@@ -18,6 +18,7 @@ public partial class Game : MonoBehaviour
     readonly Dictionary<string, int> fPick = new Dictionary<string, int>();
     readonly Dictionary<string, int> cPick = new Dictionary<string, int>();
     readonly Dictionary<string, int> sPick = new Dictionary<string, int>();
+    readonly Dictionary<string, int> arrive = new Dictionary<string, int>();   // 0 — сразу, 1..3 — через N минут
     readonly List<string> fOrder = new List<string>();   // порядок выбора отрядов Фонда (до 5)
     int mapSel, timeSel;
     bool scpAlly, friendlyFire, playerFps = true;
@@ -81,6 +82,7 @@ public partial class Game : MonoBehaviour
         Parse(PlayerPrefs.GetString("fPick", "e11:8;n7:8"), fPick);
         Parse(PlayerPrefs.GetString("cPick", "ci_rifle:8;ci_lmg:6"), cPick);
         Parse(PlayerPrefs.GetString("sPick", ""), sPick);
+        Parse(PlayerPrefs.GetString("arrive", ""), arrive);
         fOrder.Clear();
         foreach (var kv in fPick) fOrder.Add(kv.Key);
     }
@@ -101,6 +103,7 @@ public partial class Game : MonoBehaviour
         PlayerPrefs.SetString("fPick", Join(fPick));
         PlayerPrefs.SetString("cPick", Join(cPick));
         PlayerPrefs.SetString("sPick", Join(sPick));
+        PlayerPrefs.SetString("arrive", Join(arrive));
         PlayerPrefs.Save();
     }
 
@@ -203,13 +206,15 @@ public partial class Game : MonoBehaviour
         var cfg = new BattleConfig { map = mapSel, time = timeSel, scpAllyChaos = scpAlly, friendlyFire = friendlyFire, playerFps = playerFps, seed = Random.Range(1, 99999) };
         foreach (var id in fOrder)
             foreach (var d in DB.Foundation)
-                if (d.id == id && fPick.TryGetValue(id, out int n) && n > 0) cfg.foundation.Add(new SquadPick { def = d, count = n });
-        foreach (var d in DB.Chaos) if (cPick.TryGetValue(d.id, out int n) && n > 0) cfg.chaos.Add(new SquadPick { def = d, count = n });
+                if (d.id == id && fPick.TryGetValue(id, out int n) && n > 0) cfg.foundation.Add(new SquadPick { def = d, count = n, delay = ArriveDelay(id) });
+        foreach (var d in DB.Chaos) if (cPick.TryGetValue(d.id, out int n) && n > 0) cfg.chaos.Add(new SquadPick { def = d, count = n, delay = ArriveDelay(d.id) });
         foreach (var d in DB.Scps) if (sPick.TryGetValue(d.id, out int n) && n > 0) cfg.scps.Add(new ScpPick { def = d, count = n });
         cfg.playerSquad = 0;
         for (int i = 0; i < cfg.foundation.Count; i++) if (cfg.foundation[i].def.id == playerSquadId) cfg.playerSquad = i;
         return cfg;
     }
+
+    float ArriveDelay(string id) => arrive.TryGetValue(id, out int a) ? a * 60f : 0f;
 
     void Update()
     {
