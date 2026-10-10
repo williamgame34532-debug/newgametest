@@ -104,8 +104,90 @@ public class TeamCommander
 
     static string RoleName(int flank, bool overwatch) => overwatch ? "снайперское прикрытие" : flank < 0 ? "левый фланг" : flank > 0 ? "правый фланг" : "центр";
 
+    // ---------------- доклады о контактах ----------------
+    readonly Dictionary<object, float> reported = new Dictionary<object, float>();
+    float nextScan, lastReport;
+
+    static string Bearing(Vector3 from, Vector3 to)
+    {
+        Vector3 d = to - from; d.y = 0;
+        float b = Mathf.Repeat(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 360f);
+        string[] card = { "север", "северо-восток", "восток", "юго-восток", "юг", "юго-запад", "запад", "северо-запад" };
+        return "азимут " + Mathf.RoundToInt(b).ToString("000") + " (" + card[Mathf.RoundToInt(b / 45f) % 8] + "), " + Mathf.RoundToInt(d.magnitude / 10f) * 10 + " м";
+    }
+
+    void Report(string text)
+    {
+        lastReport = Time.time;
+        Say(text);
+    }
+
+    // Наблюдатель — любой живой боец стороны на земле с прямой видимостью цели
+    Soldier Spotter(Vector3 target, float range)
+    {
+        Soldier best = null; float bd = range * range;
+        foreach (var s in squads)
+            foreach (var m in s.members)
+            {
+                if (m == null || !m.alive || m.inVehicle || m.zombie) continue;
+                float d = (m.transform.position - target).sqrMagnitude;
+                if (d > bd) continue;
+                if (!Combat.Visible(m.EyePos, target)) continue;
+                best = m; bd = d;
+            }
+        return best;
+    }
+
+    void Spotting()
+    {
+        if (Time.time < nextScan) return;
+        nextScan = Time.time + 1.2f;
+        if (Time.time - lastReport < 6f) return;
+        // вертолёты противника
+        foreach (var h in Helicopter.Active)
+        {
+            if (h == null || h.showcase || h.IsWaiting || h.Done || !Battle.Hostile(team, h.team)) continue;
+            if (reported.TryGetValue(h, out var t0) && Time.time - t0 < 90f) continue;
+            Vector3 hp = h.transform.position + Vector3.up;
+            var sp = Spotter(hp, 550f);
+            if (sp == null) continue;
+            reported[h] = Time.time;
+            string who = h.team == Team.SCP ? "транспортник с контейнером" : h.team == Team.Chaos ? "вертолёт Повстанцев" : "вертолёт Фонда";
+            Report("Воздух! " + who + ", " + Bearing(sp.transform.position, hp) + ". " + (h.team == Team.SCP ? "Груз — аномальный объект." : "Идёт на высадку!"));
+            return;
+        }
+        // SCP-объекты
+        foreach (var u in Unit.All)
+        {
+            if (!(u is ScpUnit su) || !su.alive || su.captured || !Battle.Hostile(team, su.team)) continue;
+            if (reported.TryGetValue(su, out var t0) && Time.time - t0 < 120f) continue;
+            var sp = Spotter(su.AimPoint, 220f);
+            if (sp == null) continue;
+            reported[su] = Time.time;
+            Report("Визуальный контакт: " + su.displayName + ", " + Bearing(sp.transform.position, su.transform.position) + "." + (su.kind == ScpKind.S096 ? " Не смотреть на лицо!" : su.kind == ScpKind.S173 ? " Не моргать, держать в поле зрения!" : ""));
+            return;
+        }
+        // группы противника
+        if (Battle.I == null) return;
+        foreach (var es in Battle.I.squads)
+        {
+            if (es == null || es.team == team || !Battle.Hostile(team, es.team)) continue;
+            Soldier lead = null; int alive = 0;
+            foreach (var m in es.members) if (m != null && m.alive && !m.inVehicle) { alive++; if (lead == null) lead = m; }
+            if (lead == null) continue;
+            if (reported.TryGetValue(es, out var t0) && Time.time - t0 < 75f) continue;
+            var sp = Spotter(lead.AimPoint, 260f);
+            if (sp == null) continue;
+            reported[es] = Time.time;
+            string what = es.def.name + (alive > 1 ? ", около " + alive + " чел." : ", одиночка");
+            Report("Контакт! " + what + ", " + Bearing(sp.transform.position, lead.transform.position) + ".");
+            return;
+        }
+    }
+
     public void Tick(float dt)
     {
+        Spotting();
         squads.RemoveAll(s => s == null);
         phaseT += dt;
         // цель: живой SCP или центр
