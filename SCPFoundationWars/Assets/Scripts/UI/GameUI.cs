@@ -615,6 +615,19 @@ public partial class Game
             Vignette(new Color(0.45f, 0f, 0f, Mathf.Clamp01(pc.hurt * 0.6f + low)));
         }
         if (pc.suppress > 0.01f) Vignette(new Color(0f, 0f, 0f, pc.suppress * 0.55f));
+        // кровь на экране: стекает и подсыхает за несколько секунд
+        pc.screenBlood.RemoveAll(v => Time.time - v.w > 5f);
+        foreach (var sb in pc.screenBlood)
+        {
+            float age = Time.time - sb.w;
+            float a = Mathf.Clamp01(1f - age / 5f) * 0.85f;
+            float sz = sb.z * H;
+            var old = GUI.color;
+            GUI.color = new Color(0.55f, 0.03f, 0.02f, a);
+            var tx = Mats.SplatterTex(Mathf.FloorToInt(sb.x * 97f));
+            GUI.DrawTexture(new Rect(sb.x * W - sz / 2, sb.y * H - sz / 2 + age * 12f, sz, sz), tx);
+            GUI.color = old;
+        }
         if (pc.Blinking) Rect(new Rect(0, 0, W, H), Color.black);
 
         var g = pc.Current;

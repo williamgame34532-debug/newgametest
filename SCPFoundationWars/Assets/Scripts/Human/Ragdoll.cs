@@ -1,5 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
+#if UNITY_6000_0_OR_NEWER
+using PhysicsMaterialT = UnityEngine.PhysicsMaterial;
+using PhysicsMaterialCombineT = UnityEngine.PhysicsMaterialCombine;
+#else
+using PhysicsMaterialT = UnityEngine.PhysicMaterial;
+using PhysicsMaterialCombineT = UnityEngine.PhysicMaterialCombine;
+#endif
 
 // Физическое тело (тряпичная кукла). Пока юнит жив — все кости кинематические и служат хитбоксами.
 // При смерти тело получает скорости, которые кости имели в анимации, и плавно "обмякает", а не замирает.
@@ -28,6 +35,16 @@ public class Ragdoll : MonoBehaviour
     float sinkT;
 
     public static readonly List<Ragdoll> Corpses = new List<Ragdoll>();
+    // тело не скользит и не подпрыгивает: высокое трение, нулевая упругость
+    static PhysicsMaterialT bodyMat;
+    static PhysicsMaterialT BodyMat
+    {
+        get
+        {
+            if (bodyMat == null) bodyMat = new PhysicsMaterialT { dynamicFriction = 0.85f, staticFriction = 1f, bounciness = 0f, frictionCombine = PhysicsMaterialCombineT.Maximum, bounceCombine = PhysicsMaterialCombineT.Minimum };
+            return bodyMat;
+        }
+    }
     public static int MaxCorpses = 90;
 
     public Part Add(Transform t, Collider col, float mass, Part parent, float lowTwist, float highTwist, float swing1, float swing2, float hitMul, bool head = false)
@@ -37,7 +54,8 @@ public class Ragdoll : MonoBehaviour
         p.rb.mass = mass;
         p.rb.isKinematic = true;
         p.rb.useGravity = true;
-        p.rb.SetDamping(0.08f, 1.6f);
+        p.rb.SetDamping(0.12f, 2.2f);
+        if (col != null) col.sharedMaterial = BodyMat;
         p.rb.solverIterations = 14;
         p.rb.solverVelocityIterations = 6;
         p.rb.maxAngularVelocity = 25f;

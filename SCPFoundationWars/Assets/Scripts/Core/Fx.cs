@@ -15,7 +15,8 @@ public class Fx : MonoBehaviour
     readonly List<Light> lights = new List<Light>();
     readonly List<float> lightLife = new List<float>();
     readonly List<Grow> growing = new List<Grow>();
-    Material tracerMat, bloodDecal, holeDecal, scorchDecal, gooDecal;
+    Material tracerMat, bloodDecal, holeDecal, scorchDecal, gooDecal, poolDecal, woundDecal;
+    readonly Material[] splatDecals = new Material[4];
 
     public static float shake;
     public static Vector3 ShakeOffset;
@@ -120,6 +121,10 @@ public class Fx : MonoBehaviour
         holeDecal = Mats.Decal(Mats.HoleTex, Color.white);
         scorchDecal = Mats.Decal(Mats.ScorchTex, Color.white);
         gooDecal = Mats.Decal(Mats.BloodTex, new Color(0.03f, 0.025f, 0.02f, 0.95f));
+        for (int i = 0; i < splatDecals.Length; i++) splatDecals[i] = Mats.Decal(Mats.SplatterTex(i), new Color(0.36f + i * 0.02f, 0.015f, 0.015f, 0.97f));
+        poolDecal = Mats.Decal(Mats.PoolTex, new Color(0.26f, 0.01f, 0.01f, 0.97f));
+        poolDecal.SetFloat("_Glossiness", 0.9f);
+        woundDecal = Mats.Decal(Mats.BloodTex, new Color(0.12f, 0.01f, 0.01f, 1f));
 
         for (int i = 0; i < 10; i++)
         {
@@ -182,8 +187,13 @@ public class Fx : MonoBehaviour
         for (int i = 0; i < Mathf.CeilToInt(3 * amount); i++)
             Emit(I.bloodMist, pos, dir * Random.Range(0.3f, 1.5f) + Random.insideUnitSphere * 0.4f, Random.Range(0.25f, 0.5f), Random.Range(0.3f, 0.7f), new Color(0.45f, 0.02f, 0.02f, 0.6f));
         // брызги на стену/землю позади
-        if (Physics.Raycast(pos, (dir + Vector3.down * 0.6f).normalized, out var hit, 4f, 1 << 0, QueryTriggerInteraction.Ignore))
-            BloodSplat(hit.point, hit.normal, Random.Range(0.35f, 0.8f) * Mathf.Sqrt(amount), hit.collider.transform);
+        // выходные брызги на стену/землю позади — вытянуты вдоль полёта пули
+        if (Physics.Raycast(pos, (dir + Vector3.down * 0.35f).normalized, out var hit, 5f, 1 << 0, QueryTriggerInteraction.Ignore))
+            BloodSpray(hit.point, hit.normal, dir, Random.Range(0.45f, 1.0f) * Mathf.Sqrt(amount), hit.collider.transform);
+        // капли на землю под раной
+        if (Random.value < 0.7f * amount && Physics.Raycast(pos, Vector3.down, out var gh, 2.5f, 1 << 0, QueryTriggerInteraction.Ignore))
+            BloodSplat(gh.point + Random.insideUnitSphere * 0.2f, gh.normal, Random.Range(0.15f, 0.35f), gh.collider.transform);
+        if (stickTo != null) Wound(pos, -dir, stickTo);
         if (stickTo != null && Random.value < 0.6f * amount)
             BloodSplat(pos, -dir, Random.Range(0.12f, 0.22f), stickTo);
     }
@@ -320,7 +330,24 @@ public class Fx : MonoBehaviour
     public static void BloodSplat(Vector3 pos, Vector3 normal, float size, Transform parent = null)
     {
         if (I == null || BloodLevel <= 0.01f) return;
-        Decal(I.bloodDecal, pos, normal, size * Mathf.Lerp(0.7f, 1.2f, BloodLevel / 2f), parent);
+        Decal(I.splatDecals[Random.Range(0, I.splatDecals.Length)], pos, normal, size * Mathf.Lerp(0.8f, 1.35f, BloodLevel / 2f), parent);
+    }
+
+    // Направленные брызги: потёки вытянуты вдоль направления выстрела
+    public static void BloodSpray(Vector3 pos, Vector3 normal, Vector3 dir, float size, Transform parent = null)
+    {
+        if (I == null || BloodLevel <= 0.01f) return;
+        var go = Decal(I.splatDecals[Random.Range(0, I.splatDecals.Length)], pos, normal, size * Mathf.Lerp(0.8f, 1.35f, BloodLevel / 2f), parent);
+        if (go == null) return;
+        Vector3 along = Vector3.ProjectOnPlane(dir, normal);
+        if (along.sqrMagnitude > 0.001f) go.transform.rotation = Quaternion.LookRotation(-normal, Vector3.Cross(normal, along.normalized));
+    }
+
+    // Входное отверстие на теле: тёмное пятно, прилипает к кости
+    public static void Wound(Vector3 pos, Vector3 normal, Transform bone)
+    {
+        if (I == null || BloodLevel <= 0.01f) return;
+        Decal(I.woundDecal, pos, normal, Random.Range(0.035f, 0.06f), bone);
     }
 
     public static void BulletHole(Vector3 pos, Vector3 normal, Transform parent)
@@ -341,7 +368,7 @@ public class Fx : MonoBehaviour
     {
         if (I == null || BloodLevel <= 0.01f) return;
         if (!Physics.Raycast(pos + Vector3.up * 0.5f, Vector3.down, out var hit, 2f, 1 << 0, QueryTriggerInteraction.Ignore)) return;
-        var d = Decal(I.bloodDecal, hit.point, hit.normal, 0.1f, hit.collider.transform);
+        var d = Decal(I.poolDecal, hit.point, hit.normal, 0.1f, hit.collider.transform);
         if (d != null) I.growing.Add(new Grow { tr = d.transform, dur = Random.Range(6f, 12f), size = size * Mathf.Lerp(0.6f, 1.3f, BloodLevel / 2f) });
     }
 

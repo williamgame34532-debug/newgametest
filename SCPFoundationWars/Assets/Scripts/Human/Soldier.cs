@@ -840,7 +840,7 @@ public class Soldier : Unit
             Fx.Blood(d.point, d.dir, 2.2f, d.hitbox.transform);
             Sfx.Play("headshot", d.point, 0.7f, Random.Range(0.9f, 1.1f), 30f);
         }
-        if (d.type != DamageType.Corrosion && d.type != DamageType.Fire) StartCoroutine(BleedOut());
+        if (d.type != DamageType.Corrosion && d.type != DamageType.Fire) StartCoroutine(BleedOut(d));
     }
 
     IEnumerator Collapse(DamageInfo d)
@@ -865,11 +865,40 @@ public class Soldier : Unit
         ragdoll.Activate(d, v0 * 0.4f);
     }
 
-    IEnumerator BleedOut()
+    // Кровотечение: пульсирующие струйки из раны несколько секунд, потом лужи — под раной и под грудью;
+    // одежда постепенно темнеет, пропитываясь кровью
+    IEnumerator BleedOut(DamageInfo d)
     {
-        yield return new WaitForSeconds(Random.Range(0.8f, 1.6f));
+        Transform wound = d.hitbox != null ? d.hitbox.transform : rig.b[HumanRig.Chest];
+        Vector3 local = wound.InverseTransformPoint(d.point.sqrMagnitude > 0.01f ? d.point : wound.position);
+        float t = 0, dur = Random.Range(3f, 6f) * (d.hitbox != null && d.hitbox.head ? 0.6f : 1f);
+        float pulse = 0;
+        while (t < dur && this != null && ragdoll != null && !ragdoll.sinking)
+        {
+            t += Time.deltaTime; pulse += Time.deltaTime;
+            float strength = 1f - t / dur;
+            if (pulse > 0.75f)   // удары сердца
+            {
+                pulse = 0;
+                Vector3 p = wound.TransformPoint(local);
+                Vector3 outDir = (p - wound.position).sqrMagnitude > 0.0001f ? (p - wound.position).normalized : wound.forward;
+                Fx.Blood(p, (outDir + Vector3.up * 0.5f).normalized, 0.35f * strength);
+            }
+            yield return null;
+        }
+        if (this == null || ragdoll == null || ragdoll.sinking) yield break;
+        Fx.BloodPool(wound.position, Random.Range(0.6f, 1.1f));
+        yield return new WaitForSeconds(Random.Range(0.6f, 1.4f));
         if (this == null || ragdoll == null || ragdoll.sinking) yield break;
         Fx.BloodPool(rig.b[HumanRig.Chest].position, Random.Range(0.9f, 1.6f));
+        // пропитанная кровью одежда
+        foreach (var r in GetComponentsInChildren<Renderer>())
+        {
+            if (r is ParticleSystemRenderer) continue;
+            var ms = r.materials;
+            foreach (var m in ms) if (m != null && m.renderQueue < 2500) m.color = Color.Lerp(m.color, new Color(0.25f, 0.05f, 0.04f), 0.18f);
+            r.materials = ms;
+        }
     }
 
     void DropGun(DamageInfo d)

@@ -239,6 +239,62 @@ public static class Mats
         }
     }
 
+    // Брызги крови: ядро, капли, вытянутые потёки по направлению удара (несколько вариантов)
+    static readonly Texture2D[] splatTex = new Texture2D[4];
+    public static Texture2D SplatterTex(int variant)
+    {
+        variant = Mathf.Abs(variant) % splatTex.Length;
+        if (splatTex[variant] != null) return splatTex[variant];
+        var rnd = new System.Random(31 + variant * 17);
+        float R() => (float)rnd.NextDouble();
+        var blobs = new List<Vector4>();   // x, y, радиус, вытянутость
+        blobs.Add(new Vector4(0.42f, 0.5f, 0.16f + R() * 0.06f, 1f));
+        for (int i = 0; i < 6; i++) blobs.Add(new Vector4(0.36f + R() * 0.16f, 0.4f + R() * 0.2f, 0.05f + R() * 0.07f, 1f));
+        for (int i = 0; i < 28; i++)
+        {
+            float a = (R() - 0.5f) * 1.5f, r = 0.18f + R() * 0.3f;
+            blobs.Add(new Vector4(0.42f + Mathf.Cos(a) * r, 0.5f + Mathf.Sin(a) * r, 0.006f + R() * 0.02f, 1f + R() * 3f));
+        }
+        splatTex[variant] = MakeTex(256, (x, y) =>
+        {
+            float v = 0;
+            foreach (var b in blobs)
+            {
+                float dx = (x - b.x) / b.w, dy = y - b.y;           // потёки вытянуты вдоль X (направление удара)
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                v = Mathf.Max(v, Mathf.Clamp01((b.z - d) / 0.012f + 0.5f));
+            }
+            float edge = Mathf.PerlinNoise(x * 23f + variant, y * 23f) * 0.35f;
+            v = Mathf.Clamp01(v * 1.1f - edge * (1f - v) * 2f);
+            float n = 0.7f + Mathf.PerlinNoise(x * 7f, y * 7f + variant) * 0.3f;
+            // по краю — темнее (подсохшее), в центре — сочнее
+            return new Color(n, n * 0.95f, n * 0.95f, v);
+        });
+        return splatTex[variant];
+    }
+
+    // Лужа: гладкая, с неровным краем и тёмной каймой
+    static Texture2D poolTex;
+    public static Texture2D PoolTex
+    {
+        get
+        {
+            if (poolTex != null) return poolTex;
+            poolTex = MakeTex(256, (x, y) =>
+            {
+                float dx = x - 0.5f, dy = y - 0.5f;
+                float ang = Mathf.Atan2(dy, dx);
+                float rr = 0.36f + Mathf.PerlinNoise(Mathf.Cos(ang) * 2f + 3f, Mathf.Sin(ang) * 2f + 7f) * 0.12f;
+                float d = Mathf.Sqrt(dx * dx + dy * dy);
+                float a = Mathf.Clamp01((rr - d) / 0.02f);
+                float rim = Mathf.Clamp01(1f - (rr - d) / 0.06f);
+                float c = Mathf.Lerp(1f, 0.55f, rim);
+                return new Color(c, c, c, a);
+            });
+            return poolTex;
+        }
+    }
+
     public static Texture2D HoleTex
     {
         get

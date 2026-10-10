@@ -53,6 +53,7 @@ public class PlayerController : MonoBehaviour
     Soldier corpse;
     public float suppress, hurt;
     public readonly List<Vector2> dmgDirs = new List<Vector2>(); // x — угол, y — время
+    public readonly List<Vector4> screenBlood = new List<Vector4>(); // x,y — место (0..1), z — размер, w — время
     public float hitMarkT = -1; public bool hitKill, hitHead;
     public int hits, kills;
     public bool magCheck;
@@ -242,6 +243,14 @@ public class PlayerController : MonoBehaviour
     public void OnHurt(DamageInfo d, float dmg)
     {
         hurt = Mathf.Min(1f, hurt + dmg / 40f);
+        // брызги на «объектив»: от сильных попаданий, взрывов и ближнего боя
+        if (Game.Blood > 0.01f && (dmg > 18f || Random.value < dmg / 25f))
+        {
+            int n = dmg > 40f ? 3 : 1;
+            for (int i = 0; i < n; i++)
+                screenBlood.Add(new Vector4(Random.Range(0.05f, 0.95f), Random.Range(0.1f, 0.9f), Random.Range(0.18f, 0.42f) * Mathf.Clamp(dmg / 30f, 0.6f, 1.6f), Time.time));
+            while (screenBlood.Count > 8) screenBlood.RemoveAt(0);
+        }
         if (Random.value < 0.6f) Sfx.Play2D("pain", 0.55f, Random.Range(0.95f, 1.05f));
         Fx.shake = Mathf.Max(Fx.shake, 0.2f + dmg / 120f);
         if (d.attacker != null)
