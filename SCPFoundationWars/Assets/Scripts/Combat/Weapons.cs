@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 // Модель оружия: точки хвата, дульный срез, магазин, прицел.
@@ -258,6 +259,16 @@ public class Gun
 
     public Gun(WeaponDef d) { def = d; ammo = d.mag; }
 
+    // Магазины в подсумках (у игрока): каждый со своим числом патронов, неполный при перезарядке возвращается
+    public List<int> mags;
+    public void UseMagPouches(int n)
+    {
+        if (Shells || def.mag <= 1) { reserveMags = n; return; }
+        mags = new List<int>();
+        for (int i = 0; i < n; i++) mags.Add(def.mag);
+        reserveMags = n;
+    }
+
     public float ReloadProgress => reloading ? Mathf.Clamp01((Time.time - reloadStart) / Mathf.Max(0.01f, reloadEnd - reloadStart)) : 0f;
     public bool Ready => (!reloading || (Shells && ammo > 0)) && ammo > 0 && Time.time >= nextFire;
 
@@ -295,8 +306,19 @@ public class Gun
         if (reloading && Time.time >= reloadEnd)
         {
             reloading = false;
-            ammo = def.mag;
-            if (reserveMags < 99) reserveMags--;
+            if (mags != null && mags.Count > 0)
+            {
+                if (ammo > 0) mags.Add(ammo);           // пустой выброшен, неполный — в подсумок
+                int bi = 0;
+                for (int i = 1; i < mags.Count; i++) if (mags[i] > mags[bi]) bi = i;
+                ammo = mags[bi]; mags.RemoveAt(bi);
+                reserveMags = mags.Count;
+            }
+            else
+            {
+                ammo = def.mag;
+                if (reserveMags < 99) reserveMags--;
+            }
             Sfx.Play(def.kind == WeaponKind.Shotgun || def.kind == WeaponKind.Sniper ? "bolt" : "magin", pos, 0.55f, Random.Range(0.9f, 1.1f), 25f);
         }
     }

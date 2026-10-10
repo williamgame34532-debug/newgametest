@@ -49,6 +49,12 @@ public partial class Game
         toggleOff = new GUIStyle(btn) { fontSize = 17 };
         tagSt = new GUIStyle { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         tagSt.normal.textColor = Color.black;
+        // шрифты (Google Fonts, OFL): заголовки — Russo One, текст — Oswald
+        fontTitle = Resources.Load<Font>("Branding/RussoOne");
+        fontHud = Resources.Load<Font>("Branding/Oswald");
+        foreach (var st in new[] { title, h1, btnBig }) if (fontTitle != null) { st.font = fontTitle; st.fontStyle = FontStyle.Normal; }
+        foreach (var st in new[] { h2, body, small, center, btn, ammoBig, feedSt, msgSt, toggleOn, toggleOff, tagSt }) if (fontHud != null) st.font = fontHud;
+        if (fontHud != null) GUI.skin.font = fontHud;
     }
 
     void Rect(Rect r, Color c) { var old = GUI.color; GUI.color = c; GUI.DrawTexture(r, white); GUI.color = old; }
@@ -432,16 +438,16 @@ public partial class Game
         {
             float t = b.cmdF.NextReinforcement(out string rn);
             if (rn != null && t < 600f)
-                Shadowed(new Rect(W / 2 - 300, 82, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
+                Shadowed(new Rect(W / 2 - 300, 104, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
         }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
         else if (SpectatorCam.Active) SpectatorHUD();
 
-        TeamBar(b);
+        bool playing = pc != null && !pc.dead;
+        if (!playing) { TeamBar(b); Feed(b); }
         Orders(b, pc);
-        Feed(b);
         Messages(b);
         if (b.over && !Paused) Results(b);
         if (Paused) PauseGUI();
@@ -466,10 +472,10 @@ public partial class Game
         SquadRt sq = pc != null && !pc.dead ? b.SquadOf(pc.squad) : null;
         if (sq != null)
         {
-            Rect(new Rect(20, 20, 640, 58), new Color(0, 0, 0, 0.5f));
-            Rect(new Rect(20, 20, 5, 58), sq.def.look.accent);
-            Label(new Rect(34, 22, 620, 24), "ПРИКАЗ — " + sq.def.name + " " + sq.def.nick, small, new Color(0.6f, 0.8f, 1f));
-            Label(new Rect(34, 44, 620, 30), sq.orderText, body, Color.white);
+            HudStyles();
+            Rect(new Rect(30, 26, 3, 44), new Color(1f, 0.78f, 0.3f, 0.8f));
+            Label(new Rect(42, 24, 620, 20), "ЗАДАЧА ОТРЯДА", new GUIStyle(hudS) { fontSize = 13 }, new Color(1f, 0.78f, 0.3f, 0.85f));
+            Label(new Rect(42, 44, 620, 28), sq.orderText, hudM, new Color(0.95f, 0.95f, 0.92f, 0.9f));
         }
         // маркер цели
         if ((pc != null && !pc.dead) || SpectatorCam.Active)
@@ -483,18 +489,23 @@ public partial class Game
                 if (behind) p = new Vector2(W - p.x, H - 40);
                 p.x = Mathf.Clamp(p.x, 40, W - 40); p.y = Mathf.Clamp(p.y, 90, H - 60);
                 float dist = Vector3.Distance(Cam.transform.position, pos);
+                // маркер тает, когда смотришь прямо на него или целишься
+                float centered = Vector2.Distance(p, new Vector2(W / 2, H / 2));
+                float ma = Mathf.Lerp(0.25f, 0.85f, Mathf.InverseLerp(60f, 220f, centered)) * (Input.GetMouseButton(1) ? 0.35f : 1f);
                 var m = GUI.matrix;
                 GUIUtility.RotateAroundPivot(45, p);
-                Rect(new Rect(p.x - 9, p.y - 9, 18, 18), new Color(1f, 0.8f, 0.2f, 0.9f));
-                Rect(new Rect(p.x - 5, p.y - 5, 10, 10), new Color(0, 0, 0, 0.6f));
+                Color oc = new Color(1f, 0.78f, 0.3f, ma);
+                Rect(new Rect(p.x - 6, p.y - 6, 12, 2), oc); Rect(new Rect(p.x - 6, p.y + 4, 12, 2), oc);
+                Rect(new Rect(p.x - 6, p.y - 6, 2, 12), oc); Rect(new Rect(p.x + 4, p.y - 6, 2, 12), oc);
                 GUI.matrix = m;
-                Shadowed(new Rect(p.x - 150, p.y + 12, 300, 24), name + "  " + Mathf.RoundToInt(dist) + " м", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, new Color(1f, 0.85f, 0.4f));
+                HudStyles();
+                Shadowed(new Rect(p.x - 150, p.y + 10, 300, 20), name.ToUpper() + "  ·  " + Mathf.RoundToInt(dist) + " м", new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, oc);
             }
         // захват ослабленного SCP
         var ct = b.captureTarget;
         if (ct != null)
         {
-            float x = W / 2 - 260, y = 92;
+            float x = W / 2 - 260, y = 134;
             Rect(new Rect(x, y, 520, 64), new Color(0, 0, 0, 0.6f));
             Label(new Rect(x, y + 2, 520, 24), "ЗАХВАТ " + ct.displayName + "  (держите зону 10 м вокруг объекта)", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, new Color(1f, 0.85f, 0.4f));
             Rect(new Rect(x + 10, y + 30, 500, 10), new Color(0.15f, 0.15f, 0.15f));
@@ -517,114 +528,246 @@ public partial class Game
         }
     }
 
+    // Переговоры и события — субтитрами внизу, как радиообмен
     void Messages(Battle b)
     {
-        float y = 172;
-        foreach (var m in b.messages)
+        HudStyles();
+        float y = H - 250;
+        for (int i = b.messages.Count - 1; i >= 0 && i >= b.messages.Count - 4; i--)
         {
-            float a = Mathf.Clamp01(5f - (Time.unscaledTime - m.time)) * Mathf.Clamp01((Time.unscaledTime - m.time) * 6f);
-            Shadowed(new Rect(0, y, W, 40), m.text, msgSt, new Color(m.color.r, m.color.g, m.color.b, a));
-            y += 42;
+            var m = b.messages[i];
+            float age = Time.unscaledTime - m.time;
+            float a = Mathf.Clamp01(5f - age) * Mathf.Clamp01(age * 6f);
+            string text = m.text;
+            string who = null;
+            int c = text.IndexOf(": ");
+            if (c > 0 && c < 40) { who = text.Substring(0, c); text = text.Substring(c + 2); }
+            var size = hudSub.CalcHeight(new GUIContent(text), 900);
+            float w = 960, x = W / 2 - w / 2;
+            Rect(new Rect(x, y - size - 6, w, size + (who != null ? 30 : 10)), new Color(0, 0, 0, 0.42f * a));
+            if (who != null)
+            {
+                Label(new Rect(x + 10, y - size - 4, w - 20, 22), "◉ " + who.ToUpper(), new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 14 }, new Color(m.color.r, m.color.g, m.color.b, a));
+                Label(new Rect(x + 30, y - size + 16, w - 60, size), text, hudSub, new Color(1, 1, 1, a));
+            }
+            else Label(new Rect(x + 30, y - size - 2, w - 60, size), text, hudSub, new Color(m.color.r, m.color.g, m.color.b, a));
+            y -= size + (who != null ? 40 : 20);
         }
     }
 
+    // ---------------- HUD (реалистичный: без цифр патронов, без маркеров попаданий) ----------------
+    GUIStyle hudS, hudM, hudL, hudXL, hudSub;
+    Font fontHud, fontTitle;
+
+    void HudStyles()
+    {
+        if (hudS != null) return;
+        hudS = new GUIStyle { fontSize = 15, font = fontHud, alignment = TextAnchor.MiddleLeft };
+        hudS.normal.textColor = Color.white;
+        hudM = new GUIStyle(hudS) { fontSize = 19 };
+        hudL = new GUIStyle(hudS) { fontSize = 26 };
+        hudXL = new GUIStyle(hudS) { fontSize = 44, alignment = TextAnchor.MiddleCenter };
+        hudSub = new GUIStyle(hudS) { fontSize = 21, alignment = TextAnchor.MiddleCenter, wordWrap = true };
+    }
+
+    static readonly Color HudWhite = new Color(0.92f, 0.94f, 0.9f, 0.92f), HudDim = new Color(0.75f, 0.78f, 0.74f, 0.6f), HudAmber = new Color(1f, 0.78f, 0.3f, 0.95f), HudRed = new Color(1f, 0.3f, 0.22f, 0.95f);
+
     void PlayerHUD(PlayerController pc)
     {
+        HudStyles();
         // ранения, подавление, моргание
-        if (pc.hurt > 0.01f || pc.unit.hp < pc.unit.maxHp * 0.3f)
+        float hpK = pc.unit.hp / pc.unit.maxHp;
+        if (pc.hurt > 0.01f || hpK < 0.35f)
         {
-            float low = pc.unit.hp < pc.unit.maxHp * 0.3f ? 0.18f + Mathf.Sin(Time.time * 5f) * 0.08f : 0f;
-            Vignette(new Color(0.6f, 0f, 0f, Mathf.Clamp01(pc.hurt * 0.55f + low)));
+            float low = hpK < 0.35f ? 0.22f + Mathf.Sin(Time.time * 4f) * 0.08f : 0f;
+            Vignette(new Color(0.45f, 0f, 0f, Mathf.Clamp01(pc.hurt * 0.6f + low)));
         }
-        if (pc.suppress > 0.01f) Vignette(new Color(0f, 0f, 0f, pc.suppress * 0.45f));
+        if (pc.suppress > 0.01f) Vignette(new Color(0f, 0f, 0f, pc.suppress * 0.55f));
         if (pc.Blinking) Rect(new Rect(0, 0, W, H), Color.black);
 
         var g = pc.Current;
         bool scoped = g != null && g.def.scope && Input.GetMouseButton(1) && !g.reloading;
         if (scoped) ScopeOverlay();
-        else if (!pc.riding && !Input.GetMouseButton(1)) Crosshair(pc);
+        else if (!pc.riding && !Input.GetMouseButton(1) && pc.fp != null && pc.fp.MagCheckW < 0.05f) Crosshair(pc);
 
-        // маркер попадания
-        float hm = Time.time - pc.hitMarkT;
-        if (hm < 0.25f)
-        {
-            Color c = pc.hitKill ? new Color(1f, 0.15f, 0.1f) : pc.hitHead ? new Color(1f, 0.85f, 0.2f) : Color.white;
-            c.a = 1f - hm / 0.25f;
-            float s = pc.hitKill ? 16 : 11;
-            var m = GUI.matrix;
-            Vector2 cc = new Vector2(W / 2, H / 2);
-            for (int i = 0; i < 4; i++)
-            {
-                GUIUtility.RotateAroundPivot(45 + i * 90, cc);
-                Rect(new Rect(cc.x - 1.5f, cc.y - s - 8, 3, s), c);
-                GUI.matrix = m;
-            }
-        }
-        // направления урона
+        // направления урона — тусклые дуги
         foreach (var d in pc.dmgDirs)
         {
             float a = 1f - (Time.time - d.y) / 2f;
             var m = GUI.matrix;
             Vector2 cc = new Vector2(W / 2, H / 2);
             GUIUtility.RotateAroundPivot(d.x, cc);
-            Rect(new Rect(cc.x - 40, cc.y - 200, 80, 10), new Color(1f, 0.1f, 0.05f, a * 0.8f));
+            for (int i = -3; i <= 3; i++) Rect(new Rect(cc.x + i * 14 - 6, cc.y - 230 + Mathf.Abs(i) * Mathf.Abs(i) * 2.2f, 12, 5), new Color(0.85f, 0.1f, 0.05f, a * 0.6f * (1f - Mathf.Abs(i) / 4f)));
             GUI.matrix = m;
         }
 
-        // здоровье
-        float hpK = pc.unit.hp / pc.unit.maxHp;
-        Rect(new Rect(30, H - 110, 380, 80), new Color(0, 0, 0, 0.5f));
-        Label(new Rect(44, H - 106, 360, 26), pc.squad.name + " " + pc.squad.nick, small, Color.Lerp(pc.squad.look.accent, Color.white, 0.4f));
-        Rect(new Rect(44, H - 76, 352, 20), new Color(0.2f, 0.2f, 0.2f, 0.9f));
-        Rect(new Rect(44, H - 76, 352 * hpK, 20), Color.Lerp(new Color(0.9f, 0.15f, 0.1f), new Color(0.3f, 0.85f, 0.4f), hpK));
-        Label(new Rect(44, H - 78, 352, 24), Mathf.CeilToInt(pc.unit.hp) + " / " + pc.unit.maxHp + "   броня " + Mathf.RoundToInt(pc.unit.armor * 100) + "%", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, Color.white);
-        Label(new Rect(44, H - 54, 360, 24), "Гранаты [G]: " + pc.grenades + "    Аптечки [H]: " + pc.medkits + "    Убийств: " + pc.unit.kills, small, new Color(0.85f, 0.85f, 0.85f));
+        if (!pc.riding) Compass(pc);
+        SquadRoster(pc, hpK);
+        WeaponPanel(pc, g);
+        MagCheckLabel(pc, g);
 
-        // патроны
-        if (g != null)
-        {
-            Rect(new Rect(W - 420, H - 140, 390, 110), new Color(0, 0, 0, 0.5f));
-            Label(new Rect(W - 410, H - 136, 370, 28), g.def.name, h2, Color.white);
-            string ammo = g.reloading ? "ПЕРЕЗАРЯДКА" : g.ammo.ToString();
-            var st = new GUIStyle(ammoBig) { fontSize = g.reloading ? 30 : 52 };
-            Label(new Rect(W - 420, H - 112, 270, 70), ammo, st, g.ammo == 0 && !g.reloading ? new Color(1f, 0.3f, 0.2f) : Color.white);
-            Label(new Rect(W - 145, H - 82, 110, 40), "/ " + g.def.mag + (g.reserveMags < 99 ? "  ×" + g.reserveMags : ""), small, new Color(0.75f, 0.75f, 0.75f));
-            if (g.reloading) Rect(new Rect(W - 410, H - 40, 370 * g.ReloadProgress, 5), new Color(0.9f, 0.7f, 0.2f));
-            float sx = W - 410;
-            for (int i = 0; i < 3; i++)
-            {
-                var gi = pc.GunAt(i);
-                if (gi == null) continue;
-                bool cur = pc.CurIndex == i;
-                Rect(new Rect(sx, H - 180, 120, 34), cur ? new Color(0.85f, 0.6f, 0.1f, 0.9f) : new Color(0, 0, 0, 0.5f));
-                Label(new Rect(sx, H - 180, 120, 34), (i + 1) + "  " + Short(gi.def.name), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, cur ? Color.black : Color.white);
-                sx += 126;
-            }
-        }
-        if (Battle.I != null && Battle.I.has173 && !pc.squad.blinkImmune)
-            Label(new Rect(30, H - 150, 600, 30), "◉ SCP-173 на поле: не отводите взгляд, моргание неизбежно", small, new Color(1f, 0.6f, 0.4f));
         if (Scp096.PlayerExposure > 0.05f)
         {
             float e = Scp096.PlayerExposure;
-            Shadowed(new Rect(0, H * 0.62f, W, 40), "⚠ НЕ СМОТРИТЕ НА ЛИЦО SCP-096 — ОТВЕДИТЕ ВЗГЛЯД!", msgSt, new Color(1f, 0.25f, 0.2f, 0.6f + 0.4f * Mathf.Sin(Time.time * 12f)));
-            Rect(new Rect(W / 2 - 150, H * 0.62f + 44, 300, 8), new Color(0, 0, 0, 0.6f));
-            Rect(new Rect(W / 2 - 150, H * 0.62f + 44, 300 * e, 8), new Color(1f, 0.2f, 0.15f));
+            Shadowed(new Rect(0, H * 0.64f, W, 34), "НЕ СМОТРИ НА ЕГО ЛИЦО", hudSub, new Color(1f, 0.25f, 0.2f, 0.5f + 0.5f * Mathf.Sin(Time.time * 12f)));
+            Rect(new Rect(W / 2 - 120, H * 0.64f + 38, 240, 3), new Color(0, 0, 0, 0.5f));
+            Rect(new Rect(W / 2 - 120, H * 0.64f + 38, 240 * e, 3), new Color(1f, 0.2f, 0.15f));
         }
-        if (pc.riding) Shadowed(new Rect(0, H * 0.72f, W, 40), "Вертолёт на подлёте к зоне высадки…", msgSt, new Color(1f, 0.9f, 0.6f));
+    }
+
+    // Компас как в современных шутерах: шкала, стороны света, цель
+    void Compass(PlayerController pc)
+    {
+        float cw = 640, cx = W / 2, y = 22;
+        float yaw = Cam.transform.eulerAngles.y;
+        float pxPerDeg = cw / 110f;
+        Rect(new Rect(cx - cw / 2, y + 26, cw, 1), new Color(1, 1, 1, 0.18f));
+        string[] card = { "С", "СВ", "В", "ЮВ", "Ю", "ЮЗ", "З", "СЗ" };
+        for (int d = 0; d < 360; d += 5)
+        {
+            float delta = Mathf.DeltaAngle(yaw, d);
+            if (Mathf.Abs(delta) > 55f) continue;
+            float x = cx + delta * pxPerDeg;
+            float fade = 1f - Mathf.Abs(delta) / 55f;
+            bool major = d % 45 == 0, mid = d % 15 == 0;
+            Rect(new Rect(x - 0.5f, y + (major ? 14 : mid ? 18 : 21), 1, major ? 12 : mid ? 8 : 5), new Color(1, 1, 1, 0.7f * fade));
+            if (major) Label(new Rect(x - 30, y - 8, 60, 24), card[d / 45], new GUIStyle(hudM) { alignment = TextAnchor.MiddleCenter }, new Color(1, 1, 1, 0.95f * fade));
+            else if (mid) Label(new Rect(x - 30, y - 4, 60, 20), d.ToString(), new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 12 }, new Color(1, 1, 1, 0.5f * fade));
+        }
+        // текущий курс
+        Rect(new Rect(cx - 1, y + 28, 2, 8), HudAmber);
+        Label(new Rect(cx - 40, y + 34, 80, 22), Mathf.RoundToInt(Mathf.Repeat(yaw, 360f)).ToString("000"), new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter }, HudWhite);
+        // цель операции на компасе
+        var b = Battle.I;
+        if (b != null && b.Objective(Team.Foundation, out var pos, out var name))
+        {
+            Vector3 to = pos - Cam.transform.position; to.y = 0;
+            float bearing = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+            float delta = Mathf.Clamp(Mathf.DeltaAngle(yaw, bearing), -55f, 55f);
+            float x = cx + delta * pxPerDeg;
+            var m = GUI.matrix;
+            GUIUtility.RotateAroundPivot(45, new Vector2(x, y + 20));
+            Rect(new Rect(x - 5, y + 15, 10, 10), HudAmber);
+            GUI.matrix = m;
+            Label(new Rect(x - 60, y + 50, 120, 20), Mathf.RoundToInt(to.magnitude) + " м", new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, HudAmber);
+        }
+        // свои отряды — синие засечки
+        foreach (var u in Unit.All)
+        {
+            if (!(u is Soldier so) || !so.alive || so.team != Team.Foundation || so.isPlayer || so.squadRt == null || so.squadRt.Leader != so) continue;
+            Vector3 to = so.transform.position - Cam.transform.position; to.y = 0;
+            if (to.magnitude < 8f) continue;
+            float delta = Mathf.DeltaAngle(yaw, Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg);
+            if (Mathf.Abs(delta) > 55f) continue;
+            Rect(new Rect(cx + delta * pxPerDeg - 2, y + 22, 4, 4), new Color(0.4f, 0.7f, 1f, 0.8f));
+        }
+    }
+
+    // Состав отряда (как в тактических шутерах): позывные и состояние, своё состояние без цифр
+    void SquadRoster(PlayerController pc, float hpK)
+    {
+        float x = 34, y = H - 60;
+        var b = Battle.I;
+        SquadRt sq = b != null ? b.SquadOf(pc.squad) : null;
+        // своё состояние
+        string st = hpK > 0.75f ? "В НОРМЕ" : hpK > 0.45f ? "РАНЕН" : hpK > 0.2f ? "ТЯЖЕЛО РАНЕН" : "КРИТИЧЕСКОЕ";
+        Color sc = hpK > 0.75f ? HudWhite : hpK > 0.45f ? HudAmber : HudRed;
+        Label(new Rect(x, y, 300, 26), "ВЫ  ·  " + st + (pc.crouching ? "  ·  ПРИСЕД" : ""), hudM, sc);
+        // тонкая сегментированная полоса
+        for (int i = 0; i < 10; i++)
+        {
+            float k = Mathf.Clamp01(hpK * 10f - i);
+            Rect(new Rect(x + i * 25, y + 28, 22, 4), new Color(1, 1, 1, 0.15f));
+            if (k > 0) Rect(new Rect(x + i * 25, y + 28, 22 * k, 4), sc);
+        }
+        if (sq == null) return;
+        y -= 34;
+        int shown = 0;
+        for (int i = sq.members.Count - 1; i >= 0 && shown < 9; i--)
+        {
+            var m = sq.members[i];
+            if (m == null) continue;
+            shown++;
+            bool alive = m.alive && !m.zombie;
+            float k = alive ? m.hp / m.maxHp : 0f;
+            Color c = !alive ? new Color(0.5f, 0.5f, 0.5f, 0.45f) : k > 0.6f ? new Color(0.55f, 0.85f, 0.55f, 0.85f) : k > 0.3f ? HudAmber : HudRed;
+            Rect(new Rect(x, y + 9, 8, 8), c);
+            string call = sq.def.name.Split(' ')[0].Split('-')[0] + "-" + (m.index + 1) + (m == sq.Leader ? "  (командир)" : "");
+            Label(new Rect(x + 16, y, 300, 26), call + (alive ? "" : "  — погиб"), hudS, alive ? HudDim : new Color(0.6f, 0.6f, 0.6f, 0.4f));
+            y -= 24;
+        }
+        Label(new Rect(x, y - 2, 400, 26), sq.def.name.ToUpper() + "  " + sq.def.nick, hudS, Color.Lerp(sq.def.look.accent, Color.white, 0.5f));
+    }
+
+    // Оружие: название, режим огня, запасные магазины (без счётчика патронов)
+    void WeaponPanel(PlayerController pc, Gun g)
+    {
+        if (g == null) return;
+        float r = W - 34, y = H - 60;
+        var right = new GUIStyle(hudL) { alignment = TextAnchor.MiddleRight };
+        Label(new Rect(r - 500, y - 30, 500, 34), g.def.name.ToUpper(), right, HudWhite);
+        string mode = g.def.rocket ? "ОДИНОЧН. · ВЫСТРЕЛ" : g.def.kind == WeaponKind.Shotgun ? "ПОМПА" : g.def.auto ? "АВТО" : "ОДИНОЧН.";
+        if (g.reloading) mode = "ПЕРЕЗАРЯДКА";
+        else if (g.ammo == 0) mode = "ПУСТО";
+        Label(new Rect(r - 500, y + 2, 500, 22), mode, new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight }, g.ammo == 0 && !g.reloading ? HudRed : HudDim);
+        // магазины в подсумках: силуэты, неполные — частично
+        float mx = r;
+        if (g.mags != null)
+            for (int i = g.mags.Count - 1; i >= 0; i--)
+            {
+                mx -= 12;
+                float k = g.mags[i] / (float)g.def.mag;
+                Rect(new Rect(mx, y + 28, 8, 20), new Color(1, 1, 1, 0.15f));
+                Rect(new Rect(mx, y + 28 + 20 * (1 - k), 8, 20 * k), HudWhite);
+            }
+        else
+        {
+            string res = g.def.kind == WeaponKind.Shotgun ? "патронов в запасе: " + (g.reserveMags < 99 ? (g.reserveMags * g.def.mag).ToString() : "∞") : "запас: " + g.reserveMags;
+            Label(new Rect(r - 300, y + 26, 300, 22), res, new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight }, HudDim);
+            mx = r - 300;
+        }
+        // гранаты и аптечки
+        Label(new Rect(r - 520, y + 26, 300, 22), "ГРАНАТЫ " + pc.grenades + "   ·   АПТЕЧКИ " + pc.medkits, new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 13 }, HudDim);
+        // слоты оружия
+        float sx = r;
+        for (int i = 2; i >= 0; i--)
+        {
+            var gi = pc.GunAt(i);
+            if (gi == null) continue;
+            bool cur = pc.CurIndex == i;
+            string n = (i + 1) + " " + Short(gi.def.name);
+            var sst = new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 13 };
+            float w = sst.CalcSize(new GUIContent(n)).x + 12;
+            sx -= w;
+            Label(new Rect(sx, y - 56, w, 20), n, sst, cur ? HudAmber : new Color(1, 1, 1, 0.35f));
+        }
+    }
+
+    // Проверка магазина: подпись у вынутого магазина
+    void MagCheckLabel(PlayerController pc, Gun g)
+    {
+        if (pc.fp == null || g == null || pc.fp.MagCheckW < 0.85f) return;
+        float sc = Screen.height / 1080f;
+        Vector2 p = pc.fp.MagLabelScreen / sc;
+        p.x = Mathf.Clamp(p.x, 120, W - 120); p.y = Mathf.Clamp(p.y, 120, H - 160);
+        float a = Mathf.InverseLerp(0.85f, 1f, pc.fp.MagCheckW);
+        string n = g.ammo.ToString();
+        string sub = g.Shells ? "патронов в трубке" : g.ammo == 0 ? "магазин пуст" : g.ammo == g.def.mag ? "полный магазин" : "патронов в магазине";
+        Rect(new Rect(p.x + 40, p.y - 34, 2, 68), new Color(1, 1, 1, 0.5f * a));
+        Shadowed(new Rect(p.x + 52, p.y - 40, 200, 56), n, new GUIStyle(hudXL) { alignment = TextAnchor.MiddleLeft }, new Color(1, 1, 1, a));
+        Shadowed(new Rect(p.x + 54, p.y + 10, 260, 24), sub + (g.Shells ? "" : "  · ещё " + (g.mags != null ? g.mags.Count : g.reserveMags) + " маг."), hudS, new Color(0.85f, 0.88f, 0.85f, a));
     }
 
     static string Short(string s) => s.Length > 10 ? s.Substring(0, 10) : s;
 
+    // Без большого перекрестия: еле заметная точка, тает в движении — целиться нужно прицелом
     void Crosshair(PlayerController pc)
     {
-        float gap = 8 + pc.spreadNow * 12f;
+        float a = Mathf.Clamp01(0.55f - pc.spreadNow * 0.6f);
+        if (a <= 0.02f) return;
         Vector2 c = new Vector2(W / 2, H / 2);
-        Color col = new Color(1, 1, 1, 0.85f);
-        Rect(new Rect(c.x - 1, c.y - gap - 10, 2, 10), col);
-        Rect(new Rect(c.x - 1, c.y + gap, 2, 10), col);
-        Rect(new Rect(c.x - gap - 10, c.y - 1, 10, 2), col);
-        Rect(new Rect(c.x + gap, c.y - 1, 10, 2), col);
-        Rect(new Rect(c.x - 1, c.y - 1, 2, 2), col);
+        Rect(new Rect(c.x - 2, c.y - 2, 4, 4), new Color(0, 0, 0, a * 0.5f));
+        Rect(new Rect(c.x - 1, c.y - 1, 2, 2), new Color(1, 1, 1, a));
     }
 
     void ScopeOverlay()

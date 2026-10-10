@@ -66,7 +66,11 @@ public class FPView : MonoBehaviour
     float drawT = 0f;
     Vector3 lastGunPos; Quaternion lastGunRot = Quaternion.identity;
 
-    public bool Busy => inspectT >= 0 || meleeT >= 0;
+    public bool Busy => inspectT >= 0 || meleeT >= 0 || magCheckW > 0.05f;
+    // проверка магазина (зажатый R): вес позы и экранная точка для подписи
+    float magCheckW;
+    public float MagCheckW => magCheckW;
+    public Vector2 MagLabelScreen;
 
     public static FPView Create(PlayerController pc, Camera cam)
     {
@@ -366,6 +370,29 @@ public class FPView : MonoBehaviour
         }
         else if (gm.pump != null && rl < 0) gm.pump.localPosition = gm.pumpRest;
 
+        // проверка магазина: оружие повёрнуто к себе, магазин выдвинут и в левой руке
+        magCheckW = Mathf.MoveTowards(magCheckW, pc.magCheck && !gun.reloading ? 1f : 0f, dt / 0.32f);
+        if (magCheckW > 0.001f)
+        {
+            float w = Mathf.SmoothStep(0f, 1f, magCheckW);
+            float o = S(0.45f, 1f, magCheckW);
+            pos += new Vector3(-0.07f, 0.04f, -0.04f) * w;
+            rot += new Vector3(-14f, -32f, 48f) * w;
+            if (gm.mag != null && !shells)
+            {
+                magOffset += new Vector3(0, -0.085f, 0.012f) * o;
+                magInHand = true;
+                lTarget = gm.mag.position - gm.transform.up * 0.04f; lW = w;
+                lRot = HandPose.Hold(gm.transform.rotation, 0.6f);
+            }
+            else
+            {
+                // дробовик/пистолет без магазина: смотрим в окно, левая рука придерживает
+                lTarget = gm.foregrip.position; lW = w;
+                lRot = HandPose.Grip(gm.transform.rotation);
+            }
+        }
+
         // граната
         float th = pc.ThrowT;
         if (th >= 0)
@@ -478,6 +505,12 @@ public class FPView : MonoBehaviour
         if (lTarget.HasValue) { lPalm = Vector3.Lerp(lPalm, lTarget.Value, lW); lq = Quaternion.Slerp(lq, lRot, lW); }
         if (rTarget.HasValue) { rPalm = Vector3.Lerp(rPalm, rTarget.Value, rW); rq = Quaternion.Slerp(rq, rRot, rW); }
         if (magInHand && gm.mag != null && lW > 0.5f) gm.mag.position = Vector3.Lerp(gm.mag.position, lPalm + lq * new Vector3(0, -0.04f, 0), 0.6f);
+        if (magCheckW > 0.01f && vmCam != null)
+        {
+            Vector3 at = gm.mag != null && !shells ? gm.mag.position + gm.transform.up * -0.02f : gm.transform.TransformPoint(new Vector3(0, 0, 0.1f));
+            Vector3 sp = vmCam.WorldToScreenPoint(at);
+            MagLabelScreen = new Vector2(sp.x, Screen.height - sp.y);
+        }
         // плечи слегка следуют за оружием (корпус)
         uL.localPosition = Vector3.Lerp(uL.localPosition, shoulderL + new Vector3(pos.x * 0.3f, pos.y * 0.25f, 0), 1f - Mathf.Exp(-12f * dt));
         uR.localPosition = Vector3.Lerp(uR.localPosition, shoulderR + new Vector3(pos.x * 0.3f, pos.y * 0.25f, 0), 1f - Mathf.Exp(-12f * dt));

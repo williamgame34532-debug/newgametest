@@ -55,6 +55,8 @@ public class PlayerController : MonoBehaviour
     public readonly List<Vector2> dmgDirs = new List<Vector2>(); // x — угол, y — время
     public float hitMarkT = -1; public bool hitKill, hitHead;
     public int hits, kills;
+    public bool magCheck;
+    float rDownT = -1f;
     public bool Blinking => Time.time < blinkEnd;
     float blinkT, blinkEnd;
     bool grounded;
@@ -104,8 +106,9 @@ public class PlayerController : MonoBehaviour
         // оружие и руки от первого лица
         pc.fp = FPView.Create(pc, cam);
 
-        pc.guns[0] = new Gun(DB.W(def.primary)) { reserveMags = 8 };
-        pc.guns[1] = def.secondary != null ? new Gun(DB.W(def.secondary)) { reserveMags = 6 } : null;
+        pc.guns[0] = new Gun(DB.W(def.primary)); pc.guns[0].UseMagPouches(DB.W(def.primary).kind == WeaponKind.LMG ? 3 : 6);
+        pc.guns[1] = def.secondary != null ? new Gun(DB.W(def.secondary)) : null;
+        if (pc.guns[1] != null) pc.guns[1].UseMagPouches(3);
         pc.guns[2] = def.special != null ? new Gun(DB.W(def.special)) { reserveMags = DB.W(def.special).rocket ? 4 : 3 } : null;
         pc.grenades = Mathf.Max(1, def.grenades);
         pc.flashlightOn = MapGen.Night;
@@ -410,6 +413,7 @@ public class PlayerController : MonoBehaviour
         }
         if (want >= 0 && want != cur && guns[want] != null && switchT < 0)
         {
+            magCheck = false;
             g.CancelReload();
             switchT = 0; switchTo = want; swapped = false;
             Sfx.Play2D("weapon_switch", 0.5f);
@@ -431,6 +435,7 @@ public class PlayerController : MonoBehaviour
         // граната
         if (Input.GetKeyDown(KeyCode.G) && grenades > 0 && throwT < 0)
         {
+            magCheck = false;
             throwT = 0;
             g.CancelReload();
         }
@@ -483,8 +488,20 @@ public class PlayerController : MonoBehaviour
             healEndT = Time.time + 1.4f;
             Sfx.Play2D("magout", 0.6f, 0.6f);
         }
-        // перезарядка
-        if (Input.GetKeyDown(KeyCode.R) && !g.reloading && g.ammo < g.def.mag) g.StartReload(transform.position);
+        // R: коротко — перезарядка, зажать — вынуть магазин и посмотреть, сколько осталось
+        if (Input.GetKeyDown(KeyCode.R)) rDownT = Time.time;
+        if (rDownT > 0 && Input.GetKey(KeyCode.R) && !magCheck && Time.time - rDownT > 0.28f && !g.reloading && !g.def.rocket)
+        {
+            magCheck = true;
+            Sfx.Play2D(g.Shells ? "click" : "magout", 0.3f, 1.25f);
+        }
+        if (Input.GetKeyUp(KeyCode.R) || (rDownT > 0 && !Input.GetKey(KeyCode.R)))
+        {
+            if (magCheck) { magCheck = false; Sfx.Play2D(g.Shells ? "click" : "magin", 0.4f, 1.15f); }
+            else if (rDownT > 0 && !g.reloading && g.ammo < g.def.mag) g.StartReload(transform.position);
+            rDownT = -1;
+        }
+        if (magCheck || fp.MagCheckW > 0.05f) { adsW = Mathf.MoveTowards(adsW, 0f, dt / 0.18f); return; }
         // прицеливание
         bool ads = Input.GetMouseButton(1) && (!g.reloading || g.Shells) && sprintW < 0.5f && healT < 0;
         adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / 0.18f);
@@ -494,8 +511,8 @@ public class PlayerController : MonoBehaviour
         {
             if (g.ammo <= 0 && !g.reloading)
             {
+                // реализм: щелчок — и сам решай, когда перезаряжаться
                 if (Input.GetMouseButtonDown(0)) Sfx.Play2D("click", 0.6f);
-                if (g.reserveMags > 0) g.StartReload(transform.position);
             }
             else
             {
