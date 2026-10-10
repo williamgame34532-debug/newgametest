@@ -9,6 +9,11 @@ public class SquadRt
     public SquadDef def;
     public Team team;
     public readonly List<Soldier> members = new List<Soldier>();
+    // приказ командира
+    public Vector3 lz, orderPos;
+    public string orderText = "Высадка";
+    public bool orderSet, hold, overwatch;
+    public int flank;
     public Soldier Leader { get { foreach (var m in members) if (m != null && m.alive && !m.zombie && m.state == Soldier.State.Combat) return m; return null; } }
     public int Alive { get { int n = 0; foreach (var m in members) if (m != null && m.alive) n++; return n; } }
 }
@@ -43,6 +48,11 @@ public class Soldier : Unit
     bool attackHit;
     Vector3 lastPos;
     Vector3 vel;
+    bool wasReloading, reloadEmpty;
+    float meleeStart = -1, meleeCd;
+    bool meleeDone;
+    float signalCd;
+    bool holding;
 
     public override Vector3 Velocity => vel;
     public override Vector3 LookDir => aimDir;
@@ -87,9 +97,15 @@ public class Soldier : Unit
 
     public void BuildBody(Look look, BodyShape shape)
     {
+        bool mdl = look != null && ModelLib.HasSoldier;
+        if (mdl) shape = ModelLib.SoldierShape(look.bulk);
         rig = HumanRig.Create(transform, shape);
-        if (look != null) rig.DressSoldier(look);
-        rig.Finish();
+        if (mdl) rig.DressModel(look, squad != null ? squad.id : "z");
+        else
+        {
+            if (look != null) rig.DressSoldier(look);
+            rig.Finish();
+        }
         ragdoll = Ragdoll.BuildHuman(rig, this);
         anim = gameObject.AddComponent<HumanAnimator>();
         anim.rig = rig;
@@ -316,6 +332,35 @@ public class Soldier : Unit
         anim.aimDir = aimDir;
         anim.aiming = target != null && targetVisible;
         anim.reload01 = current != null && current.reloading ? current.ReloadProgress : -1f;
+        if (current != null && current.reloading && !wasReloading) reloadEmpty = current.ammo == 0;
+        wasReloading = current != null && current.reloading;
+        anim.reloadEmpty = reloadEmpty;
+        anim.shellPhase = current != null ? current.ShellPhase : 0f;
+        anim.wounded = Mathf.Clamp01((0.5f - hp / maxHp) * 2f);
+        anim.suppressed = Mathf.Clamp01(1f - (Time.time - lastHitTime) / 1.2f) * (courage < 1.5f ? 0.8f : 0.3f);
+        // удар прикладом, если враг вплотную
+        if (meleeStart >= 0)
+        {
+            float m = (Time.time - meleeStart) / 0.65f;
+            anim.melee01 = m;
+            if (!meleeDone && m > 0.42f)
+            {
+                meleeDone = true;
+                if (target != null && target.alive && Vector3.Distance(target.transform.position, transform.position) < 2.2f)
+                {
+                    Vector3 dir = (target.AimPoint - EyePos).normalized;
+                    target.TakeDamage(new DamageInfo { amount = 45f, type = DamageType.Melee, attacker = this, dir = dir, force = 450f, point = target.AimPoint, weapon = "Приклад" });
+                    Sfx.Play("flesh", target.AimPoint, 0.7f, 0.8f, 25f);
+                    Fx.Blood(target.AimPoint, dir, 0.6f);
+                }
+            }
+            if (m >= 1f) { meleeStart = -1; anim.melee01 = -1; }
+        }
+        else if (target != null && target.alive && throwStart < 0 && Time.time > meleeCd && Vector3.Distance(target.transform.position, transform.position) < 1.7f)
+        {
+            meleeStart = Time.time; meleeDone = false; meleeCd = Time.time + 1.4f;
+            Sfx.Play("whoosh", transform.position, 0.4f, 1.3f, 20f);
+        }
         anim.throw01 = throwStart >= 0 ? (Time.time - throwStart) / 0.9f : -1f;
         if (throwStart >= 0 && Time.time - throwStart > 0.9f) throwStart = -1;
         anim.sprint = vel.magnitude > 4.8f && target == null;
@@ -324,6 +369,7 @@ public class Soldier : Unit
             crouchT = Time.time + Random.Range(2f, 5f);
             anim.crouch = target != null && targetVisible && vel.magnitude < 0.5f && Random.value < 0.45f && (current == null || current.def.kind != WeaponKind.Launcher);
         }
+        if (holding && target == null && vel.magnitude < 0.5f) anim.crouch = index % 3 != 0;
         if (vel.magnitude > 1.5f) anim.crouch = false;
         anim.speedMul = speedMul;
 
@@ -371,6 +417,11 @@ public class Soldier : Unit
             if (score < bestScore) { bestScore = score; best = u; }
         }
         if (best != target) { aimSettle = 0; burstLeft = 0; }
+        if (best != null && target == null && squadRt != null && squadRt.Leader == this && Time.time > signalCd)
+        {
+            signalCd = Time.time + 15f;
+            anim.DoSignal(Signal.Point);
+        }
         target = best;
         targetVisible = best != null;
         if (targetVisible) sightT = Time.time;
@@ -542,6 +593,24 @@ public class Soldier : Unit
                 agent.speed = baseSpeed * 0.55f;
             }
             if (current != null && current.reloading) agent.speed *= 0.7f;
+            // не уходим далеко от точки приказа
+            if (squadRt != null && squadRt.orderSet)
+            {
+                float leash = squadRt.hold ? 28f : squadRt.overwatch ? 20f : 55f;
+                if (Vector3.Distance(goal, squadRt.orderPos) > leash) goal = Vector3.Lerp(goal, squadRt.orderPos, 0.6f);
+            }
+            holding = false;
+        }
+        else if (squadRt != null && squadRt.orderSet)
+        {
+            // идём к точке приказа и занимаем место в построении вокруг неё
+            float ang = index * 137.5f * Mathf.Deg2Rad;
+            float rad = squadRt.hold ? 4f + (index % 3) * 2.5f : 3f + (index % 4) * 2f;
+            Vector3 slot = squadRt.orderPos + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * rad;
+            float d = Vector3.Distance(me, slot);
+            goal = d > 1.5f ? slot : me;
+            agent.speed = baseSpeed * (d > 25f ? 1.3f : d > 6f ? 1f : 0.6f);
+            holding = squadRt.hold && d < 3f;
         }
         else
         {
@@ -657,6 +726,7 @@ public class Soldier : Unit
         anim.style = AnimStyle.Zombie;
         anim.gun = null;
         anim.aiming = false; anim.crouch = false; anim.reload01 = -1; anim.throw01 = -1;
+        anim.dying = -1f; anim.melee01 = -1f; anim.wounded = 0f; anim.idleActs = false;
         anim.BlendFromCurrent(1.6f);
         MeshKit.Tint(gameObject, new Color(0.75f, 0.8f, 0.72f), 0.25f, new Color(0.35f, 0.4f, 0.32f));
         if (agent != null) { agent.enabled = false; }
@@ -728,7 +798,8 @@ public class Soldier : Unit
     // ---------------- урон и смерть ----------------
     protected override void OnHurt(DamageInfo d, float dmg)
     {
-        anim.Flinch(d.dir, Mathf.Clamp(dmg / 25f, 0.3f, 1.5f));
+        int bone = d.hitbox != null ? System.Array.IndexOf(rig.b, d.hitbox.transform) : -1;
+        anim.HitReact(d.dir, Mathf.Clamp(dmg / 25f, 0.3f, 1.5f), bone < 0 ? HumanRig.Chest : bone);
         if (!zombie && target == null && d.attacker != null && IsEnemy(d.attacker)) { target = d.attacker; thinkT = Time.time + 0.2f; }
         if (zombie && Random.value < 0.3f) Sfx.Play("groan", transform.position, 0.6f, 1.2f, 30f);
     }
@@ -740,21 +811,51 @@ public class Soldier : Unit
         if (transform.parent != null) transform.SetParent(null, true);
         inVehicle = false;
         if (agent != null) agent.enabled = false;
-        anim.enabled = false;
-        // шея ломается (SCP-173) — голова резко поворачивается, но в пределах сустава
-        if (d.type == DamageType.NeckSnap)
+        bool headshot = d.hitbox != null && d.hitbox.head;
+        // от пули в корпус/конечности боец сначала оседает (подгибаются колени), а потом падает физически;
+        // взрыв, выстрел в голову, удар SCP — сразу безвольное тело
+        bool collapse = (d.type == DamageType.Bullet || d.type == DamageType.Melee || d.type == DamageType.Fire) && !headshot && d.force < 900f && anim.enabled && !zombie;
+        if (collapse) StartCoroutine(Collapse(d));
+        else
         {
-            rig.b[HumanRig.Head].localRotation = Quaternion.Euler(-25f, 50f, 20f);
-            Sfx.Play("snap", rig.b[HumanRig.Head].position, 0.9f, 1f, 30f);
+            anim.enabled = false;
+            // шея ломается (SCP-173) — голова резко поворачивается, но в пределах сустава
+            if (d.type == DamageType.NeckSnap)
+            {
+                rig.b[HumanRig.Head].localRotation = Quaternion.Euler(-25f, 50f, 20f);
+                Sfx.Play("snap", rig.b[HumanRig.Head].position, 0.9f, 1f, 30f);
+            }
+            DropGun(d);
+            ragdoll.Activate(d, vel * 0.6f);
         }
-        DropGun(d);
-        ragdoll.Activate(d, vel * 0.6f);
         if (d.hitbox != null && d.hitbox.head && d.type == DamageType.Bullet)
         {
             Fx.Blood(d.point, d.dir, 2.2f, d.hitbox.transform);
             Sfx.Play("headshot", d.point, 0.7f, Random.Range(0.9f, 1.1f), 30f);
         }
         if (d.type != DamageType.Corrosion && d.type != DamageType.Fire) StartCoroutine(BleedOut());
+    }
+
+    IEnumerator Collapse(DamageInfo d)
+    {
+        float dur = Random.Range(0.22f, 0.4f);
+        float t = 0;
+        anim.dying = 0f;
+        anim.HitReact(d.dir, 1.2f, d.hitbox != null ? System.Array.IndexOf(rig.b, d.hitbox.transform) : HumanRig.Chest);
+        Vector3 v0 = vel;
+        bool dropped = false;
+        while (t < dur)
+        {
+            t += Time.deltaTime;
+            anim.dying = t / dur;
+            anim.velocity = Vector3.Lerp(v0, Vector3.zero, t / dur);
+            if (!dropped && t > dur * 0.35f) { dropped = true; DropGun(d); }
+            yield return null;
+        }
+        if (!dropped) DropGun(d);
+        anim.enabled = false;
+        d.force *= 0.6f;
+        ragdoll.Activate(d, v0 * 0.4f);
     }
 
     IEnumerator BleedOut()

@@ -27,20 +27,22 @@ public class PlayerController : MonoBehaviour
     public SquadDef squad;
     public CharacterController cc;
     public Transform camHolder;
-    Camera vmCam;
-    Transform vmRoot, vmPivot;
-    GunModel vm;
-    Transform armR, armL, gloveR, gloveL;
+    public FPView fp;
     readonly Gun[] guns = new Gun[3];
     int cur;
     public Vector3 velocity;
     public bool crouching;
     float yaw, pitch, recoilP, recoilY, recoilVelP;
     float camH = 1.65f;
-    float adsW, sprintW, bob, bobAmt, landKick;
-    Vector3 swayPos; Vector3 swayRot;
-    Vector3 vmKick; Vector3 vmKickVel;
+    public float adsW, sprintW, bob, bobAmt, landKick;
     float switchT = -1; int switchTo = -1; bool swapped;
+    public float SwitchT => switchT;
+    public float ThrowT => throwT >= 0 ? Mathf.Clamp01(throwT) : -1f;
+    public float HealT => healT >= 0 ? Mathf.Clamp01(1f - (healEndT - Time.time) / 1.4f) : -1f;
+    public bool OnRope { get; private set; }
+    public bool Airborne => !grounded && !riding && !scripted;
+    float healEndT;
+    bool meleeHit;
     public int grenades, medkits = 2;
     float throwT = -1, healT = -1;
     public bool riding;
@@ -98,29 +100,16 @@ public class PlayerController : MonoBehaviour
         cam.nearClipPlane = 0.04f;
         cam.cullingMask = ~(1 << Layers.ViewModel);
 
-        // камера оружия поверх мира
-        var vgo = new GameObject("vmCam");
-        vgo.transform.SetParent(cam.transform, false);
-        pc.vmCam = vgo.AddComponent<Camera>();
-        pc.vmCam.clearFlags = CameraClearFlags.Depth;
-        pc.vmCam.cullingMask = 1 << Layers.ViewModel;
-        pc.vmCam.depth = cam.depth + 1;
-        pc.vmCam.nearClipPlane = 0.01f;
-        pc.vmCam.farClipPlane = 5f;
-        pc.vmCam.fieldOfView = 58f;
-        pc.vmRoot = new GameObject("vmRoot").transform;
-        pc.vmRoot.SetParent(cam.transform, false);
-        pc.vmPivot = new GameObject("vmPivot").transform;
-        pc.vmPivot.SetParent(pc.vmRoot, false);
+        // оружие и руки от первого лица
+        pc.fp = FPView.Create(pc, cam);
 
         pc.guns[0] = new Gun(DB.W(def.primary)) { reserveMags = 8 };
         pc.guns[1] = def.secondary != null ? new Gun(DB.W(def.secondary)) { reserveMags = 6 } : null;
         pc.guns[2] = def.special != null ? new Gun(DB.W(def.special)) { reserveMags = def.special == "rpg" ? 4 : 3 } : null;
         pc.grenades = Mathf.Max(1, def.grenades);
-        pc.BuildArms();
+        pc.flashlightOn = MapGen.Night;
         pc.Equip(0);
         pc.blinkT = Time.time + 6f;
-        pc.flashlightOn = MapGen.Night;
         return pc;
     }
 
@@ -128,48 +117,17 @@ public class PlayerController : MonoBehaviour
     {
         if (I == null) return;
         if (Game.Cam != null && Game.Cam.transform.IsChildOf(I.transform)) Game.Cam.transform.SetParent(null, true);
+        if (I.fp != null) I.fp.Dispose();
         Destroy(I.gameObject);
         I = null;
         Ballistics.player = null;
     }
 
-    void BuildArms()
-    {
-        var L = squad.look;
-        Color sleeve = L.uniform, glove = L.head == HeadGear.Bare ? L.skin : L.gear;
-        Transform Arm(string n, out Transform gloveT)
-        {
-            var a = new GameObject(n).transform;
-            a.SetParent(vmRoot, false);
-            var sl = new GameObject("sleeve").transform; sl.SetParent(a, false);
-            MeshKit.Cyl(sl, Vector3.zero, 1f, 2f, Mats.Get(sleeve, 0.2f));
-            var g = new GameObject("glove").transform; g.SetParent(vmRoot, false);
-            MeshKit.Box(g, new Vector3(0, 0, 0.0f), new Vector3(0.075f, 0.05f, 0.11f), Mats.Get(glove, 0.3f));
-            MeshKit.Box(g, new Vector3(-0.035f, 0.0f, 0.03f), new Vector3(0.025f, 0.025f, 0.06f), Mats.Get(glove, 0.3f), new Vector3(0, -30, 0));
-            MeshKit.Cyl(g, new Vector3(0, 0, -0.07f), 0.075f, 0.05f, Mats.Get(L.armor, 0.3f), new Vector3(90, 0, 0));
-            gloveT = g;
-            return a;
-        }
-        armR = Arm("armR", out gloveR);
-        armL = Arm("armL", out gloveL);
-        MeshKit.SetLayer(vmRoot.gameObject, Layers.ViewModel);
-        MeshKit.NoShadows(vmRoot.gameObject);
-    }
-
     void Equip(int i)
     {
         if (guns[i] == null) return;
-        if (vm != null) Destroy(vm.gameObject);
         cur = i;
-        vm = WeaponModels.Build(guns[i].def, vmPivot, true);
-        if (vm.flashlight != null)
-        {
-            vm.flashlight.enabled = flashlightOn;
-            vm.flashlight.range = 40; vm.flashlight.intensity = 2.6f; vm.flashlight.shadows = LightShadows.Soft;
-        }
-        MeshKit.SetLayer(vm.gameObject, Layers.ViewModel);
-        MeshKit.NoShadows(vm.gameObject);
-        // фонарик освещает мир — свет не зависит от слоя
+        fp.Equip(guns[i], flashlightOn);
     }
 
     // ---------------- вертолёт ----------------
@@ -209,6 +167,7 @@ public class PlayerController : MonoBehaviour
         if (ropeTop.HasValue)
         {
             Sfx.Play2D("rope", 0.7f);
+            OnRope = true;
             Vector3 p = new Vector3(ropeTop.Value.x, transform.position.y, ropeTop.Value.z);
             float sp = 0;
             while (p.y > ground.y + 0.05f && !dead)
@@ -234,6 +193,7 @@ public class PlayerController : MonoBehaviour
                 yield return null;
             }
         }
+        OnRope = false;
         transform.position = ground + Vector3.up * 0.05f;
         landKick = 1f;
         Sfx.Play2D("step", 0.8f, 0.8f);
@@ -299,9 +259,7 @@ public class PlayerController : MonoBehaviour
         corpse.state = Soldier.State.Dead;
         if (crouching) corpse.anim.crouch = true;
         StartCoroutine(DropCorpse(d));
-        if (vm != null) vm.gameObject.SetActive(false);
-        vmRoot.gameObject.SetActive(false);
-        vmCam.enabled = false;
+        fp.SetVisible(false);
         // камера отделяется и смотрит на тело
         Game.Cam.transform.SetParent(null, true);
         Sfx.Play2D("heartbeat", 0.8f, 0.7f);
@@ -361,30 +319,28 @@ public class PlayerController : MonoBehaviour
             transform.localRotation = Quaternion.Euler(0, yaw, 0);
             camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, 0);
             camHolder.localPosition = new Vector3(0, 1.15f, 0) + Fx.ShakeOffset;
-            ViewModel(dt, true);
             Blink();
             return;
         }
         transform.rotation = Quaternion.Euler(0, yaw + recoilY, 0);
         camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, 0);
 
-        if (scripted) { ViewModel(dt, false); camHolder.localPosition = new Vector3(0, camH, 0); return; }
+        if (scripted) { camHolder.localPosition = new Vector3(0, camH, 0); return; }
 
         Move(dt);
         Weapons(dt);
-        ViewModel(dt, false);
         Blink();
 
         suppress = Mathf.MoveTowards(suppress, 0, dt * 0.5f);
         hurt = Mathf.MoveTowards(hurt, 0, dt * 0.6f);
         dmgDirs.RemoveAll(v => Time.time - v.y > 2f);
-        if (healT >= 0 && Time.time > healT) { healT = -1; unit.hp = Mathf.Min(unit.maxHp, unit.hp + 60f); Sfx.Play2D("magin", 0.6f, 0.7f); }
+        if (healT >= 0 && Time.time > healEndT) { healT = -1; }
+        if (healT >= 0 && healT < 0.5f && HealT >= 0.55f) { healT = 1f; unit.hp = Mathf.Min(unit.maxHp, unit.hp + 60f); Sfx.Play2D("magin", 0.6f, 0.7f); }
 
         float fovTarget = Game.Fov;
         var g = Current;
         if (g != null) fovTarget = Mathf.Lerp(Game.Fov, g.def.scope ? g.def.zoomFov : Game.Fov * 0.72f, adsW);
         Game.Cam.fieldOfView = Mathf.Lerp(Game.Cam.fieldOfView, fovTarget + sprintW * 6f, 1f - Mathf.Exp(-12f * dt));
-        vmCam.fieldOfView = Mathf.Lerp(58f, g != null && g.def.scope ? 30f : 45f, adsW);
         if (transform.position.y < -50) unit.Kill(DamageType.Fall);
     }
 
@@ -467,7 +423,7 @@ public class PlayerController : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.F))
         {
             flashlightOn = !flashlightOn;
-            if (vm != null && vm.flashlight != null) vm.flashlight.enabled = flashlightOn;
+            fp.SetFlashlight(flashlightOn);
             Sfx.Play2D("click", 0.5f);
         }
         // граната
@@ -478,32 +434,61 @@ public class PlayerController : MonoBehaviour
         }
         if (throwT >= 0)
         {
-            throwT += dt / 0.8f;
-            if (throwT >= 0.45f && grenades > 0 && throwT - dt / 0.8f < 0.45f)
+            // взвод (0.3–0.45 — чека), замах, бросок в 0.6
+            float prev = throwT;
+            throwT += dt / 1.05f;
+            if (prev < 0.36f && throwT >= 0.36f) Sfx.Play2D("click", 0.7f, 1.6f);
+            if (throwT >= 0.6f && prev < 0.6f && grenades > 0)
             {
                 grenades--;
-                Vector3 from = camHolder.position + camHolder.forward * 0.5f + camHolder.right * 0.2f;
+                Vector3 from = fp.GrenadeWorldPos;
+                if (Physics.Linecast(camHolder.position, from, Layers.SightMask)) from = camHolder.position + camHolder.forward * 0.3f;
                 Grenade.Spawn(from, camHolder.forward * 17f + Vector3.up * 3f + velocity * 0.5f, unit, false, 170f);
                 Sfx.Play2D("whoosh", 0.5f);
             }
             if (throwT >= 1f) throwT = -1;
             return;
         }
+        // удар прикладом
+        if (Input.GetKeyDown(KeyCode.V) && !fp.Busy) { fp.Melee(); meleeHit = false; g.CancelReload(); Sfx.Play2D("whoosh", 0.5f, 1.4f); }
+        if (fp.MeleeT >= 0)
+        {
+            if (!meleeHit && fp.MeleeT > 0.3f)
+            {
+                meleeHit = true;
+                if (Combat.Ray(camHolder.position, camHolder.forward, 2.2f, unit, out var mh))
+                {
+                    var hb = mh.collider.GetComponent<Hitbox>();
+                    if (hb != null && hb.owner != null && hb.owner.alive)
+                    {
+                        hb.owner.TakeDamage(new DamageInfo { amount = 55f, type = DamageType.Melee, attacker = unit, dir = camHolder.forward, force = 500f, point = mh.point, hitbox = hb, weapon = "Приклад" });
+                        Fx.Blood(mh.point, camHolder.forward, 0.8f);
+                        HitMarker(!hb.owner.alive, false);
+                    }
+                    else Fx.Impact(mh.point, mh.normal, new Color(0.5f, 0.5f, 0.5f), false);
+                    Sfx.Play2D("flesh", 0.9f, 0.8f);
+                    Fx.shake = Mathf.Max(Fx.shake, 0.25f);
+                }
+            }
+            return;
+        }
+        if (Input.GetKeyDown(KeyCode.I)) fp.Inspect();
         // аптечка
         if (Input.GetKeyDown(KeyCode.H) && medkits > 0 && healT < 0 && unit.hp < unit.maxHp)
         {
             medkits--;
-            healT = Time.time + 1.2f;
+            healT = 0f;
+            healEndT = Time.time + 1.4f;
             Sfx.Play2D("magout", 0.6f, 0.6f);
         }
         // перезарядка
         if (Input.GetKeyDown(KeyCode.R) && !g.reloading && g.ammo < g.def.mag) g.StartReload(transform.position);
         // прицеливание
-        bool ads = Input.GetMouseButton(1) && !g.reloading && sprintW < 0.5f;
+        bool ads = Input.GetMouseButton(1) && (!g.reloading || g.Shells) && sprintW < 0.5f && healT < 0;
         adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / 0.18f);
         // стрельба
         bool trig = g.def.auto ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
-        if (trig && Cursor.lockState == CursorLockMode.Locked && sprintW < 0.4f)
+        if (trig && Cursor.lockState == CursorLockMode.Locked && sprintW < 0.4f && healT < 0 && !fp.Busy)
         {
             if (g.ammo <= 0 && !g.reloading)
             {
@@ -515,133 +500,20 @@ public class PlayerController : MonoBehaviour
                 float hv = new Vector2(velocity.x, velocity.z).magnitude;
                 float spread = Mathf.Lerp(1f, 0.3f, adsW) * (1f + hv / 6f) * (crouching ? 0.75f : 1f) * (grounded ? 1f : 2.5f);
                 if (g.def.kind == WeaponKind.Shotgun) spread = Mathf.Max(spread, 0.8f);
-                Vector3 muzzle = vm != null ? vm.muzzle.position : camHolder.position;
                 // мировая точка дульного среза (вьюмодель рисуется своей камерой — пересчитываем)
-                Vector3 vp = vmCam.WorldToViewportPoint(muzzle);
-                Vector3 worldMuzzle = Game.Cam.ViewportToWorldPoint(new Vector3(vp.x, vp.y, Mathf.Max(0.3f, vp.z)));
+                Vector3 worldMuzzle = fp.gm != null ? fp.ToWorld(fp.gm.muzzle.position) : camHolder.position;
                 if (g.Fire(unit, camHolder.position, camHolder.forward, spread, worldMuzzle))
                 {
                     float r = g.def.recoil * (1f - adsW * 0.35f) * (crouching ? 0.8f : 1f);
                     recoilVelP += r * 16f;
                     pitch -= r * 0.35f;
                     yaw += Random.Range(-0.35f, 0.35f) * r;
-                    vmKickVel += new Vector3(Random.Range(-0.3f, 0.3f), 0.6f, -2.2f) * r;
+                    fp.Kick(r);
                     Fx.shake = Mathf.Max(Fx.shake, 0.05f * r);
                 }
             }
         }
         spreadNow = g.def.spread * Mathf.Lerp(1f, 0.3f, adsW) * (1f + new Vector2(velocity.x, velocity.z).magnitude / 6f) * (crouching ? 0.75f : 1f);
-    }
-
-    // ---------------- оружие в руках ----------------
-    void ViewModel(float dt, bool seated)
-    {
-        var g = Current;
-        if (vm == null || g == null) return;
-        var def = g.def;
-        Vector3 s = vm.sight.localPosition;
-        bool pistol = def.kind == WeaponKind.Pistol;
-        Vector3 hip = pistol ? new Vector3(0.13f, -0.15f, 0.36f) : def.id == "rpg" ? new Vector3(0.2f, -0.2f, 0.25f) : new Vector3(0.16f, -0.17f, 0.3f);
-        float eyeRelief = def.scope ? 0.1f : pistol ? 0.33f : 0.22f;
-        Vector3 adsPos = new Vector3(-s.x, -s.y, eyeRelief - s.z);
-        Vector3 pos = Vector3.Lerp(hip, adsPos, Mathf.SmoothStep(0, 1, adsW));
-        Vector3 rot = Vector3.zero;
-        // бег — оружие опущено и развёрнуто
-        pos += new Vector3(-0.04f, -0.05f, -0.04f) * sprintW;
-        rot += new Vector3(12f, -38f, 18f) * sprintW;
-        if (seated) { pos += new Vector3(-0.05f, -0.12f, -0.05f); rot += new Vector3(-55f, -10f, 10f); }
-        // покачивание при ходьбе
-        float bw = bobAmt * (1f - adsW * 0.85f);
-        pos += new Vector3(Mathf.Cos(bob) * 0.012f, -Mathf.Abs(Mathf.Sin(bob)) * 0.016f, 0) * bw * (1f + sprintW * 1.5f);
-        rot += new Vector3(Mathf.Abs(Mathf.Sin(bob)) * 2f, Mathf.Cos(bob) * 1.5f, Mathf.Cos(bob) * 2f) * bw * (1f + sprintW);
-        // дыхание
-        float br = Mathf.Sin(Time.time * 1.4f) * (1f - adsW * 0.8f);
-        pos.y += br * 0.004f;
-        // инерция взгляда
-        float mx = Cursor.lockState == CursorLockMode.Locked ? Input.GetAxisRaw("Mouse X") : 0, my = Cursor.lockState == CursorLockMode.Locked ? Input.GetAxisRaw("Mouse Y") : 0;
-        swayRot = Vector3.Lerp(swayRot, new Vector3(my * 1.5f, -mx * 2f, -mx * 2.5f) * (1f - adsW * 0.7f), 1f - Mathf.Exp(-8f * dt));
-        swayPos = Vector3.Lerp(swayPos, new Vector3(-mx * 0.006f, -my * 0.006f, 0) * (1f - adsW * 0.7f), 1f - Mathf.Exp(-8f * dt));
-        pos += swayPos; rot += swayRot;
-        // приземление
-        pos.y -= landKick * 0.05f;
-        rot.x += landKick * 6f;
-        // отдача
-        vmKickVel += (-vmKick * 260f - vmKickVel * 20f) * dt;
-        vmKick += vmKickVel * dt;
-        pos += new Vector3(vmKick.x * 0.004f, vmKick.y * 0.004f, vmKick.z * 0.012f);
-        rot += new Vector3(-vmKick.y * 2.5f - Mathf.Abs(vmKick.z) * 1.2f, vmKick.x * 2f, vmKick.x * 1.5f);
-        // перезарядка
-        float rl = g.reloading ? g.ReloadProgress : -1f;
-        if (rl >= 0)
-        {
-            float w = Mathf.Sin(Mathf.Clamp01(rl) * Mathf.PI);
-            float ww = Mathf.Clamp01(Mathf.Min(rl, 1f - rl) * 6f);
-            pos += new Vector3(-0.03f, -0.05f, -0.02f) * ww;
-            rot += new Vector3(10f * w + 6f * ww, -12f * ww, 28f * ww);
-            if (vm.mag != null)
-            {
-                if (rl > 0.15f && rl < 0.75f)
-                {
-                    float k = rl < 0.4f ? (rl - 0.15f) / 0.25f : rl < 0.55f ? 1f : 1f - (rl - 0.55f) / 0.2f;
-                    vm.mag.localPosition = vm.magRest + new Vector3(0, -0.28f, -0.05f) * Mathf.SmoothStep(0, 1, k);
-                }
-                else vm.mag.localPosition = vm.magRest;
-            }
-            if (vm.pump != null) vm.pump.localPosition = vm.pumpRest + new Vector3(0, 0, -0.07f * Mathf.Abs(Mathf.Sin(rl * Mathf.PI * 5f)));
-        }
-        else if (vm.mag != null) vm.mag.localPosition = vm.magRest;
-        // затвор дробовика после выстрела
-        if (vm.pump != null && rl < 0)
-        {
-            float since = Time.time - (g.nextFire - def.Interval);
-            float pk = since < 0.5f && since > 0.12f ? Mathf.Sin((since - 0.12f) / 0.38f * Mathf.PI) : 0;
-            vm.pump.localPosition = vm.pumpRest + new Vector3(0, 0, -0.08f * pk);
-        }
-        // смена оружия
-        if (switchT >= 0)
-        {
-            float k = Mathf.Sin(Mathf.Clamp01(switchT) * Mathf.PI);
-            pos += new Vector3(0, -0.3f, 0) * k;
-            rot += new Vector3(40f, 0, 0) * k;
-        }
-        // бросок гранаты — оружие уходит вниз
-        if (throwT >= 0)
-        {
-            float k = Mathf.Sin(Mathf.Clamp01(throwT) * Mathf.PI);
-            pos += new Vector3(0.05f, -0.25f, 0) * k;
-            rot += new Vector3(30f, 20f, 0) * k;
-        }
-        if (healT >= 0)
-        {
-            pos += new Vector3(0, -0.25f, 0);
-            rot += new Vector3(35f, 0, 0);
-        }
-        vmPivot.localPosition = Vector3.Lerp(vmPivot.localPosition, pos, 1f - Mathf.Exp(-22f * dt));
-        vmPivot.localRotation = Quaternion.Slerp(vmPivot.localRotation, Quaternion.Euler(rot), 1f - Mathf.Exp(-18f * dt));
-
-        // руки: от "плеч" к точкам хвата
-        Vector3 shR = new Vector3(0.26f, -0.38f, -0.05f), shL = new Vector3(-0.18f, -0.4f, 0.0f);
-        Vector3 gr = vmRoot.InverseTransformPoint(vm.grip.position);
-        Vector3 fg = vmRoot.InverseTransformPoint(vm.foregrip.position);
-        if (rl > 0.1f && rl < 0.8f && vm.mag != null)
-            fg = Vector3.Lerp(fg, vmRoot.InverseTransformPoint(vm.mag.position + vm.transform.up * -0.05f), Mathf.Sin((rl - 0.1f) / 0.7f * Mathf.PI));
-        if (throwT >= 0)
-        {
-            float k = Mathf.Sin(Mathf.Clamp01(throwT) * Mathf.PI);
-            gr = Vector3.Lerp(gr, new Vector3(0.25f, 0.05f + (throwT > 0.45f ? -0.2f : 0.1f), throwT > 0.45f ? 0.5f : 0.05f), k);
-        }
-        PlaceArm(armR, gloveR, shR, gr, vm.transform.rotation * Quaternion.Euler(0, 0, -10));
-        PlaceArm(armL, gloveL, shL, fg, vm.transform.rotation * Quaternion.Euler(0, 0, 70));
-    }
-
-    void PlaceArm(Transform arm, Transform glove, Vector3 shoulder, Vector3 hand, Quaternion handRot)
-    {
-        Vector3 d = hand - shoulder;
-        arm.localPosition = (shoulder + hand) * 0.5f;
-        arm.localRotation = Quaternion.FromToRotation(Vector3.up, d.normalized);
-        arm.localScale = new Vector3(0.085f, d.magnitude * 0.5f, 0.085f);
-        glove.position = vmRoot.TransformPoint(hand);
-        glove.rotation = handRot;
     }
 
     void Blink()

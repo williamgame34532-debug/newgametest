@@ -24,6 +24,7 @@ public class QuadScp : ScpUnit
     Vector3 lookDir = Vector3.forward;
 
     public override Vector3 LookDir => head != null ? head.forward : transform.forward;
+    float lie;   // 0..1 — ослаблен и лежит
 
     // ---------------- SCP-939 ----------------
     public static QuadScp Create939(Vector3 pos, Quaternion rot)
@@ -301,6 +302,7 @@ public class QuadScp : ScpUnit
         if (!alive || pelvis == null) return;
         float dt = Mathf.Min(Time.deltaTime, 0.05f);
         if (dt <= 0) return;
+        lie = Mathf.MoveTowards(lie, subdued ? 1f : 0f, dt * 1.5f);
         float sc = transform.lossyScale.y;
         Vector3 lv = transform.InverseTransformDirection(vel);
         float raw = new Vector2(lv.x, lv.z).magnitude;
@@ -328,6 +330,7 @@ public class QuadScp : ScpUnit
                 lx = front ? 20f : -30f;
             }
             if (chargeT >= 0 && chargeT < 0.5f) { ux = front ? 15f : -10f; lx = front ? 30f : -40f; }
+            if (lie > 0.01f) { ux = Mathf.Lerp(ux, front ? -70f : 70f, lie); lx = Mathf.Lerp(lx, front ? 110f : -110f, lie); }
             legCur[i] = Quaternion.Slerp(legCur[i], Quaternion.Euler(ux, 0, 0), k);
             legCur[i + 4] = Quaternion.Slerp(legCur[i + 4], Quaternion.Euler(lx, 0, 0), k);
             legU[i].localRotation = legCur[i];
@@ -335,7 +338,7 @@ public class QuadScp : ScpUnit
             foot[i].localRotation = Quaternion.Euler(-(ux + lx) * 0.8f, 0, 0);
         }
         float bob = Mathf.Sin(phase * 2f) * 0.04f * move + Mathf.Sin(phase) * 0.05f * gallop;
-        pelvis.localPosition = new Vector3(0, H + bob - (chargeT >= 0 && chargeT < 0.5f ? 0.12f : 0f), -bodyLen * 0.25f);
+        pelvis.localPosition = new Vector3(0, Mathf.Lerp(H + bob - (chargeT >= 0 && chargeT < 0.5f ? 0.12f : 0f), H * 0.38f, lie), -bodyLen * 0.25f);
         pelvisCur = Quaternion.Slerp(pelvisCur, Quaternion.Euler(Mathf.Sin(phase) * 5f * gallop, Mathf.Sin(phase) * 4f * move, Mathf.Cos(phase) * 3f * move), k);
         pelvis.localRotation = pelvisCur;
         chestCur = Quaternion.Slerp(chestCur, Quaternion.Euler(-Mathf.Sin(phase) * 7f * gallop + Mathf.Sin(Time.time * 2f) * 1.5f, -Mathf.Sin(phase) * 5f * move, 0), k);

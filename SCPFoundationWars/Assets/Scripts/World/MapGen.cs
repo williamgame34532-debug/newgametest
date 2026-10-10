@@ -16,10 +16,12 @@ public static class MapGen
     static readonly List<Vector3> keepOut = new List<Vector3>();
     static Material groundMat, concreteMat, darkConcrete;
     static Color dirtColor;
-    public const float Size = 340f;
-    public const float Play = 112f;
+    public const float Size = 640f;
+    public const float Play = 235f;
     static int mapKind;
     static readonly List<Light> lamps = new List<Light>();
+    static Vector3 sunDir = Vector3.up;
+    static Color sunCol = Color.white, fogColor = Color.gray;
 
     static float R() => (float)rng.NextDouble();
     static float R(float a, float b) => a + (b - a) * (float)rng.NextDouble();
@@ -29,8 +31,9 @@ public static class MapGen
         float r = Mathf.Sqrt(x * x + z * z);
         float hills = (Mathf.PerlinNoise(x * 0.012f + 100, z * 0.012f + 50) - 0.5f) * 14f + (Mathf.PerlinNoise(x * 0.05f, z * 0.05f) - 0.5f) * 2.5f;
         float flat = (Mathf.PerlinNoise(x * 0.03f + 7, z * 0.03f + 3) - 0.5f) * 1.2f;
-        float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(95f, 160f, r));
-        return Mathf.Lerp(flat, hills + 2f, k);
+        float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(215f, 300f, r));
+        float mid = (Mathf.PerlinNoise(x * 0.008f + 31, z * 0.008f + 77) - 0.5f) * 5f;   // пологие холмы внутри зоны боя
+        return Mathf.Lerp(flat + mid, hills * 1.6f + 3f, k);
     }
 
     public static void Build(int map, int time, List<Vector3> lzs, int seed)
@@ -59,11 +62,14 @@ public static class MapGen
         BuildGround();
         foreach (var lz in lzs) Helipad(lz);
         BuildFacility();
+        BuildOutposts();
+        BuildRoads();
         BuildCover(map);
         BuildNature(map);
         BuildBounds();
         Lighting(map, time, fog);
-        BakeNav();
+        Mountains(map, fog);
+        Physics.SyncTransforms();
     }
 
     public static void Clear()
@@ -78,7 +84,7 @@ public static class MapGen
     // ---------------- рельеф ----------------
     static void BuildGround()
     {
-        int res = 136;
+        int res = 210;
         float step = Size / res;
         var verts = new Vector3[(res + 1) * (res + 1)];
         var uvs = new Vector2[verts.Length];
@@ -278,7 +284,7 @@ public static class MapGen
         Color[] contCols = { new Color(0.6f, 0.15f, 0.1f), new Color(0.15f, 0.3f, 0.55f), new Color(0.2f, 0.4f, 0.2f), new Color(0.75f, 0.45f, 0.1f), new Color(0.4f, 0.4f, 0.42f) };
         int n = 0;
         // контейнеры
-        for (int i = 0; i < 60 && n < 14; i++)
+        for (int i = 0; i < 220 && n < 44; i++)
         {
             Vector3 p = new Vector3(R(-Play + 10, Play - 10), 0, R(-Play + 10, Play - 10));
             if (Blocked(p, 5)) continue;
@@ -295,7 +301,7 @@ public static class MapGen
             if (R() < 0.3f) Solid(p + Vector3.up * 3.9f + rot * new Vector3(0, 0, R(-1, 1)), new Vector3(2.5f, 2.6f, 6.1f), Mats.Get(contCols[rng.Next(contCols.Length)], 0.3f, 0.3f), rot * Quaternion.Euler(0, R(-8, 8), 0), c, true, root);
         }
         // бетонные блоки
-        for (int i = 0; i < 80 && n < 40; i++)
+        for (int i = 0; i < 320 && n < 150; i++)
         {
             Vector3 p = new Vector3(R(-Play + 5, Play - 5), 0, R(-Play + 5, Play - 5));
             if (Blocked(p, 3)) continue;
@@ -310,7 +316,7 @@ public static class MapGen
             }
         }
         // мешки с песком полукругом
-        for (int i = 0; i < 60 && n < 60; i++)
+        for (int i = 0; i < 320 && n < 270; i++)
         {
             Vector3 p = new Vector3(R(-Play + 8, Play - 8), 0, R(-Play + 8, Play - 8));
             if (Blocked(p, 3)) continue;
@@ -319,7 +325,8 @@ public static class MapGen
             Sandbags(p, face, root);
         }
         // вышки
-        Vector3[] towers = { new Vector3(-60, 0, -30), new Vector3(60, 0, 30), new Vector3(-55, 0, 40), new Vector3(55, 0, -40) };
+        Vector3[] towers = { new Vector3(-60, 0, -30), new Vector3(60, 0, 30), new Vector3(-55, 0, 40), new Vector3(55, 0, -40),
+            new Vector3(-150, 0, -120), new Vector3(150, 0, -120), new Vector3(-150, 0, 120), new Vector3(150, 0, 120), new Vector3(0, 0, -150), new Vector3(0, 0, 150) };
         foreach (var tp in towers) if (!Blocked(tp, 4)) Tower(OnGround(tp.x, tp.z), root);
         // фонари
         for (int i = 0; i < 14; i++)
@@ -330,7 +337,7 @@ public static class MapGen
             LightPole(OnGround(p.x, p.z), root);
         }
         // грузовики
-        for (int i = 0; i < 20 && n < 66; i++)
+        for (int i = 0; i < 90 && n < 300; i++)
         {
             Vector3 p = new Vector3(R(-Play + 15, Play - 15), 0, R(-Play + 15, Play - 15));
             if (Blocked(p, 5)) continue;
@@ -338,7 +345,7 @@ public static class MapGen
             Truck(OnGround(p.x, p.z), R(0, 360), root);
         }
         // ящики
-        for (int i = 0; i < 40; i++)
+        for (int i = 0; i < 160; i++)
         {
             Vector3 p = new Vector3(R(-Play, Play), 0, R(-Play, Play));
             if (Blocked(p, 2)) continue;
@@ -474,12 +481,12 @@ public static class MapGen
     {
         var root = new GameObject("Nature").transform;
         root.SetParent(Root.transform);
-        int trees = map == 1 ? 420 : map == 2 ? 30 : map == 3 ? 260 : 220;
-        int rocks = map == 2 ? 90 : 40;
+        int trees = map == 1 ? 1500 : map == 2 ? 90 : map == 3 ? 900 : 800;
+        int rocks = map == 2 ? 300 : 140;
         for (int i = 0; i < trees; i++)
         {
             float a = R(0, Mathf.PI * 2);
-            float r = map == 1 && R() < 0.35f ? R(30, 105) : R(98, Size / 2 - 8);
+            float r = R() < (map == 1 ? 0.45f : 0.25f) ? R(40, Play) : R(Play - 20, Size / 2 - 8);
             Vector3 p = new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
             if (Blocked(p, 3)) continue;
             p = OnGround(p.x, p.z, -0.1f);
@@ -498,7 +505,7 @@ public static class MapGen
             var bushM = Mats.Get(map == 3 ? new Color(0.7f, 0.75f, 0.78f) : new Color(0.18f, 0.28f, 0.1f), 0.05f);
             var bushes = new GameObject("bushes"); bushes.transform.SetParent(root);
             int made = 0;
-            for (int i = 0; i < 260; i++)
+            for (int i = 0; i < 900; i++)
             {
                 Vector3 p = new Vector3(R(-Size / 2 + 5, Size / 2 - 5), 0, R(-Size / 2 + 5, Size / 2 - 5));
                 if (Blocked(p, 1)) continue;
@@ -562,7 +569,7 @@ public static class MapGen
     {
         var root = new GameObject("Bounds").transform;
         root.SetParent(Root.transform);
-        float e = 150f;
+        float e = Size / 2f - 12f;
         for (int i = 0; i < 4; i++)
         {
             var w = new GameObject("wall"); w.transform.SetParent(root);
@@ -585,33 +592,43 @@ public static class MapGen
         sun.shadowBias = 0.04f;
         sun.shadowNormalBias = 0.3f;
         RenderSettings.sun = sun;
-        var sky = new Material(Shader.Find("Skybox/Procedural"));
+        var skyShader = Shader.Find("SCP/Sky");
+        var sky = new Material(skyShader != null ? skyShader : Shader.Find("Skybox/Procedural"));
         Color amb1, amb2, amb3;
+        float cover = map == 2 ? 0.22f : map == 1 ? 0.55f : map == 3 ? 0.62f : 0.42f;
         switch (time)
         {
             case 1: // закат
                 sunGo.transform.rotation = Quaternion.Euler(9f, 250f, 0);
                 sun.color = new Color(1f, 0.6f, 0.35f); sun.intensity = 1.15f;
-                sky.SetColor("_SkyTint", new Color(0.9f, 0.5f, 0.4f)); sky.SetFloat("_AtmosphereThickness", 1.7f); sky.SetFloat("_Exposure", 1.1f);
                 amb1 = new Color(0.45f, 0.38f, 0.42f); amb2 = new Color(0.32f, 0.26f, 0.24f); amb3 = new Color(0.15f, 0.12f, 0.1f);
                 fog = Color.Lerp(fog, new Color(0.8f, 0.5f, 0.35f), 0.6f);
+                Sky(sky, new Color(0.16f, 0.2f, 0.42f), new Color(0.98f, 0.55f, 0.32f), fog, new Color(1f, 0.55f, 0.25f), new Color(1f, 0.68f, 0.48f), new Color(0.36f, 0.24f, 0.32f), cover + 0.1f, 0f);
                 break;
             case 2: // ночь
                 sunGo.transform.rotation = Quaternion.Euler(38f, 120f, 0);
                 sun.color = new Color(0.55f, 0.65f, 1f); sun.intensity = 0.16f;
-                sky.SetColor("_SkyTint", new Color(0.1f, 0.12f, 0.25f)); sky.SetFloat("_AtmosphereThickness", 0.4f); sky.SetFloat("_Exposure", 0.12f);
                 amb1 = new Color(0.07f, 0.08f, 0.13f); amb2 = new Color(0.05f, 0.06f, 0.09f); amb3 = new Color(0.02f, 0.02f, 0.03f);
                 fog = new Color(0.03f, 0.04f, 0.07f);
+                Sky(sky, new Color(0.008f, 0.012f, 0.035f), new Color(0.04f, 0.055f, 0.1f), fog, new Color(0, 0, 0), new Color(0.09f, 0.1f, 0.14f), new Color(0.025f, 0.03f, 0.05f), cover * 0.7f, 1f);
+                sky.SetVector("_SunDir", new Vector4(0, -1, 0, 0));
+                sky.SetVector("_MoonDir", -sunGo.transform.forward);
                 break;
             default:
                 sunGo.transform.rotation = Quaternion.Euler(48f, 35f, 0);
                 sun.color = map == 2 ? new Color(1f, 0.93f, 0.8f) : new Color(1f, 0.96f, 0.9f); sun.intensity = 1.25f;
-                sky.SetColor("_SkyTint", new Color(0.5f, 0.55f, 0.65f)); sky.SetFloat("_AtmosphereThickness", map == 2 ? 1.3f : 1f); sky.SetFloat("_Exposure", 1.25f);
                 amb1 = new Color(0.55f, 0.6f, 0.7f); amb2 = new Color(0.4f, 0.4f, 0.38f); amb3 = new Color(0.2f, 0.18f, 0.15f);
+                Sky(sky, map == 2 ? new Color(0.25f, 0.45f, 0.78f) : new Color(0.2f, 0.4f, 0.78f), map == 2 ? new Color(0.85f, 0.82f, 0.75f) : new Color(0.66f, 0.79f, 0.93f), fog, new Color(1f, 0.95f, 0.85f), new Color(1f, 1f, 1f), new Color(0.55f, 0.6f, 0.68f), cover, 0f);
                 break;
         }
-        sky.SetFloat("_SunSize", 0.04f);
-        sky.SetColor("_GroundColor", fog * 0.8f);
+        if (time != 2) sky.SetVector("_SunDir", -sunGo.transform.forward);
+        sunDir = -sunGo.transform.forward;
+        sunCol = sun.color * sun.intensity;
+        if (skyShader == null)
+        {
+            sky.SetFloat("_SunSize", 0.04f);
+            sky.SetColor("_GroundColor", fog * 0.8f);
+        }
         RenderSettings.skybox = sky;
         RenderSettings.ambientMode = AmbientMode.Trilight;
         RenderSettings.ambientSkyColor = amb1;
@@ -620,16 +637,214 @@ public static class MapGen
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
         RenderSettings.fogColor = fog;
-        RenderSettings.fogDensity = time == 2 ? 0.012f : map == 1 ? 0.009f : map == 3 ? 0.01f : 0.005f;
+        RenderSettings.fogDensity = time == 2 ? 0.009f : map == 1 ? 0.0055f : map == 3 ? 0.006f : 0.0035f;
+        fogColor = fog;
         RenderSettings.reflectionIntensity = time == 2 ? 0.2f : 0.7f;
-        QualitySettings.shadowDistance = 110f;
+        QualitySettings.shadowDistance = 140f;
         QualitySettings.shadowCascades = 2;
         QualitySettings.pixelLightCount = time == 2 ? 10 : 4;
         DynamicGI.UpdateEnvironment();
     }
 
+    static void Sky(Material m, Color zenith, Color horizon, Color haze, Color sun, Color cloudLit, Color cloudShadow, float cover, float stars)
+    {
+        m.SetColor("_Zenith", zenith);
+        m.SetColor("_Horizon", horizon);
+        m.SetColor("_Ground", haze * 0.7f);
+        m.SetColor("_Haze", Color.Lerp(horizon, haze, 0.6f));
+        m.SetColor("_SunColor", sun);
+        m.SetColor("_CloudColor", cloudLit);
+        m.SetColor("_CloudShadow", cloudShadow);
+        m.SetFloat("_CloudCover", cover);
+        m.SetFloat("_Stars", stars);
+        m.SetFloat("_SunSize", 1f);
+    }
+
+    // ---------------- горы на горизонте ----------------
+    static void Mountains(int map, Color fog)
+    {
+        var sh = Shader.Find("SCP/Distant");
+        if (sh == null) return;
+        var root = new GameObject("Mountains").transform;
+        root.SetParent(Root.transform);
+        Color rock = map == 2 ? new Color(0.62f, 0.48f, 0.34f) : map == 3 ? new Color(0.45f, 0.48f, 0.53f) : map == 1 ? new Color(0.2f, 0.28f, 0.18f) : new Color(0.32f, 0.36f, 0.3f);
+        Color snow = new Color(0.93f, 0.95f, 0.98f);
+        bool snowy = map != 2;
+        float[] radii = { 760f, 920f, 1100f };
+        float[] haze = { 0.32f, 0.52f, 0.7f };
+        for (int ring = 0; ring < 3; ring++)
+        {
+            int seg = 96;
+            float r = radii[ring];
+            var v = new List<Vector3>(); var c = new List<Color>(); var t = new List<int>();
+            var peaks = new float[seg + 1];
+            for (int i = 0; i <= seg; i++)
+            {
+                float a = i / (float)seg * Mathf.PI * 2f;
+                float n = Mathf.PerlinNoise(Mathf.Cos(a) * 2.2f + ring * 7f + 10f, Mathf.Sin(a) * 2.2f + ring * 3f + 10f);
+                float n2 = Mathf.PerlinNoise(Mathf.Cos(a) * 9f + ring * 5f, Mathf.Sin(a) * 9f + 40f);
+                peaks[i] = (40f + n * (map == 2 ? 110f : 190f) + n2 * 45f) * (1f + ring * 0.35f);
+            }
+            peaks[seg] = peaks[0];
+            for (int i = 0; i < seg; i++)
+            {
+                float a0 = i / (float)seg * Mathf.PI * 2f, a1 = (i + 1) / (float)seg * Mathf.PI * 2f, am = (a0 + a1) * 0.5f;
+                Vector3 d0 = new Vector3(Mathf.Cos(a0), 0, Mathf.Sin(a0)), d1 = new Vector3(Mathf.Cos(a1), 0, Mathf.Sin(a1)), dm = new Vector3(Mathf.Cos(am), 0, Mathf.Sin(am));
+                float jag = (Mathf.PerlinNoise(i * 0.7f + ring * 13f, 3f) - 0.3f) * 60f * (1f + ring * 0.3f);
+                Vector3 b0 = d0 * (r + 60f) + Vector3.down * 40f, b1 = d1 * (r + 60f) + Vector3.down * 40f;
+                Vector3 p0 = d0 * r + Vector3.up * peaks[i], p1 = d1 * r + Vector3.up * peaks[i + 1];
+                Vector3 pm = dm * (r - 25f) + Vector3.up * (Mathf.Max(peaks[i], peaks[i + 1]) + jag);
+                Vector3 bm = dm * (r + 60f) + Vector3.down * 40f;
+                void Tri(Vector3 x, Vector3 y, Vector3 z)
+                {
+                    // лицом к центру карты
+                    Vector3 nrm = Vector3.Cross(y - x, z - x);
+                    int k = v.Count;
+                    if (Vector3.Dot(nrm, -(x + y + z)) < 0) { var tmp = y; y = z; z = tmp; }
+                    foreach (var q in new[] { x, y, z })
+                    {
+                        v.Add(q);
+                        float hk = Mathf.InverseLerp(0f, 260f * (1f + ring * 0.35f), q.y);
+                        Color col = Color.Lerp(rock * 0.75f, rock * 1.1f, hk);
+                        if (snowy && q.y > 150f * (1f + ring * 0.3f)) col = snow;
+                        c.Add(col);
+                    }
+                    t.Add(k); t.Add(k + 1); t.Add(k + 2);
+                }
+                Tri(b0, p0, pm); Tri(b0, pm, bm); Tri(bm, pm, p1); Tri(bm, p1, b1);
+            }
+            var mesh = new Mesh { name = "mountains" + ring };
+            mesh.SetVertices(v); mesh.SetColors(c); mesh.SetTriangles(t, 0);
+            mesh.RecalculateNormals(); mesh.RecalculateBounds();
+            var go = new GameObject("ring" + ring);
+            go.transform.SetParent(root);
+            go.transform.position = new Vector3(0, -10f, 0);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var mr = go.AddComponent<MeshRenderer>();
+            var mat = new Material(sh);
+            mat.SetColor("_Haze", fog);
+            mat.SetFloat("_HazeAmt", Night ? 0.6f + ring * 0.12f : haze[ring]);
+            mat.SetVector("_SunDir", sunDir);
+            mat.SetColor("_SunColor", sunCol);
+            mat.SetColor("_Ambient", RenderSettings.ambientSkyColor * 0.9f);
+            mr.sharedMaterial = mat;
+            mr.shadowCastingMode = ShadowCastingMode.Off;
+            mr.receiveShadows = false;
+        }
+    }
+
+    // ---------------- передовые базы сторон и руины ----------------
+    static void BuildOutposts()
+    {
+        var root = new GameObject("Outposts").transform;
+        root.SetParent(Root.transform);
+        // база Фонда (юг) и лагерь Хаоса (север)
+        Outpost(new Vector3(0, 0, -150), 0f, new Color(0.25f, 0.27f, 0.3f), root);
+        Outpost(new Vector3(0, 0, 150), 180f, new Color(0.28f, 0.3f, 0.2f), root);
+        Ruins(new Vector3(-120, 0, 30), root);
+        Ruins(new Vector3(125, 0, -35), root);
+        Ruins(new Vector3(-60, 0, 95), root);
+        Ruins(new Vector3(70, 0, -100), root);
+    }
+
+    static void Outpost(Vector3 c, float yaw, Color tent, Transform root)
+    {
+        var q = Quaternion.Euler(0, yaw, 0);
+        // полукольцо мешков с песком, обращённое к центру
+        for (int i = -2; i <= 2; i++)
+        {
+            Vector3 p = c + q * new Vector3(i * 9f, 0, 14f);
+            if (!Blocked(p, 2)) Sandbags(p, yaw, root);
+        }
+        // палатки
+        for (int i = -1; i <= 1; i += 2)
+        {
+            Vector3 p = c + q * new Vector3(i * 12f, 0, -4f);
+            if (Blocked(p, 4)) continue;
+            p = OnGround(p.x, p.z);
+            var go = new GameObject("tent"); go.transform.SetParent(root); go.transform.position = p; go.transform.rotation = q;
+            MeshKit.Part(go.transform, MeshKit.Frustum(0.02f, 4), Mats.Get(tent, 0.05f), new Vector3(0, 1.4f, 0), new Vector3(6.5f, 2.8f, 8f), new Vector3(0, 45, 0));
+            MeshKit.Box(go.transform, new Vector3(0, 0.05f, 0), new Vector3(4.6f, 0.1f, 5.6f), Mats.Get(tent * 0.7f));
+            MeshKit.CombineParts(go.transform);
+            var bc = go.AddComponent<BoxCollider>(); bc.center = new Vector3(0, 1.1f, 0); bc.size = new Vector3(4.2f, 2.2f, 5.2f);
+            go.AddComponent<Surface>().color = tent;
+        }
+        for (int i = 0; i < 10; i++)
+        {
+            Vector3 p = c + q * new Vector3(R(-15, 15), 0, R(-8, 8));
+            if (!Blocked(p, 1.5f)) Crate(OnGround(p.x, p.z), root);
+        }
+        Vector3 tp = c + q * new Vector3(18f, 0, 6f);
+        if (!Blocked(tp, 4)) Tower(OnGround(tp.x, tp.z), root);
+    }
+
+    static void Ruins(Vector3 c, Transform root)
+    {
+        if (Blocked(c, 10)) return;
+        float y = Height(c.x, c.z);
+        float yaw = R(0, 90);
+        var q = Quaternion.Euler(0, yaw, 0);
+        Color cs = new Color(0.5f, 0.49f, 0.46f);
+        // остатки стен разной высоты
+        for (int i = 0; i < 4; i++)
+        {
+            float len = R(4f, 10f), h = R(1.2f, 4.5f);
+            Vector3 off = q * new Vector3((i % 2 == 0 ? -1 : 1) * 6f, 0, (i < 2 ? -1 : 1) * 5f);
+            Quaternion r = q * Quaternion.Euler(0, i % 2 == 0 ? 0 : 90, 0);
+            Solid(c + off + Vector3.up * (y + h / 2 - 0.2f), new Vector3(len, h, 0.5f), concreteMat, r, cs);
+        }
+        for (int i = 0; i < 12; i++)
+        {
+            Vector3 p = c + new Vector3(R(-8, 8), 0, R(-8, 8));
+            float sz = R(0.4f, 1.3f);
+            Solid(OnGround(p.x, p.z, sz * 0.3f), new Vector3(sz, sz * 0.6f, sz * 0.8f), concreteMat, Quaternion.Euler(R(-20, 20), R(0, 360), R(-20, 20)), cs);
+        }
+    }
+
+    // ---------------- дороги ----------------
+    static void BuildRoads()
+    {
+        Color road = mapKind == 2 ? new Color(0.55f, 0.46f, 0.33f) : mapKind == 3 ? new Color(0.55f, 0.57f, 0.6f) : new Color(0.24f, 0.23f, 0.21f);
+        var m = Mats.Get(road, 0.15f);
+        Road(new[] { new Vector3(0, 0, -300), new Vector3(8, 0, -150), new Vector3(0, 0, -20) }, 7f, m);
+        Road(new[] { new Vector3(0, 0, 20), new Vector3(-8, 0, 150), new Vector3(0, 0, 300) }, 7f, m);
+        Road(new[] { new Vector3(-300, 0, 10), new Vector3(-120, 0, 25), new Vector3(-24, 0, 0) }, 6f, m);
+        Road(new[] { new Vector3(24, 0, 0), new Vector3(125, 0, -30), new Vector3(300, 0, -20) }, 6f, m);
+    }
+
+    static void Road(Vector3[] pts, float w, Material m)
+    {
+        var v = new List<Vector3>(); var t = new List<int>(); var uv = new List<Vector2>();
+        int steps = 80;
+        for (int i = 0; i <= steps; i++)
+        {
+            float k = i / (float)steps;
+            // квадратичная кривая Безье
+            Vector3 p = (1 - k) * (1 - k) * pts[0] + 2 * (1 - k) * k * pts[1] + k * k * pts[2];
+            Vector3 d = (2 * (1 - k) * (pts[1] - pts[0]) + 2 * k * (pts[2] - pts[1])).normalized;
+            Vector3 side = Vector3.Cross(Vector3.up, d) * w * 0.5f;
+            Vector3 a = p - side, b = p + side;
+            a.y = Height(a.x, a.z) + 0.06f; b.y = Height(b.x, b.z) + 0.06f;
+            v.Add(a); v.Add(b);
+            uv.Add(new Vector2(0, k * 30)); uv.Add(new Vector2(1, k * 30));
+            if (i > 0)
+            {
+                int j = v.Count - 4;
+                t.Add(j); t.Add(j + 2); t.Add(j + 1);
+                t.Add(j + 1); t.Add(j + 2); t.Add(j + 3);
+            }
+        }
+        var mesh = new Mesh();
+        mesh.SetVertices(v); mesh.SetTriangles(t, 0); mesh.SetUVs(0, uv);
+        mesh.RecalculateNormals(); mesh.RecalculateBounds();
+        var go = new GameObject("road"); go.transform.SetParent(Root.transform);
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = m; mr.shadowCastingMode = ShadowCastingMode.Off;
+    }
+
     // ---------------- навигация ----------------
-    static void BakeNav()
+    // Строится в фоне (карта большая), Battle ждёт завершения и показывает экран загрузки
+    public static AsyncOperation BakeNavAsync()
     {
         Physics.SyncTransforms();
         var settings = NavMesh.GetSettingsByID(0);
@@ -638,15 +853,16 @@ public static class MapGen
         settings.agentSlope = 40f;
         settings.agentClimb = 0.45f;
         settings.overrideVoxelSize = true;
-        settings.voxelSize = 0.22f;
+        settings.voxelSize = 0.28f;
         settings.overrideTileSize = true;
-        settings.tileSize = 128;
+        settings.tileSize = 192;
         var sources = new List<NavMeshBuildSource>();
         var markups = new List<NavMeshBuildMarkup>();
-        var bounds = new Bounds(Vector3.zero, new Vector3(296f, 80f, 296f));
+        var bounds = new Bounds(Vector3.zero, new Vector3(Size - 30f, 120f, Size - 30f));
         NavMeshBuilder.CollectSources(bounds, 1 << Layers.World, NavMeshCollectGeometry.PhysicsColliders, 0, markups, sources);
-        var data = NavMeshBuilder.BuildNavMeshData(settings, sources, bounds, Vector3.zero, Quaternion.identity);
-        if (data != null) navInstance = NavMesh.AddNavMeshData(data);
+        var data = new NavMeshData(settings.agentTypeID);
+        navInstance = NavMesh.AddNavMeshData(data);
+        return NavMeshBuilder.UpdateNavMeshDataAsync(data, settings, sources, bounds);
     }
 }
 

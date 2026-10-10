@@ -539,6 +539,7 @@ public class ScpContainer : MonoBehaviour
     bool opened;
     Vector3 swing;
     public readonly List<Unit> spawned = new List<Unit>();
+    float landedAt;
 
     public static ScpContainer Create(ScpKind kind, int count)
     {
@@ -646,7 +647,17 @@ public class ScpContainer : MonoBehaviour
         }
         Fx.AddShake(end, 0.5f);
         GetComponent<NavMeshObstacle>().enabled = true;
-        yield return new WaitForSeconds(fall ? 0.3f : 1.8f);
+        landedAt = Time.time;
+        // контейнер вскрывается, когда к нему подходят бойцы (или по таймеру)
+        while (!fall && Time.time - landedAt < 150f)
+        {
+            bool near = false;
+            foreach (var u in Unit.All)
+                if (u != null && u.alive && !u.isScp && !u.inVehicle && (u.transform.position - end).sqrMagnitude < 45f * 45f) { near = true; break; }
+            if (near) break;
+            yield return new WaitForSeconds(0.5f);
+        }
+        yield return new WaitForSeconds(fall ? 0.3f : 1f);
         Sfx.Play("alarm", end, 1f, 1f, 150f);
         yield return new WaitForSeconds(1.2f);
         Open();

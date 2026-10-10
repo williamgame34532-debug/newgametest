@@ -328,7 +328,7 @@ public partial class Game
             "Управление:\n" +
             "WASD — движение, Shift — бег, Ctrl/C — присесть, Пробел — прыжок\n" +
             "ЛКМ — огонь, ПКМ — прицел, R — перезарядка, 1/2/3 или колесо — оружие\n" +
-            "G — граната, H — аптечка, F — фонарик, T — замедление времени, Esc — пауза\n" +
+            "G — граната, H — аптечка, F — фонарик, V — удар прикладом, I — осмотреть оружие\nT — замедление времени, Esc — пауза\n" +
             "После смерти: 1/ЛКМ — взять под контроль бойца Фонда, 2 — наблюдать\n" +
             "Наблюдатель: WASD/Q/E — полёт, Tab — следить за бойцом, Пробел — свободная камера, 1 — вселиться",
             body, new Color(0.75f, 0.78f, 0.8f));
@@ -339,12 +339,23 @@ public partial class Game
     {
         var b = Battle.I;
         if (b == null) return;
+        if (b.loading)
+        {
+            Rect(new Rect(0, 0, W, H), new Color(0.03f, 0.035f, 0.04f, 1f));
+            DrawLogo(new Vector2(W / 2, H / 2 - 120), 60);
+            Shadowed(new Rect(0, H / 2 - 20, W, 50), "ПОДГОТОВКА ОПЕРАЦИИ…", h1 == null ? msgSt : new GUIStyle(h1) { alignment = TextAnchor.MiddleCenter }, Color.white);
+            Label(new Rect(0, H / 2 + 30, W, 30), "Разведка местности, прокладка маршрутов для отрядов — " + Mathf.RoundToInt(b.loadProgress * 100) + "%", center, new Color(0.7f, 0.7f, 0.7f));
+            Rect(new Rect(W / 2 - 300, H / 2 + 72, 600, 8), new Color(0.2f, 0.2f, 0.2f));
+            Rect(new Rect(W / 2 - 300, H / 2 + 72, 600 * b.loadProgress, 8), new Color(0.85f, 0.6f, 0.1f));
+            return;
+        }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
         else if (SpectatorCam.Active) SpectatorHUD();
 
         TeamBar(b);
+        Orders(b, pc);
         Feed(b);
         Messages(b);
         if (b.over && !Paused) Results(b);
@@ -363,6 +374,51 @@ public partial class Game
         Label(new Rect(x, 56, w, 24), string.Format("{0:00}:{1:00}", (int)(tm / 60), (int)(tm % 60)) + (Time.timeScale < 0.99f && !Paused ? "   ◷ ЗАМЕДЛЕНИЕ" : ""), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.8f, 0.8f, 0.8f));
     }
 
+    // Приказ отряда игрока, маркер цели и захват SCP
+    void Orders(Battle b, PlayerController pc)
+    {
+        Team team = Team.Foundation;
+        SquadRt sq = pc != null && !pc.dead ? b.SquadOf(pc.squad) : null;
+        if (sq != null)
+        {
+            Rect(new Rect(20, 20, 640, 58), new Color(0, 0, 0, 0.5f));
+            Rect(new Rect(20, 20, 5, 58), sq.def.look.accent);
+            Label(new Rect(34, 22, 620, 24), "ПРИКАЗ — " + sq.def.name + " " + sq.def.nick, small, new Color(0.6f, 0.8f, 1f));
+            Label(new Rect(34, 44, 620, 30), sq.orderText, body, Color.white);
+        }
+        // маркер цели
+        if ((pc != null && !pc.dead) || SpectatorCam.Active)
+            if (b.Objective(team, out var pos, out var name))
+            {
+                Vector3 wp = pos + Vector3.up * 2.5f;
+                Vector3 sp = Cam.WorldToScreenPoint(wp);
+                float sc = Screen.height / 1080f;
+                bool behind = sp.z < 0;
+                Vector2 p = new Vector2(sp.x / sc, H - sp.y / sc);
+                if (behind) p = new Vector2(W - p.x, H - 40);
+                p.x = Mathf.Clamp(p.x, 40, W - 40); p.y = Mathf.Clamp(p.y, 90, H - 60);
+                float dist = Vector3.Distance(Cam.transform.position, pos);
+                var m = GUI.matrix;
+                GUIUtility.RotateAroundPivot(45, p);
+                Rect(new Rect(p.x - 9, p.y - 9, 18, 18), new Color(1f, 0.8f, 0.2f, 0.9f));
+                Rect(new Rect(p.x - 5, p.y - 5, 10, 10), new Color(0, 0, 0, 0.6f));
+                GUI.matrix = m;
+                Shadowed(new Rect(p.x - 150, p.y + 12, 300, 24), name + "  " + Mathf.RoundToInt(dist) + " м", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, new Color(1f, 0.85f, 0.4f));
+            }
+        // захват ослабленного SCP
+        var ct = b.captureTarget;
+        if (ct != null)
+        {
+            float x = W / 2 - 260, y = 92;
+            Rect(new Rect(x, y, 520, 64), new Color(0, 0, 0, 0.6f));
+            Label(new Rect(x, y + 2, 520, 24), "ЗАХВАТ " + ct.displayName + "  (держите зону 10 м вокруг объекта)", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold }, new Color(1f, 0.85f, 0.4f));
+            Rect(new Rect(x + 10, y + 30, 500, 10), new Color(0.15f, 0.15f, 0.15f));
+            Rect(new Rect(x + 10, y + 30, 500 * Mathf.Clamp01(ct.capture[0]), 10), Battle.TeamColor(Team.Foundation));
+            Rect(new Rect(x + 10, y + 46, 500, 10), new Color(0.15f, 0.15f, 0.15f));
+            Rect(new Rect(x + 10, y + 46, 500 * Mathf.Clamp01(ct.capture[1]), 10), Battle.TeamColor(Team.Chaos));
+        }
+    }
+
     void Feed(Battle b)
     {
         float y = 70;
@@ -378,7 +434,7 @@ public partial class Game
 
     void Messages(Battle b)
     {
-        float y = 130;
+        float y = 172;
         foreach (var m in b.messages)
         {
             float a = Mathf.Clamp01(5f - (Time.unscaledTime - m.time)) * Mathf.Clamp01((Time.unscaledTime - m.time) * 6f);
@@ -462,6 +518,13 @@ public partial class Game
         }
         if (Battle.I != null && Battle.I.has173 && !pc.squad.blinkImmune)
             Label(new Rect(30, H - 150, 600, 30), "◉ SCP-173 на поле: не отводите взгляд, моргание неизбежно", small, new Color(1f, 0.6f, 0.4f));
+        if (Scp096.PlayerExposure > 0.05f)
+        {
+            float e = Scp096.PlayerExposure;
+            Shadowed(new Rect(0, H * 0.62f, W, 40), "⚠ НЕ СМОТРИТЕ НА ЛИЦО SCP-096 — ОТВЕДИТЕ ВЗГЛЯД!", msgSt, new Color(1f, 0.25f, 0.2f, 0.6f + 0.4f * Mathf.Sin(Time.time * 12f)));
+            Rect(new Rect(W / 2 - 150, H * 0.62f + 44, 300, 8), new Color(0, 0, 0, 0.6f));
+            Rect(new Rect(W / 2 - 150, H * 0.62f + 44, 300 * e, 8), new Color(1f, 0.2f, 0.15f));
+        }
         if (pc.riding) Shadowed(new Rect(0, H * 0.72f, W, 40), "Вертолёт на подлёте к зоне высадки…", msgSt, new Color(1f, 0.9f, 0.6f));
     }
 

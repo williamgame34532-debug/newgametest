@@ -33,6 +33,65 @@ public abstract class ScpUnit : Unit
     protected Vector3 vel;
     public override Vector3 Velocity => vel;
 
+    // ---- захват: SCP можно не убить, а ослабить и удержать рядом с ним территорию ----
+    public bool subdued, captured;
+    public float subduedUntil;
+    public readonly float[] capture = new float[3];   // прогресс захвата по сторонам 0..1
+    public virtual bool Capturable => kind != ScpKind.S0492;
+    public override bool Targetable => base.Targetable && !subdued;
+    const float SubdueAt = 0.18f;
+
+    protected override bool PreDamage(ref float dmg, DamageInfo d)
+    {
+        if (captured) return true;
+        if (subdued) return true;
+        if (Capturable && hp - dmg <= maxHp * SubdueAt && d.type != DamageType.Fall)
+        {
+            hp = maxHp * SubdueAt;
+            Subdue();
+            return true;
+        }
+        return false;
+    }
+
+    protected virtual void Subdue()
+    {
+        subdued = true;
+        subduedUntil = Time.time + 55f;
+        capture[0] = capture[1] = capture[2] = 0f;
+        if (agent != null && agent.enabled) { agent.isStopped = true; agent.velocity = Vector3.zero; }
+        vel = Vector3.zero;
+        Battle.Message(displayName + " ОСЛАБЛЕН — ЗАХВАТИТЕ ЕГО! Удерживайте зону рядом с объектом", new Color(1f, 0.85f, 0.3f));
+        Sfx.Play("alarm", transform.position, 0.8f, 1.2f, 150f);
+        OnSubdued(true);
+    }
+
+    public void Recover()
+    {
+        subdued = false;
+        hp = maxHp * 0.5f;
+        if (agent != null && agent.enabled) agent.isStopped = false;
+        Battle.Message(displayName + " ВЫРВАЛСЯ И ВОССТАНОВИЛСЯ", new Color(1f, 0.3f, 0.2f));
+        OnSubdued(false);
+    }
+
+    // Объект сдержан: исчезает в "поле сдерживания"
+    public void Capture(Team by)
+    {
+        captured = true;
+        subdued = false;
+        alive = false;
+        Fx.Light(transform.position + Vector3.up, new Color(0.3f, 0.7f, 1f), 8f, 20f, 1.2f);
+        Fx.Smoke(transform.position + Vector3.up, 4f, new Color(0.7f, 0.85f, 1f, 0.6f), 4f, Vector3.up);
+        Sfx.Play("alarm", transform.position, 1f, 1.5f, 200f);
+        foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
+        foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+        if (agent != null) agent.enabled = false;
+        enabled = false;
+    }
+
+    protected virtual void OnSubdued(bool on) { }
+
     protected void Init(ScpKind k, string name)
     {
         kind = k;
@@ -100,6 +159,15 @@ public abstract class ScpUnit : Unit
     protected virtual void Update()
     {
         if (!alive || held) return;
+        if (subdued)
+        {
+            vel = Vector3.zero;
+            if (agent != null && agent.enabled) agent.velocity = Vector3.zero;
+            if (Random.value < 0.08f) Fx.Sparks(AimPoint + Random.insideUnitSphere * 0.4f, Vector3.up, 2, 3f);
+            if (Time.time > subduedUntil) Recover();
+            SubduedPose();
+            return;
+        }
         float dt = Time.deltaTime;
         if (dt <= 0) return;
         if (agent != null && agent.enabled) vel = agent.velocity;
@@ -107,6 +175,7 @@ public abstract class ScpUnit : Unit
     }
 
     protected abstract void Tick(float dt);
+    protected virtual void SubduedPose() { }
 
     // Мгновенное убийство с отлётом тела
     protected void Slay(Unit u, DamageType type, Vector3 dir, float force, string how)
@@ -140,6 +209,23 @@ public abstract class HumanScp : ScpUnit
     }
 
     protected abstract void Dress();
+
+    protected override void OnSubdued(bool on)
+    {
+        anim.kneel = on;
+        anim.hunch = on ? 25f : 0f;
+        anim.attack01 = -1;
+        attackStart = -1;
+        anim.handsOnFace = false;
+    }
+
+    protected override void SubduedPose()
+    {
+        anim.velocity = Vector3.zero;
+        anim.kneel = true;
+        anim.hunch = 25f;
+        anim.HitReact(Random.insideUnitSphere, Time.deltaTime * 2f, HumanRig.Chest);
+    }
 
     public override void SetAnimVelocity(Vector3 v) { vel = v; if (anim != null) anim.velocity = v; }
 
@@ -396,10 +482,19 @@ public class Scp096 : HumanScp
     }
 
     // Кто-то увидел лицо?
+    // Сколько времени каждый смотрел прямо в лицо (нужно задержать взгляд, а не просто повернуться в сторону)
+    readonly Dictionary<Unit, float> exposure = new Dictionary<Unit, float>();
+    public static float PlayerExposure;   // 0..1 — для предупреждения на экране
+
     void CheckFaceSeen()
     {
-        Vector3 face = rig.b[HumanRig.Head].position + Vector3.up * 0.15f;
-        Vector3 faceFwd = rig.b[HumanRig.Head].forward;
+        const float step = 0.12f;
+        var head = rig.b[HumanRig.Head];
+        Vector3 face = head.position + head.up * 0.15f;
+        Vector3 faceFwd = head.forward;
+        // лицо закрыто руками (плачет) — увидеть его нельзя
+        bool covered = anim.handsOnFace;
+        float playerExp = 0f;
         foreach (var u in Unit.All)
         {
             if (u == null || !u.alive || u.isScp || u.inVehicle || targets.Contains(u)) continue;
@@ -407,14 +502,30 @@ public class Scp096 : HumanScp
             Vector3 e = u.EyePos;
             Vector3 to = face - e;
             float d = to.magnitude;
-            if (d > 80f) continue;
-            if (Vector3.Angle(u.LookDir, to) > (u.isPlayer ? 18f : 22f)) continue;
-            if (Vector3.Dot(faceFwd, -to.normalized) < 0.1f) continue;
-            if (!Combat.Visible(e, face)) continue;
-            targets.Add(u);
-            if (u.isPlayer) Battle.Message("ВЫ ВИДЕЛИ ЛИЦО SCP-096", new Color(1f, 0.2f, 0.2f));
-            if (mode == Mode.Calm) Trigger();
+            bool sees = false;
+            if (!covered && d < (u.isPlayer ? 45f : 35f))
+            {
+                // лицо должно быть почти в центре взгляда: конус зависит от видимого размера лица
+                float faceAng = Mathf.Atan2(0.12f, d) * Mathf.Rad2Deg;
+                float cone = u.isPlayer ? Mathf.Clamp(faceAng * 2.5f, 3f, 8f) : Mathf.Clamp(faceAng * 3f, 4f, 10f);
+                sees = Vector3.Angle(u.LookDir, to) < cone
+                    && Vector3.Dot(faceFwd, -to / d) > 0.35f
+                    && Combat.Visible(e, face);
+            }
+            exposure.TryGetValue(u, out float ex);
+            ex = sees ? ex + step : Mathf.Max(0f, ex - step * 0.5f);
+            exposure[u] = ex;
+            float need = u.isPlayer ? 0.5f : 0.7f;
+            if (u.isPlayer) playerExp = Mathf.Clamp01(ex / need);
+            if (ex >= need)
+            {
+                targets.Add(u);
+                exposure.Remove(u);
+                if (u.isPlayer) Battle.Message("ВЫ ПОСМОТРЕЛИ В ЛИЦО SCP-096", new Color(1f, 0.2f, 0.2f));
+                if (mode == Mode.Calm) Trigger();
+            }
         }
+        PlayerExposure = Mathf.Max(PlayerExposure * 0.5f, playerExp);
     }
 
     void Trigger()

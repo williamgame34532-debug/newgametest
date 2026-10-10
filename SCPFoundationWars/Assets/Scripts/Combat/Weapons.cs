@@ -14,7 +14,55 @@ public static class WeaponModels
 {
     static Color Dark(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, 1);
 
+    // Модель из шаблона (Resources/Models/guns.txt + M4 из FBX); если шаблона нет — старая процедурная
     public static GunModel Build(WeaponDef def, Transform parent, bool flashlight = false)
+    {
+        var tpl = ModelLib.Gun(def);
+        if (tpl == null || tpl.body == null) return BuildProcedural(def, parent, flashlight);
+        var root = new GameObject("gun_" + def.id);
+        root.transform.SetParent(parent, false);
+        var gm = root.AddComponent<GunModel>();
+        gm.def = def;
+        var t = root.transform;
+        GameObject Piece(string n, Mesh m, Material[] mats, Vector3 pos)
+        {
+            var g = new GameObject(n);
+            g.transform.SetParent(t, false);
+            g.transform.localPosition = pos;
+            g.AddComponent<MeshFilter>().sharedMesh = m;
+            g.AddComponent<MeshRenderer>().sharedMaterials = mats;
+            return g;
+        }
+        Piece("body", tpl.body, tpl.bodyMats, Vector3.zero);
+        if (tpl.mag != null) gm.mag = Piece("mag", tpl.mag, tpl.magMats, tpl.magPos).transform;
+        if (tpl.pump != null) { gm.pump = Piece("pump", tpl.pump, tpl.pumpMats, tpl.pumpPos).transform; gm.pumpRest = tpl.pumpPos; }
+        Transform Anchor(string n, Vector3 p) { var g = new GameObject(n).transform; g.SetParent(t, false); g.localPosition = p; return g; }
+        gm.muzzle = Anchor("muzzle", tpl.muzzle);
+        gm.grip = Anchor("grip", tpl.grip);
+        gm.foregrip = Anchor("foregrip", tpl.fore);
+        gm.sight = Anchor("sight", tpl.sight);
+        if (gm.mag != null) gm.magRest = gm.mag.localPosition;
+        bool light = def.kind == WeaponKind.Rifle || def.kind == WeaponKind.SMG || def.kind == WeaponKind.LMG || def.kind == WeaponKind.Shotgun;
+        if (light)
+        {
+            var lt = Anchor("lightMod", new Vector3(0.036f, 0.03f, tpl.fore.z + 0.04f));
+            MeshKit.Cyl(lt, Vector3.zero, 0.028f, 0.08f, new Color(0.07f, 0.07f, 0.07f), new Vector3(90, 0, 0));
+            MeshKit.Cyl(lt, new Vector3(0, 0, 0.041f), 0.024f, 0.003f, Mats.Glow(new Color(1f, 0.95f, 0.8f), 1.5f), new Vector3(90, 0, 0));
+            if (flashlight)
+            {
+                var lgo = new GameObject("flashlight");
+                lgo.transform.SetParent(lt, false);
+                lgo.transform.localPosition = new Vector3(0, 0, 0.05f);
+                var l = lgo.AddComponent<Light>();
+                l.type = LightType.Spot; l.spotAngle = 42; l.range = 30; l.intensity = 2.2f;
+                l.color = new Color(1f, 0.96f, 0.86f); l.shadows = LightShadows.None;
+                gm.flashlight = l;
+            }
+        }
+        return gm;
+    }
+
+    static GunModel BuildProcedural(WeaponDef def, Transform parent, bool flashlight)
     {
         var root = new GameObject("gun_" + def.id);
         root.transform.SetParent(parent, false);
@@ -209,19 +257,39 @@ public class Gun
     public Gun(WeaponDef d) { def = d; ammo = d.mag; }
 
     public float ReloadProgress => reloading ? Mathf.Clamp01((Time.time - reloadStart) / Mathf.Max(0.01f, reloadEnd - reloadStart)) : 0f;
-    public bool Ready => !reloading && ammo > 0 && Time.time >= nextFire;
+    public bool Ready => (!reloading || (Shells && ammo > 0)) && ammo > 0 && Time.time >= nextFire;
+
+    // дробовик заряжается по одному патрону
+    public bool Shells => def.kind == WeaponKind.Shotgun;
+    const float ShellTime = 0.48f, ShellLead = 0.35f;
+    int shellsLoaded;
+    public float ShellPhase => !reloading || !Shells ? 0f : Mathf.Repeat((Time.time - reloadStart - ShellLead) / ShellTime, 1f);
 
     public void StartReload(Vector3 pos, float speedMul = 1f)
     {
         if (reloading || ammo >= def.mag || reserveMags <= 0) return;
         reloading = true;
         reloadStart = Time.time;
-        reloadEnd = Time.time + def.reload / Mathf.Max(0.2f, speedMul);
-        Sfx.Play("magout", pos, 0.5f, Random.Range(0.9f, 1.1f), 25f);
+        shellsLoaded = 0;
+        float dur = Shells ? ShellLead + ShellTime * (def.mag - ammo) + 0.3f : def.reload;
+        reloadEnd = Time.time + dur / Mathf.Max(0.2f, speedMul);
+        Sfx.Play(Shells ? "click" : "magout", pos, 0.5f, Random.Range(0.9f, 1.1f), 25f);
     }
 
     public void Tick(Vector3 pos)
     {
+        if (reloading && Shells)
+        {
+            int should = Mathf.FloorToInt((Time.time - reloadStart - ShellLead) / ShellTime);
+            while (shellsLoaded < should && ammo < def.mag)
+            {
+                shellsLoaded++; ammo++;
+                Sfx.Play("magin", pos, 0.35f, Random.Range(1.3f, 1.5f), 20f);
+            }
+            if (ammo >= def.mag && Time.time >= reloadEnd - 0.3f && Time.time < reloadEnd) { }
+            if (Time.time >= reloadEnd) { reloading = false; Sfx.Play("bolt", pos, 0.5f, 1f, 25f); }
+            return;
+        }
         if (reloading && Time.time >= reloadEnd)
         {
             reloading = false;
@@ -237,6 +305,7 @@ public class Gun
     public bool Fire(Unit owner, Vector3 origin, Vector3 dir, float spreadMul, Vector3 muzzle)
     {
         if (!Ready) return false;
+        if (reloading) reloading = false; // выстрел прерывает зарядку дробовика
         ammo--;
         nextFire = Time.time + def.Interval;
         Ballistics.Fire(def, owner, origin, dir, spreadMul, muzzle);

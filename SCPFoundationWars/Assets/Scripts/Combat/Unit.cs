@@ -90,6 +90,7 @@ public class Unit : MonoBehaviour
         if (d.attacker != null && !Battle.Hostile(d.attacker.team, team) && d.attacker != this)
             dmg *= Battle.FriendlyFire;
         if (dmg <= 0) return;
+        if (PreDamage(ref dmg, d)) return;
         hp -= dmg;
         lastAttacker = d.attacker;
         lastHitTime = Time.time;
@@ -106,6 +107,9 @@ public class Unit : MonoBehaviour
     }
 
     protected virtual void OnHurt(DamageInfo d, float dmg) { }
+
+    // true — урон поглощён (например, ослабленный SCP больше не получает урона)
+    protected virtual bool PreDamage(ref float dmg, DamageInfo d) => false;
 
     // Эффект попадания пули (кровь, искры по бетону и т.п.)
     public virtual void HitFx(Vector3 point, Vector3 normal, Vector3 dir, Hitbox hb)

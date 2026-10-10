@@ -120,9 +120,11 @@ public class Ragdoll : MonoBehaviour
         // Ограничения суставов: знак "twist" — сгибание вокруг оси X кости.
         // Бедро: вперёд до 85°, назад 20°. Колено: только назад до 125°. Локоть: только вперёд до 130°.
         // Шея: наклон вперёд 40°, назад 30°, поворот ±45°, вбок ±25° — голова не "ломается".
-        var hips = rd.Add(b[HumanRig.Hips], BoxC(b[HumanRig.Hips], new Vector3(0, 0.03f, 0), new Vector3(0.31f * k, 0.24f, 0.22f * k)), 12f * massMul, null, 0, 0, 0, 0, 0.9f);
-        var chest = rd.Add(b[HumanRig.Chest], BoxC(b[HumanRig.Chest], new Vector3(0, 0.04f * tor, 0.0f), new Vector3(0.37f * k, 0.42f * tor, 0.24f * k)), 17f * massMul, hips, -30f, 15f, 18f, 20f, 1f);
-        var head = rd.Add(b[HumanRig.Head], SphereC(b[HumanRig.Head], new Vector3(0, 0.11f * s.headSize, 0.01f), 0.125f * s.headSize), 5f * massMul, chest, -40f, 30f, 25f, 45f, 3.2f, true);
+        bool mdl = s.model;
+        if (mdl) k = 1.12f;
+        var hips = rd.Add(b[HumanRig.Hips], mdl ? BoxC(b[HumanRig.Hips], new Vector3(0, 0.08f, 0), new Vector3(0.34f, 0.32f, 0.26f)) : BoxC(b[HumanRig.Hips], new Vector3(0, 0.03f, 0), new Vector3(0.31f * k, 0.24f, 0.22f * k)), 12f * massMul, null, 0, 0, 0, 0, 0.9f);
+        var chest = rd.Add(b[HumanRig.Chest], mdl ? BoxC(b[HumanRig.Chest], new Vector3(0, 0.03f, 0), new Vector3(0.4f, 0.5f, 0.32f)) : BoxC(b[HumanRig.Chest], new Vector3(0, 0.04f * tor, 0.0f), new Vector3(0.37f * k, 0.42f * tor, 0.24f * k)), 17f * massMul, hips, -30f, 15f, 18f, 20f, 1f);
+        var head = rd.Add(b[HumanRig.Head], mdl ? SphereC(b[HumanRig.Head], new Vector3(0, 0.14f, 0.03f), 0.15f) : SphereC(b[HumanRig.Head], new Vector3(0, 0.11f * s.headSize, 0.01f), 0.125f * s.headSize), 5f * massMul, chest, -40f, 30f, 25f, 45f, 3.2f, true);
 
         var uaL = rd.Add(b[HumanRig.UArmL], Capsule(b[HumanRig.UArmL], new Vector3(0, -s.armU * 0.5f, 0), 0.055f * k, s.armU + 0.08f), 2.5f * massMul, chest, -45f, 100f, 75f, 30f, 0.7f);
         var laL = rd.Add(b[HumanRig.LArmL], Capsule(b[HumanRig.LArmL], new Vector3(0, -(s.armL + 0.06f) * 0.5f, 0), 0.045f * k, s.armL + 0.12f), 1.8f * massMul, uaL, 0f, 130f, 12f, 25f, 0.6f);
@@ -134,8 +136,9 @@ public class Ragdoll : MonoBehaviour
         var ulR = rd.Add(b[HumanRig.ULegR], Capsule(b[HumanRig.ULegR], new Vector3(0, -s.legU * 0.5f, 0), 0.075f * k, s.legU + 0.1f), 9f * massMul, hips, -20f, 85f, 30f, 15f, 0.75f);
         var llR = rd.Add(b[HumanRig.LLegR], Capsule(b[HumanRig.LLegR], new Vector3(0, -s.legL * 0.5f, 0), 0.06f * k, s.legL + 0.06f), 4.5f * massMul, ulR, -125f, 0f, 3f, 5f, 0.6f);
 
-        ChildBox(b[HumanRig.FootL], new Vector3(0, -0.04f, 0.045f), new Vector3(0.1f * k, 0.08f, 0.24f), owner, 0.5f);
-        ChildBox(b[HumanRig.FootR], new Vector3(0, -0.04f, 0.045f), new Vector3(0.1f * k, 0.08f, 0.24f), owner, 0.5f);
+        Vector3 fc = mdl ? new Vector3(0, -0.03f, 0.06f) : new Vector3(0, -0.04f, 0.045f), fs = mdl ? new Vector3(0.11f, 0.09f, 0.27f) : new Vector3(0.1f * k, 0.08f, 0.24f);
+        ChildBox(b[HumanRig.FootL], fc, fs, owner, 0.5f);
+        ChildBox(b[HumanRig.FootR], fc, fs, owner, 0.5f);
 
         // соседние части не толкают друг друга (меньше дрожания)
         rd.Ignore(head, uaL); rd.Ignore(head, uaR); rd.Ignore(hips, laL); rd.Ignore(hips, laR);
