@@ -408,11 +408,13 @@ public partial class Game
         Label(new Rect(x, y, 400, 30), "Лимит трупов на карте: " + CorpseLimit, body, Color.white);
         CorpseLimit = Mathf.RoundToInt(GUI.HorizontalSlider(new Rect(x + 420, y + 8, 380, 20), CorpseLimit, 20, 250) / 10f) * 10;
         Ragdoll.MaxCorpses = CorpseLimit;
-        y += 70;
+        y += 50;
+        if (GUI.Button(new Rect(x, y, 380, 40), Intro ? "Брифинг на базе перед вылетом: ВКЛ" : "Брифинг на базе перед вылетом: ВЫКЛ", Intro ? toggleOn : toggleOff)) Intro = !Intro;
+        y += 60;
         Label(new Rect(x, y, 800, 260),
             "Управление:\n" +
             "WASD — движение, Shift — бег, Ctrl/C — присесть, Пробел — прыжок\n" +
-            "ЛКМ — огонь, ПКМ — прицел, R — перезарядка, 1/2/3 или колесо — оружие\n" +
+            "ЛКМ — огонь, ПКМ — прицел, R — перезарядка (зажать — проверить магазин), 1/2/3 или колесо — оружие\n" +
             "G — граната, H — аптечка, F — фонарик, V — удар прикладом, I — осмотреть оружие\nT — замедление времени, Esc — пауза\n" +
             "После смерти: 1/ЛКМ — взять под контроль бойца Фонда, 2 — наблюдать\n" +
             "Наблюдатель: WASD/Q/E — полёт, Tab — следить за бойцом, Пробел — свободная камера, 1 — вселиться",
@@ -449,8 +451,37 @@ public partial class Game
         if (!playing) { TeamBar(b); Feed(b); }
         Orders(b, pc);
         Messages(b);
+        IntroOverlay(b);
         if (b.over && !Paused) Results(b);
         if (Paused) PauseGUI();
+    }
+
+    // Вступление: штамп места и времени, подсказка, затемнение с титрами операции
+    void IntroOverlay(Battle b)
+    {
+        HudStyles();
+        if (b.stamp != null && b.stampT > 0)
+        {
+            float age = Time.time - b.stampT;
+            if (age < 9f)
+            {
+                float a = Mathf.Clamp01(age - 1.2f) * Mathf.Clamp01(9f - age);
+                int chars = Mathf.Clamp(Mathf.FloorToInt((age - 1.2f) * 40f), 0, b.stamp.Length);
+                Shadowed(new Rect(42, 92, 1400, 30), b.stamp.Substring(0, chars) + (chars < b.stamp.Length && Mathf.Repeat(age, 0.4f) < 0.2f ? "▌" : ""), hudM, new Color(0.95f, 0.95f, 0.9f, a));
+            }
+        }
+        if (b.intro && b.fade < 0.5f)
+            Label(new Rect(W - 440, 24, 400, 24), "[Enter] — пропустить брифинг", new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 14 }, new Color(1, 1, 1, 0.45f));
+        if (b.fade > 0.001f)
+        {
+            Rect(new Rect(0, 0, W, H), new Color(0, 0, 0, b.fade));
+            if (b.cardTitle != null)
+            {
+                Shadowed(new Rect(0, H / 2 - 50, W, 60), b.cardTitle, new GUIStyle(h1) { alignment = TextAnchor.MiddleCenter, fontSize = 46 }, new Color(1f, 1f, 1f, b.fade));
+                Rect(new Rect(W / 2 - 160, H / 2 + 16, 320, 2), new Color(1f, 0.78f, 0.3f, b.fade));
+                Label(new Rect(0, H / 2 + 26, W, 30), b.cardSub, new GUIStyle(hudM) { alignment = TextAnchor.MiddleCenter }, new Color(0.85f, 0.85f, 0.8f, b.fade));
+            }
+        }
     }
 
     void TeamBar(Battle b)
@@ -475,7 +506,7 @@ public partial class Game
             HudStyles();
             Rect(new Rect(30, 26, 3, 44), new Color(1f, 0.78f, 0.3f, 0.8f));
             Label(new Rect(42, 24, 620, 20), "ЗАДАЧА ОТРЯДА", new GUIStyle(hudS) { fontSize = 13 }, new Color(1f, 0.78f, 0.3f, 0.85f));
-            Label(new Rect(42, 44, 620, 28), sq.orderText, hudM, new Color(0.95f, 0.95f, 0.92f, 0.9f));
+            Label(new Rect(42, 44, 620, 28), b.intro ? "Брифинг на передовой базе — слушать командира группы" : sq.orderText, hudM, new Color(0.95f, 0.95f, 0.92f, 0.9f));
         }
         // маркер цели
         if ((pc != null && !pc.dead) || SpectatorCam.Active)
@@ -537,7 +568,7 @@ public partial class Game
         {
             var m = b.messages[i];
             float age = Time.unscaledTime - m.time;
-            float a = Mathf.Clamp01(5f - age) * Mathf.Clamp01(age * 6f);
+            float a = Mathf.Clamp01(m.life - age) * Mathf.Clamp01(age * 6f);
             string text = m.text;
             string who = null;
             int c = text.IndexOf(": ");
@@ -601,7 +632,7 @@ public partial class Game
             GUI.matrix = m;
         }
 
-        if (!pc.riding) Compass(pc);
+        if (!pc.riding && !pc.safe) Compass(pc);
         SquadRoster(pc, hpK);
         WeaponPanel(pc, g);
         MagCheckLabel(pc, g);

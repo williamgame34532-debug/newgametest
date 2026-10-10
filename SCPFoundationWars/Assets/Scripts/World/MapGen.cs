@@ -4,7 +4,7 @@ using UnityEngine.AI;
 using UnityEngine.Rendering;
 
 // Процедурная карта: рельеф, комплекс Зоны, укрытия, лес, освещение, навигационная сетка.
-public static class MapGen
+public static partial class MapGen
 {
     public static readonly string[] MapNames = { "Зона-19: поверхность", "Лесной КПП", "Пустынная Зона-██", "Зимний комплекс" };
     public static readonly string[] TimeNames = { "День", "Закат", "Ночь" };
@@ -142,7 +142,9 @@ public static class MapGen
         return go;
     }
 
-    static Vector3 OnGround(float x, float z, float yOff = 0) => new Vector3(x, Height(x, z) + yOff, z);
+    static Vector3 OnGround(float x, float z, float yOff = 0) => new Vector3(x, (flatGround ? flatY : Height(x, z)) + yOff, z);
+    static bool flatGround;      // постройки на ровной площадке (передовая база)
+    static float flatY;
 
     static bool Blocked(Vector3 p, float r)
     {

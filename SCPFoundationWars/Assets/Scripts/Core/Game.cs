@@ -8,6 +8,7 @@ public partial class Game : MonoBehaviour
     public static Camera Cam;
     public static float Sensitivity = 2f, Fov = 75f, Blood = 1f;
     public static int CorpseLimit = 90;
+    public static bool Intro = true;   // брифинг на базе перед вылетом
     public static bool Paused;
 
     public enum Scr { Menu, Setup, Settings, Battle, Ops }
@@ -72,6 +73,7 @@ public partial class Game : MonoBehaviour
         Fov = PlayerPrefs.GetFloat("fov", 75f);
         Blood = PlayerPrefs.GetFloat("blood", 1f);
         CorpseLimit = PlayerPrefs.GetInt("corpses", 90);
+        Intro = PlayerPrefs.GetInt("intro", 1) == 1;
         Sfx.Volume = PlayerPrefs.GetFloat("vol", 0.9f);
         mapSel = PlayerPrefs.GetInt("map", 0);
         timeSel = PlayerPrefs.GetInt("time", 0);
@@ -93,6 +95,7 @@ public partial class Game : MonoBehaviour
         PlayerPrefs.SetFloat("fov", Fov);
         PlayerPrefs.SetFloat("blood", Blood);
         PlayerPrefs.SetInt("corpses", CorpseLimit);
+        PlayerPrefs.SetInt("intro", Intro ? 1 : 0);
         PlayerPrefs.SetFloat("vol", Sfx.Volume);
         PlayerPrefs.SetInt("map", mapSel);
         PlayerPrefs.SetInt("time", timeSel);
@@ -161,6 +164,7 @@ public partial class Game : MonoBehaviour
         heli.transform.position = new Vector3(0, gy + 1.2f, -64f);
         heli.transform.rotation = Quaternion.Euler(0, 200, 0);
         heli.Launch(heli.transform.position, heli.transform.position, heli.transform.position, 99999f);
+        heli.showcase = true; heli.rotorVolume = 0.35f;
         heli.transform.position = new Vector3(0, gy + 1.2f, -64f);
         heli.transform.rotation = Quaternion.Euler(0, 200, 0);
         menuActors.Add(heli.gameObject);

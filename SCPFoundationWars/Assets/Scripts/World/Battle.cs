@@ -21,7 +21,7 @@ public class BattleConfig
 }
 
 // Менеджер боя: высадка всех сторон, союзы, победа, лента событий
-public class Battle : MonoBehaviour
+public partial class Battle : MonoBehaviour
 {
     public static Battle I;
     public static BattleConfig Cfg;
@@ -50,7 +50,7 @@ public class Battle : MonoBehaviour
     public bool has173;
     float checkT;
 
-    public class FeedEntry { public string text; public Color color; public float time; public bool player; }
+    public class FeedEntry { public string text; public Color color; public float time; public bool player; public float life = 5f; }
 
     public static bool Hostile(Team a, Team b)
     {
@@ -139,6 +139,12 @@ public class Battle : MonoBehaviour
         for (int i = 0; i < lzS.Count; i++) lzS[i] = new Vector3(lzS[i].x, cfg.scps[i].placed ? MapGen.Height(lzS[i].x, lzS[i].z) : GroundHeight(lzS[i]), lzS[i].z);
 
         bool night = cfg.time == 2;
+        // вступление на передовой базе: все вылеты сдвигаются на его длину
+        List<IntroLine> introLines = null;
+        float introDur = 0f;
+        bool hasPlayerSquad = cfg.playerFps && cfg.foundation.Count > 0 && !cfg.foundation[Mathf.Clamp(cfg.playerSquad, 0, cfg.foundation.Count - 1)].placed;
+        if (hasPlayerSquad && Game.Intro) { introLines = Script(cfg); introDur = IntroLength(introLines); }
+        Helicopter playerHeli = null; SquadRt playerSq = null;
 
         // ФОНД
         for (int i = 0; i < nF; i++)
@@ -148,7 +154,7 @@ public class Battle : MonoBehaviour
             var lz = lzF[i];
             if (pick.placed && !playerHere) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
-            var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 4f + i * 4f + pick.delay };
+            var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 4f + i * 4f + pick.delay };
             squads.Add(sq);
             int bots = playerHere ? pick.count - 1 : pick.count;
             int seat = playerHere ? 1 : 0;
@@ -164,10 +170,11 @@ public class Battle : MonoBehaviour
                 var pc = PlayerController.Create(pick.def);
                 pc.RideIn(heli, heli.seats[0]);
                 heli.playerPassenger = pc;
+                playerHeli = heli; playerSq = sq;
             }
             Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, -FarEntry);
             Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, -FarEntry - 40f);
-            heli.Launch(entry, lz, exit, 4f + i * 4f + pick.delay);
+            heli.Launch(entry, lz, exit, introDur + 4f + i * 4f + pick.delay);
             helis.Add(heli);
         }
         // ХАОС
@@ -178,7 +185,7 @@ public class Battle : MonoBehaviour
             if (pick.placed) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
             bool rope = pick.def.fastRope;
             var heli = Helicopter.Create(Team.Chaos, pick.def.label, new Color(0.24f, 0.26f, 0.17f), pick.def.look.accent, Mathf.Max(pick.count, 2), rope);
-            var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 6f + i * 4f + pick.delay };
+            var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 6f + i * 4f + pick.delay };
             squads.Add(sq);
             for (int k = 0; k < pick.count; k++)
             {
@@ -190,7 +197,7 @@ public class Battle : MonoBehaviour
             }
             Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, FarEntry);
             Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, FarEntry + 40f);
-            heli.Launch(entry, lz, exit, 6f + i * 4f + pick.delay);
+            heli.Launch(entry, lz, exit, introDur + 6f + i * 4f + pick.delay);
             helis.Add(heli);
         }
         // SCP — в контейнерах на тросе
@@ -221,7 +228,7 @@ public class Battle : MonoBehaviour
             float side = Mathf.Sign(lz.x);
             Vector3 entry = new Vector3(side * FarEntry, lz.y + 115f, lz.z + Random.Range(-40f, 40f));
             Vector3 exit = new Vector3(side * (FarEntry + 40f), lz.y + 120f, lz.z * 2f);
-            heli.Launch(entry, lz, exit, i * 3f);
+            heli.Launch(entry, lz, exit, introDur + i * 3f);
             cont.transform.position = heli.transform.position + Vector3.down * (9f + cont.height);
             cont.transform.rotation = Quaternion.Euler(0, side > 0 ? -90 : 90, 0);
             containers.Add(cont);
@@ -239,8 +246,16 @@ public class Battle : MonoBehaviour
         startTime = Time.time;
         if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
         if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
-        Message("Вертолёты на подлёте…", new Color(1f, 0.85f, 0.4f));
-        Sfx.Play2D("alarm", 0.5f);
+        if (introLines != null && playerHeli != null && PlayerController.I != null)
+        {
+            playerHeli.playerPassenger = null;
+            StartCoroutine(IntroRoutine(playerHeli, playerSq, PlayerController.I, introLines));
+        }
+        else
+        {
+            Message("Вертолёты на подлёте…", new Color(1f, 0.85f, 0.4f));
+            Sfx.Play2D("alarm", 0.5f);
+        }
     }
 
     static Vector3 BasePos(List<SquadPick> picks, List<Vector3> lz, Vector3 fallback)
@@ -270,10 +285,10 @@ public class Battle : MonoBehaviour
     }
 
     // ---------------- события ----------------
-    public static void Message(string text, Color c)
+    public static void Message(string text, Color c, float life = 5f)
     {
         if (I == null) return;
-        I.messages.Add(new FeedEntry { text = text, color = c, time = Time.unscaledTime });
+        I.messages.Add(new FeedEntry { text = text, color = c, time = Time.unscaledTime, life = life });
         if (I.messages.Count > 6) I.messages.RemoveAt(0);
     }
 
@@ -416,9 +431,10 @@ public class Battle : MonoBehaviour
     {
         // ленты событий живут 7 секунд
         feed.RemoveAll(f => Time.unscaledTime - f.time > 8f);
-        messages.RemoveAll(f => Time.unscaledTime - f.time > 5f);
+        messages.RemoveAll(f => Time.unscaledTime - f.time > f.life);
 
         if (loading) return;
+        IntroInput();
         if (!over)
         {
             cmdF?.Tick(Time.deltaTime);

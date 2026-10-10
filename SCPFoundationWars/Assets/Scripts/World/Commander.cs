@@ -14,7 +14,7 @@ public class TeamCommander
     public Vector3 basePos, objective;
     public ScpUnit objectiveScp;
     public string objectiveName = "Центр комплекса";
-    float phaseT, stageT;
+    float phaseT, stageT, firstLanding = -1f;
     int stage;
     public string title;
 
@@ -134,7 +134,8 @@ public class TeamCommander
                 bool all = false;
                 foreach (var s in squads) if (!s.reinforce) all = true;
                 foreach (var s in squads) if (!s.orderSet && !s.reinforce) all = false;
-                if (all || phaseT > 80f) { phase = OrderPhase.Regroup; phaseT = 0; Say("Все отряды на земле. Закрепиться, ждать приказа."); }
+                if (firstLanding < 0) foreach (var s in squads) if (s.orderSet && !s.garrison) firstLanding = Time.time;
+                if (all || (firstLanding > 0 && Time.time - firstLanding > 75f)) { phase = OrderPhase.Regroup; phaseT = 0; Say("Все отряды на земле. Закрепиться, ждать приказа."); }
                 break;
 
             case OrderPhase.Regroup:

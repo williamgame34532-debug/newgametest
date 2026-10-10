@@ -134,10 +134,27 @@ public class PlayerController : MonoBehaviour
         fp.Equip(guns[i], flashlightOn);
     }
 
+    // ---------------- передовая база ----------------
+    public bool safe;   // на базе оружие на предохранителе
+    public void StandAt(Vector3 p, float yawDeg)
+    {
+        transform.SetParent(null, true);
+        riding = false; rideSeat = null; scripted = false; OnRope = false;
+        cc.enabled = false;
+        transform.position = p + Vector3.up * 0.05f;
+        yaw = yawDeg; pitch = 4f;
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
+        cc.enabled = true;
+        unit.inVehicle = true;
+        safe = true;
+        velocity = Vector3.zero; vy = 0;
+    }
+
     // ---------------- вертолёт ----------------
     public void RideIn(Helicopter heli, Transform seat)
     {
         riding = true;
+        safe = false;
         rideSeat = seat;
         cc.enabled = false;
         unit.inVehicle = true;
@@ -433,7 +450,7 @@ public class PlayerController : MonoBehaviour
             Sfx.Play2D("click", 0.5f);
         }
         // граната
-        if (Input.GetKeyDown(KeyCode.G) && grenades > 0 && throwT < 0)
+        if (Input.GetKeyDown(KeyCode.G) && grenades > 0 && throwT < 0 && !safe)
         {
             magCheck = false;
             throwT = 0;
@@ -507,7 +524,8 @@ public class PlayerController : MonoBehaviour
         adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / 0.18f);
         // стрельба
         bool trig = g.def.auto ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
-        if (trig && Cursor.lockState == CursorLockMode.Locked && sprintW < 0.4f && healT < 0 && !fp.Busy)
+        if (trig && safe && Input.GetMouseButtonDown(0)) Sfx.Play2D("click", 0.3f, 1.4f);
+        if (trig && !safe && Cursor.lockState == CursorLockMode.Locked && sprintW < 0.4f && healT < 0 && !fp.Busy)
         {
             if (g.ammo <= 0 && !g.reloading)
             {

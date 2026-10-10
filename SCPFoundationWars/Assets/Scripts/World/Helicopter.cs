@@ -194,6 +194,42 @@ public class Helicopter : MonoBehaviour
     void OnDestroy() { Active.Remove(this); }
 
     // ---------------- полёт ----------------
+    // Стоянка на передовой базе (вертолёт для антуража брифинга)
+    public bool showcase;
+    public float rotorVolume = 1f;
+    public void Park(Vector3 pos, float yawDeg)
+    {
+        showcase = true;
+        entry = lz = exit = pos;
+        groundY = pos.y;
+        transform.position = pos + Vector3.up * 1.2f;
+        yaw = yawDeg;
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
+        velocity = Vector3.zero;
+        startTime = float.MaxValue;
+        phase = Phase.Waiting;
+    }
+    public float LaunchTime => startTime;
+    public bool IsWaiting => phase == Phase.Waiting;
+    public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting) phase = Phase.Inbound; }
+
+    // Доклады пилота борту с игроком
+    int callStage;
+    string callsign;
+    void PilotCalls()
+    {
+        if (playerPassenger == null || Battle.I == null) return;
+        if (callsign == null) callsign = "Борт " + Random.Range(2, 7) + "-" + Random.Range(1, 4);
+        float d = Vector3.Distance(new Vector3(transform.position.x, 0, transform.position.z), new Vector3(lz.x, 0, lz.z));
+        Color pc = new Color(0.75f, 0.9f, 0.75f);
+        void Say(string t) { Battle.Message("Пилот (" + callsign + "): " + t, pc); Sfx.Play2D("radio", 0.4f); callStage++; }
+        if (callStage == 0 && phase == Phase.Inbound) Say("Взлетели. Идём через перевал, до точки высадки около " + Mathf.Max(1, Mathf.RoundToInt(d / 48f / 60f * 2f) / 2f).ToString("0.#") + " мин.");
+        else if (callStage == 1 && d < 900f) Say("Входим в район операции. Проверить снаряжение!");
+        else if (callStage == 2 && d < 520f) Say("Тридцать секунд!");
+        else if (callStage == 3 && phase == Phase.Descend) Say(rope ? "Зависаем, канаты пошли! Приготовиться!" : "Касание через пять… Держитесь!");
+        else if (callStage == 4 && phase == Phase.Unload) Say("Зелёный свет! Пошли, пошли, пошли!");
+    }
+
     public void Launch(Vector3 entry, Vector3 lz, Vector3 exit, float delay)
     {
         this.entry = entry; this.lz = lz; this.exit = exit;
@@ -254,7 +290,7 @@ public class Helicopter : MonoBehaviour
         float fogD = RenderSettings.fog ? Mathf.Max(0.0015f, RenderSettings.fogDensity) : 0.0015f;
         float range = Mathf.Clamp(1.9f / fogD, 350f, 900f);
         var cam = Game.Cam;
-        bool want = mine || (phase != Phase.Waiting && (cam == null || (transform.position - cam.transform.position).sqrMagnitude < range * range));
+        bool want = mine || showcase || (phase != Phase.Waiting && (cam == null || (transform.position - cam.transform.position).sqrMagnitude < range * range));
         if (want)
         {
             if (!shown) { foreach (var r in hidden) if (r != null) r.enabled = true; hidden.Clear(); shown = true; }
@@ -284,7 +320,8 @@ public class Helicopter : MonoBehaviour
         if (rotor != null) rotor.Rotate(0, 1150f * rotorSpeed * dt, 0, Space.Self);
         if (tailRotor != null) tailRotor.Rotate(2400f * rotorSpeed * dt, 0, 0, Space.Self);
         if (rotorDisc != null) rotorDisc.gameObject.SetActive(rotorSpeed > 0.5f);
-        if (rotorSnd != null) { rotorSnd.pitch = (0.6f + 0.4f * rotorSpeed) * Time.timeScale; rotorSnd.volume = rotorSpeed * Sfx.Volume; }
+        if (rotorSnd != null) { rotorSnd.pitch = (0.6f + 0.4f * rotorSpeed) * Time.timeScale; rotorSnd.volume = rotorSpeed * Sfx.Volume * rotorVolume; }
+        PilotCalls();
 
         float agl = transform.position.y - Battle.GroundHeight(transform.position);
         // пыль от винта
