@@ -121,6 +121,7 @@ public class FPView : MonoBehaviour
     void BuildArms()
     {
         var L = pc.squad.look;
+        ModelLib.Use(ModelLib.ModelFor(L));
         var d = ModelLib.Soldier;
         Transform Chain(string n, Vector3 sh, int side, out Transform l, out Transform h)
         {
@@ -183,6 +184,7 @@ public class FPView : MonoBehaviour
     // Тело игрока: отбрасывает тень, а ноги видны, если посмотреть вниз
     void BuildBody()
     {
+        ModelLib.Use(ModelLib.ModelFor(pc.squad.look));
         if (!ModelLib.HasSoldier) return;
         var go = new GameObject("selfBody");
         go.transform.SetParent(pc.transform, false);

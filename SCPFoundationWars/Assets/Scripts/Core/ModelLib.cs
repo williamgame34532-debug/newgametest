@@ -18,22 +18,73 @@ public static class ModelLib
         public BoneWeight[] bw;
         public int[] tris;
         public byte[] grp, side;
+        public Vector2[] uv;          // только у текстурированных моделей (vanguard)
     }
 
-    static SoldierData soldier;
-    static bool soldierTried;
+    // Модели бойцов: "soldier" — присланный low-poly солдат (открытое лицо, кепки, Класс-D),
+    // "vanguard" — бронированный боец с текстурой (Mixamo/three.js), перекрашивается под отряд.
+    static readonly Dictionary<string, SoldierData> soldiers = new Dictionary<string, SoldierData>();
+    public static string Active { get; private set; } = "soldier";
+    public static void Use(string id) { Active = Load(id) != null ? id : "soldier"; }
 
-    public static SoldierData Soldier
+    public static string ModelFor(Look L)
     {
-        get
+        if (L == null) return "soldier";
+        switch (L.head)
         {
-            if (soldier != null || soldierTried) return soldier;
-            soldierTried = true;
-            var ta = Resources.Load<TextAsset>("Models/soldier");
-            if (ta == null) { Debug.LogWarning("Нет Resources/Models/soldier.bytes — используются процедурные бойцы"); return null; }
+            case HeadGear.Cap: case HeadGear.Bare: return "soldier";
+        }
+        return Load("vanguard") != null ? "vanguard" : "soldier";
+    }
+
+    public static SoldierData Soldier => Load(Active);
+
+    // ---- перекраска текстуры бронированного бойца под отряд ----
+    // маска: R — класс (0 как есть, 60 бронепластины, 120 ткань, 180 нашивки/полосы), G — яркость детали (128 = средняя)
+    static Color32[] vgSrc, vgMask; static int vgW, vgH;
+    static readonly Dictionary<string, Material> vgMats = new Dictionary<string, Material>();
+    public static Material VanguardMat(Look L)
+    {
+        string key = ColorUtility.ToHtmlStringRGB(L.uniform) + ColorUtility.ToHtmlStringRGB(L.uniform2) + ColorUtility.ToHtmlStringRGB(L.armor) + ColorUtility.ToHtmlStringRGB(L.accent);
+        if (vgMats.TryGetValue(key, out var m) && m != null) return m;
+        if (vgSrc == null)
+        {
+            var a = Resources.Load<TextAsset>("Models/vanguard_tex"); var b = Resources.Load<TextAsset>("Models/vanguard_mask");
+            if (a == null || b == null) return Mats.Get(L.uniform);
+            var t1 = new Texture2D(2, 2); t1.LoadImage(a.bytes);
+            var t2 = new Texture2D(2, 2); t2.LoadImage(b.bytes);
+            vgSrc = t1.GetPixels32(); vgMask = t2.GetPixels32(); vgW = t1.width; vgH = t1.height;
+            Object.Destroy(t1); Object.Destroy(t2);
+        }
+        Color plate = Color.Lerp(L.uniform, L.armor, 0.3f) * 1.45f, fabric = L.uniform2 * 1.25f, acc = L.accent;
+        var outPx = new Color32[vgSrc.Length];
+        for (int i = 0; i < outPx.Length; i++)
+        {
+            int cls = (vgMask[i].r + 30) / 60;
+            if (cls == 0) { outPx[i] = vgSrc[i]; continue; }
+            float k = vgMask[i].g / 127.5f;
+            Color c = cls == 1 ? plate : cls == 2 ? fabric : acc;
+            outPx[i] = new Color32((byte)Mathf.Clamp(c.r * k * 255f, 0, 255), (byte)Mathf.Clamp(c.g * k * 255f, 0, 255), (byte)Mathf.Clamp(c.b * k * 255f, 0, 255), 255);
+        }
+        var tex = new Texture2D(vgW, vgH, TextureFormat.RGBA32, true);
+        tex.SetPixels32(outPx);
+        tex.Apply(true, true);
+        tex.anisoLevel = 4;
+        m = Mats.Textured(tex, Color.white, Vector2.one, 0.28f);
+        vgMats[key] = m;
+        return m;
+    }
+
+    static SoldierData Load(string id)
+    {
+        if (soldiers.TryGetValue(id, out var cached)) return cached;
+        soldiers[id] = null;
+        {
+            var ta = Resources.Load<TextAsset>("Models/" + id);
+            if (ta == null) { Debug.LogWarning("Нет Resources/Models/" + id + ".bytes"); return null; }
             using (var br = new BinaryReader(new MemoryStream(ta.bytes)))
             {
-                br.ReadBytes(4); br.ReadInt32();
+                bool hasUV = System.Text.Encoding.ASCII.GetString(br.ReadBytes(4)) == "SCPU"; br.ReadInt32();
                 var d = new SoldierData();
                 int nj = br.ReadInt32();
                 d.parent = new int[nj]; d.jointLocal = new Vector3[nj]; d.jointAbs = new Vector3[nj];
@@ -45,9 +96,11 @@ public static class ModelLib
                 }
                 int nv = br.ReadInt32();
                 d.pos = new Vector3[nv]; d.bw = new BoneWeight[nv];
+                if (hasUV) d.uv = new Vector2[nv];
                 for (int i = 0; i < nv; i++)
                 {
                     d.pos[i] = new Vector3(br.ReadSingle(), br.ReadSingle(), br.ReadSingle());
+                    if (hasUV) d.uv[i] = new Vector2(br.ReadSingle(), br.ReadSingle());
                     byte b0 = br.ReadByte(), b1 = br.ReadByte(), b2 = br.ReadByte(), b3 = br.ReadByte();
                     d.bw[i] = new BoneWeight
                     {
@@ -62,9 +115,9 @@ public static class ModelLib
                     d.tris[i * 3] = br.ReadInt32(); d.tris[i * 3 + 1] = br.ReadInt32(); d.tris[i * 3 + 2] = br.ReadInt32();
                     d.grp[i] = br.ReadByte(); d.side[i] = br.ReadByte();
                 }
-                soldier = d;
+                soldiers[id] = d;
+                return d;
             }
-            return soldier;
         }
     }
 
@@ -109,9 +162,11 @@ public static class ModelLib
 
     public static Mesh BodyMesh(string key, int[] slotOf, int slots, System.Func<int, bool> filter = null)
     {
+        key = Active + "_" + key;
         if (meshCache.TryGetValue(key, out var cached) && cached != null) return cached;
         var d = Soldier;
         var verts = new List<Vector3>();
+        var uvs = new List<Vector2>();
         var bws = new List<BoneWeight>();
         var subs = new List<int>[slots];
         for (int i = 0; i < slots; i++) subs[i] = new List<int>();
@@ -126,11 +181,13 @@ public static class ModelLib
                 int vi = d.tris[t * 3 + k];
                 subs[slot].Add(verts.Count);
                 verts.Add(d.pos[vi]);
+                if (d.uv != null) uvs.Add(d.uv[vi]);
                 bws.Add(d.bw[vi]);
             }
         }
         var m = new Mesh { name = "soldier_" + key };
         m.SetVertices(verts);
+        if (uvs.Count == verts.Count) m.SetUVs(0, uvs);
         m.boneWeights = bws.ToArray();
         m.subMeshCount = slots;
         for (int i = 0; i < slots; i++) m.SetTriangles(subs[i], i);
@@ -147,12 +204,13 @@ public static class ModelLib
     // Вершины заданы относительно плечевого сустава.
     public static Mesh ArmMesh(int side, int[] slotOf, int slots)
     {
-        string key = "arm" + side + "_" + string.Join(",", slotOf);
+        string key = Active + "_arm" + side + "_" + string.Join(",", slotOf);
         if (meshCache.TryGetValue(key, out var cached) && cached != null) return cached;
         var d = Soldier;
         int b0 = side == 1 ? HumanRig.UArmL : HumanRig.UArmR;
         Vector3 sh = d.jointAbs[b0];
         var verts = new List<Vector3>();
+        var uvs = new List<Vector2>();
         var bws = new List<BoneWeight>();
         var subs = new List<int>[slots];
         for (int i = 0; i < slots; i++) subs[i] = new List<int>();
@@ -169,6 +227,7 @@ public static class ModelLib
                 Vector3 pv = d.pos[vi] - sh;
                 Vector3 axisP = new Vector3(d.jointAbs[b0].x - sh.x, pv.y, d.jointAbs[b0].z - sh.z);
                 verts.Add(axisP + (pv - axisP) * 0.85f);
+                if (d.uv != null) uvs.Add(d.uv[vi]);
                 var w = d.bw[vi];
                 // переносим веса на 3 кости руки (всё лишнее — плечу)
                 float[] acc = new float[3];
@@ -181,6 +240,7 @@ public static class ModelLib
         }
         var m = new Mesh { name = key };
         m.SetVertices(verts);
+        if (uvs.Count == verts.Count) m.SetUVs(0, uvs);
         m.boneWeights = bws.ToArray();
         m.subMeshCount = slots;
         for (int i = 0; i < slots; i++) m.SetTriangles(subs[i], i);

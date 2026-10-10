@@ -100,6 +100,7 @@ public class Soldier : Unit
 
     public void BuildBody(Look look, BodyShape shape)
     {
+        if (look != null) ModelLib.Use(ModelLib.ModelFor(look));
         bool mdl = look != null && ModelLib.HasSoldier;
         if (mdl) shape = ModelLib.SoldierShape(look.bulk);
         rig = HumanRig.Create(transform, shape);

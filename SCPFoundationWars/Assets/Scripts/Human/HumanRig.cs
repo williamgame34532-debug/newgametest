@@ -110,6 +110,17 @@ public class HumanRig : MonoBehaviour
     // Цвета/материалы частей модели под отряд. slotOf[group] — номер материала или -1 (скрыто).
     public static void ModelMaterials(Look L, out int[] slotOf, out Material[] matsOut, out bool openFace)
     {
+        if (ModelLib.Active == "vanguard")
+        {
+            // текстурированный бронированный боец: тело + визор
+            slotOf = new int[ModelLib.G_COUNT];
+            for (int i = 0; i < slotOf.Length; i++) slotOf[i] = -1;
+            slotOf[0] = 0; slotOf[1] = 1;
+            Color visC = L.visorGlow ? L.visor : new Color(0.04f, 0.05f, 0.06f, 0.85f);
+            matsOut = new[] { ModelLib.VanguardMat(L), Mats.Glass(visC, 0.95f, L.visorGlow) };
+            openFace = false;
+            return;
+        }
         var cols = new Color[ModelLib.G_COUNT];
         var vis = new bool[ModelLib.G_COUNT];
         for (int i = 0; i < vis.Length; i++) vis[i] = true;
@@ -171,6 +182,7 @@ public class HumanRig : MonoBehaviour
         body.updateWhenOffscreen = false;
         body.skinnedMotionVectors = false;
         body.quality = SkinQuality.Bone4;
+        if (ModelLib.Active == "vanguard") return;   // у бронированной модели свой шлем и снаряжение
 
         ModelHead(L, openFace);
         // снаряжение поверх модели

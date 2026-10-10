@@ -655,7 +655,8 @@ public class HumanAnimator : MonoBehaviour
         if (cam == null || (cam.transform.position - transform.position).sqrMagnitude > 1600f) { footDropL = footDropR = hipsDrop = 0; return; }
         float baseY = transform.position.y;
         float scale = transform.lossyScale.y;
-        float ankle = rig.b[HumanRig.FootL].localPosition.magnitude > 0 ? 0.075f * scale : 0.075f;
+        var jn = rig.shape.joints;
+        float ankle = (jn != null ? Mathf.Max(0.04f, rig.hipsRest.y + jn[HumanRig.ULegL].y + jn[HumanRig.LLegL].y + jn[HumanRig.FootL].y) : 0.075f) * scale;
         float GroundAt(Vector3 p)
         {
             if (Physics.Raycast(p + Vector3.up * 0.6f, Vector3.down, out var h, 1.4f, 1 << Layers.World, QueryTriggerInteraction.Ignore)) return h.point.y - baseY;
