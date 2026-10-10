@@ -408,7 +408,7 @@ public class Scp173 : ScpUnit
             MeshKit.Box(ch.transform, Vector3.zero, Vector3.one * sz, con);
             var bc = ch.AddComponent<BoxCollider>(); bc.size = Vector3.one * sz;
             var rb = ch.AddComponent<Rigidbody>(); rb.mass = sz * 30f;
-            rb.velocity = (Random.insideUnitSphere * 3f + d.dir * 3f + Vector3.up * 2f);
+            rb.SetVel((Random.insideUnitSphere * 3f + d.dir * 3f + Vector3.up * 2f));
             Destroy(ch, 40f);
         }
         Fx.Smoke(transform.position + Vector3.up, 3f, new Color(0.7f, 0.68f, 0.62f, 0.6f), 4f, Vector3.up);

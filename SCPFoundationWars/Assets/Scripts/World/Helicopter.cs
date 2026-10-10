@@ -674,7 +674,7 @@ public class ScpContainer : MonoBehaviour
         bc.size = new Vector3(kind == ScpKind.S682 ? 5f : 3.2f, height, 0.18f);
         var rb = door.gameObject.AddComponent<Rigidbody>();
         rb.mass = 200;
-        rb.velocity = transform.forward * 7f + Vector3.up * 3f;
+        rb.SetVel(transform.forward * 7f + Vector3.up * 3f);
         rb.angularVelocity = transform.right * 2f;
         door.gameObject.layer = Layers.World;
         foreach (Transform ch in door) ch.gameObject.layer = Layers.World;

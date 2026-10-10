@@ -8,6 +8,7 @@ public class GunModel : MonoBehaviour
     public Vector3 magRest;
     public Vector3 pumpRest;
     public Light flashlight;
+    public float buttZ = -0.3f;   // торец приклада (для упора в плечо)
 }
 
 public static class WeaponModels
@@ -41,6 +42,7 @@ public static class WeaponModels
         gm.grip = Anchor("grip", tpl.grip);
         gm.foregrip = Anchor("foregrip", tpl.fore);
         gm.sight = Anchor("sight", tpl.sight);
+        gm.buttZ = tpl.minZ;
         if (gm.mag != null) gm.magRest = gm.mag.localPosition;
         bool light = def.kind == WeaponKind.Rifle || def.kind == WeaponKind.SMG || def.kind == WeaponKind.LMG || def.kind == WeaponKind.Shotgun;
         if (light)
@@ -514,10 +516,10 @@ public class Grenade : MonoBehaviour
         var col = go.AddComponent<SphereCollider>(); col.radius = 0.05f;
         var rb = go.AddComponent<Rigidbody>();
         rb.mass = 0.4f;
-        rb.velocity = vel;
+        rb.SetVel(vel);
         rb.angularVelocity = Random.insideUnitSphere * 10f;
         rb.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
-        rb.drag = 0.05f;
+        rb.SetDamping(0.05f, 0.05f);
         var g = go.AddComponent<Grenade>();
         g.owner = owner; g.impact = impact; g.damage = damage; g.fuse = impact ? 6f : Random.Range(2.6f, 3.2f);
         if (owner != null)

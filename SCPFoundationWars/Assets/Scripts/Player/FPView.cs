@@ -522,7 +522,7 @@ public class FPView : MonoBehaviour
         bc.center = mf.sharedMesh.bounds.center; bc.size = mf.sharedMesh.bounds.size;
         var rb = go.AddComponent<Rigidbody>();
         rb.mass = 0.4f;
-        rb.velocity = pc.velocity + Vector3.down * 1.5f + Game.Cam.transform.right * -0.5f;
+        rb.SetVel(pc.velocity + Vector3.down * 1.5f + Game.Cam.transform.right * -0.5f);
         rb.angularVelocity = Random.insideUnitSphere * 5f;
         Destroy(go, 25f);
     }

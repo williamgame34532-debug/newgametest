@@ -283,7 +283,7 @@ public class Soldier : Unit
         inVehicle = false;
         anim.seated = false;
         TakeDamage(new DamageInfo { amount = 99999, type = DamageType.Explosion, dir = Vector3.up, point = AimPoint, force = 600f, attacker = attacker, weapon = "Крушение" });
-        foreach (var p in ragdoll.parts) p.rb.velocity += vehicleVel + Random.insideUnitSphere * 4f;
+        foreach (var p in ragdoll.parts) p.rb.SetVel(p.rb.Vel() + vehicleVel + Random.insideUnitSphere * 4f);
     }
 
     // ---------------- ИИ ----------------
@@ -877,7 +877,7 @@ public class Soldier : Unit
         box.size = new Vector3(0.06f, 0.14f, current.def.length + 0.2f);
         var rb = g.AddComponent<Rigidbody>();
         rb.mass = 3.5f;
-        rb.velocity = vel + d.dir * 1.5f + Vector3.up * 1f;
+        rb.SetVel(vel + d.dir * 1.5f + Vector3.up * 1f);
         rb.angularVelocity = Random.insideUnitSphere * 4f;
         rb.interpolation = RigidbodyInterpolation.Interpolate;
         if (current.model.flashlight != null) current.model.flashlight.enabled = false;

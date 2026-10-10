@@ -70,12 +70,12 @@ public class Battle : MonoBehaviour
         foreach (var u in Unit.All.ToArray()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
         foreach (var c in Ragdoll.Corpses.ToArray()) if (c != null) Destroy(c.gameObject);
         Ragdoll.Corpses.Clear();
-        foreach (var o in Object.FindObjectsOfType<ScpContainer>()) Destroy(o.gameObject);
-        foreach (var o in Object.FindObjectsOfType<Wreck>()) Destroy(o.gameObject);
-        foreach (var o in Object.FindObjectsOfType<Grenade>()) Destroy(o.gameObject);
-        foreach (var o in Object.FindObjectsOfType<Rocket>()) Destroy(o.gameObject);
-        foreach (var g in Object.FindObjectsOfType<GunModel>()) if (g.transform.root.GetComponent<PlayerController>() == null) Destroy(g.gameObject);
-        foreach (var r in Object.FindObjectsOfType<Rigidbody>()) if (r != null && r.gameObject.name == "chunk") Destroy(r.gameObject);
+        foreach (var o in Compat.FindAll<ScpContainer>()) Destroy(o.gameObject);
+        foreach (var o in Compat.FindAll<Wreck>()) Destroy(o.gameObject);
+        foreach (var o in Compat.FindAll<Grenade>()) Destroy(o.gameObject);
+        foreach (var o in Compat.FindAll<Rocket>()) Destroy(o.gameObject);
+        foreach (var g in Compat.FindAll<GunModel>()) if (g.transform.root.GetComponent<PlayerController>() == null) Destroy(g.gameObject);
+        foreach (var r in Compat.FindAll<Rigidbody>()) if (r != null && r.gameObject.name == "chunk") Destroy(r.gameObject);
         PlayerController.Remove();
         Scp096.PlayerExposure = 0f;
         Fx.Clear();

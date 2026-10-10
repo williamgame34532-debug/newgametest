@@ -32,8 +32,8 @@ public partial class Game : MonoBehaviour
     {
         if (I != null) return;
         // убираем камеры и свет пустой сцены — всё создаётся кодом
-        foreach (var c in Object.FindObjectsOfType<Camera>()) Destroy(c.gameObject);
-        foreach (var l in Object.FindObjectsOfType<Light>()) Destroy(l.gameObject);
+        foreach (var c in Compat.FindAll<Camera>()) Destroy(c.gameObject);
+        foreach (var l in Compat.FindAll<Light>()) Destroy(l.gameObject);
 
         DB.Init();
         Layers.Setup();

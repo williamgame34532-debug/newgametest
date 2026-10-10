@@ -37,8 +37,7 @@ public class Ragdoll : MonoBehaviour
         p.rb.mass = mass;
         p.rb.isKinematic = true;
         p.rb.useGravity = true;
-        p.rb.drag = 0.08f;
-        p.rb.angularDrag = 1.6f;
+        p.rb.SetDamping(0.08f, 1.6f);
         p.rb.solverIterations = 14;
         p.rb.solverVelocityIterations = 6;
         p.rb.maxAngularVelocity = 25f;
@@ -187,7 +186,7 @@ public class Ragdoll : MonoBehaviour
         if (frozen) return;
         // успокоение: когда тело лежит неподвижно — замораживаем (экономия физики и никакой дрожи)
         float maxV = 0;
-        foreach (var p in parts) if (!p.rb.isKinematic) maxV = Mathf.Max(maxV, p.rb.velocity.sqrMagnitude + p.rb.angularVelocity.sqrMagnitude * 0.05f);
+        foreach (var p in parts) if (!p.rb.isKinematic) maxV = Mathf.Max(maxV, p.rb.Vel().sqrMagnitude + p.rb.angularVelocity.sqrMagnitude * 0.05f);
         if (!fellSound && Time.time - activatedAt > 0.25f && maxV < 6f)
         {
             fellSound = true;
@@ -211,7 +210,7 @@ public class Ragdoll : MonoBehaviour
             p.rb.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
             Vector3 v = p.vel + extraVel;
             if (v.magnitude > 14f) v = v.normalized * 14f;
-            p.rb.velocity = v;
+            p.rb.SetVel(v);
             Vector3 av = p.angVel;
             if (av.magnitude > 10f) av = av.normalized * 10f;
             p.rb.angularVelocity = av;

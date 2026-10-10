@@ -199,7 +199,7 @@ public static class ModelLib
         public Material[] bodyMats, magMats, pumpMats;
         public Vector3 magPos, pumpPos;
         public Vector3 muzzle, grip = new Vector3(0, -0.035f, -0.005f), fore, sight;
-        public float length;
+        public float length, minZ;
     }
 
     static readonly Dictionary<string, GunTemplate> guns = new Dictionary<string, GunTemplate>();
@@ -336,6 +336,28 @@ public static class ModelLib
                 case "box":
                     part = MeshKit.Part(root, MeshKit.Cube, GunMat(w[1], def), new Vector3(F(w[2]), F(w[3]), F(w[4])), new Vector3(F(w[5]), F(w[6]), F(w[7])));
                     break;
+                case "holo":
+                {
+                    // открытый голографический прицел: основание, две стойки, козырёк, прозрачное стекло и яркая марка
+                    float cx = F(w[1]), cy = F(w[2]), cz = F(w[3]);
+                    var dk = GunMat("dark", def);
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy - 0.032f, cz), new Vector3(0.052f, 0.01f, 0.075f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx - 0.0275f, cy - 0.002f, cz + 0.02f), new Vector3(0.005f, 0.062f, 0.034f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.0275f, cy - 0.002f, cz + 0.02f), new Vector3(0.005f, 0.062f, 0.034f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy + 0.03f, cz + 0.02f), new Vector3(0.06f, 0.006f, 0.034f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.033f, cy - 0.015f, cz - 0.01f), new Vector3(0.008f, 0.012f, 0.02f));
+                    MeshKit.Part(root, MeshKit.Cube, Mats.Glass(new Color(0.75f, 0.55f, 0.35f, 0.12f), 1f), new Vector3(cx, cy, cz + 0.03f), new Vector3(0.05f, 0.056f, 0.002f));
+                    var dot = Mats.Glow(new Color(1f, 0.1f, 0.05f), 10f);
+                    MeshKit.Part(root, MeshKit.Sphere, dot, new Vector3(cx, cy, cz + 0.029f), new Vector3(0.0035f, 0.0035f, 0.001f));
+                    // кольцо голографической марки (тонкие засечки)
+                    for (int k = 0; k < 4; k++)
+                    {
+                        float a = k * Mathf.PI * 0.5f;
+                        Vector3 o = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0) * 0.011f;
+                        MeshKit.Part(root, MeshKit.Cube, dot, new Vector3(cx, cy, cz + 0.029f) + o, k % 2 == 0 ? new Vector3(0.0012f, 0.004f, 0.001f) : new Vector3(0.004f, 0.0012f, 0.001f));
+                    }
+                    continue;
+                }
             }
             if (part == null) continue;
             if (nextMag) { magParts.Add(part.transform); nextMag = false; }
@@ -343,6 +365,7 @@ public static class ModelLib
         }
         if (tpl.fore == Vector3.zero) tpl.fore = new Vector3(0, 0, 0.3f);
         tpl.length = maxZ - minZ;
+        tpl.minZ = minZ;
         // магазин и цевьё — отдельные объекты для анимации перезарядки
         tpl.magPos = Center(magParts);
         magT.localPosition = tpl.magPos;

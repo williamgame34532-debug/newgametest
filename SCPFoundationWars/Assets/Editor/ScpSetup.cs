@@ -35,6 +35,77 @@ public static class ScpSetup
         PlayerSettings.companyName = "SCPWars";
         IncludeShaders();
         NameLayers();
+        FixInputHandling();
+        ApplyBranding();
+    }
+
+    // Игра использует классический Input — в Unity 6 включаем режим "Both", если стоит только новая система ввода
+    static void FixInputHandling()
+    {
+        var assets = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/ProjectSettings.asset");
+        if (assets == null || assets.Length == 0) return;
+        var so = new SerializedObject(assets[0]);
+        var p = so.FindProperty("activeInputHandler");
+        if (p != null && p.intValue == 1)
+        {
+            p.intValue = 2;
+            so.ApplyModifiedProperties();
+            EditorUtility.DisplayDialog("SCP: Война за Фонд", "Включён режим ввода «Both» (старый Input Manager нужен игре). Перезапусти Unity, чтобы настройка вступила в силу.", "OK");
+        }
+    }
+
+    const string IconPath = "Assets/Resources/Branding/Icon.png";
+    const string SplashPath = "Assets/Resources/Branding/SplashBG.png";
+    const string LogoPath = "Assets/Resources/Branding/Logo.png";
+
+    // Иконка игры и заставка в стиле игры
+    [MenuItem("SCP Wars/Применить иконку и заставку")]
+    static void ApplyBranding()
+    {
+        if (!System.IO.File.Exists(IconPath)) return;
+        SetImport(IconPath, TextureImporterType.Default);
+        SetImport(SplashPath, TextureImporterType.Sprite);
+        SetImport(LogoPath, TextureImporterType.Sprite);
+        var icon = AssetDatabase.LoadAssetAtPath<Texture2D>(IconPath);
+        if (icon != null)
+        {
+#if UNITY_2021_2_OR_NEWER
+            PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Unknown, new[] { icon }, IconKind.Any);
+            var sizes = PlayerSettings.GetIconSizes(UnityEditor.Build.NamedBuildTarget.Standalone, IconKind.Any);
+            var arr = new Texture2D[sizes.Length];
+            for (int i = 0; i < arr.Length; i++) arr[i] = icon;
+            PlayerSettings.SetIcons(UnityEditor.Build.NamedBuildTarget.Standalone, arr, IconKind.Any);
+#else
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Unknown, new[] { icon });
+            var standalone = PlayerSettings.GetIconSizesForTargetGroup(BuildTargetGroup.Standalone);
+            var arr = new Texture2D[standalone.Length];
+            for (int i = 0; i < arr.Length; i++) arr[i] = icon;
+            PlayerSettings.SetIconsForTargetGroup(BuildTargetGroup.Standalone, arr);
+#endif
+        }
+        var bg = AssetDatabase.LoadAssetAtPath<Sprite>(SplashPath);
+        var logo = AssetDatabase.LoadAssetAtPath<Sprite>(LogoPath);
+        PlayerSettings.SplashScreen.show = true;
+        PlayerSettings.SplashScreen.backgroundColor = new Color(0.05f, 0.02f, 0.03f);
+        if (bg != null) { PlayerSettings.SplashScreen.background = bg; PlayerSettings.SplashScreen.backgroundPortrait = bg; }
+        PlayerSettings.SplashScreen.overlayOpacity = 0f;
+        PlayerSettings.SplashScreen.animationMode = PlayerSettings.SplashScreen.AnimationMode.Dolly;
+        PlayerSettings.SplashScreen.unityLogoStyle = PlayerSettings.SplashScreen.UnityLogoStyle.LightOnDark;
+        PlayerSettings.SplashScreen.drawMode = PlayerSettings.SplashScreen.DrawMode.UnityLogoBelow;
+        if (logo != null) PlayerSettings.SplashScreen.logos = new[] { PlayerSettings.SplashScreenLogo.Create(2.5f, logo) };
+        try { PlayerSettings.SplashScreen.showUnityLogo = false; } catch { }
+    }
+
+    static void SetImport(string path, TextureImporterType type)
+    {
+        var imp = AssetImporter.GetAtPath(path) as TextureImporter;
+        if (imp == null) return;
+        bool changed = imp.textureType != type || !imp.alphaIsTransparency || imp.mipmapEnabled == (type == TextureImporterType.Sprite);
+        if (!changed) return;
+        imp.textureType = type;
+        imp.alphaIsTransparency = true;
+        imp.mipmapEnabled = type != TextureImporterType.Sprite;
+        imp.SaveAndReimport();
     }
 
     // Шейдеры, которые ищутся через Shader.Find, должны попасть в сборку

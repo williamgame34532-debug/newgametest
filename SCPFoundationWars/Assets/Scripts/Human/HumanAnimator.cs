@@ -284,6 +284,13 @@ public class HumanAnimator : MonoBehaviour
         tgt[HumanRig.LLegR] += new Vector3(10f, 0, 0) * stanceW;
         tgt[HumanRig.Hips].y += 22f * stanceW;
         hipsOff.y -= 0.03f * stanceW;
+        // прицеливание с плеча: корпус развёрнут (левое плечо вперёд), щека прижата к прикладу
+        float bladeW = aimW * (pistol ? 0.25f : 1f) * (1f - seatW) * (1f - ropeW);
+        float blade = Mathf.Lerp(35f, 22f, move) * bladeW;
+        tgt[HumanRig.Hips].y += blade - 22f * stanceW;
+        tgt[HumanRig.Spine].y -= 4f * bladeW;
+        tgt[HumanRig.Chest].y -= 4f * bladeW;
+        float headBack = -(blade - 8f * bladeW) * 0.5f;
         // расслабленная стойка: ноги шире, вес на одной ноге
         float relaxW = (1f - aimW) * (1f - move) * free * (1f - crouchW) * (style == AnimStyle.Soldier ? 1f : 0.4f);
         float shift = Mathf.Sin(time * 0.35f) * 0.5f + 0.5f;
@@ -489,6 +496,8 @@ public class HumanAnimator : MonoBehaviour
         tgt[HumanRig.Head].x += -(tgt[HumanRig.Spine].x + tgt[HumanRig.Chest].x) * 0.3f + lookPitch - Mathf.Abs(s) * 2f * stepAmt;
         tgt[HumanRig.Head].y += lookYaw - (tgt[HumanRig.Spine].y + tgt[HumanRig.Chest].y) * 0.3f;
         tgt[HumanRig.Head].z -= tgt[HumanRig.Hips].z * 0.5f;
+        tgt[HumanRig.Neck] += new Vector3(6f * bladeW, headBack, 10f * bladeW);
+        tgt[HumanRig.Head] += new Vector3(8f * bladeW, headBack, 10f * bladeW);
         tgt[HumanRig.Head].x = Mathf.Clamp(tgt[HumanRig.Head].x, -40f, 45f);
         tgt[HumanRig.Head].y = Mathf.Clamp(tgt[HumanRig.Head].y, -70f, 70f);
         if (rig.jaw != null) rig.jaw.localRotation = Quaternion.Euler(Mathf.Lerp(0, 40f, mouth), 0, 0);
@@ -520,6 +529,13 @@ public class HumanAnimator : MonoBehaviour
             for (int i = 0; i < HumanRig.Count; i++) rig.b[i].localRotation = Quaternion.Slerp(rig.b[i].localRotation, snap[i], w);
             rig.b[HumanRig.Hips].localPosition = Vector3.Lerp(rig.b[HumanRig.Hips].localPosition, snapHips, w);
             snapW -= dt / Mathf.Max(0.1f, snapDur);
+        }
+
+        // плечо подаётся вперёд, чтобы рука доставала до цевья
+        if (rig.shape.joints != null)
+        {
+            Vector3 restL = rig.shape.joints[HumanRig.UArmL];
+            rig.b[HumanRig.UArmL].localPosition = restL + new Vector3(0.03f, 0f, 0.09f) * bladeW;
         }
 
         // ---------------- IK ног по земле ----------------
@@ -582,7 +598,7 @@ public class HumanAnimator : MonoBehaviour
 
         Vector3 ad = aimDir.sqrMagnitude > 0.001f ? aimDir.normalized : transform.forward;
         Quaternion aimRot = Quaternion.LookRotation(ad, Vector3.up);
-        Quaternion lowRot = transform.rotation * Quaternion.Euler(30f, -28f, 8f);
+        Quaternion lowRot = transform.rotation * Quaternion.Euler(28f, -25f, 10f);
         if (pistol) lowRot = transform.rotation * Quaternion.Euler(50f, -5f, 0f);
         Quaternion sprintRot = transform.rotation * Quaternion.Euler(50f, -50f, 25f);
         Quaternion seatRot = transform.rotation * Quaternion.Euler(-75f, 5f, 0f);
@@ -619,6 +635,12 @@ public class HumanAnimator : MonoBehaviour
         Vector3 holdOffset = pistol ? new Vector3(0f, -0.02f, Mathf.Lerp(0.28f, 0.42f, aimW)) : rpg ? new Vector3(0f, -0.08f, 0.05f) : new Vector3(0f, -0.03f, 0.2f + kick.z * 0.02f);
         if (meleeW > 0.001f) holdOffset += new Vector3(0, 0.05f, 0.15f) * S01(0.3f, 0.45f, Mathf.Clamp01(melee01)) * (1f - S01(0.6f, 1f, Mathf.Clamp01(melee01)));
         Vector3 holdPos = rig.aimPivot.position + final * holdOffset * transform.lossyScale.y;
+        if (rig.shape.model && !pistol && !rpg)
+        {
+            // приклад упирается в плечо: оружие вращается вокруг плечевого упора
+            Vector3 pocket = rig.b[HumanRig.UArmR].position + chest.rotation * new Vector3(-0.08f, -0.02f, 0.05f) * transform.lossyScale.y;
+            holdPos = pocket + final * new Vector3(0f, -0.015f, -gun.buttZ + kick.z * 0.02f) * transform.lossyScale.y;
+        }
         Vector3 slingPos = chest.TransformPoint(new Vector3(0.05f, 0.12f * tor, -0.22f));
         float g = gunW;
         t.position = Vector3.Lerp(slingPos, holdPos, g);
