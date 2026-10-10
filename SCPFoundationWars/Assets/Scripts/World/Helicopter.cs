@@ -244,10 +244,40 @@ public class Helicopter : MonoBehaviour
         transform.rotation = Quaternion.Slerp(transform.rotation, target, 1f - Mathf.Exp(-3.5f * dt));
     }
 
+    // Вертолёт не «появляется» на краю карты: пока ждёт вылета или скрыт дымкой — не рисуется
+    readonly List<Renderer> hidden = new List<Renderer>();
+    float rendT;
+    bool shown = true;
+    void UpdateVisibility()
+    {
+        bool mine = playerPassenger != null || (PlayerController.I != null && PlayerController.I.transform.IsChildOf(transform));
+        float fogD = RenderSettings.fog ? Mathf.Max(0.0015f, RenderSettings.fogDensity) : 0.0015f;
+        float range = Mathf.Clamp(1.9f / fogD, 350f, 900f);
+        var cam = Game.Cam;
+        bool want = mine || (phase != Phase.Waiting && (cam == null || (transform.position - cam.transform.position).sqrMagnitude < range * range));
+        if (want)
+        {
+            if (!shown) { foreach (var r in hidden) if (r != null) r.enabled = true; hidden.Clear(); shown = true; }
+            return;
+        }
+        // прячем (и всё, что появилось на борту за время ожидания)
+        if (shown || Time.time > rendT)
+        {
+            rendT = Time.time + 1f;
+            foreach (var r in GetComponentsInChildren<Renderer>())
+                if (r.enabled && !(r is ParticleSystemRenderer)) { r.enabled = false; hidden.Add(r); }
+            if (sling != null && sling.attached)
+                foreach (var r in sling.GetComponentsInChildren<Renderer>())
+                    if (r.enabled && !(r is ParticleSystemRenderer)) { r.enabled = false; hidden.Add(r); }
+            shown = false;
+        }
+    }
+
     void Update()
     {
         float dt = Time.deltaTime;
         if (dt <= 0) return;
+        UpdateVisibility();
         // винты
         float targetRotor = phase == Phase.Dead ? 0f : phase == Phase.Crash ? 0.6f : 1f;
         rotorSpeed = Mathf.MoveTowards(rotorSpeed, targetRotor, dt * 0.4f);

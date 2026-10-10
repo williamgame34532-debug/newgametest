@@ -94,6 +94,7 @@ public class Battle : MonoBehaviour
         Time.timeScale = 1f;
     }
 
+    public const float FarEntry = 1300f;   // вертолёты заходят из-за гор, через перевалы
     public bool loading;
     public float loadProgress;
     public TeamCommander cmdF, cmdC;
@@ -164,8 +165,8 @@ public class Battle : MonoBehaviour
                 pc.RideIn(heli, heli.seats[0]);
                 heli.playerPassenger = pc;
             }
-            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 70f, -620f);
-            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 90f, -640f);
+            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, -FarEntry);
+            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, -FarEntry - 40f);
             heli.Launch(entry, lz, exit, 4f + i * 4f + pick.delay);
             helis.Add(heli);
         }
@@ -187,8 +188,8 @@ public class Battle : MonoBehaviour
                 heli.passengers.Add(s);
                 s.homeDir = Vector3.forward;
             }
-            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 70f, 620f);
-            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 90f, 640f);
+            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, FarEntry);
+            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, FarEntry + 40f);
             heli.Launch(entry, lz, exit, 6f + i * 4f + pick.delay);
             helis.Add(heli);
         }
@@ -209,6 +210,8 @@ public class Battle : MonoBehaviour
                     if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 8f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
                     var u = ScpFactory.Spawn(pick.def.kind, p, Quaternion.Euler(0, Random.Range(0f, 360f), 0));
                     if (u != null) Register(u);
+                    if (u is ScpUnit su) su.Hold(false);
+                    else if (u is Soldier zs) zs.BeginCombat(p);
                 }
                 continue;
             }
@@ -216,8 +219,8 @@ public class Battle : MonoBehaviour
             var cont = ScpContainer.Create(pick.def.kind, pick.count);
             heli.AttachSling(cont);
             float side = Mathf.Sign(lz.x);
-            Vector3 entry = new Vector3(side * 620f, lz.y + 75f, lz.z + Random.Range(-40f, 40f));
-            Vector3 exit = new Vector3(side * 640f, lz.y + 90f, lz.z * 2f);
+            Vector3 entry = new Vector3(side * FarEntry, lz.y + 115f, lz.z + Random.Range(-40f, 40f));
+            Vector3 exit = new Vector3(side * (FarEntry + 40f), lz.y + 120f, lz.z * 2f);
             heli.Launch(entry, lz, exit, i * 3f);
             cont.transform.position = heli.transform.position + Vector3.down * (9f + cont.height);
             cont.transform.rotation = Quaternion.Euler(0, side > 0 ? -90 : 90, 0);

@@ -266,6 +266,7 @@ public class QuadScp : ScpUnit
 
     IEnumerator Lunge(Unit t)
     {
+        PhaseOut(true);
         if (AgentOk) agent.enabled = false;
         Vector3 a = transform.position;
         Vector3 b = t.transform.position - (t.transform.position - a).normalized * 1.2f;
@@ -285,6 +286,7 @@ public class QuadScp : ScpUnit
             yield return null;
         }
         lunge = -1;
+        PhaseOut(false);
         EnsureAgent();
         if (t != null && t.alive && Vector3.Distance(t.transform.position, transform.position) < 2.6f)
         {

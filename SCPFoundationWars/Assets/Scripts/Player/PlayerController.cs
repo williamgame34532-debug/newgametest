@@ -54,6 +54,7 @@ public class PlayerController : MonoBehaviour
     public float suppress, hurt;
     public readonly List<Vector2> dmgDirs = new List<Vector2>(); // x — угол, y — время
     public float hitMarkT = -1; public bool hitKill, hitHead;
+    public int hits, kills;
     public bool Blinking => Time.time < blinkEnd;
     float blinkT, blinkEnd;
     bool grounded;
@@ -237,9 +238,9 @@ public class PlayerController : MonoBehaviour
 
     public void HitMarker(bool kill, bool head)
     {
-        hitMarkT = Time.time;
-        hitKill = kill; hitHead = head;
-        Sfx.Play2D("hitmarker", kill ? 0.7f : 0.4f, kill ? 0.8f : head ? 1.4f : 1f);
+        // реализм: ни звука, ни маркера — попал ли ты, видно только по цели
+        hits++;
+        if (kill) kills++;
     }
 
     public void OnDeath(DamageInfo d)

@@ -28,6 +28,9 @@ public abstract class ScpUnit : Unit
     public ScpKind kind;
     protected NavMeshAgent agent;
     protected bool held;
+    bool phasedOut;               // временно вне навмеша по своей воле (прыжок, уход сквозь пол)
+    float agentRetryT, phasedT;
+    protected void PhaseOut(bool on) { phasedOut = on; phasedT = Time.time + 12f; }
     protected Unit target;
     protected float thinkT;
     protected Vector3 vel;
@@ -172,6 +175,8 @@ public abstract class ScpUnit : Unit
         }
         float dt = Time.deltaTime;
         if (dt <= 0) return;
+        // объект, появившийся без контейнера (сценарии), сам встаёт на навмеш
+        if (!AgentOk && (!phasedOut || Time.time > phasedT) && Time.time > agentRetryT) { agentRetryT = Time.time + 0.5f; EnsureAgent(); }
         if (agent != null && agent.enabled) vel = agent.velocity;
         Tick(dt);
     }
@@ -824,7 +829,7 @@ public class Scp106 : HumanScp
     // Проваливается сквозь пол и выходит рядом с целью
     IEnumerator PhaseTo(Unit t)
     {
-        phased = true;
+        phased = true; PhaseOut(true);
         phaseCd = Time.time + Random.Range(14f, 22f);
         if (AgentOk) agent.isStopped = true;
         Fx.GooPuddle(transform.position, 2.2f);
@@ -858,7 +863,7 @@ public class Scp106 : HumanScp
         transform.position = dest;
         EnsureAgent();
         if (AgentOk) agent.isStopped = false;
-        phased = false;
+        phased = false; PhaseOut(false);
     }
 
     public override void HitFx(Vector3 point, Vector3 normal, Vector3 dir, Hitbox hb)

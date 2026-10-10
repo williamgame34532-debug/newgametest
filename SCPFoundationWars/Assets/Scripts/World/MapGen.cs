@@ -684,6 +684,14 @@ public static class MapGen
                 float n = Mathf.PerlinNoise(Mathf.Cos(a) * 2.2f + ring * 7f + 10f, Mathf.Sin(a) * 2.2f + ring * 3f + 10f);
                 float n2 = Mathf.PerlinNoise(Mathf.Cos(a) * 9f + ring * 5f, Mathf.Sin(a) * 9f + 40f);
                 peaks[i] = (40f + n * (map == 2 ? 110f : 190f) + n2 * 45f) * (1f + ring * 0.35f);
+                // перевалы по сторонам света — по ним заходят вертолёты
+                float pass = 1f;
+                for (int q = 0; q < 4; q++)
+                {
+                    float da = Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, q * 90f));
+                    pass = Mathf.Min(pass, Mathf.Lerp(0.18f, 1f, Mathf.SmoothStep(0f, 1f, (da - 4f) / 16f)));
+                }
+                peaks[i] *= pass;
             }
             peaks[seg] = peaks[0];
             for (int i = 0; i < seg; i++)
