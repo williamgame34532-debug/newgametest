@@ -16,6 +16,7 @@ public class SquadRt
     public int flank;
     public float arriveAt;      // время вылета вертолёта (Time.time)
     public bool reinforce, announced;
+    public bool garrison;       // охрана объекта — держит свой сектор
     public Soldier Leader { get { foreach (var m in members) if (m != null && m.alive && !m.zombie && m.state == Soldier.State.Combat) return m; return null; } }
     public int Alive { get { int n = 0; foreach (var m in members) if (m != null && m.alive) n++; return n; } }
 }
@@ -92,7 +93,7 @@ public class Soldier : Unit
 
         s.primary = new Gun(DB.W(def.primary));
         if (def.secondary != null) s.secondary = new Gun(DB.W(def.secondary));
-        if (def.special != null) { s.special = new Gun(DB.W(def.special)); s.special.reserveMags = def.special == "rpg" ? 4 : 3; }
+        if (def.special != null) { s.special = new Gun(DB.W(def.special)); s.special.reserveMags = DB.W(def.special).rocket ? 4 : 3; }
         s.Equip(s.primary, flashlight);
         return s;
     }

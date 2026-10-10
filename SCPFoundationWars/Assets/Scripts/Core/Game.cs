@@ -10,7 +10,7 @@ public partial class Game : MonoBehaviour
     public static int CorpseLimit = 90;
     public static bool Paused;
 
-    public enum Scr { Menu, Setup, Settings, Battle }
+    public enum Scr { Menu, Setup, Settings, Battle, Ops }
     public static Scr screen = Scr.Menu;
     Scr settingsReturn = Scr.Menu;
 

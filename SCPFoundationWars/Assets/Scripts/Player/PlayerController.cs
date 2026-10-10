@@ -105,7 +105,7 @@ public class PlayerController : MonoBehaviour
 
         pc.guns[0] = new Gun(DB.W(def.primary)) { reserveMags = 8 };
         pc.guns[1] = def.secondary != null ? new Gun(DB.W(def.secondary)) { reserveMags = 6 } : null;
-        pc.guns[2] = def.special != null ? new Gun(DB.W(def.special)) { reserveMags = def.special == "rpg" ? 4 : 3 } : null;
+        pc.guns[2] = def.special != null ? new Gun(DB.W(def.special)) { reserveMags = DB.W(def.special).rocket ? 4 : 3 } : null;
         pc.grenades = Mathf.Max(1, def.grenades);
         pc.flashlightOn = MapGen.Night;
         pc.Equip(0);

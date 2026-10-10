@@ -16,7 +16,7 @@ public class WeaponDef
     public float zoomFov = 45f;          // поле зрения в прицеливании
     public Color body = new Color(0.12f, 0.12f, 0.13f);
     public Color accent = new Color(0.25f, 0.25f, 0.27f);
-    public bool suppressor, scope, redDot = true;
+    public bool suppressor, scope, redDot = true, rocket;   // rocket — реактивный выстрел (РПГ, AT-4)
     public float length = 0.75f;          // длина ствольной коробки+ствола (для модели)
 
     public float Interval => 60f / Mathf.Max(1f, rpm);
@@ -54,6 +54,14 @@ public class SquadDef
     public bool ignores096;        // Эта-10 — не провоцируют SCP-096
     public bool blinkImmune;       // защищены от SCP-173 (видеосистемы)
     public string label;           // надпись на вертолёте
+
+    // копия отряда для сценариев (своё имя, оружие, вид)
+    public SquadDef Variant(string id, string name, string nick, string label)
+    {
+        var d = (SquadDef)MemberwiseClone();
+        d.id = id; d.name = name; d.nick = nick; d.label = label; d.look = look.Clone();
+        return d;
+    }
 }
 
 public enum ScpKind { S173, S096, S049, S0492, S106, S939, S682, S457 }
@@ -101,7 +109,8 @@ public static class DB
         AddW(new WeaponDef { id = "logicer", name = "Logicer", kind = WeaponKind.LMG, damage = 30, rpm = 720, spread = 2.6f, mag = 100, reload = 4.8f, recoil = 1.3f, length = 0.98f, redDot = false, body = C(0.13f, 0.13f, 0.12f), accent = C(0.3f, 0.28f, 0.2f) });
         AddW(new WeaponDef { id = "svd", name = "СВД", kind = WeaponKind.Sniper, damage = 115, rpm = 50, spread = 0.12f, mag = 10, reload = 3f, recoil = 3f, auto = false, range = 300, scope = true, redDot = false, zoomFov = 16, length = 1.1f, body = C(0.1f, 0.1f, 0.1f), accent = C(0.35f, 0.2f, 0.1f) });
         AddW(new WeaponDef { id = "saiga", name = "Сайга-12", kind = WeaponKind.Shotgun, damage = 12, pellets = 9, rpm = 190, spread = 5f, mag = 10, reload = 3f, recoil = 2.3f, auto = false, range = 50, length = 0.8f, redDot = false });
-        AddW(new WeaponDef { id = "rpg", name = "РПГ-7", kind = WeaponKind.Launcher, damage = 260, rpm = 20, spread = 0.8f, mag = 1, reload = 3.6f, recoil = 3f, auto = false, range = 220, redDot = false, length = 1f, body = C(0.22f, 0.25f, 0.16f), accent = C(0.35f, 0.22f, 0.1f) });
+        AddW(new WeaponDef { id = "rpg", name = "РПГ-7", kind = WeaponKind.Launcher, damage = 260, rpm = 20, spread = 0.8f, mag = 1, reload = 3.6f, recoil = 3f, auto = false, range = 220, redDot = false, rocket = true, length = 1f, body = C(0.22f, 0.25f, 0.16f), accent = C(0.35f, 0.22f, 0.1f) });
+        AddW(new WeaponDef { id = "at4", name = "AT-4", kind = WeaponKind.Launcher, damage = 320, rpm = 20, spread = 0.6f, mag = 1, reload = 4.2f, recoil = 3f, auto = false, range = 250, redDot = false, rocket = true, length = 1f, body = C(0.3f, 0.32f, 0.22f), accent = C(0.12f, 0.12f, 0.1f) });
         AddW(new WeaponDef { id = "pm", name = "Пистолет", kind = WeaponKind.Pistol, damage = 20, rpm = 300, spread = 2.4f, mag = 8, reload = 1.6f, recoil = 1.2f, auto = false, range = 60, length = 0.2f, redDot = false });
         AddW(new WeaponDef { id = "vector", name = "Vector .45", kind = WeaponKind.SMG, damage = 22, rpm = 1100, spread = 1.6f, mag = 33, reload = 2f, recoil = 0.7f, range = 100, length = 0.55f, body = C(0.06f, 0.06f, 0.06f), accent = C(0.5f, 0.05f, 0.05f) });
 

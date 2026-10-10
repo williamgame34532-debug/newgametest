@@ -588,7 +588,7 @@ public class HumanAnimator : MonoBehaviour
     {
         if (gun == null) return;
         var t = gun.transform;
-        bool rpg = gun.def.id == "rpg";
+        bool rpg = gun.def.rocket;
         Transform chest = rig.b[HumanRig.Chest];
         float tor = rig.shape.torso;
         Vector3 pivotLocal = pistol ? new Vector3(0.0f, 0.15f * tor, 0.05f) : rpg ? new Vector3(0.12f, 0.27f * tor, 0.0f) : new Vector3(0.1f, 0.16f * tor, 0.03f);
@@ -684,7 +684,7 @@ public class HumanAnimator : MonoBehaviour
                     p = Vector3.Lerp(HandPose.Wrist(port, holdQ, sc), HandPose.Wrist(pouch, holdQ, sc), k);
                     q = holdQ;
                 }
-                else if (gun.def.id == "rpg")
+                else if (gun.def.rocket)
                 {
                     Vector3 back2 = chest.TransformPoint(new Vector3(-0.2f, 0.1f, -0.2f));
                     Vector3 muz = gun.muzzle.position + gt.forward * 0.15f * sc;

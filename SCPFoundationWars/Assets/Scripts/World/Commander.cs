@@ -146,7 +146,7 @@ public class TeamCommander
                     var parts = new List<string>();
                     foreach (var s in squads)
                     {
-                        if (s.reinforce && !s.orderSet) { s.flank = 0; continue; }
+                        if ((s.reinforce && !s.orderSet) || s.garrison) { s.flank = 0; continue; }
                         bool ow = s.def.primary == "svd" || s.def.primary == "dmr";
                         s.overwatch = ow;
                         s.flank = ow ? (idx % 2 == 0 ? -1 : 1) : n == 1 ? 0 : (idx % 3 == 0 ? 0 : idx % 3 == 1 ? -1 : 1);
@@ -156,7 +156,7 @@ public class TeamCommander
                     Say("Цель: " + (objectiveScp != null || objectiveName.StartsWith("SCP") ? "захватить " + objectiveName : "зачистить центр комплекса") + ". " + string.Join(", ", parts) + ".");
                     foreach (var s in squads)
                     {
-                        if (s.reinforce && !s.orderSet) continue;
+                        if ((s.reinforce && !s.orderSet) || s.garrison) continue;
                         s.orderText = (s.overwatch ? "Прикрывать огнём" : "Готовиться к наступлению: " + RoleName(s.flank, false)) + " → " + objectiveName;
                         s.Leader?.anim.DoSignal(Signal.Hold);
                     }
@@ -168,7 +168,7 @@ public class TeamCommander
                 {
                     phase = OrderPhase.Advance; phaseT = 0; stage = 0; stageT = 0;
                     Say("Вперёд! Наступаем.");
-                    foreach (var s in squads) { s.hold = false; s.Leader?.anim.DoSignal(Signal.MoveUp); }
+                    foreach (var s in squads) if (!s.garrison) { s.hold = false; s.Leader?.anim.DoSignal(Signal.MoveUp); }
                 }
                 break;
 
@@ -183,7 +183,7 @@ public class TeamCommander
                     float lat = s.flank * Mathf.Clamp(dist * 0.18f, 12f, 35f) * (1f - f * 0.5f);
                     s.orderPos = basePos + dir * dist * f + perp * lat;
                     s.orderText = (s.overwatch ? "Прикрытие с позиции, " : "Наступление, " + RoleName(s.flank, false) + ", ") + "этап " + (stage + 1) + " → " + objectiveName;
-                    if (s.Alive == 0 || (s.reinforce && !s.orderSet)) continue;
+                    if (s.Alive == 0 || (s.reinforce && !s.orderSet) || s.garrison) continue;
                     alive++;
                     int near = 0, cnt = 0;
                     foreach (var m in s.members) if (m != null && m.alive) { cnt++; if ((m.transform.position - s.orderPos).sqrMagnitude < 400f) near++; }
@@ -208,5 +208,8 @@ public class TeamCommander
                 }
                 break;
         }
+        // гарнизон держит свой сектор при любой фазе
+        foreach (var s in squads)
+            if (s.garrison) { s.orderPos = s.lz; s.hold = true; s.orderText = "Удерживать сектор"; }
     }
 }

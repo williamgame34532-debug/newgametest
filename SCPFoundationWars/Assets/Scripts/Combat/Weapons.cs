@@ -353,7 +353,7 @@ public static class Ballistics
         if (def.kind == WeaponKind.Launcher)
         {
             Vector3 d = Spread(dir, def.spread * spreadMul);
-            if (def.id == "rpg") Rocket.Spawn(muzzle + d * 0.2f, d, owner, def);
+            if (def.rocket) Rocket.Spawn(muzzle + d * 0.2f, d, owner, def);
             else Grenade.Spawn(muzzle + d * 0.2f, d * 38f + Vector3.up * 2f, owner, true, def.damage);
             return;
         }

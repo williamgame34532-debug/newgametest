@@ -253,7 +253,7 @@ public class FPView : MonoBehaviour
         if (dt <= 0) return;
         var def = gun.def;
         float ads = pc.adsW, spr = pc.sprintW;
-        bool pistol = def.kind == WeaponKind.Pistol, rpg = def.id == "rpg";
+        bool pistol = def.kind == WeaponKind.Pistol, rpg = def.rocket;
         drawT = Mathf.Min(1f, drawT + dt / 0.45f);
         if (inspectT >= 0) { inspectT += dt / 2.6f; if (inspectT >= 1f || ads > 0.1f || gun.reloading) inspectT = -1f; }
         if (meleeT >= 0) { meleeT += dt / 0.55f; if (meleeT >= 1f) meleeT = -1f; }

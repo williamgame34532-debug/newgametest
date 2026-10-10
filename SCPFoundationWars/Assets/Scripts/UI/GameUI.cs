@@ -78,6 +78,7 @@ public partial class Game
             case Scr.Menu: MenuGUI(); break;
             case Scr.Setup: SetupGUI(); break;
             case Scr.Settings: SettingsGUI(); break;
+            case Scr.Ops: OpsGUI(); break;
             case Scr.Battle: BattleGUI(); break;
         }
     }
@@ -95,6 +96,8 @@ public partial class Game
         float y = 400;
         if (GUI.Button(new Rect(60, y, 520, 72), "НОВАЯ ОПЕРАЦИЯ", btnBig)) { Sfx.Play2D("ui"); screen = Scr.Setup; }
         y += 92;
+        if (GUI.Button(new Rect(60, y, 520, 60), "РЕАЛЬНЫЕ ОПЕРАЦИИ ФОНДА", btn)) { Sfx.Play2D("ui"); Operations.Init(); screen = Scr.Ops; }
+        y += 76;
         if (lastCfg != null && GUI.Button(new Rect(60, y, 520, 56), "Повторить последнюю", btn)) { Sfx.Play2D("ui"); var c = lastCfg; c.seed = Random.Range(1, 99999); StartBattle(c); }
         if (lastCfg != null) y += 72;
         if (GUI.Button(new Rect(60, y, 520, 56), "Быстрый бой (случайный)", btn)) { Sfx.Play2D("ui"); Randomize(); StartBattle(MakeConfig()); }
@@ -295,6 +298,79 @@ public partial class Game
         GUILayout.Space(8);
     }
 
+    // ---------------- реальные операции ----------------
+    int opSel;
+    Vector2 opScroll;
+
+    string ForceLine(SquadPick p)
+    {
+        string s = "• " + p.def.name + " — " + p.count + " бойц.";
+        if (p.placed) s += p.garrison ? ", уже на позиции" : ", уже на месте";
+        else s += p.delay > 0 ? ", вылет через " + Mathf.RoundToInt(p.delay / 60f) + " мин" : ", вылет сразу";
+        if (p.def.special != null) s += ", " + DB.W(p.def.special).name;
+        return s;
+    }
+
+    void OpsGUI()
+    {
+        Operations.Init();
+        var ops = Operations.All;
+        opSel = Mathf.Clamp(opSel, 0, ops.Count - 1);
+        Rect(new Rect(0, 0, W, H), new Color(0.03f, 0.035f, 0.04f, 0.9f));
+        Shadowed(new Rect(40, 18, 1200, 56), "РЕАЛЬНЫЕ ОПЕРАЦИИ ФОНДА", h1, Color.white);
+        Label(new Rect(42, 66, 1600, 30), "Сценарии по документам SCP Wiki: состав сил, место и обстоятельства взяты из статей об объектах (это художественная вселенная).", small, new Color(0.7f, 0.7f, 0.7f));
+        // список
+        float lx = 40, ly = 110, lw = 460;
+        for (int i = 0; i < ops.Count; i++)
+        {
+            var o = ops[i];
+            var r = new Rect(lx, ly + i * 112, lw, 102);
+            bool sel = i == opSel;
+            Rect(r, sel ? new Color(0.16f, 0.2f, 0.25f, 0.97f) : new Color(0.1f, 0.11f, 0.13f, 0.95f));
+            Rect(new Rect(r.x, r.y, 6, r.height), sel ? new Color(0.85f, 0.6f, 0.1f) : new Color(0.3f, 0.3f, 0.3f));
+            Label(new Rect(r.x + 20, r.y + 10, lw - 30, 26), o.code, small, new Color(0.85f, 0.6f, 0.1f));
+            Label(new Rect(r.x + 20, r.y + 34, lw - 30, 32), o.title, h2, Color.white);
+            Label(new Rect(r.x + 20, r.y + 68, lw - 30, 26), o.date + "  •  " + MapGen.TimeNames[o.time], small, new Color(0.65f, 0.68f, 0.7f));
+            if (GUI.Button(r, GUIContent.none, GUIStyle.none) && !sel) { opSel = i; Sfx.Play2D("ui"); opScroll = Vector2.zero; }
+        }
+        // досье
+        var op = ops[opSel];
+        float dx = lx + lw + 30, dw = W - dx - 40, dy = 110, dh = H - 260;
+        Rect(new Rect(dx, dy, dw, dh), new Color(0.06f, 0.07f, 0.08f, 0.95f));
+        Rect(new Rect(dx, dy, dw, 4), new Color(0.85f, 0.6f, 0.1f));
+        GUILayout.BeginArea(new Rect(dx + 30, dy + 20, dw - 60, dh - 30));
+        opScroll = GUILayout.BeginScrollView(opScroll);
+        var big = new GUIStyle(h1) { wordWrap = true };
+        var sec = new GUIStyle(h2); sec.normal.textColor = new Color(0.85f, 0.6f, 0.1f);
+        GUILayout.Label("ДОСЬЕ: " + op.code, sec);
+        GUILayout.Label(op.title, big);
+        GUILayout.Label("Дата: " + op.date + "     Место: " + op.place + "     Карта: " + MapGen.MapNames[op.map] + ", " + MapGen.TimeNames[op.time].ToLower(), small);
+        GUILayout.Space(14);
+        GUILayout.Label("ЧТО ИЗВЕСТНО", sec);
+        GUILayout.Label(op.briefing, body);
+        GUILayout.Space(10);
+        GUILayout.Label("ЗАДАЧА", sec);
+        GUILayout.Label(op.task, body);
+        GUILayout.Space(10);
+        GUILayout.Label("СИЛЫ ФОНДА", sec);
+        foreach (var p in op.foundation) GUILayout.Label(ForceLine(p) + (p.def.id == op.playerSquad ? "   ★ ты здесь" : ""), body);
+        GUILayout.Space(6);
+        GUILayout.Label("ПРОТИВНИК", sec);
+        foreach (var p in op.chaos) GUILayout.Label(ForceLine(p), body);
+        foreach (var s in op.scps) GUILayout.Label("• " + s.def.name + " " + s.def.nick + (s.count > 1 ? " × " + s.count : "") + " — уже на свободе", body);
+        GUILayout.Label(op.captureEnds ? "Условие: захватить объект (ослабить и удержать зону рядом с ним)." : "Условие: обезвредить всех: уничтожить или захватить каждого.", small);
+        GUILayout.Space(10);
+        GUILayout.Label("Источник: " + op.source + ". Текст пересказан, лицензия CC BY-SA 3.0.", small);
+        GUILayout.EndScrollView();
+        GUILayout.EndArea();
+
+        float by = H - 130;
+        Rect(new Rect(0, by - 8, W, 138), new Color(0, 0, 0, 0.6f));
+        if (GUI.Button(new Rect(40, by + 30, 160, 50), "← Назад", btn)) { Sfx.Play2D("ui"); screen = Scr.Menu; }
+        if (GUI.Button(new Rect(230, by + 30, 300, 50), playerFps ? "Режим: от первого лица" : "Режим: наблюдатель", playerFps ? toggleOn : toggleOff)) playerFps = !playerFps;
+        if (GUI.Button(new Rect(W - 460, by + 20, 420, 66), "НАЧАТЬ ОПЕРАЦИЮ", btnBig)) { Sfx.Play2D("ui_confirm"); StartBattle(op.ToConfig(playerFps)); }
+    }
+
     // ---------------- настройки ----------------
     void SettingsGUI()
     {
@@ -356,7 +432,7 @@ public partial class Game
         {
             float t = b.cmdF.NextReinforcement(out string rn);
             if (rn != null && t < 600f)
-                Shadowed(new Rect(W / 2 - 300, 8, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
+                Shadowed(new Rect(W / 2 - 300, 82, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
         }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
@@ -616,7 +692,7 @@ public partial class Game
 
     void Results(Battle b)
     {
-        float w = 760, h = 420, x = W / 2 - w / 2, y = H / 2 - h / 2 - 40;
+        float w = 760, h = b.debrief != null ? 464 : 420, x = W / 2 - w / 2, y = H / 2 - h / 2 - 40;
         if (!Paused && PlayerController.I != null && !PlayerController.I.dead)
         {
             // во время игры победа показывается баннером, не мешая
@@ -634,11 +710,16 @@ public partial class Game
             Label(new Rect(x + 60, yy, w - 120, 32), Battle.TeamName(t) + ":  уничтожено врагов " + b.teamKills[i] + "   потери " + b.teamLosses[i] + "   в строю " + b.AliveCount(t), body, Battle.TeamColor(t));
             yy += 36;
         }
+        if (b.debrief != null)
+        {
+            Label(new Rect(x + 60, yy + 2, w - 120, 50), b.debrief, small, new Color(0.9f, 0.85f, 0.7f));
+            yy += 44;
+        }
         float tm = Time.time - b.startTime;
         Label(new Rect(x + 60, yy + 6, w - 120, 30), "Длительность боя: " + string.Format("{0:00}:{1:00}", (int)(tm / 60), (int)(tm % 60)), body, Color.white);
         yy += 60;
         if (GUI.Button(new Rect(x + 40, yy, 220, 54), "Ещё раз", btn)) { var c = MakeConfig(); if (lastCfg != null) { lastCfg.seed = Random.Range(1, 99999); c = lastCfg; } StartBattle(c); }
-        if (GUI.Button(new Rect(x + 270, yy, 220, 54), "Изменить отряды", btn)) { ShowMenu(); screen = Scr.Setup; }
+        if (GUI.Button(new Rect(x + 270, yy, 220, 54), b.debrief != null ? "Другая операция" : "Изменить отряды", btn)) { ShowMenu(); screen = b.debrief != null ? Scr.Ops : Scr.Setup; }
         if (GUI.Button(new Rect(x + 500, yy, 220, 54), "Главное меню", btn)) ShowMenu();
         if (GUI.Button(new Rect(x + 270, yy + 64, 220, 44), "Наблюдать", btn)) { Paused = false; if (PlayerController.I != null) Spectate(); else if (!SpectatorCam.Active) SpectatorCam.Activate(Cam.transform.position, Cam.transform.rotation); }
     }

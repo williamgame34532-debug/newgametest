@@ -1,8 +1,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class SquadPick { public SquadDef def; public int count; public float delay; }   // delay — задержка вылета (подкрепление), с
-public class ScpPick { public ScpDef def; public int count; }
+// delay — задержка вылета (подкрепление), с; placed — уже на месте без вертолёта (гарнизон, беглецы)
+public class SquadPick { public SquadDef def; public int count; public float delay; public bool placed, garrison; public Vector3 pos; }
+public class ScpPick { public ScpDef def; public int count; public bool placed; public Vector3 pos; }
 
 public class BattleConfig
 {
@@ -15,6 +16,8 @@ public class BattleConfig
     public bool friendlyFire;
     public int playerSquad;
     public int seed = 1;
+    public OperationDef op;          // сценарий «Реальные операции» (или null)
+    public bool captureEnds = true;
 }
 
 // Менеджер боя: высадка всех сторон, союзы, победа, лента событий
@@ -31,6 +34,14 @@ public class Battle : MonoBehaviour
     public readonly List<FeedEntry> feed = new List<FeedEntry>();
     public readonly List<FeedEntry> messages = new List<FeedEntry>();
     public bool over;
+    public string debrief;
+
+    void Debrief(bool foundationWon)
+    {
+        var op = Cfg != null ? Cfg.op : null;
+        if (op == null) return;
+        debrief = (foundationWon ? "ОПЕРАЦИЯ ВЫПОЛНЕНА. " + op.win : "ОПЕРАЦИЯ ПРОВАЛЕНА. " + op.lose);
+    }
     public string winnerText;
     public Color winnerColor;
     public float startTime;
@@ -101,16 +112,20 @@ public class Battle : MonoBehaviour
         var lzS = new List<Vector3>();
         int nF = cfg.foundation.Count, nC = cfg.chaos.Count, nS = cfg.scps.Count;
         // базы сторон далеко друг от друга — отряды успевают закрепиться, пока командир раздаёт приказы
-        for (int i = 0; i < nF; i++) lzF.Add(new Vector3((i - (nF - 1) / 2f) * 30f, 0, -195f - (i % 2) * 10f));
-        for (int i = 0; i < nC; i++) lzC.Add(new Vector3((i - (nC - 1) / 2f) * 28f, 0, 195f + (i % 2) * 10f));
+        for (int i = 0; i < nF; i++) lzF.Add(cfg.foundation[i].placed ? cfg.foundation[i].pos : new Vector3((i - (nF - 1) / 2f) * 30f, 0, -195f - (i % 2) * 10f));
+        for (int i = 0; i < nC; i++) lzC.Add(cfg.chaos[i].placed ? cfg.chaos[i].pos : new Vector3((i - (nC - 1) / 2f) * 28f, 0, 195f + (i % 2) * 10f));
         // SCP-объекты — у комплекса в центре: за них и идёт бой
         for (int i = 0; i < nS; i++)
         {
             float a = (90f + (i % 2) * 180f + (i / 2) * 40f * ((i / 2) % 2 == 0 ? 1 : -1)) * Mathf.Deg2Rad;
             float r = 48f + (i / 2) * 6f;
-            lzS.Add(new Vector3(Mathf.Sin(a) * r, 0, Mathf.Cos(a) * r * 0.6f));
+            lzS.Add(cfg.scps[i].placed ? cfg.scps[i].pos : new Vector3(Mathf.Sin(a) * r, 0, Mathf.Cos(a) * r * 0.6f));
         }
-        var all = new List<Vector3>(); all.AddRange(lzF); all.AddRange(lzC); all.AddRange(lzS);
+        // площадки только там, где садятся вертолёты; гарнизоны и объекты сценариев стоят среди построек
+        var all = new List<Vector3>();
+        for (int i = 0; i < nF; i++) if (!cfg.foundation[i].placed) all.Add(lzF[i]);
+        for (int i = 0; i < nC; i++) if (!cfg.chaos[i].placed) all.Add(lzC[i]);
+        for (int i = 0; i < nS; i++) if (!cfg.scps[i].placed) all.Add(lzS[i]);
         MapGen.Build(cfg.map, cfg.time, all, cfg.seed);
         yield return null;
         var nav = MapGen.BakeNavAsync();
@@ -118,9 +133,9 @@ public class Battle : MonoBehaviour
         loadProgress = 1f;
         loading = false;
         Ambience.Create(cfg.time == 2, cfg.map).transform.SetParent(transform);
-        for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, GroundHeight(lzF[i]), lzF[i].z);
-        for (int i = 0; i < lzC.Count; i++) lzC[i] = new Vector3(lzC[i].x, GroundHeight(lzC[i]), lzC[i].z);
-        for (int i = 0; i < lzS.Count; i++) lzS[i] = new Vector3(lzS[i].x, GroundHeight(lzS[i]), lzS[i].z);
+        for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, cfg.foundation[i].placed ? MapGen.Height(lzF[i].x, lzF[i].z) : GroundHeight(lzF[i]), lzF[i].z);
+        for (int i = 0; i < lzC.Count; i++) lzC[i] = new Vector3(lzC[i].x, cfg.chaos[i].placed ? MapGen.Height(lzC[i].x, lzC[i].z) : GroundHeight(lzC[i]), lzC[i].z);
+        for (int i = 0; i < lzS.Count; i++) lzS[i] = new Vector3(lzS[i].x, cfg.scps[i].placed ? MapGen.Height(lzS[i].x, lzS[i].z) : GroundHeight(lzS[i]), lzS[i].z);
 
         bool night = cfg.time == 2;
 
@@ -130,6 +145,7 @@ public class Battle : MonoBehaviour
             var pick = cfg.foundation[i];
             bool playerHere = cfg.playerFps && i == cfg.playerSquad;
             var lz = lzF[i];
+            if (pick.placed && !playerHere) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
             var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 4f + i * 4f + pick.delay };
             squads.Add(sq);
@@ -158,6 +174,7 @@ public class Battle : MonoBehaviour
         {
             var pick = cfg.chaos[i];
             var lz = lzC[i];
+            if (pick.placed) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
             bool rope = pick.def.fastRope;
             var heli = Helicopter.Create(Team.Chaos, pick.def.label, new Color(0.24f, 0.26f, 0.17f), pick.def.look.accent, Mathf.Max(pick.count, 2), rope);
             var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + 6f + i * 4f + pick.delay };
@@ -181,6 +198,20 @@ public class Battle : MonoBehaviour
             var pick = cfg.scps[i];
             var lz = lzS[i];
             if (pick.def.kind == ScpKind.S173) has173 = true;
+            if (pick.placed)
+            {
+                // объект уже на свободе — без контейнера
+                for (int k = 0; k < pick.count; k++)
+                {
+                    float a = k * 2.4f, r = k == 0 ? 0f : 3f + k * 1.3f;
+                    Vector3 p = lz + new Vector3(Mathf.Cos(a) * r, 0, Mathf.Sin(a) * r);
+                    p.y = MapGen.Height(p.x, p.z);
+                    if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 8f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
+                    var u = ScpFactory.Spawn(pick.def.kind, p, Quaternion.Euler(0, Random.Range(0f, 360f), 0));
+                    if (u != null) Register(u);
+                }
+                continue;
+            }
             var heli = Helicopter.Create(Team.SCP, "SCP " + pick.def.id, new Color(0.3f, 0.3f, 0.32f), new Color(0.95f, 0.7f, 0.1f), 2, false);
             var cont = ScpContainer.Create(pick.def.kind, pick.count);
             heli.AttachSling(cont);
@@ -196,15 +227,43 @@ public class Battle : MonoBehaviour
 
         // командиры сторон
         Vector3 bF = Vector3.zero, bC = Vector3.zero;
-        foreach (var v in lzF) bF += v / Mathf.Max(1, lzF.Count);
-        foreach (var v in lzC) bC += v / Mathf.Max(1, lzC.Count);
+        // база стороны — средняя точка высадки (гарнизоны не в счёт, если есть вертолёты)
+        bF = BasePos(cfg.foundation, lzF, new Vector3(0, 0, -195f));
+        bC = BasePos(cfg.chaos, lzC, new Vector3(0, 0, 195f));
         cmdF = new TeamCommander(Team.Foundation, bF);
         cmdC = new TeamCommander(Team.Chaos, bC);
         foreach (var sq in squads) (sq.team == Team.Foundation ? cmdF : cmdC).squads.Add(sq);
         startTime = Time.time;
         if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
+        if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
         Message("Вертолёты на подлёте…", new Color(1f, 0.85f, 0.4f));
         Sfx.Play2D("alarm", 0.5f);
+    }
+
+    static Vector3 BasePos(List<SquadPick> picks, List<Vector3> lz, Vector3 fallback)
+    {
+        Vector3 sum = Vector3.zero; int n = 0;
+        for (int i = 0; i < picks.Count; i++) if (!picks[i].placed) { sum += lz[i]; n++; }
+        if (n == 0) for (int i = 0; i < picks.Count; i++) { sum += lz[i]; n++; }
+        return n > 0 ? sum / n : fallback;
+    }
+
+    // Отряд уже на месте (гарнизон Зоны, беглецы): без вертолёта, сразу в бою
+    void PlaceSquad(SquadPick pick, Team team, Vector3 lz, Vector3 face, bool night)
+    {
+        var sq = new SquadRt { def = pick.def, team = team, lz = lz, garrison = pick.garrison, orderPos = lz, orderSet = true, hold = pick.garrison, orderText = pick.garrison ? "Удерживать сектор" : "Высадка" };
+        squads.Add(sq);
+        int cols = Mathf.CeilToInt(Mathf.Sqrt(pick.count));
+        for (int k = 0; k < pick.count; k++)
+        {
+            Vector3 p = lz + new Vector3((k % cols - (cols - 1) / 2f) * 2.2f + Random.Range(-0.4f, 0.4f), 0, (k / cols) * 2.2f + Random.Range(-0.4f, 0.4f));
+            p.y = MapGen.Height(p.x, p.z);
+            if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 6f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
+            var s = Soldier.Create(pick.def, p, Quaternion.LookRotation(face), k, night);
+            s.squadRt = sq; sq.members.Add(s);
+            s.homeDir = face;
+            s.BeginCombat(p);
+        }
     }
 
     // ---------------- события ----------------
@@ -308,7 +367,14 @@ public class Battle : MonoBehaviour
                 if (su.capture[t] < 1f) continue;
                 Team by = t == 0 ? Team.Foundation : Team.Chaos;
                 su.Capture(by);
+                if (Cfg != null && !Cfg.captureEnds)
+                {
+                    Message(su.displayName + " захвачен: " + TeamName(by), TeamColor(by));
+                    Sfx.Play2D("radio", 0.5f);
+                    continue;
+                }
                 over = true;
+                Debrief(by == Team.Foundation);
                 winnerText = (by == Team.Foundation ? "ФОНД ЗАХВАТИЛ " : "ПОВСТАНЦЫ ХАОСА ЗАХВАТИЛИ ") + su.displayName;
                 winnerColor = TeamColor(by);
                 teamKills[(int)by] += 0;
@@ -375,6 +441,7 @@ public class Battle : MonoBehaviour
             else if (ch > 0) { winnerText = "ПОБЕДА ПОВСТАНЦЕВ ХАОСА"; winnerColor = TeamColor(Team.Chaos); }
             else if (s > 0) { winnerText = "SCP-ОБЪЕКТЫ ВЫРВАЛИСЬ НА СВОБОДУ"; winnerColor = TeamColor(Team.SCP); }
             else { winnerText = "НИКТО НЕ ВЫЖИЛ"; winnerColor = Color.gray; }
+            Debrief(f > 0);
             Sfx.Play2D("alarm", 0.6f, 0.8f);
         }
     }
