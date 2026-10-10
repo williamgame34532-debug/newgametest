@@ -90,28 +90,58 @@ public partial class Game
     }
 
     // ---------------- главное меню ----------------
+    Texture2D logoTex, gradTex;
+    GUIStyle menuBtn, menuBtnSub;
+
+    void MenuStyles()
+    {
+        if (menuBtn != null) return;
+        logoTex = Resources.Load<Texture2D>("Branding/Logo");
+        gradTex = new Texture2D(256, 1, TextureFormat.RGBA32, false) { wrapMode = TextureWrapMode.Clamp };
+        for (int i = 0; i < 256; i++) gradTex.SetPixel(i, 0, new Color(0.02f, 0.025f, 0.03f, Mathf.Lerp(0.92f, 0f, Mathf.SmoothStep(0, 1, i / 255f))));
+        gradTex.Apply();
+        menuBtn = new GUIStyle { fontSize = 30, font = fontTitle, alignment = TextAnchor.MiddleLeft, padding = new RectOffset(28, 10, 0, 0) };
+        menuBtn.normal.textColor = new Color(0.86f, 0.87f, 0.84f);
+        menuBtn.hover.textColor = Color.white;
+        menuBtnSub = new GUIStyle(menuBtn) { fontSize = 22, font = fontHud };
+    }
+
+    // Кнопка меню: тонкая подложка, при наведении — акцентная полоса слева и подсветка
+    bool MenuButton(Rect r, string text, string hint, bool big = false)
+    {
+        bool hover = r.Contains(Event.current.mousePosition);
+        Rect(r, new Color(1, 1, 1, hover ? 0.08f : 0.025f));
+        Rect(new Rect(r.x, r.y, hover ? 6 : 2, r.height), hover ? new Color(1f, 0.72f, 0.2f) : new Color(1, 1, 1, 0.25f));
+        bool click = GUI.Button(r, text, big ? menuBtn : menuBtnSub);
+        if (hover && hint != null) Label(new Rect(r.xMax + 24, r.y, 520, r.height), hint, new GUIStyle(small) { alignment = TextAnchor.MiddleLeft }, new Color(0.75f, 0.77f, 0.75f, 0.9f));
+        if (click) Sfx.Play2D("ui");
+        return click;
+    }
+
     void MenuGUI()
     {
-        Rect(new Rect(0, 0, 760, H), new Color(0, 0, 0, 0.55f));
-        Rect(new Rect(760, 0, 6, H), new Color(0.85f, 0.6f, 0.1f, 0.9f));
-        // знак Фонда
-        DrawLogo(new Vector2(130, 190), 70);
-        Shadowed(new Rect(220, 120, 600, 90), "SCP", title, Color.white);
-        Shadowed(new Rect(222, 200, 600, 50), "ВОЙНА ЗА ФОНД", h1, new Color(0.9f, 0.75f, 0.3f));
-        Label(new Rect(60, 280, 660, 80), "Собери до пяти отрядов МОГ, выбери Повстанцев Хаоса и SCP-объекты — и высаживайся с вертолёта в бой от первого лица.", body, new Color(0.85f, 0.85f, 0.85f));
-        float y = 400;
-        if (GUI.Button(new Rect(60, y, 520, 72), "НОВАЯ ОПЕРАЦИЯ", btnBig)) { Sfx.Play2D("ui"); screen = Scr.Setup; }
-        y += 92;
-        if (GUI.Button(new Rect(60, y, 520, 60), "РЕАЛЬНЫЕ ОПЕРАЦИИ ФОНДА", btn)) { Sfx.Play2D("ui"); Operations.Init(); screen = Scr.Ops; }
-        y += 76;
-        if (lastCfg != null && GUI.Button(new Rect(60, y, 520, 56), "Повторить последнюю", btn)) { Sfx.Play2D("ui"); var c = lastCfg; c.seed = Random.Range(1, 99999); StartBattle(c); }
-        if (lastCfg != null) y += 72;
-        if (GUI.Button(new Rect(60, y, 520, 56), "Быстрый бой (случайный)", btn)) { Sfx.Play2D("ui"); Randomize(); StartBattle(MakeConfig()); }
-        y += 72;
-        if (GUI.Button(new Rect(60, y, 520, 56), "Настройки", btn)) { Sfx.Play2D("ui"); settingsReturn = Scr.Menu; screen = Scr.Settings; }
-        y += 72;
-        if (GUI.Button(new Rect(60, y, 520, 56), "Выход", btn)) Application.Quit();
-        Label(new Rect(60, H - 70, 700, 40), "ОБЕСПЕЧИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.", small, new Color(0.6f, 0.6f, 0.6f));
+        MenuStyles();
+        GUI.DrawTexture(new Rect(0, 0, 1100, H), gradTex);
+        // гриф и логотип
+        if (logoTex != null) GUI.DrawTexture(new Rect(64, 70, 150, 150), logoTex, ScaleMode.ScaleToFit);
+        else DrawLogo(new Vector2(140, 145), 64);
+        Shadowed(new Rect(236, 78, 700, 90), "SCP", new GUIStyle(title) { fontSize = 84 }, Color.white);
+        Shadowed(new Rect(240, 160, 700, 50), "ВОЙНА ЗА ФОНД", h1, new Color(1f, 0.78f, 0.32f));
+        Rect(new Rect(64, 240, 520, 1), new Color(1, 1, 1, 0.25f));
+        Label(new Rect(64, 250, 900, 30), "СЕКРЕТНО  ·  УРОВЕНЬ ДОПУСКА 3  ·  ТОЛЬКО ДЛЯ ПЕРСОНАЛА МОГ", new GUIStyle(small) { fontSize = 14 }, new Color(1f, 0.4f, 0.3f, 0.85f));
+        float y = 330;
+        if (MenuButton(new Rect(64, y, 560, 70), "НОВАЯ ОПЕРАЦИЯ", "Собрать отряды МОГ, выбрать противника и место", true)) screen = Scr.Setup;
+        y += 84;
+        if (MenuButton(new Rect(64, y, 560, 58), "Реальные операции Фонда", "Шесть сценариев по документам Фонда")) { Operations.Init(); screen = Scr.Ops; }
+        y += 68;
+        if (lastCfg != null) { if (MenuButton(new Rect(64, y, 560, 58), "Повторить последнюю", "Тот же состав, новая карта")) { var c = lastCfg; c.seed = Random.Range(1, 99999); StartBattle(c); } y += 68; }
+        if (MenuButton(new Rect(64, y, 560, 58), "Быстрый бой", "Случайные отряды, противник и место")) { Randomize(); StartBattle(MakeConfig()); }
+        y += 68;
+        if (MenuButton(new Rect(64, y, 560, 58), "Настройки", "Графика, звук, управление")) { settingsReturn = Scr.Menu; screen = Scr.Settings; }
+        y += 68;
+        if (MenuButton(new Rect(64, y, 560, 58), "Выход", null)) Application.Quit();
+        Label(new Rect(64, H - 70, 900, 30), "ОБЕСПЕЧИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.", new GUIStyle(small) { fontSize = 16, font = fontTitle }, new Color(0.7f, 0.7f, 0.68f, 0.8f));
+        Label(new Rect(W - 420, H - 46, 380, 24), "v3 · Unity 6", new GUIStyle(small) { alignment = TextAnchor.MiddleRight, fontSize = 13 }, new Color(1, 1, 1, 0.35f));
     }
 
     void DrawLogo(Vector2 c, float r)
