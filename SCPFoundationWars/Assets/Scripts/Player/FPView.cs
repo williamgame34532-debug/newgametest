@@ -88,6 +88,8 @@ public class FPView : MonoBehaviour
         v.vmCam.nearClipPlane = 0.01f;
         v.vmCam.farClipPlane = 6f;
         v.vmCam.fieldOfView = 55f;
+        v.vmCam.allowHDR = cam.allowHDR;
+        PostFX.SetTop(v.vmCam);
         v.root = new GameObject("vmRoot").transform;
         v.root.SetParent(cam.transform, false);
         v.pivot = new GameObject("vmPivot").transform;
@@ -106,6 +108,7 @@ public class FPView : MonoBehaviour
         if (root != null) Destroy(root.gameObject);
         if (vmCam != null) Destroy(vmCam.gameObject);
         root = null; vmCam = null;
+        PostFX.SetTop(Game.Cam);
     }
 
     void OnDestroy() { Dispose(); }

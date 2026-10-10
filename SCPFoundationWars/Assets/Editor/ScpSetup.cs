@@ -112,7 +112,7 @@ public static class ScpSetup
     [MenuItem("SCP Wars/Включить шейдеры в сборку")]
     static void IncludeShaders()
     {
-        string[] names = { "Standard", "SCP/WorldText", "SCP/Sky", "SCP/Distant", "SCP/Terrain", "SCP/Grass", "Particles/Standard Unlit", "Skybox/Procedural", "Unlit/Color", "Sprites/Default", "Legacy Shaders/Particles/Alpha Blended" };
+        string[] names = { "Standard", "SCP/WorldText", "SCP/Sky", "SCP/Distant", "SCP/Terrain", "SCP/Grass", "SCP/Post", "Particles/Standard Unlit", "Skybox/Procedural", "Unlit/Color", "Sprites/Default", "Legacy Shaders/Particles/Alpha Blended" };
         var gs = AssetDatabase.LoadAssetAtPath<GraphicsSettings>("ProjectSettings/GraphicsSettings.asset");
         if (gs == null) return;
         var so = new SerializedObject(gs);

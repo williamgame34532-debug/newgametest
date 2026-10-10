@@ -410,6 +410,7 @@ public partial class Game
         Ragdoll.MaxCorpses = CorpseLimit;
         y += 50;
         if (GUI.Button(new Rect(x, y, 380, 40), Intro ? "Брифинг на базе перед вылетом: ВКЛ" : "Брифинг на базе перед вылетом: ВЫКЛ", Intro ? toggleOn : toggleOff)) Intro = !Intro;
+        if (GUI.Button(new Rect(x + 400, y, 380, 40), PostFX.Enabled ? "Кинематографичная картинка: ВКЛ" : "Кинематографичная картинка: ВЫКЛ", PostFX.Enabled ? toggleOn : toggleOff)) PostFX.Enabled = !PostFX.Enabled;
         y += 60;
         Label(new Rect(x, y, 800, 260),
             "Управление:\n" +
