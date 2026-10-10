@@ -117,6 +117,7 @@ public class Battle : MonoBehaviour
         while (nav != null && !nav.isDone) { loadProgress = nav.progress; yield return null; }
         loadProgress = 1f;
         loading = false;
+        Ambience.Create(cfg.time == 2, cfg.map).transform.SetParent(transform);
         for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, GroundHeight(lzF[i]), lzF[i].z);
         for (int i = 0; i < lzC.Count; i++) lzC[i] = new Vector3(lzC[i].x, GroundHeight(lzC[i]), lzC[i].z);
         for (int i = 0; i < lzS.Count; i++) lzS[i] = new Vector3(lzS[i].x, GroundHeight(lzS[i]), lzS[i].z);

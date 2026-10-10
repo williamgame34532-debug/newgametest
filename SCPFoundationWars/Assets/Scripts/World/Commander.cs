@@ -34,7 +34,7 @@ public class TeamCommander
     void Say(string text)
     {
         // приказы своей стороны видны игроку; переговоры Хаоса — "перехвачены" реже
-        if (team == Team.Foundation) Battle.Message(title + ": " + text, new Color(0.55f, 0.8f, 1f));
+        if (team == Team.Foundation) { Battle.Message(title + ": " + text, new Color(0.55f, 0.8f, 1f)); Sfx.Play2D("radio", 0.35f); }
         else if (Random.value < 0.5f) Battle.Message("Перехват (Хаос): " + text, new Color(0.55f, 0.9f, 0.45f));
     }
 

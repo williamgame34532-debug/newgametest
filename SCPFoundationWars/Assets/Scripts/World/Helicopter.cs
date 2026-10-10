@@ -679,6 +679,7 @@ public class ScpContainer : MonoBehaviour
         door.gameObject.layer = Layers.World;
         foreach (Transform ch in door) ch.gameObject.layer = Layers.World;
         Fx.Explosion(dp, 1.2f);
+        Sfx.Play("door_open", dp, 1f, 0.8f, 120f);
         Sfx.Play("explosion", dp, 0.7f, 1.4f, 200f);
         Fx.Smoke(dp, 4f, new Color(0.6f, 0.6f, 0.6f, 0.5f), 5f, Vector3.up);
         // выпускаем объекты

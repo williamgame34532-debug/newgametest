@@ -201,13 +201,13 @@ public partial class Game
         if (GUI.Button(new Rect(bx, by + 26, 210, 44), friendlyFire ? "Огонь по своим: ВКЛ" : "Огонь по своим: ВЫКЛ", friendlyFire ? toggleOn : toggleOff)) friendlyFire = !friendlyFire;
         bx += 220;
         if (GUI.Button(new Rect(bx, by + 26, 250, 44), playerFps ? "Режим: от первого лица" : "Режим: наблюдатель", playerFps ? toggleOn : toggleOff)) playerFps = !playerFps;
-        bx += 260;
-        if (GUI.Button(new Rect(bx, by + 26, 140, 44), "Случайно", btn)) Randomize();
-        if (GUI.Button(new Rect(bx + 150, by + 26, 140, 44), "Очистить", btn)) { fPick.Clear(); cPick.Clear(); sPick.Clear(); fOrder.Clear(); }
+        // вторая строка — не пересекается с кнопкой "В БОЙ!"
+        if (GUI.Button(new Rect(W - 720, by + 82, 150, 40), "Случайно", btn)) Randomize();
+        if (GUI.Button(new Rect(W - 560, by + 82, 150, 40), "Очистить", btn)) { fPick.Clear(); cPick.Clear(); sPick.Clear(); fOrder.Clear(); }
 
         bool okF = fOrder.Count > 0, okE = cPick.Count > 0 || sPick.Count > 0;
         string why = !okF ? "Выбери хотя бы один отряд Фонда" : !okE ? "Выбери противников: Хаос и/или SCP" : "";
-        if (why != "") Label(new Rect(W - 520, by + 80, 480, 30), why, small, new Color(1f, 0.5f, 0.4f));
+        if (why != "") Label(new Rect(W - 520, by - 40, 480, 30), why, small, new Color(1f, 0.5f, 0.4f));
         GUI.enabled = okF && okE;
         if (GUI.Button(new Rect(W - 380, by + 18, 340, 60), "В БОЙ!", btnBig)) { Sfx.Play2D("ui"); StartBattle(MakeConfig()); }
         GUI.enabled = true;

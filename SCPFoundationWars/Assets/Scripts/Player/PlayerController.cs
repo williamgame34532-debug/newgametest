@@ -221,6 +221,7 @@ public class PlayerController : MonoBehaviour
     public void OnHurt(DamageInfo d, float dmg)
     {
         hurt = Mathf.Min(1f, hurt + dmg / 40f);
+        if (Random.value < 0.6f) Sfx.Play2D("pain", 0.55f, Random.Range(0.95f, 1.05f));
         Fx.shake = Mathf.Max(Fx.shake, 0.2f + dmg / 120f);
         if (d.attacker != null)
         {
@@ -361,7 +362,7 @@ public class PlayerController : MonoBehaviour
         grounded = cc.isGrounded;
         if (grounded)
         {
-            if (vy < -8f) { landKick = Mathf.Clamp01(-vy / 12f); Sfx.Play2D("step", 0.6f, 0.8f); }
+            if (vy < -8f) { landKick = Mathf.Clamp01(-vy / 12f); Sfx.Play2D("land", 0.7f); }
             if (vy < -16f) unit.TakeDamage(new DamageInfo { amount = (-vy - 16f) * 10f, type = DamageType.Fall, dir = Vector3.down, point = transform.position });
             vy = -2f;
             if (Input.GetKeyDown(KeyCode.Space) && !crouching) vy = 5.2f;
@@ -410,7 +411,7 @@ public class PlayerController : MonoBehaviour
         {
             g.CancelReload();
             switchT = 0; switchTo = want; swapped = false;
-            Sfx.Play2D("magout", 0.3f, 1.4f);
+            Sfx.Play2D("weapon_switch", 0.5f);
         }
         if (switchT >= 0)
         {

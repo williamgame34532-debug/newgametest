@@ -131,7 +131,17 @@ public partial class Game : MonoBehaviour
         Paused = false;
         Time.timeScale = 1f;
         BuildMenuScene();
+        if (menuMusic == null)
+        {
+            menuMusic = gameObject.AddComponent<AudioSource>();
+            menuMusic.loop = true; menuMusic.spatialBlend = 0f;
+        }
+        menuMusic.clip = Sfx.Clip("menu_music");
+        menuMusic.volume = 0.5f * Sfx.Volume;
+        if (menuMusic.clip != null && !menuMusic.isPlaying) menuMusic.Play();
     }
+
+    AudioSource menuMusic;
 
     void ClearMenuScene()
     {
@@ -178,6 +188,7 @@ public partial class Game : MonoBehaviour
     public void StartBattle(BattleConfig cfg)
     {
         ClearMenuScene();
+        if (menuMusic != null) menuMusic.Stop();
         lastCfg = cfg;
         SavePrefs();
         screen = Scr.Battle;

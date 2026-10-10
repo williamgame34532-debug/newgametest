@@ -801,6 +801,7 @@ public class Soldier : Unit
         int bone = d.hitbox != null ? System.Array.IndexOf(rig.b, d.hitbox.transform) : -1;
         anim.HitReact(d.dir, Mathf.Clamp(dmg / 25f, 0.3f, 1.5f), bone < 0 ? HumanRig.Chest : bone);
         if (!zombie && target == null && d.attacker != null && IsEnemy(d.attacker)) { target = d.attacker; thinkT = Time.time + 0.2f; }
+        if (!zombie && hp > 0 && Random.value < 0.4f) Sfx.Play("pain", AimPoint, 0.6f, Random.Range(0.9f, 1.1f), 40f);
         if (zombie && Random.value < 0.3f) Sfx.Play("groan", transform.position, 0.6f, 1.2f, 30f);
     }
 
@@ -812,6 +813,8 @@ public class Soldier : Unit
         inVehicle = false;
         if (agent != null) agent.enabled = false;
         bool headshot = d.hitbox != null && d.hitbox.head;
+        if (!headshot && d.type != DamageType.NeckSnap && d.type != DamageType.Corrosion && Random.value < 0.85f)
+            Sfx.Play("death", AimPoint, 0.8f, Random.Range(0.88f, 1.08f), 55f);
         // от пули в корпус/конечности боец сначала оседает (подгибаются колени), а потом падает физически;
         // взрыв, выстрел в голову, удар SCP — сразу безвольное тело
         bool collapse = (d.type == DamageType.Bullet || d.type == DamageType.Melee || d.type == DamageType.Fire) && !headshot && d.force < 900f && anim.enabled && !zombie;

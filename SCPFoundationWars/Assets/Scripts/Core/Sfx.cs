@@ -6,6 +6,10 @@ public static class Sfx
 {
     const int SR = 44100;
     static readonly Dictionary<string, AudioClip> clips = new Dictionary<string, AudioClip>();
+    // записанные звуки (Resources/Sounds): имя -> варианты (rifle_1, rifle_2 ...)
+    static readonly Dictionary<string, List<AudioClip>> recorded = new Dictionary<string, List<AudioClip>>();
+    static readonly List<AudioLowPassFilter> filters = new List<AudioLowPassFilter>();
+    static readonly List<float> filterDist = new List<float>();
     static readonly List<AudioSource> pool = new List<AudioSource>();
     static GameObject host;
     static int next;
@@ -25,21 +29,53 @@ public static class Sfx
             go.transform.SetParent(host.transform);
             var s = go.AddComponent<AudioSource>();
             s.playOnAwake = false;
-            s.rolloffMode = AudioRolloffMode.Linear;
+            s.rolloffMode = AudioRolloffMode.Custom;
+            s.SetCustomCurve(AudioSourceCurveType.CustomRolloff, new AnimationCurve(new Keyframe(0, 1), new Keyframe(0.08f, 0.7f), new Keyframe(0.3f, 0.3f), new Keyframe(1, 0)));
             s.dopplerLevel = 0f;
+            var f = go.AddComponent<AudioLowPassFilter>();
+            f.cutoffFrequency = 22000;
             pool.Add(s);
+            filters.Add(f);
+            filterDist.Add(0);
         }
         Build();
+        LoadRecorded();
     }
 
-    public static AudioClip Clip(string name) { clips.TryGetValue(name, out var c); return c; }
+    // Подгружаем записанные звуки; если записи нет — остаётся синтезированный
+    static void LoadRecorded()
+    {
+        var all = Resources.LoadAll<AudioClip>("Sounds");
+        foreach (var c in all)
+        {
+            string n = c.name;
+            int us = n.LastIndexOf('_');
+            if (us > 0 && int.TryParse(n.Substring(us + 1), out _)) n = n.Substring(0, us);
+            if (!recorded.TryGetValue(n, out var l)) { l = new List<AudioClip>(); recorded[n] = l; }
+            l.Add(c);
+        }
+    }
+
+    public static AudioClip Clip(string name)
+    {
+        if (recorded.TryGetValue(name, out var l) && l.Count > 0) return l[Random.Range(0, l.Count)];
+        clips.TryGetValue(name, out var c);
+        return c;
+    }
 
     public static void Play(string name, Vector3 pos, float vol = 1f, float pitch = 1f, float maxDist = 120f, float spatial = 1f)
     {
-        if (!clips.TryGetValue(name, out var c) || c == null) return;
+        var c = Clip(name);
+        if (c == null) return;
+        int idx = next;
         var s = pool[next]; next = (next + 1) % pool.Count;
         // не перебиваем громкие звуки, если источник ещё играет — ищем свободный
-        for (int i = 0; i < 6 && s.isPlaying; i++) { s = pool[next]; next = (next + 1) % pool.Count; }
+        for (int i = 0; i < 6 && s.isPlaying; i++) { idx = next; s = pool[next]; next = (next + 1) % pool.Count; }
+        // дальние звуки глуше: воздух съедает высокие частоты
+        var cam = Camera.main;
+        float dist = cam != null && spatial > 0.5f ? Vector3.Distance(cam.transform.position, pos) : 0f;
+        filters[idx].cutoffFrequency = Mathf.Lerp(22000f, 1800f, Mathf.Clamp01(dist / Mathf.Max(30f, maxDist * 0.8f)));
+        if (dist > maxDist) return;
         s.transform.position = pos;
         s.clip = c;
         s.volume = vol * Volume;
@@ -63,6 +99,7 @@ public static class Sfx
         var s = go.AddComponent<AudioSource>();
         s.clip = Clip(name);
         s.loop = true;
+        s.time = s.clip != null ? Random.Range(0f, s.clip.length * 0.9f) : 0f;
         s.volume = vol * Volume;
         s.pitch = pitch;
         s.spatialBlend = 1f;

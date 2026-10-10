@@ -1,0 +1,14 @@
+Звуки — обработаны (слои, фильтры, уличная реверберация) из открытых источников:
+
+* Freedoom (https://github.com/freedoom/freedoom) — лицензия BSD 3-Clause,
+  Copyright (c) 2001-2024 Contributors to the Freedoom project. Использованы: dspistol, dsshotgn,
+  dsdshtgn, dssgcock, dsbarexp, dsrxplod, dsrlaunc, dsflame, dsradio, dspunch, dsslop, dsmetal,
+  dsplpain, dspopain, dspodth1-3, dspldeth, dsbgdth1, dsposit1-3, dsdmact, dsdmpain, dscybsit,
+  dsbdopn, dsbdcls, dswpnup.
+* Sonic Pi samples (https://github.com/sonic-pi-net/sonic-pi, etc/samples) — CC0 (Freesound):
+  misc_cineboom, ambi_haunted_hum, ambi_drone, ambi_dark_woosh, ambi_choir, drum_heavy_kick,
+  drum_tom_lo_hard, drum_cymbal_closed, perc_snap, perc_snap2, perc_impact1/2, perc_bell,
+  elec_blip, misc_crow.
+* Kenney Starter Kit FPS (https://github.com/KenneyNL/Starter-Kit-FPS) — MIT / CC0 ассеты:
+  walking, land.
+Ветер и часть слоёв синтезированы.

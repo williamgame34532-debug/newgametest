@@ -101,6 +101,8 @@ public abstract class ScpUnit : Unit
         var def = DB.Scp(k);
         maxHp = hp = def != null ? def.hp : 1000f;
         threat = Mathf.Clamp(maxHp / 400f, 1.5f, 6f);
+        // гнетущий гул рядом с аномалией
+        if (k == ScpKind.S173 || k == ScpKind.S106 || k == ScpKind.S049 || k == ScpKind.S096) Sfx.Loop("scp_hum", transform, 0.35f, 28f, k == ScpKind.S106 ? 0.7f : 1f);
     }
 
     float agR = 0.4f, agH = 1.9f, agSpeed = 3f, agAccel = 12f;
