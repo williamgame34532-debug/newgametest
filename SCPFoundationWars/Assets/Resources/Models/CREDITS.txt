@@ -6,3 +6,7 @@ Licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/lice
 (Файл взят из репозитория srcejon/sdrangel-3d-models.)
 
 soldier.bytes, m4.bytes — из присланного пользователем low-poly-soldier.zip.
+
+gun_*.bytes — модели оружия из пака "CC0 Flat Guns West" by Pichuliru (CC0 1.0, общественное достояние),
+GLB-версии из репозитория roobie/skelly. Изменения: переведены в формат и оси игры, отделены магазины/цевьё помпы,
+сняты откидные мушки/целики под коллиматоры, добавлены точки хвата, прицела и дульного среза.

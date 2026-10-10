@@ -316,6 +316,20 @@ public static class ModelLib
                         magParts.Add(mg.transform);
                     }
                     break;
+                case "glb":   // готовая модель (сконвертирована из glTF): части body_*, mag_*, pump_*
+                {
+                    var mx = ModelX.Load("gun_" + w[1]);
+                    if (mx == null) break;
+                    foreach (var mp in mx.parts)
+                    {
+                        var go = MeshKit.Part(root, mp.mesh, mx.Mat(mp.mat, Color.white), Vector3.zero, Vector3.one);
+                        if (mp.name.StartsWith("mag")) magParts.Add(go.transform);
+                        else if (mp.name.StartsWith("pump")) pumpParts.Add(go.transform);
+                        var bb = mp.mesh.bounds;
+                        minZ = Mathf.Min(minZ, bb.min.z); maxZ = Mathf.Max(maxZ, bb.max.z);
+                    }
+                    continue;
+                }
                 case "ext":
                 {
                     var pts = new List<Vector2>();
