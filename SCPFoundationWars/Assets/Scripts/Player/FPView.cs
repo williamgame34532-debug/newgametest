@@ -59,6 +59,9 @@ public class FPView : MonoBehaviour
     GunModel bodyGun;
 
     Vector3 swayPos, swayRot, kick, kickVel;
+    // пружинная инерция оружия: перехлёст при резком повороте, наклон при стрейфе, «вес» при остановке
+    Vector3 sprRot, sprRotVel, sprPos, sprPosVel;
+    float adsPrev, adsDip;
     float lastReload = -1f;
     bool reloadWasEmpty, magDropped;
     float pumpT = -1f;
@@ -285,7 +288,22 @@ public class FPView : MonoBehaviour
         float mx = locked ? Input.GetAxisRaw("Mouse X") : 0, my = locked ? Input.GetAxisRaw("Mouse Y") : 0;
         swayRot = Vector3.Lerp(swayRot, new Vector3(my * 1.6f, -mx * 2.2f, -mx * 2.8f), 1f - Mathf.Exp(-9f * dt));
         swayPos = Vector3.Lerp(swayPos, new Vector3(-mx * 0.007f, -my * 0.007f, 0), 1f - Mathf.Exp(-9f * dt));
-        pos += swayPos * calm; rot += swayRot * (1f - ads * 0.8f);
+        // пружина: оружие догоняет взгляд с небольшим перехлёстом (масса), в прицеле — жёстче
+        Vector3 lv = pc.transform.InverseTransformDirection(pc.velocity);
+        Vector3 rotGoal = swayRot + new Vector3(Mathf.Clamp(-lv.z * 0.35f, -2f, 2f), 0, Mathf.Clamp(-lv.x * 1.4f, -6f, 6f));
+        Vector3 posGoal = swayPos + new Vector3(Mathf.Clamp(-lv.x * 0.004f, -0.02f, 0.02f), Mathf.Clamp(-pc.velocity.y * 0.003f, -0.03f, 0.03f), Mathf.Clamp(-lv.z * 0.003f, -0.015f, 0.015f));
+        float stiff = Mathf.Lerp(120f, 260f, ads), damp = Mathf.Lerp(13f, 24f, ads);
+        sprRotVel += ((rotGoal - sprRot) * stiff - sprRotVel * damp) * dt;
+        sprRot += sprRotVel * dt;
+        sprPosVel += ((posGoal - sprPos) * stiff - sprPosVel * damp) * dt;
+        sprPos += sprPosVel * dt;
+        pos += sprPos * calm; rot += sprRot * (1f - ads * 0.75f);
+        // вскидка в прицел: короткий «кивок» оружия, как при упоре приклада в плечо
+        if (ads > adsPrev && adsPrev < 0.05f) adsDip = 1f;
+        adsPrev = ads;
+        adsDip = Mathf.MoveTowards(adsDip, 0f, dt * 3.2f);
+        rot.x += Mathf.Sin(adsDip * Mathf.PI) * 2.2f;
+        pos.y -= Mathf.Sin(adsDip * Mathf.PI) * 0.006f;
         // прыжок/приземление
         pos.y -= pc.landKick * 0.06f;
         rot.x += pc.landKick * 7f - (pc.Airborne ? 4f : 0f);

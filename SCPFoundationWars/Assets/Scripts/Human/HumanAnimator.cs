@@ -64,6 +64,21 @@ public class HumanAnimator : MonoBehaviour
     // ---- захват движения (CMU mocap): ноги, таз и корпус при ходьбе/беге берутся из записи ----
     readonly MocapBlend mo = new MocapBlend();
     float mph, mocapW, moSize = -1f;
+    float idleMoW, idlePh = -1f;   // живая стойка на месте (перенос веса, покачивание) из записи
+
+    static float IdleBoneW(int i)
+    {
+        switch (i)
+        {
+            case HumanRig.Hips: return 0.85f;
+            case HumanRig.Spine: return 0.6f;
+            case HumanRig.Chest: return 0.4f;
+            case HumanRig.Neck: case HumanRig.Head: return 0.3f;
+            case HumanRig.ULegL: case HumanRig.LLegL: case HumanRig.FootL:
+            case HumanRig.ULegR: case HumanRig.LLegR: case HumanRig.FootR: return 0.85f;
+            default: return 0f;
+        }
+    }
 
     void BuildBlend(float v)
     {
@@ -272,6 +287,10 @@ public class HumanAnimator : MonoBehaviour
             if (moActive && mocapW > 0.5f) phase = mph * Mathf.PI * 2f;
         }
         float pg = 1f - (moActive ? mocapW : 0f);
+        var idleClip = Mocap.Ready ? Mocap.Get("idle") : null;
+        if (idlePh < 0f) idlePh = Random.value;
+        idleMoW = Damp(idleMoW, idleClip != null && (style == AnimStyle.Soldier || style == AnimStyle.Doctor) ? (1f - Mathf.Clamp01(spd / (0.6f * scaleK))) * free * (1f - crouchW) * (1f - deathW) * (1f - suppW) : 0f, 4f, dt);
+        if (idleClip != null) idlePh += dt / idleClip.dur;
         float stepP = stepAmt * pg;
 
         // шаги: звук в момент постановки ноги
@@ -362,7 +381,7 @@ public class HumanAnimator : MonoBehaviour
         tgt[HumanRig.Chest].y -= 4f * bladeW;
         float headBack = -(blade - 8f * bladeW) * 0.5f;
         // расслабленная стойка: ноги шире, вес на одной ноге
-        float relaxW = (1f - aimW) * (1f - move) * free * (1f - crouchW) * (style == AnimStyle.Soldier ? 1f : 0.4f);
+        float relaxW = (1f - aimW) * (1f - move) * free * (1f - crouchW) * (style == AnimStyle.Soldier ? 1f : 0.4f) * (1f - 0.75f * idleMoW);
         float shift = Mathf.Sin(time * 0.35f) * 0.5f + 0.5f;
         tgt[HumanRig.ULegL] += new Vector3(-2f, 0, -5f) * relaxW;
         tgt[HumanRig.ULegR] += new Vector3(-2f, 0, 5f) * relaxW;
@@ -588,6 +607,11 @@ public class HumanAnimator : MonoBehaviour
             if (deathW > 0.5f) k = 18f;
             cur[i] = Quaternion.Slerp(cur[i], q, 1f - Mathf.Exp(-k * dt));
             Quaternion lr = cur[i];
+            if (idleMoW > 0.001f && idleClip != null)
+            {
+                float iw = IdleBoneW(i) * idleMoW * (i == HumanRig.Chest || i == HumanRig.Spine ? 1f - 0.5f * aimW : 1f);
+                if (iw > 0.001f) { idleClip.Sample(idlePh, i, out var iq); lr = Quaternion.Slerp(Quaternion.identity, iq, iw) * lr; }
+            }
             if (moActive)
             {
                 float bw = MoBoneW(i, hasGun) * mocapW;
@@ -597,7 +621,8 @@ public class HumanAnimator : MonoBehaviour
         }
         Vector3 hipsTarget = rig.hipsRest + hipsOff;
         hipsCur = Vector3.Lerp(hipsCur, hipsTarget, 1f - Mathf.Exp(-14f * dt));
-        rig.b[HumanRig.Hips].localPosition = hipsCur + (moActive ? mo.hips * (moSize * mocapW) : Vector3.zero);
+        rig.b[HumanRig.Hips].localPosition = hipsCur + (moActive ? mo.hips * (moSize * mocapW) : Vector3.zero)
+            + (idleMoW > 0.001f && idleClip != null ? idleClip.SampleHips(idlePh) * (moSize * idleMoW * 0.85f) : Vector3.zero);
 
         // вставание из позы трупа
         if (snapW > 0.001f)
