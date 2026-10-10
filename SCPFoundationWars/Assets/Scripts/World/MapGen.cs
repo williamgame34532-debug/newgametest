@@ -59,6 +59,9 @@ public static partial class MapGen
         concreteMat = Mats.Textured(Mats.ConcreteTex(new Color(0.58f, 0.57f, 0.54f), 3), Color.white, Vector2.one, 0.15f);
         darkConcrete = Mats.Textured(Mats.ConcreteTex(new Color(0.4f, 0.4f, 0.39f), 5), Color.white, Vector2.one, 0.15f);
 
+        terrainMat = TerrainMaterial(map, seed);
+        TreeMats(map == 3);
+        treeChunks.Clear();
         BuildGround();
         foreach (var lz in lzs) Helipad(lz);
         BuildFacility();
@@ -66,6 +69,9 @@ public static partial class MapGen
         BuildRoads();
         BuildCover(map);
         BuildNature(map);
+        BuildGrass(map);
+        BuildOuter(map);
+        CombineTreeChunks();
         BuildBounds();
         Lighting(map, time, fog);
         Mountains(map, fog);
@@ -115,11 +121,12 @@ public static partial class MapGen
         m.vertices = verts; m.uv = uvs; m.triangles = tris;
         m.RecalculateNormals();
         m.RecalculateBounds();
+        PaintGround(m);
         var go = new GameObject("Ground");
         go.transform.SetParent(Root.transform);
         go.AddComponent<MeshFilter>().sharedMesh = m;
         var mr = go.AddComponent<MeshRenderer>();
-        mr.sharedMaterial = groundMat;
+        mr.sharedMaterial = terrainMat != null ? terrainMat : groundMat;
         mr.shadowCastingMode = ShadowCastingMode.Off;
         go.AddComponent<MeshCollider>().sharedMesh = m;
         var s = go.AddComponent<Surface>(); s.color = dirtColor;
@@ -493,14 +500,26 @@ public static partial class MapGen
             if (Blocked(p, 3)) continue;
             p = OnGround(p.x, p.z, -0.1f);
             if (map == 2) Cactus(p, root);
-            else Tree(p, root, map == 3);
+            else if (map == 0 && R() < 0.4f) Broadleaf(p, root, R() < 0.35f);
+            else if (map == 1 && R() < 0.15f) Broadleaf(p, root, true);
+            else Conifer(p, root, map == 3);
         }
+        Color rc = map == 2 ? new Color(0.62f, 0.5f, 0.38f) : map == 3 ? new Color(0.55f, 0.56f, 0.6f) : new Color(0.44f, 0.43f, 0.41f);
+        var rockMat = Mats.Textured(LayerTex(3, 9), rc * 1.6f, Vector2.one * 2f, 0.12f);
         for (int i = 0; i < rocks; i++)
         {
             Vector3 p = new Vector3(R(-Size / 2 + 10, Size / 2 - 10), 0, R(-Size / 2 + 10, Size / 2 - 10));
             if (Blocked(p, 3)) continue;
-            Rock(OnGround(p.x, p.z), root);
+            RockNew(OnGround(p.x, p.z), root, rockMat);
         }
+        // лесной мусор: брёвна и пни
+        if (map == 1 || map == 0)
+            for (int i = 0; i < (map == 1 ? 220 : 80); i++)
+            {
+                Vector3 p = new Vector3(R(-Size / 2 + 10, Size / 2 - 10), 0, R(-Size / 2 + 10, Size / 2 - 10));
+                if (Blocked(p, 3) || p.magnitude < 60f) continue;
+                if (R() < 0.5f) Log(OnGround(p.x, p.z), root); else Stump(OnGround(p.x, p.z), root);
+            }
         // кусты/трава
         if (map != 2)
         {
