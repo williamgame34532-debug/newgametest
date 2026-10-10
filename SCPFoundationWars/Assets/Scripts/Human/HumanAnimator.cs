@@ -61,6 +61,52 @@ public class HumanAnimator : MonoBehaviour
 
     public float Phase => phase;
 
+    // ---- захват движения (CMU mocap): ноги, таз и корпус при ходьбе/беге берутся из записи ----
+    readonly MocapBlend mo = new MocapBlend();
+    float mph, mocapW, moSize = -1f;
+
+    void BuildBlend(float v)
+    {
+        mo.Clear();
+        float ang = Mathf.Atan2(moveDir.x, moveDir.y) * Mathf.Rad2Deg;
+        float wf = Mathf.Clamp01(1f - Mathf.Abs(ang) / 90f);
+        float wb = Mathf.Clamp01((Mathf.Abs(ang) - 90f) / 90f);
+        float wr = Mathf.Clamp01(1f - Mathf.Abs(ang - 90f) / 90f);
+        float wl = Mathf.Clamp01(1f - Mathf.Abs(ang + 90f) / 90f);
+        if (style == AnimStyle.Zombie) { mo.Add(Mocap.Get("zombie"), 1f); return; }
+        float c = crouchW, st = 1f - c;
+        float run = Mathf.InverseLerp(1.6f, 3.0f, v);
+        var walk = woundW > 0.5f || style == AnimStyle.Old ? Mocap.Get("wounded") : Mocap.Get("walk");
+        if (style == AnimStyle.Old) walk = Mocap.Get("sneak");
+        mo.Add(walk, wf * st * (1f - run));
+        mo.Add(Mocap.Get("jog"), wf * st * run * (1f - sprintW));
+        mo.Add(Mocap.Get("run"), wf * st * run * sprintW);
+        mo.Add(Mocap.Get("back"), wb * st);
+        mo.Add(Mocap.Get("sideR"), wr * st);
+        mo.Add(Mocap.Get("sideL"), wl * st);
+        mo.Add(Mocap.Get("crouchF"), wf * c);
+        mo.Add(Mocap.Get("crouchB"), wb * c);
+        mo.Add(Mocap.Get("crouchR"), wr * c);
+        mo.Add(Mocap.Get("crouchL"), wl * c);
+    }
+
+    // Насколько кость берётся из записи: ноги и таз полностью, корпус частично, руки — только без оружия
+    float MoBoneW(int i, bool hasGun)
+    {
+        switch (i)
+        {
+            case HumanRig.Hips: return 1f;
+            case HumanRig.Spine: return 0.85f;
+            case HumanRig.Chest: return 0.75f * (1f - 0.4f * aimW);
+            case HumanRig.Neck: return 0.5f;
+            case HumanRig.Head: return 0.35f;
+            case HumanRig.UArmL: case HumanRig.LArmL: case HumanRig.HandL:
+            case HumanRig.UArmR: case HumanRig.LArmR: case HumanRig.HandR:
+                return !hasGun && style == AnimStyle.Soldier ? 0.9f : 0f;
+            default: return 1f;
+        }
+    }
+
     void Start()
     {
         t0 = Random.Range(0f, 100f);
@@ -206,8 +252,32 @@ public class HumanAnimator : MonoBehaviour
         if (phase > Mathf.PI * 1000f) phase -= Mathf.PI * 1000f;
         float stepAmt = Mathf.Max(move, turnStep * 0.35f);
 
+        // ---- запись движения: вес растёт с началом ходьбы, общая фаза шага для всех клипов ----
+        if (moSize < 0f)
+        {
+            var jn = rig.shape.joints;
+            moSize = (jn != null ? jn[HumanRig.LLegL].magnitude + jn[HumanRig.FootL].magnitude : rig.shape.legU + rig.shape.legL) / 0.7756f;
+        }
+        float moTarget = Mocap.Ready && style != AnimStyle.Burning ? Mathf.Clamp01((spd / scaleK - 0.25f) / 0.6f) * free * (1f - deathW) : 0f;
+        mocapW = Damp(mocapW, moTarget, 7f, dt);
+        bool moActive = false;
+        float prevMph = mph;
+        if (mocapW > 0.001f)
+        {
+            float v = spd / Mathf.Max(0.01f, scaleK * moSize);
+            BuildBlend(v);
+            mph += v * dt / Mathf.Max(0.25f, mo.Stride(v)) * speedMul;
+            if (mph > 1000f) mph -= 1000f;
+            moActive = mo.Evaluate(mph);
+            if (moActive && mocapW > 0.5f) phase = mph * Mathf.PI * 2f;
+        }
+        float pg = 1f - (moActive ? mocapW : 0f);
+        float stepP = stepAmt * pg;
+
         // шаги: звук в момент постановки ноги
-        if (footsteps && stepAmt > 0.25f && Mathf.Floor((prevPhase + Mathf.PI * 0.5f) / Mathf.PI) != Mathf.Floor((phase + Mathf.PI * 0.5f) / Mathf.PI))
+        bool stepNow = moActive && mocapW > 0.5f ? Mathf.Floor(prevMph * 2f) != Mathf.Floor(mph * 2f)
+            : Mathf.Floor((prevPhase + Mathf.PI * 0.5f) / Mathf.PI) != Mathf.Floor((phase + Mathf.PI * 0.5f) / Mathf.PI);
+        if (footsteps && stepAmt > 0.25f && stepNow)
         {
             var cam = Camera.main;
             if (cam != null && (cam.transform.position - transform.position).sqrMagnitude < 900f)
@@ -241,7 +311,7 @@ public class HumanAnimator : MonoBehaviour
         if (move > 0.2f)
         {
             legYawTarget = backward ? Mathf.DeltaAngle(180f, moveYaw) : moveYaw;
-            legYawTarget = Mathf.Clamp(legYawTarget, -50f, 50f) * (1f - crouchW * 0.4f);
+            legYawTarget = Mathf.Clamp(legYawTarget, -50f, 50f) * (1f - crouchW * 0.4f) * pg;
         }
         hipsYawCur = Damp(hipsYawCur, legYawTarget, 6f, dt);
         float hy = hipsYawCur * Mathf.Deg2Rad;
@@ -250,25 +320,25 @@ public class HumanAnimator : MonoBehaviour
 
         // ---------------- НОГИ ----------------
         float s = Mathf.Sin(phase), c = Mathf.Cos(phase);
-        float amp = Mathf.Lerp(24f, 50f, run) * stepAmt * (1f - crouchW * 0.3f);
-        float kneeAmp = Mathf.Lerp(38f, 100f, run) * stepAmt;
+        float amp = Mathf.Lerp(24f, 50f, run) * stepP * (1f - crouchW * 0.3f);
+        float kneeAmp = Mathf.Lerp(38f, 100f, run) * stepP;
         float limp = style == AnimStyle.Zombie ? 0.55f : 1f - woundW * 0.45f;
         float sL = s, sR = -s, cL = c, cR = -c;
         float swingL = sL * amp, swingR = sR * amp * limp;
         tgt[HumanRig.ULegL] = new Vector3(-swingL * fwd, 0, swingL * side * 0.6f);
         tgt[HumanRig.ULegR] = new Vector3(-swingR * fwd, 0, swingR * side * 0.6f);
         // колено сгибается при выносе ноги, слегка амортизирует при постановке
-        float kL = 5f + Mathf.Max(0, cL) * kneeAmp + Mathf.Max(0, -cL) * Mathf.Max(0, sL) * 12f * stepAmt;
-        float kR = 5f + Mathf.Max(0, cR) * kneeAmp * limp + Mathf.Max(0, -cR) * Mathf.Max(0, sR) * 12f * stepAmt;
-        if (backward) { kL = 5f + Mathf.Max(0, -cL) * kneeAmp * 0.7f; kR = 5f + Mathf.Max(0, -cR) * kneeAmp * 0.7f; }
+        float kL = 5f * pg + Mathf.Max(0, cL) * kneeAmp + Mathf.Max(0, -cL) * Mathf.Max(0, sL) * 12f * stepP;
+        float kR = 5f * pg + Mathf.Max(0, cR) * kneeAmp * limp + Mathf.Max(0, -cR) * Mathf.Max(0, sR) * 12f * stepP;
+        if (backward) { kL = 5f * pg + Mathf.Max(0, -cL) * kneeAmp * 0.7f; kR = 5f * pg + Mathf.Max(0, -cR) * kneeAmp * 0.7f; }
         tgt[HumanRig.LLegL] = new Vector3(kL, 0, 0);
         tgt[HumanRig.LLegR] = new Vector3(kR, 0, 0);
-        if (run > 0.1f) { tgt[HumanRig.ULegL].x -= run * 12f; tgt[HumanRig.ULegR].x -= run * 12f; }
+        if (run > 0.1f) { tgt[HumanRig.ULegL].x -= run * 12f * pg; tgt[HumanRig.ULegR].x -= run * 12f * pg; }
         // таз: ниже всего, когда ноги расставлены; смещение веса на опорную ногу; наклон и поворот
-        hipsOff.y += (-Mathf.Abs(s) * (0.028f + run * 0.035f) + 0.015f) * stepAmt - run * 0.05f;
-        hipsOff.x += -c * 0.022f * stepAmt * (1f - run * 0.5f);
-        tgt[HumanRig.Hips].y += hipsYawCur + s * 7f * stepAmt * fwd;
-        tgt[HumanRig.Hips].z += c * 4f * stepAmt;
+        hipsOff.y += ((-Mathf.Abs(s) * (0.028f + run * 0.035f) + 0.015f) * stepAmt - run * 0.05f) * pg;
+        hipsOff.x += -c * 0.022f * stepP * (1f - run * 0.5f);
+        tgt[HumanRig.Hips].y += hipsYawCur + s * 7f * stepP * fwd;
+        tgt[HumanRig.Hips].z += c * 4f * stepP;
         // наклон от ускорения и крен в повороте
         float leanF = Mathf.Clamp(accelL.z * 1.3f, -10f, 12f) * free;
         float bank = Mathf.Clamp(-yawRate * spd * 0.012f, -12f, 12f) * free;
@@ -305,13 +375,14 @@ public class HumanAnimator : MonoBehaviour
         if (crouchW > 0.001f)
         {
             float cw = crouchW * (1f - seatW);
-            tgt[HumanRig.ULegL] += new Vector3(-72f, 0, -6f) * cw;
-            tgt[HumanRig.ULegR] += new Vector3(-48f, 0, 6f) * cw;
-            tgt[HumanRig.LLegL] += new Vector3(100f, 0, 0) * cw;
-            tgt[HumanRig.LLegR] += new Vector3(118f, 0, 0) * cw;
-            hipsOff.y -= 0.35f * legK * cw;
-            hipsOff.z -= 0.08f * cw;
-            tgt[HumanRig.Spine].x += 16f * cw;
+            float cl = cw * pg;    // на ходу присед уже есть в записи
+            tgt[HumanRig.ULegL] += new Vector3(-72f, 0, -6f) * cl;
+            tgt[HumanRig.ULegR] += new Vector3(-48f, 0, 6f) * cl;
+            tgt[HumanRig.LLegL] += new Vector3(100f, 0, 0) * cl;
+            tgt[HumanRig.LLegR] += new Vector3(118f, 0, 0) * cl;
+            hipsOff.y -= 0.35f * legK * cl;
+            hipsOff.z -= 0.08f * cl;
+            tgt[HumanRig.Spine].x += 16f * cw * (0.3f + 0.7f * pg);
         }
         // под огнём — пригибается
         if (suppW > 0.01f && seatW < 0.5f)
@@ -384,7 +455,7 @@ public class HumanAnimator : MonoBehaviour
             tgt[HumanRig.Spine].x += 25f * dk; tgt[HumanRig.Chest].x += 15f * dk; tgt[HumanRig.Head].x += 35f * dk;
         }
         // стопы: перекат с пятки на носок и параллельно земле
-        float roll = Mathf.Lerp(14f, 24f, run) * stepAmt * (1f - crouchW * 0.6f);
+        float roll = Mathf.Lerp(14f, 24f, run) * stepP * (1f - crouchW * 0.6f);
         float rollL = -sL * roll * (fwd >= 0 ? 1 : -1), rollR = -sR * roll * (fwd >= 0 ? 1 : -1);
         tgt[HumanRig.FootL] = new Vector3(-(tgt[HumanRig.ULegL].x + tgt[HumanRig.LLegL].x) * 0.9f * (1f - airW * 0.5f) + rollL * (1f - seatW), 0, -tgt[HumanRig.ULegL].z * 0.5f);
         tgt[HumanRig.FootR] = new Vector3(-(tgt[HumanRig.ULegR].x + tgt[HumanRig.LLegR].x) * 0.9f * (1f - airW * 0.5f) + rollR * (1f - seatW), 0, -tgt[HumanRig.ULegR].z * 0.5f);
@@ -392,12 +463,12 @@ public class HumanAnimator : MonoBehaviour
 
         // ---------------- КОРПУС ----------------
         float breathe = Mathf.Sin(time * 1.6f) * (1.2f + run * 1.5f);
-        tgt[HumanRig.Spine].x += 3f * move + 12f * run + 10f * sprintW + hunch * 0.5f + woundW * 10f;
-        tgt[HumanRig.Chest].x += breathe + 4f * run + hunch * 0.5f + woundW * 6f;
+        tgt[HumanRig.Spine].x += (3f * move + 12f * run + 10f * sprintW) * (0.4f + 0.6f * pg) + hunch * 0.5f + woundW * 10f * pg;
+        tgt[HumanRig.Chest].x += breathe + 4f * run * pg + hunch * 0.5f + woundW * 6f * pg;
         // плечи качаются против таза
-        tgt[HumanRig.Spine].y += -s * 7f * stepAmt * (1f - aimW * 0.7f) - hipsYawCur * 0.55f;
-        tgt[HumanRig.Chest].y += -s * 5f * stepAmt * (1f - aimW * 0.7f) - hipsYawCur * 0.45f;
-        tgt[HumanRig.Spine].z += -c * 2.5f * stepAmt - bank * 0.3f;
+        tgt[HumanRig.Spine].y += -s * 7f * stepP * (1f - aimW * 0.7f) - hipsYawCur * 0.55f;
+        tgt[HumanRig.Chest].y += -s * 5f * stepP * (1f - aimW * 0.7f) - hipsYawCur * 0.45f;
+        tgt[HumanRig.Spine].z += -c * 2.5f * stepP - bank * 0.3f;
         // наклон к цели и поворот к ней
         Vector3 la = transform.InverseTransformDirection(aimDir.sqrMagnitude > 0.001f ? aimDir.normalized : transform.forward);
         float pitch = Mathf.Asin(Mathf.Clamp(la.y, -1f, 1f)) * Mathf.Rad2Deg;
@@ -493,7 +564,7 @@ public class HumanAnimator : MonoBehaviour
         if (idleAct == 4) { tgt[HumanRig.Head].z += Mathf.Sin(idleT * Mathf.PI * 2f) * 22f * idleW; tgt[HumanRig.Neck].x += 10f * idleW; }
         if (seatW > 0.5f) lookYaw += Mathf.Sin(time * 0.25f) * 35f;
         tgt[HumanRig.Neck].x -= (tgt[HumanRig.Spine].x + tgt[HumanRig.Chest].x) * 0.35f;
-        tgt[HumanRig.Head].x += -(tgt[HumanRig.Spine].x + tgt[HumanRig.Chest].x) * 0.3f + lookPitch - Mathf.Abs(s) * 2f * stepAmt;
+        tgt[HumanRig.Head].x += -(tgt[HumanRig.Spine].x + tgt[HumanRig.Chest].x) * 0.3f + lookPitch - Mathf.Abs(s) * 2f * stepP;
         tgt[HumanRig.Head].y += lookYaw - (tgt[HumanRig.Spine].y + tgt[HumanRig.Chest].y) * 0.3f;
         tgt[HumanRig.Head].z -= tgt[HumanRig.Hips].z * 0.5f;
         tgt[HumanRig.Neck] += new Vector3(6f * bladeW, headBack, 10f * bladeW);
@@ -516,11 +587,17 @@ public class HumanAnimator : MonoBehaviour
             float k = i >= HumanRig.ULegL ? 22f : i == HumanRig.Head || i == HumanRig.Neck ? 12f : 14f;
             if (deathW > 0.5f) k = 18f;
             cur[i] = Quaternion.Slerp(cur[i], q, 1f - Mathf.Exp(-k * dt));
-            rig.b[i].localRotation = cur[i];
+            Quaternion lr = cur[i];
+            if (moActive)
+            {
+                float bw = MoBoneW(i, hasGun) * mocapW;
+                if (bw > 0.001f) lr = Quaternion.Slerp(Quaternion.identity, mo.pose[i], bw) * lr;
+            }
+            rig.b[i].localRotation = lr;
         }
         Vector3 hipsTarget = rig.hipsRest + hipsOff;
         hipsCur = Vector3.Lerp(hipsCur, hipsTarget, 1f - Mathf.Exp(-14f * dt));
-        rig.b[HumanRig.Hips].localPosition = hipsCur;
+        rig.b[HumanRig.Hips].localPosition = hipsCur + (moActive ? mo.hips * (moSize * mocapW) : Vector3.zero);
 
         // вставание из позы трупа
         if (snapW > 0.001f)
