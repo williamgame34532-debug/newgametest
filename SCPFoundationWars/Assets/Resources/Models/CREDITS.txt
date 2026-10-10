@@ -1,0 +1,8 @@
+aw101.bytes / aw101_tex.png — "Helicopter" (AgustaWestland AW101) by Gigantic Burger,
+https://sketchfab.com/3d-models/helicopter-ef70283b1dea4ae8b18eec9231ce390e
+Licensed under Creative Commons Attribution 4.0 (http://creativecommons.org/licenses/by/4.0/).
+Изменения: переведено в формат игры, оси Unity, вырезаны дверные проёмы, добавлена внутренняя сторона корпуса,
+винты отделены для вращения, текстура уменьшена до 1024.
+(Файл взят из репозитория srcejon/sdrangel-3d-models.)
+
+soldier.bytes, m4.bytes — из присланного пользователем low-poly-soldier.zip.

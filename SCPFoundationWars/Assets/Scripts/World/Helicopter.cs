@@ -67,6 +67,23 @@ public class Helicopter : MonoBehaviour
         Color dark = new Color(0.06f, 0.06f, 0.07f), glassC = new Color(0.1f, 0.15f, 0.2f, 0.55f);
         var bodyMat = Mats.Get(body, 0.35f, 0.2f);
 
+        // корпус: модель AgustaWestland AW101 (CC BY 4.0, Gigantic Burger); если её нет — процедурный
+        var mx = ModelX.Load("aw101");
+        bool model = mx != null;
+        if (model)
+        {
+            Color tint = team == Team.Chaos ? new Color(0.62f, 0.66f, 0.46f) : team == Team.SCP ? new Color(0.85f, 0.82f, 0.72f) : new Color(0.6f, 0.65f, 0.72f);
+            foreach (var part in new[] { "hull", "interior", "glass" })
+            {
+                var g = mx.Spawn(part, t, tint, Vector3.zero);
+                if (g != null && part == "interior") g.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
+            MeshKit.Box(t, new Vector3(0, -0.12f, 0), new Vector3(2.4f, 0.12f, 5.2f), Mats.Get(new Color(0.16f, 0.16f, 0.15f), 0.2f));
+            // полоса стороны на хвостовой балке
+            MeshKit.Box(t, new Vector3(0, 1.6f, -4.5f), new Vector3(2.32f, 0.26f, 0.9f), Mats.Get(stripe, 0.4f));
+        }
+        else
+        {
         // кабина и фюзеляж
         MeshKit.Box(t, new Vector3(0, -0.08f, 0), new Vector3(2.5f, 0.16f, 4.6f), Mats.Get(new Color(0.15f, 0.15f, 0.15f)));
         MeshKit.Box(t, new Vector3(0, 2.05f, 0), new Vector3(2.5f, 0.2f, 4.8f), bodyMat);
@@ -104,6 +121,7 @@ public class Helicopter : MonoBehaviour
             MeshKit.Cyl(t, new Vector3(sx * 0.9f, -0.95f, 1.6f), 0.1f, 0.6f, dark, new Vector3(0, 0, sx > 0 ? -25 : 25));
             MeshKit.Cyl(t, new Vector3(sx * 0.9f, -0.95f, -1.0f), 0.1f, 0.6f, dark, new Vector3(0, 0, sx > 0 ? -25 : 25));
         }
+        }
         // сиденья вдоль бортов (лицом к дверям)
         int perSide = Mathf.CeilToInt(seatCount / 2f);
         float span = Mathf.Min(4f, perSide * 0.58f);
@@ -136,7 +154,7 @@ public class Helicopter : MonoBehaviour
             {
                 var tg = new GameObject("label");
                 tg.transform.SetParent(t, false);
-                tg.transform.localPosition = new Vector3(sd * 1.17f, -0.32f, -0.8f);
+                tg.transform.localPosition = model ? new Vector3(sd * 1.17f, 1.1f, -3.9f) : new Vector3(sd * 1.17f, -0.32f, -0.8f);
                 tg.transform.localRotation = Quaternion.Euler(0, sd > 0 ? -90 : 90, 0);
                 tg.transform.localScale = Vector3.one * 0.06f;
                 var tm = tg.AddComponent<TextMesh>();
@@ -150,6 +168,17 @@ public class Helicopter : MonoBehaviour
             }
         }
 
+        if (model)
+        {
+            var rp = mx.Get("rotor"); var tp = mx.Get("tailRotor");
+            h.rotor = mx.Spawn("rotor", t, Color.white * 0.7f, rp.pivot).transform;
+            var disc = MeshKit.Cyl(h.rotor, new Vector3(0, 0.02f, 0), 16.5f, 0.01f, Mats.Glass(new Color(0.05f, 0.05f, 0.05f, 0.16f), 0.2f));
+            h.rotorDisc = disc.transform;
+            disc.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            h.tailRotor = mx.Spawn("tailRotor", t, Color.white * 0.7f, tp.pivot).transform;
+        }
+        else
+        {
         // несущий винт
         h.rotor = new GameObject("rotor").transform;
         h.rotor.SetParent(t, false);
@@ -175,13 +204,25 @@ public class Helicopter : MonoBehaviour
         MeshKit.Box(h.tailRotor, new Vector3(0, 0, 0), new Vector3(0.05f, 0.2f, 2.3f), Mats.Get(dark));
         MeshKit.CombineParts(h.tailRotor);
 
+        }
         // коллайдеры корпуса (кинематика)
         var rb = go.AddComponent<Rigidbody>();
         rb.isKinematic = true;
-        h.hull.Add(Ragdoll.BoxC(t, new Vector3(0, 0.6f, 0.4f), new Vector3(2.5f, 2.6f, 7.4f)));
         var tailCol = new GameObject("tailCol");
         tailCol.transform.SetParent(t, false);
-        h.hull.Add(Ragdoll.BoxC(tailCol.transform, new Vector3(0, 1.6f, -6.8f), new Vector3(1f, 1.4f, 6.5f)));
+        if (model)
+        {
+            // корпус с открытыми проёмами: днище, крыша, нос и хвост — отдельными коробками
+            h.hull.Add(Ragdoll.BoxC(t, new Vector3(0, -0.45f, 0.5f), new Vector3(2.8f, 0.6f, 10f)));
+            h.hull.Add(Ragdoll.BoxC(t, new Vector3(0, 2.9f, 0.5f), new Vector3(2.8f, 1.2f, 10f)));
+            h.hull.Add(Ragdoll.BoxC(t, new Vector3(0, 1.2f, 4.9f), new Vector3(2.8f, 2.6f, 4.2f)));
+            h.hull.Add(Ragdoll.BoxC(tailCol.transform, new Vector3(0, 2.3f, -6.8f), new Vector3(1.4f, 1.6f, 9f)));
+        }
+        else
+        {
+            h.hull.Add(Ragdoll.BoxC(t, new Vector3(0, 0.6f, 0.4f), new Vector3(2.5f, 2.6f, 7.4f)));
+            h.hull.Add(Ragdoll.BoxC(tailCol.transform, new Vector3(0, 1.6f, -6.8f), new Vector3(1f, 1.4f, 6.5f)));
+        }
         // пол кабины не должен блокировать линии прицеливания пассажиров? — кабина открыта по бокам
         MeshKit.SetLayer(go, Layers.Vehicle);
 
