@@ -182,7 +182,7 @@ public class HumanRig : MonoBehaviour
         body.updateWhenOffscreen = false;
         body.skinnedMotionVectors = false;
         body.quality = SkinQuality.Bone4;
-        if (ModelLib.Active == "vanguard") return;   // у бронированной модели свой шлем и снаряжение
+        if (ModelLib.Active == "vanguard") { VanguardGear(L, key); return; }
 
         ModelHead(L, openFace);
         // снаряжение поверх модели
@@ -202,6 +202,65 @@ public class HumanRig : MonoBehaviour
             var ua = b[side == 0 ? UArmL : UArmR];
             if (L.shoulderPads) MeshKit.Ball(ua, new Vector3(sx * 0.02f, -0.03f, 0), new Vector3(0.17f, 0.11f, 0.16f), L.armor, default, 0.3f);
             MeshKit.Box(ua, new Vector3(sx * 0.062f, -0.09f, 0), new Vector3(0.012f, 0.06f, 0.06f), Mats.Get(L.accent, 0.3f)); // шеврон
+        }
+        foreach (var t in b) MeshKit.CombineParts(t);
+    }
+
+    // Своё снаряжение поверх бронированной модели (в духе МОГ из вселенной SCP): противогаз с фильтрами,
+    // подсумки, рация с антенной, полосы-опознаватели на плечах, ПНВ
+    void VanguardGear(Look L, string key)
+    {
+        bool chaos = key != null && key.StartsWith("ci");
+        var h = b[Head]; var ch = b[Chest];
+        Color dark = new Color(0.07f, 0.07f, 0.075f);
+        Color rubber = chaos ? new Color(0.1f, 0.11f, 0.08f) : new Color(0.06f, 0.06f, 0.07f);
+        var metal = Mats.Get(new Color(0.25f, 0.25f, 0.26f), 0.5f, 0.6f);
+        // противогаз: маска под визором и два фильтра
+        if (L.head != HeadGear.Cyborg)
+        {
+            MeshKit.Ball(h, new Vector3(0, 0.03f, 0.165f), new Vector3(0.11f, 0.075f, 0.06f), rubber, default, 0.3f);
+            for (int sx = -1; sx <= 1; sx += 2)
+            {
+                MeshKit.Cyl(h, new Vector3(sx * 0.06f, 0.015f, 0.19f), 0.055f, 0.045f, rubber, new Vector3(70, sx * 30f, 0));
+                MeshKit.Cyl(h, new Vector3(sx * 0.072f, 0.008f, 0.21f), 0.05f, 0.012f, metal, new Vector3(70, sx * 30f, 0));
+            }
+        }
+        if (L.head == HeadGear.NightVision)
+        {
+            MeshKit.Box(h, new Vector3(0, 0.2f, 0.13f), new Vector3(0.05f, 0.04f, 0.05f), dark);
+            for (int i = 0; i < 2; i++)
+            {
+                float x = (i - 0.5f) * 0.05f;
+                MeshKit.Cyl(h, new Vector3(x, 0.17f, 0.19f), 0.035f, 0.07f, dark, new Vector3(90, 0, 0));
+                MeshKit.Cyl(h, new Vector3(x, 0.17f, 0.226f), 0.028f, 0.004f, Mats.Glow(new Color(0.2f, 1f, 0.3f), 3f), new Vector3(90, 0, 0));
+            }
+        }
+        // подсумки под магазины на груди
+        Color pouch = chaos ? Color.Lerp(L.uniform2, L.gear, 0.3f) : Color.Lerp(L.armor, L.gear, 0.5f);
+        for (int i = -1; i <= 1; i++)
+        {
+            MeshKit.Box(ch, new Vector3(i * 0.075f, -0.17f, 0.165f), new Vector3(0.065f, 0.1f, 0.045f), pouch, default, 0.15f);
+            MeshKit.Box(ch, new Vector3(i * 0.075f, -0.115f, 0.17f), new Vector3(0.068f, 0.02f, 0.05f), pouch * 0.8f);
+        }
+        // рация на левой лямке и антенна
+        MeshKit.Box(ch, new Vector3(-0.12f, 0.04f, 0.2f), new Vector3(0.05f, 0.09f, 0.035f), dark);
+        MeshKit.Cyl(ch, new Vector3(-0.14f, 0.2f, 0.2f), 0.008f, 0.22f, dark, new Vector3(0, 0, 8));
+        // нашивка отряда на груди
+        MeshKit.Box(ch, new Vector3(0.1f, 0.06f, 0.18f), new Vector3(0.06f, 0.035f, 0.01f), Mats.Get(L.accent, 0.3f));
+        // опознавательные полосы на плечах (как у оперативников Фонда), у Хаоса — повязки
+        for (int side = 0; side < 2; side++)
+        {
+            float sx = side == 0 ? -1 : 1;
+            var ua = b[side == 0 ? UArmL : UArmR];
+            MeshKit.Cyl(ua, new Vector3(0, -0.07f, 0), 0.135f, 0.035f, Mats.Get(chaos ? new Color(0.12f, 0.35f, 0.12f) : L.accent, 0.3f));
+            if (!chaos) MeshKit.Cyl(ua, new Vector3(0, -0.11f, 0), 0.135f, 0.012f, Mats.Get(new Color(0.9f, 0.75f, 0.1f), 0.3f));
+        }
+        // рюкзак/сумка
+        if (L.backpack || chaos)
+        {
+            Color bp = Color.Lerp(L.uniform2, L.gear, 0.4f);
+            MeshKit.Box(ch, new Vector3(0, -0.05f, -0.22f), new Vector3(0.26f, 0.3f, 0.12f), bp, default, 0.12f);
+            MeshKit.Box(ch, new Vector3(0, 0.12f, -0.21f), new Vector3(0.22f, 0.05f, 0.1f), L.gear);
         }
         foreach (var t in b) MeshKit.CombineParts(t);
     }
