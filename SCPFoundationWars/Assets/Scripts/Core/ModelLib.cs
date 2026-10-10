@@ -320,7 +320,8 @@ public static class ModelLib
                 {
                     var pts = new List<Vector2>();
                     for (int i = 4; i < w.Length; i++) { var p = w[i].Split(','); pts.Add(new Vector2(F(p[0]), F(p[1]))); }
-                    part = MeshKit.Part(root, Extrude(pts, F(w[2])), GunMat(w[1], def), new Vector3(F(w[3]), 0, 0), Vector3.one);
+                    float ew = F(w[2]);
+                    part = MeshKit.Part(root, ExtrudeBevel(pts, ew, Mathf.Min(0.0035f, ew * 0.22f)), GunMat(w[1], def), new Vector3(F(w[3]), 0, 0), Vector3.one);
                     foreach (var p in pts) { minZ = Mathf.Min(minZ, p.x); maxZ = Mathf.Max(maxZ, p.x); }
                     break;
                 }
@@ -336,6 +337,14 @@ public static class ModelLib
                 case "box":
                     part = MeshKit.Part(root, MeshKit.Cube, GunMat(w[1], def), new Vector3(F(w[2]), F(w[3]), F(w[4])), new Vector3(F(w[5]), F(w[6]), F(w[7])));
                     break;
+                // ---- детали: планки, прорези, окно гильз, спуск, дульный тормоз, рёбра магазина ----
+                case "rail": case "slots": case "port": case "tguard": case "brake": case "ribs": case "bolt": case "sling":
+                {
+                    var made = Detail(w, def, root);
+                    if (nextMag) magParts.AddRange(made); else if (nextPump) pumpParts.AddRange(made);
+                    nextMag = nextPump = false;
+                    continue;
+                }
                 case "holo":
                 {
                     // открытый голографический прицел: основание, две стойки, козырёк, прозрачное стекло и яркая марка
@@ -429,6 +438,142 @@ public static class ModelLib
 
     // ---------------- вытягивание профиля ----------------
     // Профиль в плоскости (z, y), вытягивается по X на ширину w (по центру). Плоские нормали.
+    // Детали оружия по командам guns.txt
+    static List<Transform> Detail(string[] w, WeaponDef def, Transform parent)
+    {
+        var res = new List<Transform>();
+        var metal = GunMat("metal", def); var dark = GunMat("dark", def); var body = GunMat("body", def);
+        void Box(Material m, Vector3 c, Vector3 sz, Vector3 e = default(Vector3)) => res.Add(MeshKit.Part(parent, MeshKit.Cube, m, c, sz, e).transform);
+        void Cyl(Material m, Vector3 c, float d, float l, Vector3 e) => res.Add(MeshKit.Part(parent, MeshKit.Frustum(1f, 10), m, c, new Vector3(d, l, d), e).transform);
+        switch (w[0])
+        {
+            case "rail":   // rail x y z0 z1 — планка Пикатинни с поперечными пазами
+            {
+                float x = F(w[1]), y = F(w[2]), z0 = F(w[3]), z1 = F(w[4]);
+                Box(metal, new Vector3(x, y, (z0 + z1) / 2), new Vector3(0.016f, 0.005f, z1 - z0));
+                for (float z = z0 + 0.004f; z < z1 - 0.003f; z += 0.01f)
+                    Box(metal, new Vector3(x, y + 0.0045f, z), new Vector3(0.021f, 0.004f, 0.0052f));
+                break;
+            }
+            case "slots":  // slots x y z0 z1 n — прорези M-LOK по бокам цевья
+            {
+                float x = F(w[1]), y = F(w[2]), z0 = F(w[3]), z1 = F(w[4]); int n = int.Parse(w[5]);
+                float step = (z1 - z0) / n;
+                for (int i = 0; i < n; i++)
+                    foreach (float sx in new[] { -x, x })
+                        Box(dark, new Vector3(sx, y, z0 + step * (i + 0.5f)), new Vector3(0.002f, 0.009f, step * 0.62f));
+                break;
+            }
+            case "port":   // port z y x — окно выброса гильз, отражатель, досылатель
+            {
+                float z = F(w[1]), y = F(w[2]), x = F(w[3]);
+                Box(dark, new Vector3(x, y, z), new Vector3(0.003f, 0.016f, 0.05f));
+                Box(metal, new Vector3(x + 0.002f, y + 0.012f, z - 0.03f), new Vector3(0.006f, 0.012f, 0.012f));
+                Cyl(metal, new Vector3(x - 0.002f, y + 0.004f, z - 0.045f), 0.012f, 0.012f, new Vector3(0, 0, 90));
+                break;
+            }
+            case "tguard": // tguard z y — спусковая скоба и спусковой крючок
+            {
+                float z = F(w[1]), y = F(w[2]);
+                Box(metal, new Vector3(0, y - 0.03f, z + 0.03f), new Vector3(0.008f, 0.004f, 0.075f));
+                Box(metal, new Vector3(0, y - 0.015f, z + 0.068f), new Vector3(0.008f, 0.03f, 0.004f));
+                Box(metal, new Vector3(0, y - 0.012f, z + 0.03f), new Vector3(0.005f, 0.022f, 0.005f), new Vector3(-18f, 0, 0));
+                break;
+            }
+            case "brake":  // brake z y d — дульный тормоз с окнами
+            {
+                float z = F(w[1]), y = F(w[2]), d = F(w[3]);
+                Cyl(metal, new Vector3(0, y, z), d, 0.055f, new Vector3(90, 0, 0));
+                for (int i = 0; i < 3; i++)
+                    foreach (float sx in new[] { -1f, 1f })
+                        Box(dark, new Vector3(sx * d * 0.48f, y, z - 0.018f + i * 0.016f), new Vector3(0.004f, d * 0.55f, 0.007f));
+                Box(dark, new Vector3(0, y + d * 0.48f, z + 0.008f), new Vector3(d * 0.4f, 0.004f, 0.02f));
+                break;
+            }
+            case "ribs":   // ribs z0 y0 z1 y1 n w — рёбра жёсткости магазина
+            {
+                float z0 = F(w[1]), y0 = F(w[2]), z1 = F(w[3]), y1 = F(w[4]); int n = int.Parse(w[5]); float mw = F(w[6]);
+                for (int i = 0; i < n; i++)
+                {
+                    float k = (i + 0.5f) / n;
+                    foreach (float sx in new[] { -1f, 1f })
+                        Box(dark, new Vector3(sx * (mw * 0.5f + 0.001f), Mathf.Lerp(y0, y1, k), Mathf.Lerp(z0, z1, k)), new Vector3(0.002f, 0.005f, 0.03f));
+                }
+                break;
+            }
+            case "bolt":   // bolt z y — рукоять заряжания
+            {
+                float z = F(w[1]), y = F(w[2]);
+                Box(metal, new Vector3(0, y, z), new Vector3(0.012f, 0.006f, 0.03f));
+                Box(metal, new Vector3(0, y, z - 0.016f), new Vector3(0.034f, 0.008f, 0.008f));
+                break;
+            }
+            case "sling":  // sling z y — антабка
+            {
+                float z = F(w[1]), y = F(w[2]);
+                Box(metal, new Vector3(-0.012f, y, z), new Vector3(0.004f, 0.014f, 0.022f));
+                Box(metal, new Vector3(-0.016f, y - 0.008f, z), new Vector3(0.006f, 0.004f, 0.024f));
+                break;
+            }
+        }
+        return res;
+    }
+
+    // Выдавливание профиля с фаской по краям: грани ловят свет, деталь не выглядит вырезанной из картона
+    public static Mesh ExtrudeBevel(List<Vector2> pts, float w, float c)
+    {
+        int n = pts.Count;
+        if (c < 0.0008f || n < 3) return Extrude(pts, w);
+        float area = 0;
+        for (int i = 0; i < n; i++) { var p = pts[i]; var q = pts[(i + 1) % n]; area += p.x * q.y - q.x * p.y; }
+        // вершины, сдвинутые внутрь на c
+        var inn = new List<Vector2>(n);
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 a = pts[(i + n - 1) % n], p = pts[i], b = pts[(i + 1) % n];
+            Vector2 e1 = (p - a).normalized, e2 = (b - p).normalized;
+            Vector2 n1 = area > 0 ? new Vector2(-e1.y, e1.x) : new Vector2(e1.y, -e1.x);
+            Vector2 n2 = area > 0 ? new Vector2(-e2.y, e2.x) : new Vector2(e2.y, -e2.x);
+            Vector2 m = n1 + n2;
+            float d = 1f + Vector2.Dot(n1, n2);
+            Vector2 off = d > 0.15f ? m / d * c : (n1 + n2).normalized * c;
+            if (off.magnitude > c * 2.5f) off = off.normalized * c * 2.5f;
+            inn.Add(p + off);
+        }
+        var tris = Triangulate(pts);
+        var v = new List<Vector3>(); var t = new List<int>();
+        float h = w / 2f, ho = h - c;
+        foreach (var tr in tris)
+        {
+            Vector3 a = new Vector3(h, inn[tr.x].y, inn[tr.x].x), b = new Vector3(h, inn[tr.y].y, inn[tr.y].x), cc = new Vector3(h, inn[tr.z].y, inn[tr.z].x);
+            AddTri(v, t, a, b, cc, Vector3.right);
+            a.x = b.x = cc.x = -h;
+            AddTri(v, t, a, b, cc, Vector3.left);
+        }
+        for (int i = 0; i < n; i++)
+        {
+            Vector2 p = pts[i], q = pts[(i + 1) % n], pi = inn[i], qi = inn[(i + 1) % n];
+            Vector2 e = q - p;
+            Vector2 nn = area > 0 ? new Vector2(e.y, -e.x) : new Vector2(-e.y, e.x);
+            Vector3 outN = new Vector3(0, nn.y, nn.x).normalized;
+            // пояс
+            Vector3 A = new Vector3(-ho, p.y, p.x), B = new Vector3(ho, p.y, p.x), C = new Vector3(ho, q.y, q.x), D = new Vector3(-ho, q.y, q.x);
+            AddTri(v, t, A, B, C, outN); AddTri(v, t, A, C, D, outN);
+            // фаски с обеих сторон
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                Vector3 P0 = new Vector3(sx * ho, p.y, p.x), Q0 = new Vector3(sx * ho, q.y, q.x);
+                Vector3 P1 = new Vector3(sx * h, pi.y, pi.x), Q1 = new Vector3(sx * h, qi.y, qi.x);
+                Vector3 want = outN + Vector3.right * sx;
+                AddTri(v, t, P0, Q0, Q1, want); AddTri(v, t, P0, Q1, P1, want);
+            }
+        }
+        var mesh = new Mesh();
+        mesh.SetVertices(v); mesh.SetTriangles(t, 0);
+        mesh.RecalculateNormals(); mesh.RecalculateBounds();
+        return mesh;
+    }
+
     public static Mesh Extrude(List<Vector2> pts, float w)
     {
         int n = pts.Count;
