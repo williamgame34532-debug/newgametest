@@ -38,6 +38,7 @@ public class QuadScp : ScpUnit
         q.threat = 2.5f;
         q.Build(0.95f, 1.15f, 0.52f, 0.5f, 0.4f, new Color(0.55f, 0.1f, 0.07f), new Color(0.3f, 0.04f, 0.03f), false);
         q.SetupAgent(0.55f, 1.2f, 9f, 25f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Flesh, 0.5f);
         return q;
     }
 
@@ -55,6 +56,7 @@ public class QuadScp : ScpUnit
         q.regen = 30f;
         q.Build(0.75f, 1.55f, 0.42f, 0.4f, 0.55f, new Color(0.25f, 0.27f, 0.15f), new Color(0.13f, 0.12f, 0.07f), true);
         q.SetupAgent(0.9f, 1.5f, 6f, 10f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Scales, 0.35f);
         return q;
     }
 

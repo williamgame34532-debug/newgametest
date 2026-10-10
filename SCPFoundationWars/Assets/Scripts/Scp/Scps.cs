@@ -289,6 +289,7 @@ public class Scp173 : ScpUnit
         s.BuildModel();
         s.SetupAgent(0.4f, 2f, 20f, 300f);
         s.scrape = Sfx.Loop("scrape", go.transform, 0f, 40f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Concrete, 0.12f);
         return s;
     }
 
@@ -451,6 +452,7 @@ public class Scp096 : HumanScp
         s.SetupAgent(0.4f, 2.4f, 1.2f, 40f);
         s.home = pos;
         s.cry = Sfx.Loop("cry", go.transform, 0.5f, 35f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Pale);
         return s;
     }
 
@@ -654,6 +656,7 @@ public class Scp049 : HumanScp
         s.armor = 0.3f;
         s.BuildBody(BodyShape.Soldier(1f), AnimStyle.Doctor);
         s.SetupAgent(0.4f, 1.9f, 3.3f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Leather, 0.3f);
         return s;
     }
 
@@ -761,6 +764,7 @@ public class Scp106 : HumanScp
         s.BuildBody(BodyShape.Old106(), AnimStyle.Old);
         s.SetupAgent(0.4f, 1.9f, 2.4f);
         s.phaseCd = Time.time + 8f;
+        ScpSkin.Apply(go, ScpSkin.Kind.Rot, 0.7f);
         return s;
     }
 
@@ -896,6 +900,7 @@ public class Scp457 : HumanScp
         s.glow = lg.AddComponent<Light>();
         s.glow.type = LightType.Point; s.glow.color = new Color(1f, 0.5f, 0.15f); s.glow.range = 9f; s.glow.intensity = 3f;
         s.fireSnd = Sfx.Loop("fire", go.transform, 0.8f, 40f);
+        ScpSkin.Apply(go, ScpSkin.Kind.Char);
         return s;
     }
 
