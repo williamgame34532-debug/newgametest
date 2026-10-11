@@ -20,6 +20,9 @@ public class WeaponDef
     public float length = 0.75f;          // длина ствольной коробки+ствола (для модели)
 
     public float Interval => 60f / Mathf.Max(1f, rpm);
+    // масса оружия, кг: инерция, скорость вскидки, раскачка в прицеле
+    public float Weight => kind == WeaponKind.Pistol ? 0.9f : kind == WeaponKind.SMG ? 2.7f : kind == WeaponKind.Shotgun ? 3.4f
+        : kind == WeaponKind.LMG ? 7.5f : kind == WeaponKind.Sniper ? 4.8f : kind == WeaponKind.Launcher ? 6.5f : 3.4f + length * 0.4f;
 }
 
 public enum HeadGear { Helmet, HeavyHelmet, GasMask, Balaclava, Hazmat, NightVision, Cap, Cyborg, Bare, DeltaHelmet }

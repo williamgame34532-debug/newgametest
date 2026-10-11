@@ -87,6 +87,9 @@ public class FPView : MonoBehaviour
     // проверка магазина (зажатый R): вес позы и экранная точка для подписи
     float magCheckW;
     float proneW, slideW;
+    // оружие упирается в стену: ствол уводится вниз-вбок
+    float wallK;
+    public float WallK => wallK;
     public float MagCheckW => magCheckW;
     public Vector2 MagLabelScreen;
 
@@ -146,32 +149,27 @@ public class FPView : MonoBehaviour
             var u = new GameObject(n + "_u").transform; u.SetParent(root, false); u.localPosition = sh;
             l = new GameObject(n + "_l").transform; l.SetParent(u, false);
             h = new GameObject(n + "_h").transform; h.SetParent(l, false);
+            float l1 = 0.2316f, l2 = 0.2411f;
             if (d != null)
             {
                 int b0 = side == 1 ? HumanRig.UArmL : HumanRig.UArmR;
-                l.localPosition = d.jointLocal[b0 + 1];
-                h.localPosition = d.jointLocal[b0 + 2];
-                HumanRig.ModelMaterials(L, out int[] slotOf, out Material[] mats, out _);
-                var go = new GameObject(n + "_mesh");
-                go.transform.SetParent(root, false);
-                var smr = go.AddComponent<SkinnedMeshRenderer>();
-                smr.sharedMesh = ModelLib.ArmMesh(side, slotOf, mats.Length);
-                smr.bones = new[] { u, l, h };
-                smr.rootBone = u;
-                smr.sharedMaterials = mats;
-                smr.localBounds = new Bounds(Vector3.zero, Vector3.one * 2f);
-                smr.updateWhenOffscreen = true;
-                smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                smr.receiveShadows = false;
+                l1 = d.jointLocal[b0 + 1].magnitude; l2 = d.jointLocal[b0 + 2].magnitude;
             }
-            else
-            {
-                l.localPosition = new Vector3(0, -0.28f, 0);
-                h.localPosition = new Vector3(0, -0.27f, 0);
-                MeshKit.Cyl(u, new Vector3(0, -0.14f, 0), 0.09f, 0.3f, L.uniform);
-                MeshKit.Cyl(l, new Vector3(0, -0.13f, 0), 0.075f, 0.28f, L.uniform);
-                MeshKit.Box(h, new Vector3(0, -0.05f, 0), new Vector3(0.06f, 0.1f, 0.035f), L.gear);
-            }
+            l.localPosition = new Vector3(0, -l1, 0);
+            h.localPosition = new Vector3(0, -l2, 0);
+            // детальные руки: рукав с камуфляжем и складками, перчатка, часы
+            var go = new GameObject(n + "_mesh");
+            go.transform.SetParent(root, false);
+            var smr = go.AddComponent<SkinnedMeshRenderer>();
+            smr.sharedMesh = FPArms.Mesh(side == 1, l1, l2);
+            smr.bones = new[] { u, l, h };
+            smr.rootBone = u;
+            smr.sharedMaterials = FPArms.Materials(L);
+            smr.localBounds = new Bounds(Vector3.zero, Vector3.one * 2f);
+            smr.updateWhenOffscreen = true;
+            smr.quality = SkinQuality.Bone4;
+            smr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            smr.receiveShadows = false;
             return u;
         }
         uL = Chain("armL", shoulderL, 1, out lL, out hL);
@@ -287,7 +285,7 @@ public class FPView : MonoBehaviour
         if (pumpT >= 0) { pumpT += dt / Mathf.Max(0.3f, def.Interval * 0.85f); if (pumpT >= 1f) pumpT = -1f; }
 
         // ---- базовая поза оружия ----
-        Vector3 hip = pistol ? new Vector3(0.12f, -0.16f, 0.33f) : rpg ? new Vector3(0.17f, -0.17f, 0.18f) : new Vector3(0.12f, -0.14f, 0.22f);
+        Vector3 hip = pistol ? new Vector3(0.07f, -0.12f, 0.44f) : rpg ? new Vector3(0.17f, -0.17f, 0.18f) : new Vector3(0.12f, -0.14f, 0.22f);
         Vector3 rot = Vector3.zero;
         Vector3 pos = hip;
         float calm = 1f - ads * 0.92f;
@@ -312,7 +310,9 @@ public class FPView : MonoBehaviour
         Vector3 lv = pc.transform.InverseTransformDirection(pc.velocity);
         Vector3 rotGoal = swayRot + new Vector3(Mathf.Clamp(-lv.z * 0.35f, -2f, 2f), 0, Mathf.Clamp(-lv.x * 1.4f, -6f, 6f));
         Vector3 posGoal = swayPos + new Vector3(Mathf.Clamp(-lv.x * 0.004f, -0.02f, 0.02f), Mathf.Clamp(-pc.velocity.y * 0.003f, -0.03f, 0.03f), Mathf.Clamp(-lv.z * 0.003f, -0.015f, 0.015f));
-        float stiff = Mathf.Lerp(120f, 260f, ads), damp = Mathf.Lerp(13f, 24f, ads);
+        // тяжёлое оружие догоняет взгляд медленнее и сильнее «перехлёстывает»
+        float heavy = Mathf.Clamp(def.Weight / 3.5f, 0.35f, 2.2f);
+        float stiff = Mathf.Lerp(120f, 260f, ads) / Mathf.Sqrt(heavy), damp = Mathf.Lerp(13f, 24f, ads) / Mathf.Pow(heavy, 0.3f);
         sprRotVel += ((rotGoal - sprRot) * stiff - sprRotVel * damp) * dt;
         sprRot += sprRotVel * dt;
         sprPosVel += ((posGoal - sprPos) * stiff - sprPosVel * damp) * dt;
@@ -332,6 +332,18 @@ public class FPView : MonoBehaviour
         kick += kickVel * dt;
         rot += new Vector3(-kick.y * 2.6f - Mathf.Abs(kick.z) * 1.3f, kick.x * 2f, kick.x * 1.6f);
         Vector3 kickPos = new Vector3(kick.x * 0.004f, kick.y * 0.004f, kick.z * 0.013f);
+        // упор в стену: луч вдоль ствола
+        {
+            float reach = (pistol ? 0.42f : 0.3f) + def.length * 0.75f;
+            float want = 0f;
+            var cam = Game.Cam.transform;
+            if (Physics.SphereCast(cam.position, 0.06f, pc.AimForward, out var wh, reach + 0.05f, 1 << Layers.World, QueryTriggerInteraction.Ignore))
+                want = Mathf.Clamp01((reach - wh.distance) / 0.3f + 0.25f);
+            wallK = Mathf.MoveTowards(wallK, want, dt * (want > wallK ? 5f : 3f));
+            float wk = Mathf.SmoothStep(0f, 1f, wallK);
+            pos += new Vector3(-0.03f, -0.05f, -0.1f) * wk;
+            rot += new Vector3(32f, -28f, 14f) * wk;
+        }
         // доставание оружия
         float dr = 1f - Mathf.SmoothStep(0, 1, drawT);
         pos += new Vector3(0.02f, -0.22f, -0.05f) * dr; rot += new Vector3(45f, 10f, 15f) * dr;
@@ -515,10 +527,12 @@ public class FPView : MonoBehaviour
             lRot = HandPose.Hold(view, -1.2f); rRot = HandPose.Hold(view, -1.2f) * Quaternion.Euler(0, 180, 0);
         }
 
+        // свободный обзор: оружие остаётся направленным по корпусу
+        root.localRotation = Quaternion.Inverse(pc.FreeRot);
         // ---- ставим оружие; в прицеле — прицельная марка ровно в центре экрана ----
         Quaternion q = Quaternion.Euler(rot);
         Vector3 sight = gm.sight.localPosition;
-        float eye = def.scope ? 0.12f : pistol ? 0.36f : 0.24f;
+        float eye = def.scope ? 0.12f : pistol ? 0.4f : 0.24f;
         Vector3 adsPos = new Vector3(0, 0, eye) - q * sight;
         float adsK = Mathf.SmoothStep(0f, 1f, ads);
         pivot.localRotation = q;

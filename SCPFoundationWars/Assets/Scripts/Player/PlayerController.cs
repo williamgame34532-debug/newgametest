@@ -67,6 +67,13 @@ public class PlayerController : MonoBehaviour
     public float spreadNow;
     float barrelHeat, lastShotT;
     // приёмы: выглядывание (Q/E), лёжа (Z), подкат (присед на бегу), перелезание (пробел у препятствия)
+    // выносливость (бег, прыжки), задержка дыхания в прицеле (Shift), свободный обзор (Alt), раскачка прицела
+    public float stamina = 1f, breath = 1f; public bool holdingBreath, freeLook;
+    public float freeYaw, freePitch;
+    float swayP, swayY, breathT, staminaT, exhaleT = -1f;
+    public Quaternion FreeRot => Quaternion.Euler(freePitch, freeYaw, 0);
+    // куда смотрит оружие (при свободном обзоре — не туда, куда камера)
+    public Vector3 AimForward => camHolder.rotation * Quaternion.Inverse(FreeRot) * Vector3.forward;
     public float lean; public bool prone; float slideT = -1f; Vector3 slideDir; public bool vaulting;
     public bool Sliding => slideT >= 0f;
     public Gun Current => guns[cur];
@@ -397,12 +404,17 @@ public class PlayerController : MonoBehaviour
         unit.alive = unit.hp > 0;
 
         // взгляд
-        float sens = Game.Sensitivity * (1f - adsW * 0.45f);
+        float wkg = Current != null ? Current.def.Weight : 3f;
+        float sens = Game.Sensitivity * (1f - adsW * 0.45f) * (1f - adsW * Mathf.Clamp01(wkg / 8f) * 0.25f);
+        freeLook = Input.GetKey(KeyCode.LeftAlt) && !dead;
         if (Cursor.lockState == CursorLockMode.Locked)
         {
-            yaw += Input.GetAxisRaw("Mouse X") * sens;
-            pitch -= Input.GetAxisRaw("Mouse Y") * sens;
+            float mx = Input.GetAxisRaw("Mouse X") * sens, my = Input.GetAxisRaw("Mouse Y") * sens;
+            if (freeLook) { freeYaw = Mathf.Clamp(freeYaw + mx, -80f, 80f); freePitch = Mathf.Clamp(freePitch - my, -45f, 50f); }
+            else { yaw += mx; pitch -= my; }
         }
+        if (!freeLook) { float k = 1f - Mathf.Exp(-10f * dt); freeYaw = Mathf.Lerp(freeYaw, 0f, k); freePitch = Mathf.Lerp(freePitch, 0f, k); }
+        AimSway(dt, wkg);
         pitch = Mathf.Clamp(pitch, -85f, 85f);
         // отдача: подброс, который частично возвращается
         recoilVelP += (-recoilP * 40f - recoilVelP * 10f) * dt;
@@ -413,13 +425,13 @@ public class PlayerController : MonoBehaviour
         {
             yaw = Mathf.Clamp(Mathf.DeltaAngle(0, yaw), -110f, 110f);
             transform.localRotation = Quaternion.Euler(0, yaw, 0);
-            camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, 0);
+            camHolder.localRotation = CamRot(0f);
             camHolder.localPosition = new Vector3(0, 1.15f, 0) + Fx.ShakeOffset;
             Blink();
             return;
         }
         transform.rotation = Quaternion.Euler(0, yaw + recoilY, 0);
-        camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, 0);
+        camHolder.localRotation = CamRot(0f);
 
         if (scripted) { camHolder.localPosition = new Vector3(0, camH, 0); return; }
 
@@ -461,7 +473,7 @@ public class PlayerController : MonoBehaviour
         }
         if (prone && Input.GetKeyDown(KeyCode.Space)) prone = false;
         crouching = (crouchKey || slideT >= 0) && !prone;
-        bool sprint = Input.GetKey(KeyCode.LeftShift) && input.z > 0.5f && !crouching && !prone && adsW < 0.3f && (Current == null || !Current.reloading);
+        bool sprint = Input.GetKey(KeyCode.LeftShift) && stamina > 0.04f && input.z > 0.5f && !crouching && !prone && adsW < 0.3f && (Current == null || !Current.reloading);
         float speed = prone ? 0.9f : crouching ? 2.3f : sprint ? 7.0f : 4.3f;
         speed *= squad.speed;
         if (adsW > 0.5f) speed *= 0.6f;
@@ -493,7 +505,7 @@ public class PlayerController : MonoBehaviour
             if (vy < -8f) { landKick = Mathf.Clamp01(-vy / 12f); Sfx.Play2D("land", 0.7f); }
             if (vy < -16f) unit.TakeDamage(new DamageInfo { amount = (-vy - 16f) * 10f, type = DamageType.Fall, dir = Vector3.down, point = transform.position });
             vy = -2f;
-            if (Input.GetKeyDown(KeyCode.Space) && !crouching && !prone && !vaulting) vy = 5.2f;
+            if (Input.GetKeyDown(KeyCode.Space) && !crouching && !prone && !vaulting && stamina > 0.1f) { vy = 5.2f; stamina -= 0.08f; staminaT = Time.time; Sfx.Play2D("gear", 0.25f, Random.Range(0.9f, 1.1f)); }
         }
         else vy -= 20f * dt;
         knock = Vector3.Lerp(knock, Vector3.zero, dt * 3f);
@@ -511,13 +523,39 @@ public class PlayerController : MonoBehaviour
         {
             float prev = bob;
             bob += hs * dt * 1.6f;
-            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) Sfx.Play2D(Sfx.Step, 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f));
+            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) { Sfx.Play2D(Sfx.Step, 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f)); if (Random.value < 0.3f + sprintW * 0.4f) Sfx.Play2D("gear", 0.07f + sprintW * 0.1f, Random.Range(0.9f, 1.15f)); }
         }
         bobAmt = Mathf.Lerp(bobAmt, grounded ? Mathf.Clamp01(hs / 7f) : 0f, 1f - Mathf.Exp(-6f * dt));
         landKick = Mathf.MoveTowards(landKick, 0, dt * 3f);
         Vector3 bobOff = new Vector3(Mathf.Cos(bob) * 0.03f, Mathf.Abs(Mathf.Sin(bob)) * 0.05f - 0.025f, 0) * bobAmt * (1f - adsW * 0.8f);
         camHolder.localPosition = new Vector3(lean * 0.42f, camH - landKick * 0.12f - Mathf.Abs(lean) * 0.07f, 0) + bobOff + Fx.ShakeOffset;
-        camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, -lean * 13f + (slideT >= 0 ? 4f : 0f));
+        camHolder.localRotation = CamRot(-lean * 13f + (slideT >= 0 ? 4f : 0f));
+    }
+
+    Quaternion CamRot(float roll) => Quaternion.Euler(pitch - recoilP + swayP, swayY, roll) * FreeRot;
+
+    // Раскачка прицела: дыхание и усталость, вес оружия; Shift в прицеле — задержать дыхание (на несколько секунд)
+    void AimSway(float dt, float wkg)
+    {
+        bool want = adsW > 0.6f && Input.GetKey(KeyCode.LeftShift) && exhaleT < 0 && breath > 0.02f;
+        if (want && !holdingBreath) Sfx.Play2D("breath_in", 0.35f, Random.Range(0.95f, 1.05f));
+        if (!want && holdingBreath) Sfx.Play2D(breath < 0.05f ? "breath_heavy" : "breath_out", 0.35f, Random.Range(0.95f, 1.05f));
+        if (holdingBreath && breath <= 0.02f) exhaleT = 0f;
+        holdingBreath = want;
+        if (holdingBreath) breath = Mathf.MoveTowards(breath, 0f, dt / 6f);
+        else breath = Mathf.MoveTowards(breath, 1f, dt / 4f);
+        if (exhaleT >= 0) { exhaleT += dt; if (exhaleT > 2.2f) exhaleT = -1f; }
+        float tired = 1f - stamina;
+        breathT += dt * (holdingBreath ? 0.25f : 1.1f + tired * 2f + (exhaleT >= 0 ? 1.5f : 0f));
+        float amp = adsW * (0.18f + tired * 0.9f + wkg * 0.035f + (exhaleT >= 0 ? 0.8f : 0f)) * (holdingBreath ? 0.12f : 1f)
+                    * (prone ? 0.35f : crouching ? 0.7f : 1f) * (1f + hurt * 1.5f);
+        float t = Time.time;
+        swayP = (Mathf.Sin(breathT * 1.9f) * 0.55f + (Mathf.PerlinNoise(t * 0.45f, 3.1f) - 0.5f) * 1.6f) * amp;
+        swayY = ((Mathf.PerlinNoise(7.7f, t * 0.4f) - 0.5f) * 2f + Mathf.Sin(breathT * 0.95f) * 0.25f) * amp;
+        // выносливость: бег и прыжки отнимают, отдых восстанавливает
+        if (sprintW > 0.5f) { stamina = Mathf.MoveTowards(stamina, 0f, dt / 14f); staminaT = Time.time; }
+        else if (Time.time - staminaT > 0.8f) stamina = Mathf.MoveTowards(stamina, 1f, dt / (crouching || prone ? 5f : 7f));
+        if (stamina < 0.3f && Random.value < dt * 0.6f) Sfx.Play2D("breath_heavy", 0.18f * (1f - stamina), Random.Range(0.9f, 1.1f));
     }
 
     bool TryVault()
@@ -681,8 +719,9 @@ public class PlayerController : MonoBehaviour
         }
         if (magCheck || fp.MagCheckW > 0.05f) { adsW = Mathf.MoveTowards(adsW, 0f, dt / 0.18f); return; }
         // прицеливание
-        bool ads = Input.GetMouseButton(1) && (!g.reloading || g.Shells) && sprintW < 0.5f && healT < 0;
-        adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / 0.18f);
+        bool ads = Input.GetMouseButton(1) && (!g.reloading || g.Shells) && sprintW < 0.5f && healT < 0 && !freeLook && fp.WallK < 0.5f;
+        if (ads && adsW == 0f) Sfx.Play2D("gear", 0.2f, Random.Range(1.05f, 1.2f));
+        adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / (0.13f + g.def.Weight * 0.028f));
         // стрельба
         bool trig = g.def.auto && !g.semi ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
         if (trig && safe && Input.GetMouseButtonDown(0)) Sfx.Play2D("click", 0.3f, 1.4f);
@@ -700,9 +739,9 @@ public class PlayerController : MonoBehaviour
                 if (g.def.kind == WeaponKind.Shotgun) spread = Mathf.Max(spread, 0.8f);
                 // мировая точка дульного среза (вьюмодель рисуется своей камерой — пересчитываем)
                 Vector3 worldMuzzle = fp.gm != null ? fp.ToWorld(fp.gm.muzzle.position) : camHolder.position;
-                if (g.Fire(unit, camHolder.position, camHolder.forward, spread, worldMuzzle))
+                if (g.Fire(unit, camHolder.position, AimForward, spread, worldMuzzle))
                 {
-                    float r = g.def.recoil * (1f - adsW * 0.35f) * (prone ? 0.6f : crouching ? 0.8f : 1f);
+                    float r = g.def.recoil * (1f - adsW * 0.35f) * (prone ? 0.6f : crouching ? 0.8f : 1f) * Mathf.Lerp(1.15f, 0.8f, Mathf.Clamp01((g.def.Weight - 1f) / 6f));
                     recoilVelP += r * 16f;
                     pitch -= r * 0.35f;
                     yaw += Random.Range(-0.35f, 0.35f) * r;
