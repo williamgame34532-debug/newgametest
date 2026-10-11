@@ -175,6 +175,16 @@ public class LoreItem : MonoBehaviour
                 float d = (su.transform.position - carrier.transform.position).sqrMagnitude;
                 if (d < best) { best = d; p = su.transform.position + (carrier.transform.position - su.transform.position).normalized * Mathf.Max(1.4f, def.range * 0.6f); }
             }
-        return best < float.MaxValue;
+        if (best < float.MaxValue) return true;
+        // объект ещё не готов (682 не измотан, 096 в ярости) — подходим на безопасное расстояние и ждём
+        foreach (var u in Unit.All)
+            if (u is ScpUnit su && su.kind == def.scp && su.alive && !su.captured && !su.itemApplied)
+            {
+                Vector3 away = carrier.transform.position - su.transform.position; away.y = 0;
+                if (away.sqrMagnitude < 0.01f) away = Vector3.forward;
+                p = su.transform.position + away.normalized * 16f;
+                return true;
+            }
+        return false;
     }
 }

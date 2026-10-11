@@ -22,6 +22,8 @@ public class SquadRt
     public Vector3 lastOrderPos;
     // приказ игрока своему отряду (перекрывает командира на время)
     public float playerCmdUntil = -1f; public bool playerFollow; public Vector3 playerCmdPos;
+    // группа предупреждена выжившим: работает тихо — пригнувшись, медленно, держит дистанцию до опасного места
+    public bool cautious; public Vector3 dangerPos; public string dangerName;
     public bool Sentry(Soldier s) => (hold || garrison) && s.index % 4 == 3;
     public Soldier Leader { get { foreach (var m in members) if (m != null && m.alive && !m.zombie && m.state == Soldier.State.Combat) return m; return null; } }
     public int Alive { get { int n = 0; foreach (var m in members) if (m != null && m.alive) n++; return n; } }
@@ -73,6 +75,9 @@ public class Soldier : Unit
     public int medkits = 2;
     Unit healTarget; float healStart = -1f, medT;
     bool IsMedic => squadRt != null && index == 1;
+    // страх: видел, как SCP выкашивает группу; бегство к другой группе с докладом
+    public float fear; public bool fleeing; SquadRt fleeTo; Vector3 dangerPos; string dangerName; float fleeStart;
+    float chatT;
 
     public override Vector3 Velocity => vel;
     public override Vector3 LookDir => aimDir;
@@ -417,6 +422,13 @@ public class Soldier : Unit
         Aim(dt);
         Shoot();
         Move();
+        if (squadRt != null && squadRt.cautious && target == null && !fleeing)
+        {
+            // предупреждённая группа: тихо, пригнувшись
+            if (agent.speed > 2.2f) agent.speed = 2.2f;
+            anim.crouch = true;
+        }
+        if (target == null && Time.time > chatT) IdleChatter();
         if (Time.time > medT) { medT = Time.time + 1f; MedicThink(); }
         MedicUpdate();
 
@@ -463,7 +475,7 @@ public class Soldier : Unit
             anim.crouch = target != null && targetVisible && vel.magnitude < 0.5f && Random.value < 0.45f && (current == null || current.def.kind != WeaponKind.Launcher);
         }
         if (holding && target == null && vel.magnitude < 0.5f) anim.crouch = index % 3 != 0;
-        if (vel.magnitude > 1.5f) anim.crouch = false;
+        if (vel.magnitude > 1.5f && !(squadRt != null && squadRt.cautious && target == null)) anim.crouch = false;
         anim.speedMul = speedMul;
 
         // поворот корпуса
@@ -509,6 +521,7 @@ public class Soldier : Unit
             if (u.isScp && u is Scp096 s096 && !s096.Enraged) score *= 3f; // спокойного 096 лучше не трогать
             if (score < bestScore) { bestScore = score; best = u; }
         }
+        if (fleeing && best != null && best.isScp) best = null;   // бегущий не стреляет по объекту — уносит ноги
         if (best != target) { aimSettle = 0; burstLeft = 0; }
         if (best != null && target == null && Time.time - sightT > 8f) Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!", "contact");
         if (best != null) { lastTarget = best; lastSeenPos = best.AimPoint; }
@@ -617,6 +630,120 @@ public class Soldier : Unit
             Battle.Message(CallSign + ": " + text, new Color(0.75f, 0.85f, 0.95f), 3f);
     }
 
+    // Гибель от SCP видят товарищи рядом: растёт страх; когда группа наполовину выбита — самый напуганный бежит
+    void Witnesses(ScpUnit scp)
+    {
+        if (squadRt == null) return;
+        int total = squadRt.members.Count, alive = squadRt.Alive;
+        foreach (var m in squadRt.members)
+        {
+            if (m == null || m == this || !m.alive || m.zombie || m.fleeing || m.state != State.Combat) continue;
+            if (Vector3.Distance(m.transform.position, transform.position) > 50f) continue;
+            if (!Combat.Visible(m.EyePos, AimPoint)) continue;
+            m.fear += 0.3f / Mathf.Max(0.5f, m.courage);
+            m.dangerPos = scp.transform.position; m.dangerName = scp.displayName;
+            if (m.fear > 0.55f && alive * 2 <= total && m.courage < 2.5f) m.StartFlee();
+        }
+    }
+
+    public void StartFlee()
+    {
+        // к ближайшей живой группе своей стороны, подальше от опасности
+        SquadRt best = null; float bd = float.MaxValue;
+        if (Battle.I != null)
+            foreach (var sq in Battle.I.squads)
+            {
+                if (sq == squadRt || sq.team != team || sq.Alive < 2) continue;
+                var l = sq.Leader; if (l == null) continue;
+                if (Vector3.Distance(l.transform.position, dangerPos) < 30f) continue;
+                float d = Vector3.Distance(l.transform.position, transform.position);
+                if (d < bd) { bd = d; best = sq; }
+            }
+        if (best == null) return;
+        fleeing = true; fleeTo = best; fleeStart = Time.time; target = null;
+        Callout(Random.value < 0.5f ? "Отходим! Оно всех положило!" : "Не могу, не могу — уходим отсюда!", "retreat", true);
+    }
+
+    bool FleeMove(Vector3 me, float baseSpeed)
+    {
+        var l = fleeTo != null ? fleeTo.Leader : null;
+        if (l == null || Time.time - fleeStart > 120f) { fleeing = false; return false; }
+        float d = Vector3.Distance(l.transform.position, me);
+        if (d < 7f) { Report(l); return false; }
+        Vector3 goal = l.transform.position; goal.y = me.y;
+        agent.speed = baseSpeed * 1.45f;
+        anim.crouch = false;
+        if (NavMesh.SamplePosition(goal, out var h, 4f, NavMesh.AllAreas)) agent.SetDestination(h.position);
+        moveT = Time.time + 0.5f;
+        return true;
+    }
+
+    // Доклад выжившего другой группе: где и что; та группа дальше действует осторожно
+    void Report(Soldier leader)
+    {
+        fleeing = false; fear = 0.3f;
+        var sq = fleeTo;
+        string where = leader.Bearing(dangerPos) + ", ~" + Mathf.RoundToInt(Vector3.Distance(leader.transform.position, dangerPos) / 10f) * 10 + " м";
+        string text = "Там " + (dangerName ?? "объект") + " — " + where + "! Всю группу положило… я последний!";
+        if (squadRt != null && squadRt.Alive > 1) text = "Там " + (dangerName ?? "объект") + " — " + where + "! Половину наших положило!";
+        Callout(text, "report", true);
+        Battle.Message(CallSign + " (" + squad.name + "): " + text, new Color(1f, 0.7f, 0.45f), 6f);
+        if (sq != null)
+        {
+            sq.cautious = true; sq.dangerPos = dangerPos; sq.dangerName = dangerName;
+            StartCoroutine(LeaderAnswer(leader, sq));
+            // выживший присоединяется к этой группе
+            if (squadRt != null) squadRt.members.Remove(this);
+            sq.members.Add(this);
+            squadRt = sq;
+        }
+    }
+
+    IEnumerator LeaderAnswer(Soldier leader, SquadRt sq)
+    {
+        yield return new WaitForSeconds(3.2f);
+        if (leader != null && leader.alive)
+        {
+            leader.Callout("Понял тебя. Всем — тихо, пригнуться, без лишнего шума. Идём осторожно.", "cautious", true);
+            leader.anim.DoSignal(Signal.Hold);
+        }
+    }
+
+    // Затишье: короткие разговоры рядом с товарищем
+    static readonly string[][] chats =
+    {
+        new[] { "Тихо как-то… не нравится мне это.", "Не каркай." },
+        new[] { "Сектор чист.", "Держим. Смотри по сторонам." },
+        new[] { "Сколько ещё ждать?", "Сколько скажут." },
+        new[] { "Слышал? Там, за постройками.", "Ветер. Наверное." },
+        new[] { "После этого — отпуск.", "Ага. Мечтай." },
+        new[] { "У кого есть вода?", "Держи, только не всё." },
+        new[] { "Кто-нибудь видел объект своими глазами?", "И не хочу." },
+    };
+    void IdleChatter()
+    {
+        chatT = Time.time + Random.Range(25f, 70f);
+        if (squadRt == null || zombie || Random.value < 0.4f) return;
+        var cam = Game.Cam;
+        if (cam == null || Vector3.Distance(cam.transform.position, transform.position) > 35f) return;
+        Soldier mate = null;
+        foreach (var m in squadRt.members)
+            if (m != null && m != this && m.alive && m.target == null && Vector3.Distance(m.transform.position, transform.position) < 9f) { mate = m; break; }
+        if (mate == null) return;
+        var c = chats[Random.Range(0, chats.Length)];
+        if (squadRt.cautious) c = new[] { "Шёпотом: ты видел, что от них осталось?", "Тише. Смотри в оба." };
+        Speech.Say(transform, CallSign, c[0], -1f, new Color(0.85f, 0.88f, 0.92f));
+        anim.DoSignal(Signal.Talk);
+        mate.chatT = Time.time + 30f;
+        StartCoroutine(ChatReply(mate, c[1]));
+    }
+
+    IEnumerator ChatReply(Soldier m, string text)
+    {
+        yield return new WaitForSeconds(Random.Range(2.2f, 3.2f));
+        if (m != null && m.alive && m.target == null) Speech.Say(m.transform, m.CallSign, text, -1f, new Color(0.85f, 0.88f, 0.92f));
+    }
+
     static readonly string[] downLines = { "Человек ранен! Минус один!", "Потеряли бойца!", "Он готов, двухсотый!", "Бойца убили!" };
     static readonly string[] killLines = { "Цель поражена!", "Минус один!", "Готов!", "Есть, лежит!" };
     static readonly string[] moveLines = { "Двигаюсь!", "Перемещаюсь, прикрой!", "Пошёл!", "Меняю позицию!" };
@@ -636,7 +763,7 @@ public class Soldier : Unit
         if (d.attacker is Soldier k && k.alive && Random.value < 0.6f) k.Callout(killLines[Random.Range(0, killLines.Length)], "enemydown");
     }
 
-    string Bearing(Vector3 p)
+    public string Bearing(Vector3 p)
     {
         Vector3 d = p - transform.position; d.y = 0;
         float a = Mathf.Repeat(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 360f);
@@ -817,6 +944,7 @@ public class Soldier : Unit
         Vector3 goal = me;
         bool lowHp = hp < maxHp * 0.3f && courage < 1.2f;
 
+        if (fleeing && FleeMove(me, baseSpeed)) return;
         // носитель предмета содержания идёт к ослабленному объекту
         LoreItem li = null;
         foreach (var x in LoreItem.All) if (x != null && x.carrier == this) li = x;
@@ -1183,7 +1311,7 @@ public class Soldier : Unit
 
     protected override void Die(DamageInfo d)
     {
-        if (!zombie) DeathCallouts(d);
+        if (!zombie) { DeathCallouts(d); if (d.attacker is ScpUnit killer) Witnesses(killer); }
         state = State.Dead;
         StopAllCoroutines();
         if (transform.parent != null) transform.SetParent(null, true);

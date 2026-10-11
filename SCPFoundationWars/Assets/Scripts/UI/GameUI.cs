@@ -732,6 +732,7 @@ public partial class Game
         }
 
         if (!pc.riding && !pc.safe) Compass(pc);
+        LoreMarkers(pc);
         // выносливость и дыхание — тонкие полосы внизу по центру, только когда не полные
         float st = pc.stamina, br = pc.breath;
         if (st < 0.99f || br < 0.99f)
@@ -755,6 +756,35 @@ public partial class Game
             Shadowed(new Rect(0, H * 0.64f, W, 34), "НЕ СМОТРИ НА ЕГО ЛИЦО", hudSub, new Color(1f, 0.25f, 0.2f, 0.5f + 0.5f * Mathf.Sin(Time.time * 12f)));
             Rect(new Rect(W / 2 - 120, H * 0.64f + 38, 240, 3), new Color(0, 0, 0, 0.5f));
             Rect(new Rect(W / 2 - 120, H * 0.64f + 38, 240 * e, 3), new Color(1f, 0.2f, 0.15f));
+        }
+    }
+
+    // Предметы содержания: лежащий на земле виден меткой; если несёт игрок — подсказка, что с ним делать
+    void LoreMarkers(PlayerController pc)
+    {
+        foreach (var li in LoreItem.All)
+        {
+            if (li == null || li.used) continue;
+            if (li.carrier == null)
+            {
+                Vector3 sp = Game.Cam.WorldToScreenPoint(li.transform.position + Vector3.up * 0.4f);
+                if (sp.z < 0.3f) continue;
+                float sc = Screen.height / 1080f;
+                Vector2 p = new Vector2(sp.x / sc, (Screen.height - sp.y) / sc);
+                float dist = Vector3.Distance(pc.transform.position, li.transform.position);
+                float pulse = 0.6f + 0.4f * Mathf.Sin(Time.time * 4f);
+                Rect(new Rect(p.x - 7, p.y - 7, 14, 14), new Color(0.4f, 0.85f, 1f, pulse));
+                Shadowed(new Rect(p.x - 200, p.y + 10, 400, 20), "ПРЕДМЕТ СОДЕРЖАНИЯ: «" + li.def.name + "»  ·  " + Mathf.RoundToInt(dist) + " м — подойдите, чтобы взять", new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, new Color(0.6f, 0.9f, 1f));
+            }
+            else if (li.carrier == pc.unit)
+            {
+                string hint = li.def.needSubdued ? "сначала измотайте объект огнём, затем подойдите" : li.def.scp == ScpKind.S096 ? "подойдите к спокойному объекту сзади, не смотря на лицо" : "подойдите к объекту на " + li.def.range.ToString("0.#") + " м";
+                float y = H - 150;
+                Rect(new Rect(W / 2 - 300, y, 600, 30), new Color(0.02f, 0.06f, 0.1f, 0.7f));
+                Rect(new Rect(W / 2 - 300, y, 3, 30), new Color(0.4f, 0.85f, 1f));
+                Label(new Rect(W / 2 - 290, y + 3, 580, 24), "У вас: «" + li.def.name + "» — " + hint + (li.applyK > 0.01f ? "   " + Mathf.RoundToInt(li.applyK * 100) + "%" : ""), new GUIStyle(small) { alignment = TextAnchor.MiddleLeft }, new Color(0.8f, 0.93f, 1f));
+                if (li.applyK > 0.01f) Rect(new Rect(W / 2 - 300, y + 28, 600 * li.applyK, 2), new Color(0.4f, 0.85f, 1f));
+            }
         }
     }
 
