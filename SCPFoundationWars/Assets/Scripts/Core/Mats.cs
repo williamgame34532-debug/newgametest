@@ -163,6 +163,13 @@ public static class Mats
         if (ta == null) { byteTex[name] = null; return null; }
         t = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear);
         t.LoadImage(ta.bytes);
+        if (linear)
+        {
+            // карта нормалей хранит X и в R, и в A; встроенный UnpackNormal берёт X = R*A (было X², нормали «заваливались»)
+            var px = t.GetPixels32();
+            for (int i = 0; i < px.Length; i++) px[i].a = 255;
+            t.SetPixels32(px);
+        }
         t.wrapMode = TextureWrapMode.Repeat;
         t.anisoLevel = 4;
         t.Apply(true, true);

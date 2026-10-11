@@ -527,11 +527,12 @@ public class HumanAnimator : MonoBehaviour
                 break;
             case AnimStyle.ShyRage:
             {
-                float fl = Mathf.Sin(phase) * 75f;
-                aL = new Vector3(fl - 30f, 0, -25f); aR = new Vector3(-fl - 30f, 0, 25f);
-                eL = new Vector3(-30f - Mathf.Max(0, -fl) * 0.5f, 0, 0); eR = new Vector3(-30f - Mathf.Max(0, fl) * 0.5f, 0, 0);
-                tgt[HumanRig.Spine].x += 28f * Mathf.Clamp01(spd / 4f); tgt[HumanRig.Chest].x += 12f;
-                tgt[HumanRig.Neck].x -= 25f; tgt[HumanRig.Head].x -= 15f;
+                // бег в ярости как в Containment Breach: корпус резко вперёд, длинные руки болтаются позади и хлещут в такт
+                float fl = Mathf.Sin(phase) * 38f;
+                aL = new Vector3(28f + fl, 0, -14f); aR = new Vector3(28f - fl, 0, 14f);
+                eL = new Vector3(-14f - Mathf.Max(0, fl) * 0.4f, 0, 0); eR = new Vector3(-14f - Mathf.Max(0, -fl) * 0.4f, 0, 0);
+                tgt[HumanRig.Spine].x += 30f * Mathf.Clamp01(spd / 4f); tgt[HumanRig.Chest].x += 14f;
+                tgt[HumanRig.Neck].x -= 22f; tgt[HumanRig.Head].x -= 12f;
                 break;
             }
             case AnimStyle.Doctor:
@@ -556,8 +557,8 @@ public class HumanAnimator : MonoBehaviour
             float a = Mathf.Clamp01(attack01);
             float wind = Mathf.Sin(Mathf.Min(1f, a / 0.35f) * Mathf.PI * 0.5f);
             float strike = Mathf.SmoothStep(0, 1, Mathf.InverseLerp(0.35f, 0.6f, a));
-            aR = Vector3.Lerp(aR, Vector3.Lerp(new Vector3(-150f * wind, 0, 40f * wind), new Vector3(-40f, 0, -10f), strike), attackW);
-            aL = Vector3.Lerp(aL, Vector3.Lerp(new Vector3(-60f * wind, 0, -20f), new Vector3(-110f, 0, -15f), strike), attackW * 0.6f);
+            aR = Vector3.Lerp(aR, Vector3.Lerp(new Vector3(-120f * wind, 0, 35f * wind), new Vector3(-25f, 0, -10f), strike), attackW);
+            aL = Vector3.Lerp(aL, Vector3.Lerp(new Vector3(-50f * wind, 0, -20f), new Vector3(-80f, 0, -15f), strike), attackW * 0.6f);
             eR = Vector3.Lerp(eR, new Vector3(-80f * (1f - strike) - 10f, 0, 0), attackW);
             tgt[HumanRig.Spine].x += 12f * strike * attackW;
             tgt[HumanRig.Chest].y += (-25f * wind + 35f * strike) * attackW;

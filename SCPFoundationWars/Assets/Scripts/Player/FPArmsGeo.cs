@@ -76,7 +76,7 @@ public class ArmGeo
             {
                 float ph = j / (float)capN * Mathf.PI * 0.5f;
                 float rr = Mathf.Max(rx[0], rz[0]);
-                rings.Add((c[0] - T[0] * Mathf.Sin(ph) * rr * capStart, N[0], B[0], rx[0], rz[0], 0, Mathf.Max(0.04f, Mathf.Cos(ph))));
+                rings.Add((c[0] - T[0] * Mathf.Sin(ph) * rr * capStart, N[0], B[0], rx[0], rz[0], 0, Mathf.Max(0.3f, Mathf.Cos(ph))));
             }
         for (int i = 0; i < m; i++) rings.Add((c[i], N[i], B[i], rx[i], rz[i], i, 1f));
         if (capEnd > 0)
@@ -84,7 +84,7 @@ public class ArmGeo
             {
                 float ph = j / (float)capN * Mathf.PI * 0.5f;
                 float rr = Mathf.Max(rx[m - 1], rz[m - 1]);
-                rings.Add((c[m - 1] + T[m - 1] * Mathf.Sin(ph) * rr * capEnd, N[m - 1], B[m - 1], rx[m - 1], rz[m - 1], m - 1, Mathf.Max(0.04f, Mathf.Cos(ph))));
+                rings.Add((c[m - 1] + T[m - 1] * Mathf.Sin(ph) * rr * capEnd, N[m - 1], B[m - 1], rx[m - 1], rz[m - 1], m - 1, Mathf.Max(0.3f, Mathf.Cos(ph))));
             }
         int start = v.Count;
         float len = 0f;
@@ -114,6 +114,17 @@ public class ArmGeo
                 Tri(s, a, c2, b, inside); Tri(s, b, c2, d, inside);
             }
         }
+        // крышки-диски: центр + веер (без вырожденных треугольников — иначе битые касательные и чёрные точки)
+        void Disc(int ringIdx, int nextIdx, float uvLen)
+        {
+            var R = rings[ringIdx];
+            Vector3 inside = rings[nextIdx].c;
+            int ctr = Add(R.c, new Vector2(per * uvScale * 0.5f, uvLen + 0.002f * uvScale), wf(R.src, R.c));
+            int b0 = start + ringIdx * rowN;
+            for (int k = 0; k < seg; k++) Tri(s, ctr, b0 + k, b0 + k + 1, inside);
+        }
+        if (capStart > 0 && rings.Count > 1) Disc(0, 1, 0f);
+        if (capEnd > 0 && rings.Count > 1) Disc(rings.Count - 1, rings.Count - 2, len * uvScale);
     }
 
     // Коробка (часы): центр, оси, полуразмеры
@@ -330,7 +341,7 @@ public class ArmGeo
                 g.Tube(PAD, padC, outw, new[] { 0.0032f, 0.0036f, 0.0032f }, new[] { rad[f] * 0.75f, rad[f] * 0.8f, rad[f] * 0.75f }, 8, wHand, null, 0.6f, 0.9f, 0.9f, 14f);
             }
             // большой палец: из основания ладони через верх рукояти на дальнюю сторону
-            var tp = new[] { H(0.01f, -0.03f, 0.014f), H(0.026f, -0.042f, 0.032f), H(0.05f, -0.051f, 0.044f), H(0.079f, -0.053f, 0.045f), H(0.101f, -0.064f, 0.04f) };
+            var tp = new[] { H(0.01f, -0.03f, 0.014f), H(0.03f, -0.042f, 0.034f), H(0.064f, -0.05f, 0.049f), H(0.1f, -0.072f, 0.05f), H(0.111f, -0.103f, 0.047f) };
             var tc = CatmullRom(tp, 4);
             var trx = new float[tc.Length]; var trz = new float[tc.Length];
             for (int i = 0; i < tc.Length; i++)

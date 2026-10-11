@@ -555,7 +555,7 @@ public class FPView : MonoBehaviour
         Vector3 rWrist = HandPose.GripWrist(gq, gm.grip.position);
         Quaternion lq = HandPose.Support(gq);
         Vector3 lWrist = HandPose.SupportWrist(gq, gm.foregrip.position);
-        if (pistol) { lq = HandPose.Grip(gq); lWrist = HandPose.GripWrist(gq, gm.grip.position, 1f, true); }
+        if (pistol) { lq = HandPose.Support(gq); lWrist = HandPose.SupportWrist(gq, gm.grip.position + gq * new Vector3(0f, -0.075f, 0.035f)); }   // левая ладонь чашей под кулаком правой
         if (lTarget.HasValue) { lWrist = Vector3.Lerp(lWrist, HandPose.Wrist(lTarget.Value, lRot), lW); lq = Quaternion.Slerp(lq, lRot, lW); }
         if (rTarget.HasValue) { rWrist = Vector3.Lerp(rWrist, HandPose.Wrist(rTarget.Value, rRot), rW); rq = Quaternion.Slerp(rq, rRot, rW); }
         Vector3 lPalm = lWrist - lq * new Vector3(0, 0.075f, 0);

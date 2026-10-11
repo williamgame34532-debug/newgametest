@@ -9,10 +9,13 @@ Shader "SCP/Post"
     float4 _MainTex_TexelSize;
     float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2, _Sharp;
     float4 _Tint, _Dir, _ShadowTone, _HighTone;
+    // NaN/бесконечность из любого шейдера сцены не должны расползаться свечением в чёрные квадраты
+    float3 Safe (float3 c) { c = (c == c) ? c : 0; return clamp(c, 0, 64); }
     fixed4 fragBright (v2f_img i) : SV_Target
     {
         float2 o = _MainTex_TexelSize.xy;
         float3 c = (tex2D(_MainTex, i.uv + o * float2(-1,-1)).rgb + tex2D(_MainTex, i.uv + o * float2(1,-1)).rgb + tex2D(_MainTex, i.uv + o * float2(-1,1)).rgb + tex2D(_MainTex, i.uv + o * float2(1,1)).rgb) * 0.25;
+        c = Safe(c);
         float br = max(c.r, max(c.g, c.b));
         float k = saturate((br - _Threshold) / max(br, 0.0001));
         return fixed4(c * k, 1);
@@ -42,9 +45,10 @@ Shader "SCP/Post"
         float2 px = _MainTex_TexelSize.xy;
         float3 nb = (tex2D(_MainTex, uv + float2(px.x, 0)).rgb + tex2D(_MainTex, uv - float2(px.x, 0)).rgb
                    + tex2D(_MainTex, uv + float2(0, px.y)).rgb + tex2D(_MainTex, uv - float2(0, px.y)).rgb) * 0.25;
+        col = Safe(col); nb = Safe(nb);
         float3 detail = col - nb;
         col = max(0, col + clamp(detail, -0.15, 0.15) * _Sharp);
-        col += tex2D(_Bloom, uv).rgb * _BloomAmt;
+        col += Safe(tex2D(_Bloom, uv).rgb) * _BloomAmt;
         col *= _Exposure;
         col = ACES(col);
         // цветокоррекция: контраст вокруг серого, насыщенность, оттенок

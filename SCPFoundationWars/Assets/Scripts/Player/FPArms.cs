@@ -28,6 +28,18 @@ public static class FPArms
         m.subMeshCount = ArmGeo.SUBS;
         for (int s = 0; s < ArmGeo.SUBS; s++) m.SetTriangles(g.sub[s], s);
         m.RecalculateTangents();
+        // страховка: битая касательная даёт NaN в шейдере (чёрные точки, которые свечение раздувает в квадраты)
+        var tg = m.tangents; var nn = m.normals; bool fixT = false;
+        for (int i = 0; i < tg.Length; i++)
+        {
+            Vector3 t3 = new Vector3(tg[i].x, tg[i].y, tg[i].z);
+            if (float.IsNaN(t3.x) || float.IsNaN(t3.y) || float.IsNaN(t3.z) || t3.sqrMagnitude < 0.25f || Mathf.Abs(Vector3.Dot(t3.normalized, nn[i])) > 0.98f)
+            {
+                Vector3 alt = Vector3.Cross(nn[i], Mathf.Abs(nn[i].y) < 0.9f ? Vector3.up : Vector3.right).normalized;
+                tg[i] = new Vector4(alt.x, alt.y, alt.z, 1f); fixT = true;
+            }
+        }
+        if (fixT) m.tangents = tg;
         m.RecalculateBounds();
         m.bindposes = new[] { Matrix4x4.identity, Matrix4x4.Translate(new Vector3(0, l1, 0)), Matrix4x4.Translate(new Vector3(0, l1 + l2, 0)) };
         meshes[key] = m;
@@ -117,7 +129,7 @@ public static class FPArms
                 float dy = h[((y + 1) % size) * size + x] - h[((y + size - 1) % size) * size + x];
                 Vector3 n = new Vector3(-dx * strength, -dy * strength, 1f).normalized;
                 float r = n.x * 0.5f + 0.5f, g = n.y * 0.5f + 0.5f;
-                px[y * size + x] = new Color(r, g, n.z * 0.5f + 0.5f, r);
+                px[y * size + x] = new Color(r, g, n.z * 0.5f + 0.5f, 1f);   // A=1: UnpackNormal берёт X из R*A
             }
         var t = new Texture2D(size, size, TextureFormat.RGBA32, true, true);
         t.SetPixels(px); t.wrapMode = TextureWrapMode.Repeat; t.anisoLevel = 4; t.Apply(true);

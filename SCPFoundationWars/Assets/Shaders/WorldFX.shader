@@ -103,6 +103,7 @@ Shader "SCP/WorldFX"
     fixed4 fragComposite (v2f_img i) : SV_Target
     {
         float3 c = tex2D(_MainTex, i.uv).rgb;
+        c = (c == c) ? c : 0;
         float2 uv = i.uv;
         #if UNITY_UV_STARTS_AT_TOP
         if (_MainTex_TexelSize.y < 0) uv.y = 1 - uv.y;
