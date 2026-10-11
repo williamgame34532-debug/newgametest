@@ -210,4 +210,10 @@ public partial class Battle
         if (!intro || fade > 0.5f) return;
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) skipIntro = true;
     }
+
+    void LaunchInput()
+    {
+        if (intro || Game.Paused) return;
+        if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && PlayerCanLaunch) LaunchPlayerNow();
+    }
 }

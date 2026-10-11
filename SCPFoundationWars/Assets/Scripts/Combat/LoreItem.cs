@@ -7,12 +7,18 @@ public class LoreItemDef
 {
     public ScpKind scp;
     public string name, apply, done;
-    public int shape;   // 0 — мешок, 1 — динамик, 2 — канистры, 3 — свёрток, 4 — ремни, 5 — кейс
+    public int shape;        // 0 — мешок, 1 — динамик, 2 — канистры, 3 — свёрток, 4 — ремни, 5 — кейс
+    public float range = 2.5f, time = 3.5f;
+    public int charges = 1;  // дротики — несколько
+    public bool needSubdued; // 682: сначала измотать огнём
 }
 
 public class LoreItem : MonoBehaviour
 {
-    public static LoreItem Active;
+    public static readonly System.Collections.Generic.List<LoreItem> All = new System.Collections.Generic.List<LoreItem>();
+    public static LoreItem Active => All.Count > 0 ? All[0] : null;
+    public static LoreItem Find(ScpKind k) { foreach (var li in All) if (li != null && li.def.scp == k) return li; return null; }
+    public int charges;
     public LoreItemDef def;
     public Unit carrier;
     public bool used;
@@ -26,28 +32,28 @@ public class LoreItem : MonoBehaviour
         switch (k)
         {
             case ScpKind.S096: return new LoreItemDef { scp = k, name = "Мешок на голову", apply = "Надеваем мешок на голову SCP-096…", done = "Мешок на голове SCP-096. Лицо закрыто.", shape = 0 };
-            case ScpKind.S106: return new LoreItemDef { scp = k, name = "Запись «ломателя бёдер» (протокол возврата)", apply = "Включаем запись протокола возврата…", done = "SCP-106 приманен и сдерживается.", shape = 1 };
-            case ScpKind.S682: return new LoreItemDef { scp = k, name = "Канистры с соляной кислотой", apply = "Заливаем объект кислотой…", done = "SCP-682 обездвижен кислотой.", shape = 2 };
-            case ScpKind.S173: return new LoreItemDef { scp = k, name = "Брезент и стропы для переноски", apply = "Накрываем статую брезентом, не моргать!", done = "SCP-173 накрыт и связан.", shape = 3 };
+            case ScpKind.S106: return new LoreItemDef { scp = k, name = "Запись «ломателя бёдер» (протокол возврата)", apply = "Включаем запись протокола возврата — приманиваем 106…", done = "SCP-106 приманен и возвращён в камеру.", shape = 1, range = 22f, time = 6f };
+            case ScpKind.S682: return new LoreItemDef { scp = k, name = "Канистры с соляной кислотой", apply = "Заливаем объект кислотой…", done = "SCP-682 обездвижен кислотой.", shape = 2, range = 4.5f, time = 4f, needSubdued = true };
+            case ScpKind.S173: return new LoreItemDef { scp = k, name = "Брезент и стропы для переноски", apply = "Накрываем статую брезентом, не моргать!", done = "SCP-173 накрыт и связан.", shape = 3, time = 3f };
             case ScpKind.S049: return new LoreItemDef { scp = k, name = "Смирительные ремни", apply = "Фиксируем SCP-049…", done = "SCP-049 зафиксирован.", shape = 4 };
-            case ScpKind.S939: return new LoreItemDef { scp = k, name = "Дротики с транквилизатором", apply = "Вводим транквилизатор…", done = "SCP-939 усыплён.", shape = 5 };
+            case ScpKind.S939: return new LoreItemDef { scp = k, name = "Дротики с транквилизатором", apply = "Стреляем дротиком…", done = "SCP-939 усыплён.", shape = 5, range = 18f, time = 1.6f, charges = 14 };
             default: return null;
         }
     }
 
-    public static void Clear() { if (Active != null) Destroy(Active.gameObject); Active = null; }
+    public static void Clear() { foreach (var li in All) if (li != null) Destroy(li.gameObject); All.Clear(); }
 
     public static LoreItem Spawn(LoreItemDef def, Unit carrier)
     {
-        Clear();
         if (def == null || carrier == null) return null;
         var go = new GameObject("loreItem");
         var li = go.AddComponent<LoreItem>();
         li.def = def;
+        li.charges = def.charges;
         li.prop = BuildProp(def.shape).transform;
         li.prop.SetParent(go.transform, false);
         li.AttachTo(carrier);
-        Active = li;
+        All.Add(li);
         return li;
     }
 
@@ -113,31 +119,48 @@ public class LoreItem : MonoBehaviour
             applyK = 0f; applying = null;
             return;
         }
-        // применяем к ослабленному объекту рядом
-        ScpUnit near = null;
+        // применяем к объекту рядом, если его состояние позволяет (096 — только спокойного, 682 — измотанного)
+        ScpUnit near = null; float nd = float.MaxValue;
         foreach (var u in Unit.All)
-            if (u is ScpUnit su && su.kind == def.scp && su.subdued && !su.captured && !su.itemApplied && (su.transform.position - carrier.transform.position).sqrMagnitude < 9f) { near = su; break; }
+            if (u is ScpUnit su && Ready(su))
+            {
+                float d = (su.transform.position - carrier.transform.position).magnitude;
+                if (d < def.range && d < nd) { nd = d; near = su; }
+            }
         if (near == null) { applyK = Mathf.MoveTowards(applyK, 0f, Time.deltaTime); applying = null; return; }
-        if (applying != near) { applying = near; applyK = 0f; Battle.Message(def.apply, new Color(0.8f, 0.9f, 1f), 3.5f); }
-        applyK += Time.deltaTime / 3.5f;
-        near.subduedUntil = Mathf.Max(near.subduedUntil, Time.time + 8f);
+        if (applying != near) { applying = near; applyK = 0f; Battle.Message(def.apply, new Color(0.8f, 0.9f, 1f), 3.5f); if (def.scp == ScpKind.S106) Sfx.Play("scream", carrier.transform.position, 0.6f, 0.55f, 80f); }
+        applyK += Time.deltaTime / def.time;
+        if (near.subdued) near.subduedUntil = Mathf.Max(near.subduedUntil, Time.time + 8f);
         if (applyK >= 1f)
         {
-            used = true;
+            applyK = 0f; applying = null;
+            charges--;
+            if (def.scp == ScpKind.S939 && Random.value < 0.45f) { Battle.Message("Дротик не взял — ещё один!", new Color(1f, 0.8f, 0.4f), 2.5f); if (charges <= 0) Finish(); return; }
             near.itemApplied = true;
-            Battle.Message(def.done + " Удерживайте зону для эвакуации.", new Color(0.5f, 1f, 0.6f), 5f);
+            Battle.Message(def.done + (def.scp == ScpKind.S106 ? "" : " Удерживайте зону для эвакуации."), new Color(0.5f, 1f, 0.6f), 5f);
             Sfx.Play2D("radio", 0.5f);
-            // мешок остаётся на голове 096; остальное уходит в дело
+            if (def.scp == ScpKind.S106) near.Capture(Team.Foundation);   // протокол возврата: сам уходит в камеру
+            else near.Neutralize();
             if (def.scp == ScpKind.S096 && near is HumanScp hs && hs.rig != null)
             {
-                transform.SetParent(hs.rig.b[HumanRig.Head], false);
-                transform.localPosition = new Vector3(0, 0.12f, 0.02f);
-                transform.localRotation = Quaternion.identity;
-                transform.localScale = Vector3.one * 1.25f;
-                prop.gameObject.SetActive(true);
+                // мешок остаётся на голове
+                var bag = BuildProp(0).transform;
+                bag.SetParent(hs.rig.b[HumanRig.Head], false);
+                bag.localPosition = new Vector3(0, 0.12f, 0.02f);
+                bag.localScale = Vector3.one * 1.25f;
             }
-            else prop.gameObject.SetActive(false);
+            if (charges <= 0) Finish();
         }
+    }
+
+    void Finish() { used = true; prop.gameObject.SetActive(false); }
+
+    bool Ready(ScpUnit su)
+    {
+        if (su == null || su.kind != def.scp || su.captured || !su.alive || su.itemApplied) return false;
+        if (def.needSubdued && !su.subdued) return false;
+        if (su is Scp096 s096 && s096.Enraged) return false;   // в ярости к нему не подойти — ждать, пока успокоится
+        return true;
     }
 
     // Куда идти носителю (ИИ): к ослабленному объекту
@@ -145,8 +168,13 @@ public class LoreItem : MonoBehaviour
     {
         p = Vector3.zero;
         if (used || carrier == null) return false;
+        float best = float.MaxValue;
         foreach (var u in Unit.All)
-            if (u is ScpUnit su && su.kind == def.scp && su.subdued && !su.captured && !su.itemApplied) { p = su.transform.position; return true; }
-        return false;
+            if (u is ScpUnit su && Ready(su))
+            {
+                float d = (su.transform.position - carrier.transform.position).sqrMagnitude;
+                if (d < best) { best = d; p = su.transform.position + (carrier.transform.position - su.transform.position).normalized * Mathf.Max(1.4f, def.range * 0.6f); }
+            }
+        return best < float.MaxValue;
     }
 }

@@ -79,6 +79,9 @@ public partial class Battle : MonoBehaviour
         foreach (var h in Helicopter.Active.ToArray()) if (h != null) Destroy(h.gameObject);
         Helicopter.Active.Clear();
         foreach (var u in Unit.All.ToArray()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
+        // убитые и захваченные уже не в списке живых — удаляем все объекты юнитов
+        foreach (var u in Compat.FindAll<Unit>()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
+        Sfx.StopAll();
         foreach (var c in Ragdoll.Corpses.ToArray()) if (c != null) Destroy(c.gameObject);
         Ragdoll.Corpses.Clear();
         foreach (var o in Compat.FindAll<ScpContainer>()) Destroy(o.gameObject);
@@ -97,6 +100,7 @@ public partial class Battle : MonoBehaviour
 
     public const float FarEntry = 2300f;   // вертолёты Хаоса и SCP заходят из-за гор по долинам
     MapGen.FobInfo fob;
+    Helicopter playerHeli; SquadRt playerSqRt;
     public bool loading;
     public float loadProgress;
     public TeamCommander cmdF, cmdC;
@@ -146,7 +150,7 @@ public partial class Battle : MonoBehaviour
         float introDur = 0f;
         bool hasPlayerSquad = cfg.playerFps && cfg.foundation.Count > 0 && !cfg.foundation[Mathf.Clamp(cfg.playerSquad, 0, cfg.foundation.Count - 1)].placed;
         if (hasPlayerSquad && Game.Intro) { introLines = Script(cfg); introDur = IntroLength(introLines); }
-        Helicopter playerHeli = null; SquadRt playerSq = null;
+        playerHeli = null; SquadRt playerSq = null;
         // передовая база в южной долине: борта Фонда стоят на площадках
         fob = null;
         foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); break; }
@@ -260,6 +264,7 @@ public partial class Battle : MonoBehaviour
         cmdC = new TeamCommander(Team.Chaos, bC);
         foreach (var sq in squads) (sq.team == Team.Foundation ? cmdF : cmdC).squads.Add(sq);
         startTime = Time.time;
+        playerSqRt = playerSq;
         GiveLoreItem(cfg, playerSq);
         if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
         if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
@@ -374,20 +379,37 @@ public partial class Battle : MonoBehaviour
     }
 
     // Предмет содержания по лору — у бойца группы игрока (или первой группы Фонда)
+    // Игрок ждёт вылета (на базе после брифинга или уже в вертолёте) — можно вылететь сразу
+    public bool PlayerCanLaunch => playerHeli != null && playerHeli.IsWaiting && PlayerController.I != null && !PlayerController.I.dead
+        && (intro || playerHeli.playerPassenger == PlayerController.I) && Time.time < playerHeli.LaunchTime - 2f;
+    public void LaunchPlayerNow()
+    {
+        if (!PlayerCanLaunch) return;
+        if (intro) { skipIntro = true; return; }       // вступление само посадит в вертолёт и запустит его
+        playerHeli.LaunchNow();
+        if (playerSqRt != null) playerSqRt.arriveAt = Time.time;
+        Message("Пилот: Понял, запускаемся, вылет немедленно.", new Color(0.75f, 0.9f, 0.75f), 4f);
+        Sfx.Play2D("radio", 0.4f);
+    }
+
     void GiveLoreItem(BattleConfig cfg, SquadRt playerSq)
     {
-        LoreItemDef def = null;
-        foreach (var sp in cfg.scps) { def = LoreItem.For(sp.def.kind); if (def != null) break; }
-        if (def == null) return;
-        SquadRt sq = playerSq;
-        if (sq == null) foreach (var x in squads) if (x.team == Team.Foundation && x.members.Count > 0) { sq = x; break; }
-        if (sq == null) return;
-        Soldier carrier = null;
-        foreach (var m in sq.members) if (m != null && m.alive && m.index == 2) carrier = m;
-        if (carrier == null) foreach (var m in sq.members) if (m != null && m.alive) carrier = m;
-        if (carrier == null) return;
-        LoreItem.Spawn(def, carrier);
-        if (playerSq == sq) Message(carrier.CallSign + " несёт: «" + def.name + "». Без него объект не взять — береги носителя.", new Color(0.7f, 0.9f, 1f), 7f);
+        // по средству на каждый вид SCP в бою; носители — бойцы группы игрока (не командир и не медик), затем других групп
+        var kinds = new List<ScpKind>();
+        foreach (var sp in cfg.scps) if (!kinds.Contains(sp.def.kind) && LoreItem.For(sp.def.kind) != null) kinds.Add(sp.def.kind);
+        if (kinds.Count == 0) return;
+        var pool = new List<Soldier>();
+        var order = new List<SquadRt>();
+        if (playerSq != null) order.Add(playerSq);
+        foreach (var x in squads) if (x.team == Team.Foundation && x != playerSq) order.Add(x);
+        foreach (var sq in order) foreach (var m in sq.members) if (m != null && m.alive && m.index >= 2) pool.Add(m);
+        foreach (var sq in order) foreach (var m in sq.members) if (m != null && m.alive && m.index < 2 && !pool.Contains(m)) pool.Add(m);
+        for (int i = 0; i < kinds.Count && i < pool.Count; i++)
+        {
+            var def = LoreItem.For(kinds[i]);
+            LoreItem.Spawn(def, pool[i]);
+            if (pool[i].squadRt == playerSq) Message(pool[i].CallSign + " несёт: «" + def.name + "». Оружием объект не остановить — только этим.", new Color(0.7f, 0.9f, 1f), 7f);
+        }
     }
 
     // ---------------- захват SCP ----------------
@@ -399,7 +421,10 @@ public partial class Battle : MonoBehaviour
         captureTarget = null;
         foreach (var u in Unit.All.ToArray())
         {
-            if (!(u is ScpUnit su) || !su.subdued || su.captured) continue;
+            if (!(u is ScpUnit su) || su.captured) continue;
+            // Повстанцы уносят SCP-173 своими методами (держат его взглядом и грузят), остальных — только обезвреженных
+            bool chaosGrab = !su.subdued && su.kind == ScpKind.S173 && su.alive;
+            if (!su.subdued && !chaosGrab) continue;
             captureTarget = su;
             Combat.OverlapUnits(su.transform.position, 10f, capBuf);
             int f = 0, c = 0;
@@ -410,8 +435,9 @@ public partial class Battle : MonoBehaviour
             }
             float rate = dt / 14f;
             // Фонду нужен предмет содержания, если он предусмотрен для этого объекта
-            var li = LoreItem.Active;
-            bool needItem = li != null && li.def.scp == su.kind && !su.itemApplied;
+            var li = LoreItem.Find(su.kind);
+            bool needItem = (li != null && !su.itemApplied) || chaosGrab;
+            if (chaosGrab) f = 0;
             if (needItem && c == 0) { if (f > 0) su.subduedUntil = Mathf.Max(su.subduedUntil, Time.time + 6f); continue; }
             if (su.itemApplied) rate *= 1.6f;
             if (f > 0 && c == 0) { su.capture[0] += rate * (1f + 0.15f * (f - 1)); su.capture[1] = Mathf.Max(0, su.capture[1] - rate); }
@@ -474,6 +500,7 @@ public partial class Battle : MonoBehaviour
 
         if (loading) return;
         IntroInput();
+        LaunchInput();
         if (!over)
         {
             cmdF?.Tick(Time.deltaTime);

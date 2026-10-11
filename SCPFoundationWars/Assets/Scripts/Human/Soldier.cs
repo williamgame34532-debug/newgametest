@@ -791,10 +791,11 @@ public class Soldier : Unit
         bool lowHp = hp < maxHp * 0.3f && courage < 1.2f;
 
         // носитель предмета содержания идёт к ослабленному объекту
-        var li = LoreItem.Active;
-        if (li != null && li.carrier == this && li.Goal(out var lg))
+        LoreItem li = null;
+        foreach (var x in LoreItem.All) if (x != null && x.carrier == this) li = x;
+        if (li != null && li.Goal(out var lg))
         {
-            goal = lg + (me - lg).normalized * 1.6f; agent.speed = baseSpeed * 1.2f;
+            goal = lg; agent.speed = baseSpeed * 1.2f;
             goal.y = me.y;
             if (NavMesh.SamplePosition(goal, out var lh, 3f, NavMesh.AllAreas)) agent.SetDestination(lh.position);
             moveT = Time.time + 0.4f;

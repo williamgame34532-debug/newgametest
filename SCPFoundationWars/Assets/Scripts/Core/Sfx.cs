@@ -92,6 +92,14 @@ public static class Sfx
         Play(name, cam != null ? cam.transform.position : Vector3.zero, vol, pitch, 50f, 0f);
     }
 
+    // Конец боя: глушим все разовые звуки и уничтожаем все петли (плач/крик 096, гул SCP, скрежет 173…)
+    public static void StopAll()
+    {
+        foreach (var a in pool) if (a != null) a.Stop();
+        foreach (var a in Compat.FindAll<AudioSource>())
+            if (a != null && a.gameObject.name.StartsWith("loop_")) Object.Destroy(a.gameObject);
+    }
+
     public static AudioSource Loop(string name, Transform parent, float vol = 1f, float maxDist = 150f, float pitch = 1f)
     {
         var go = new GameObject("loop_" + name);

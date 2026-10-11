@@ -475,6 +475,10 @@ public partial class Game
             if (rn != null && t < 600f)
                 Shadowed(new Rect(W / 2 - 300, 104, 600, 26), "Подкрепление " + rn + ": вылет через " + Mathf.FloorToInt(t / 60) + ":" + Mathf.FloorToInt(t % 60).ToString("00"), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.6f, 0.8f, 1f));
         }
+        if (b.PlayerCanLaunch && !b.intro)
+        {
+            Shadowed(new Rect(W / 2 - 300, 128, 600, 24), "[Enter] или Esc → «Вылететь сейчас» — не ждать вылета", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontSize = 14 }, new Color(1f, 0.85f, 0.5f));
+        }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
@@ -504,7 +508,7 @@ public partial class Game
             }
         }
         if (b.intro && b.fade < 0.5f)
-            Label(new Rect(W - 440, 24, 400, 24), "[Enter] — пропустить брифинг", new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 14 }, new Color(1, 1, 1, 0.45f));
+            Label(new Rect(W - 440, 24, 400, 24), "[Enter] — пропустить брифинг и вылететь", new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 14 }, new Color(1, 1, 1, 0.45f));
         if (b.fade <= 0.001f && b.cardTitle != null)
         {
             // титры поверх сцены на взлёте: кинематографичные полосы
@@ -586,8 +590,8 @@ public partial class Game
             Rect(new Rect(x + 10, y + 30, 500 * Mathf.Clamp01(ct.capture[0]), 10), Battle.TeamColor(Team.Foundation));
             Rect(new Rect(x + 10, y + 46, 500, 10), new Color(0.15f, 0.15f, 0.15f));
             Rect(new Rect(x + 10, y + 46, 500 * Mathf.Clamp01(ct.capture[1]), 10), Battle.TeamColor(Team.Chaos));
-            var li = LoreItem.Active;
-            if (li != null && li.def.scp == ct.kind && !ct.itemApplied)
+            var li = LoreItem.Find(ct.kind);
+            if (li != null && !ct.itemApplied)
             {
                 string who = li.carrier == null ? "лежит на земле — подберите" : li.carrier.isPlayer ? "у вас — подойдите вплотную" : "несёт " + (li.carrier is Soldier cs ? cs.CallSign : li.carrier.displayName);
                 Rect(new Rect(x, y + 66, 520, 28), new Color(0, 0, 0, 0.6f));
@@ -975,6 +979,11 @@ public partial class Game
         Shadowed(new Rect(x, 60, 840, 60), "ПАУЗА", h1, Color.white);
         float y = 140;
         if (GUI.Button(new Rect(x, y, 300, 54), "Продолжить", btn)) Paused = false; y += 64;
+        if (Battle.I != null && Battle.I.PlayerCanLaunch)
+        {
+            if (GUI.Button(new Rect(x, y, 300, 54), "Вылететь сейчас", btn)) { Battle.I.LaunchPlayerNow(); Paused = false; }
+            y += 64;
+        }
         if (GUI.Button(new Rect(x, y, 300, 54), "Начать заново", btn)) { var c = lastCfg; if (c != null) { c.seed = Random.Range(1, 99999); StartBattle(c); } }
         y += 64;
         if (GUI.Button(new Rect(x, y, 300, 54), "Изменить отряды", btn)) { ShowMenu(); screen = Scr.Setup; }

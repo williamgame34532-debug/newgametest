@@ -45,17 +45,31 @@ public abstract class ScpUnit : Unit
     public override bool Targetable => base.Targetable && !subdued;
     const float SubdueAt = 0.18f;
 
+    // Оружием SCP не убить: пули и взрывы только задерживают его (у 682 — изматывают до состояния, когда можно залить кислотой).
+    // Нейтрализует объект только средство из документов Фонда (LoreItem).
+    public virtual bool GunSubdues => kind == ScpKind.S682 || LoreItem.For(kind) == null;
+    public float lastHitT;
     protected override bool PreDamage(ref float dmg, DamageInfo d)
     {
         if (captured) return true;
         if (subdued) return true;
-        if (Capturable && hp - dmg <= maxHp * SubdueAt && d.type != DamageType.Fall)
+        lastHitT = Time.time;
+        if (!Capturable) return false;
+        float floor = maxHp * (GunSubdues ? SubdueAt : 0.35f);
+        if (hp - dmg <= floor && d.type != DamageType.Fall)
         {
-            hp = maxHp * SubdueAt;
-            Subdue();
+            hp = floor;
+            if (GunSubdues) Subdue();
             return true;
         }
         return false;
+    }
+
+    // применение средства содержания: объект обезврежен и ждёт эвакуации
+    public void Neutralize(float holdSeconds = 90f)
+    {
+        if (!subdued) Subdue();
+        subduedUntil = Time.time + holdSeconds;
     }
 
     protected virtual void Subdue()
@@ -90,6 +104,7 @@ public abstract class ScpUnit : Unit
         Sfx.Play("alarm", transform.position, 1f, 1.5f, 200f);
         foreach (var r in GetComponentsInChildren<Renderer>()) r.enabled = false;
         foreach (var c in GetComponentsInChildren<Collider>()) c.enabled = false;
+        foreach (var a in GetComponentsInChildren<AudioSource>()) a.Stop();
         if (agent != null) agent.enabled = false;
         enabled = false;
     }
@@ -175,6 +190,7 @@ public abstract class ScpUnit : Unit
             return;
         }
         float dt = Time.deltaTime;
+        if (Capturable && Time.time - lastHitT > 6f && hp < maxHp) hp = Mathf.Min(maxHp, hp + maxHp * 0.025f * dt);
         if (dt <= 0) return;
         // объект, появившийся без контейнера (сценарии), сам встаёт на навмеш
         if (!AgentOk && (!phasedOut || Time.time > phasedT) && Time.time > agentRetryT) { agentRetryT = Time.time + 0.5f; EnsureAgent(); }
