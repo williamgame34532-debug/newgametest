@@ -36,15 +36,41 @@ public static class SteamNet
 
     public static string PersonaName { get { Init(); return Ready ? SteamFriends.GetPersonaName() : null; } }
 
+    static float retryT;
+    public const uint AppId = 480;   // тестовый Spacewar, пока у игры нет своего AppID
+
     public static void Init()
     {
-        if (tried) return;
-        tried = true;
+        if (Ready) return;
+        if (tried && Time.realtimeSinceStartup < retryT) return;   // Steam могли запустить позже — пробуем снова
+        tried = true; retryT = Time.realtimeSinceStartup + 3f;
         try
         {
-            if (!Packsize.Test() || !DllCheck.Test()) { Error = "Неверная версия Steamworks"; return; }
-            Ready = SteamAPI.Init();
-            if (!Ready) { Error = "Steam не запущен (или нет steam_appid.txt)"; return; }
+            // AppID без steam_appid.txt: переменная окружения + файл рядом с игрой (и в папке проекта в редакторе)
+            System.Environment.SetEnvironmentVariable("SteamAppId", AppId.ToString());
+            System.Environment.SetEnvironmentVariable("SteamGameId", AppId.ToString());
+            try
+            {
+                foreach (var dir in new[] { System.IO.Directory.GetCurrentDirectory(), System.IO.Path.GetDirectoryName(Application.dataPath) })
+                {
+                    if (string.IsNullOrEmpty(dir)) continue;
+                    string f = System.IO.Path.Combine(dir, "steam_appid.txt");
+                    if (!System.IO.File.Exists(f)) System.IO.File.WriteAllText(f, AppId.ToString());
+                }
+            }
+            catch { }
+            if (!Packsize.Test()) { Error = "Steamworks: неверная сборка библиотеки (Packsize)"; return; }
+            var res = SteamAPI.InitEx(out string msg);
+            Ready = res == ESteamAPIInitResult.k_ESteamAPIInitResult_OK;
+            if (!Ready)
+            {
+                Error = res == ESteamAPIInitResult.k_ESteamAPIInitResult_NoSteamClient ? "Не удаётся связаться со Steam: запустите Steam и войдите в аккаунт (игра и Steam — от одного пользователя, не «от имени администратора»)"
+                      : res == ESteamAPIInitResult.k_ESteamAPIInitResult_VersionMismatch ? "Steam устарел — обновите клиент Steam"
+                      : "Steam: " + (string.IsNullOrEmpty(msg) ? res.ToString() : msg);
+                Debug.LogWarning("SteamAPI.InitEx: " + res + " " + msg);
+                return;
+            }
+            Error = null;
             cbJoinReq = Callback<GameLobbyJoinRequested_t>.Create(OnJoinRequested);
             cbSession = Callback<P2PSessionRequest_t>.Create(r => SteamNetworking.AcceptP2PSessionWithUser(r.m_steamIDRemote));
             cbChat = Callback<LobbyChatUpdate_t>.Create(OnLobbyChat);
@@ -56,7 +82,8 @@ public static class SteamNet
                 if (args[i] == "+connect_lobby" && ulong.TryParse(args[i + 1], out ulong lid))
                     crEnter.Set(SteamMatchmaking.JoinLobby(new CSteamID(lid)));
         }
-        catch (System.Exception e) { Ready = false; Error = "Steam: " + e.Message; }
+        catch (System.DllNotFoundException e) { Ready = false; Error = "Не найдена steam_api64.dll (Assets/Plugins/Steamworks.NET/Plugins): " + e.Message; }
+        catch (System.Exception e) { Ready = false; Error = "Steam: " + e.GetType().Name + " — " + e.Message; Debug.LogException(e); }
     }
 
     public static void RunCallbacks() { if (Ready) { try { SteamAPI.RunCallbacks(); } catch { } } }
