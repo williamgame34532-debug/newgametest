@@ -87,6 +87,14 @@ public static partial class MapGen
         BuildBounds();
         Lighting(map, time, fog);
         Physics.SyncTransforms();
+        // отражения окружения (стекло, металл, мокрый бетон): один снимок после постройки карты
+        var probeGo = new GameObject("Reflections"); probeGo.transform.SetParent(Root.transform); probeGo.transform.position = new Vector3(0, Height(0, 0) + 6f, 0);
+        var probe = probeGo.AddComponent<ReflectionProbe>();
+        probe.mode = ReflectionProbeMode.Realtime; probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+        probe.size = new Vector3(Size, 120f, Size); probe.resolution = 256; probe.boxProjection = false;
+        probe.intensity = Night ? 0.4f : 1f;
+        probe.RenderProbe();
     }
 
     public static void Clear()
@@ -679,8 +687,12 @@ public static partial class MapGen
         RenderSettings.fogDensity = time == 2 ? 0.0055f : map == 1 ? 0.0028f : map == 3 ? 0.003f : 0.0015f;
         fogColor = fog;
         RenderSettings.reflectionIntensity = time == 2 ? 0.2f : 0.7f;
-        QualitySettings.shadowDistance = 140f;
-        QualitySettings.shadowCascades = 2;
+        QualitySettings.shadowDistance = 170f;
+        QualitySettings.shadowCascades = 4;
+        QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
+        QualitySettings.shadowProjection = ShadowProjection.StableFit;
+        QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+        QualitySettings.lodBias = 2f;
         QualitySettings.pixelLightCount = time == 2 ? 10 : 4;
         DynamicGI.UpdateEnvironment();
     }

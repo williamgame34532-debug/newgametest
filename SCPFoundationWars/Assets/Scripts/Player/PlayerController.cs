@@ -65,6 +65,7 @@ public class PlayerController : MonoBehaviour
     Vector3 knock;
     bool flashlightOn;
     public float spreadNow;
+    float barrelHeat, lastShotT;
     // приёмы: выглядывание (Q/E), лёжа (Z), подкат (присед на бегу), перелезание (пробел у препятствия)
     public float lean; public bool prone; float slideT = -1f; Vector3 slideDir; public bool vaulting;
     public bool Sliding => slideT >= 0f;
@@ -707,9 +708,16 @@ public class PlayerController : MonoBehaviour
                     yaw += Random.Range(-0.35f, 0.35f) * r;
                     fp.Kick(r);
                     Fx.shake = Mathf.Max(Fx.shake, 0.05f * r);
+                    Game.Cam.fieldOfView += r * (g.def.kind == WeaponKind.Sniper || g.def.kind == WeaponKind.Shotgun ? 1.6f : 0.6f);   // толчок выстрела
+                    barrelHeat = Mathf.Min(1.5f, barrelHeat + (g.def.kind == WeaponKind.LMG ? 0.06f : 0.09f));
+                    lastShotT = Time.time;
                 }
             }
         }
+        // ствол дымит после очереди
+        barrelHeat = Mathf.MoveTowards(barrelHeat, 0f, dt * 0.25f);
+        if (barrelHeat > 0.35f && Time.time - lastShotT > 0.25f && fp.gm != null && Random.value < dt * 14f * barrelHeat)
+            Fx.BarrelSmoke(fp.ToWorld(fp.gm.muzzle.position), camHolder.forward, barrelHeat);
         spreadNow = g.def.spread * Mathf.Lerp(1f, 0.3f, adsW) * (1f + new Vector2(velocity.x, velocity.z).magnitude / 6f) * (crouching ? 0.75f : 1f);
     }
 

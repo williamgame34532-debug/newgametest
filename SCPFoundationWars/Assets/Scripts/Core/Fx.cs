@@ -9,7 +9,7 @@ public class Fx : MonoBehaviour
     public static float BloodLevel = 1f;   // 0 — без крови, 1 — норм, 2 — много
     public static int MaxDecals = 500;
 
-    ParticleSystem sparks, dust, blood, bloodMist, smoke, fire, flash, debris, muzzleSmoke, embers, groundDust, darkGoo;
+    ParticleSystem casings, sparks, dust, blood, bloodMist, smoke, fire, flash, debris, muzzleSmoke, embers, groundDust, darkGoo;
     readonly List<Tracer> tracers = new List<Tracer>();
     readonly Queue<GameObject> decals = new Queue<GameObject>();
     readonly List<Light> lights = new List<Light>();
@@ -116,6 +116,16 @@ public class Fx : MonoBehaviour
         var coll = debris.collision; coll.enabled = true; coll.type = ParticleSystemCollisionType.World; coll.bounce = 0.3f; coll.dampen = 0.4f; coll.lifetimeLoss = 0f;
         coll.collidesWith = 1 << 0; coll.quality = ParticleSystemCollisionQuality.Low;
 
+        // гильзы: латунь, кувыркаются и отскакивают от земли
+        casings = MakePS("casings", Mats.Get(new Color(0.78f, 0.58f, 0.25f), 0.85f, 0.9f), 1.6f, 600, false, 0f, false, false);
+        var cr = casings.GetComponent<ParticleSystemRenderer>();
+        cr.renderMode = ParticleSystemRenderMode.Mesh; cr.mesh = MeshKit.Cube; cr.shadowCastingMode = ShadowCastingMode.On;
+        var cm = casings.main; cm.startRotation3D = true; cm.startSize3D = true;
+        var crot = casings.rotationOverLifetime; crot.enabled = true; crot.separateAxes = true;
+        crot.x = new ParticleSystem.MinMaxCurve(-25, 25); crot.y = new ParticleSystem.MinMaxCurve(-15, 15); crot.z = new ParticleSystem.MinMaxCurve(-25, 25);
+        var ccol = casings.collision; ccol.enabled = true; ccol.type = ParticleSystemCollisionType.World; ccol.bounce = 0.35f; ccol.dampen = 0.45f; ccol.lifetimeLoss = 0f;
+        ccol.collidesWith = 1 << 0; ccol.quality = ParticleSystemCollisionQuality.Medium;
+
         tracerMat = Mats.Particle(2, true);
         bloodDecal = Mats.Decal(Mats.BloodTex, new Color(0.38f, 0.02f, 0.02f, 0.95f));
         holeDecal = Mats.Decal(Mats.HoleTex, Color.white);
@@ -170,8 +180,15 @@ public class Fx : MonoBehaviour
     {
         if (I == null) return;
         if (metal) Sparks(pos, normal, 8);
-        for (int i = 0; i < 5; i++)
-            Emit(I.dust, pos + normal * 0.05f, Cone(normal, 40) * Random.Range(0.5f, 2.5f), Random.Range(0.2f, 0.5f), Random.Range(0.6f, 1.4f), new Color(surface.r * 0.9f + 0.1f, surface.g * 0.9f + 0.1f, surface.b * 0.9f + 0.1f, 0.6f));
+        Color dc = new Color(surface.r * 0.9f + 0.1f, surface.g * 0.9f + 0.1f, surface.b * 0.9f + 0.1f, 0.6f);
+        // быстрый выброс пыли конусом и медленное облачко, которое оседает
+        for (int i = 0; i < 6; i++)
+            Emit(I.dust, pos + normal * 0.05f, Cone(normal, 25) * Random.Range(2f, 6f), Random.Range(0.08f, 0.2f), Random.Range(0.25f, 0.5f), dc);
+        for (int i = 0; i < 3; i++)
+            Emit(I.dust, pos + normal * 0.1f, Cone(normal, 60) * Random.Range(0.3f, 1.2f), Random.Range(0.3f, 0.6f), Random.Range(1.2f, 2.4f), new Color(dc.r, dc.g, dc.b, 0.35f));
+        if (!metal)
+            for (int i = 0; i < 6; i++)
+                Emit(I.debris, pos + normal * 0.03f, Cone(normal, 35) * Random.Range(4f, 9f), Random.Range(0.012f, 0.03f), Random.Range(0.6f, 1.2f), surface * 0.8f);
         if (!metal)
             for (int i = 0; i < 4; i++)
                 Emit(I.debris, pos + normal * 0.05f, Cone(normal, 50) * Random.Range(2f, 5f), Random.Range(0.02f, 0.06f), Random.Range(0.8f, 1.6f), surface);
@@ -210,12 +227,56 @@ public class Fx : MonoBehaviour
         if (I == null) return;
         if (!suppressed)
         {
-            Emit(I.flash, pos + dir * 0.08f * size, Vector3.zero, 0.45f * size, 0.05f, new Color(1f, 0.75f, 0.35f));
-            Emit(I.flash, pos + dir * 0.22f * size, dir * 2f, 0.3f * size, 0.04f, new Color(1f, 0.6f, 0.2f));
-            Light(pos, new Color(1f, 0.7f, 0.35f), 3.5f, 7f, 0.05f);
+            // ядро, факел вперёд и «лепестки» из дульного тормоза — каждый выстрел немного другой
+            float v = Random.Range(0.8f, 1.2f);
+            Emit(I.flash, pos + dir * 0.06f * size, Vector3.zero, 0.38f * size * v, 0.035f, new Color(1f, 0.85f, 0.55f));
+            Emit(I.flash, pos + dir * 0.2f * size, dir * 3f, 0.26f * size * v, 0.03f, new Color(1f, 0.6f, 0.22f));
+            Emit(I.flash, pos + dir * 0.38f * size, dir * 4f, 0.16f * size * v, 0.025f, new Color(1f, 0.5f, 0.15f, 0.8f));
+            Vector3 side = Vector3.Cross(dir, Vector3.up).normalized;
+            if (Random.value < 0.7f)
+                foreach (float s in new[] { -1f, 1f })
+                    Emit(I.flash, pos + side * s * 0.07f * size, side * s * 2.5f, 0.14f * size * v, 0.025f, new Color(1f, 0.65f, 0.25f, 0.85f));
+            for (int i = 0; i < 3; i++)
+                Emit(I.sparks, pos + dir * 0.1f, Cone(dir, 12) * Random.Range(18f, 30f), Random.Range(0.01f, 0.02f), Random.Range(0.03f, 0.07f), new Color(1f, 0.75f, 0.35f));
+            Light(pos + dir * 0.3f, new Color(1f, 0.68f, 0.32f), Random.Range(3f, 4.5f), 8f, 0.045f);
         }
         for (int i = 0; i < 2; i++)
             Emit(I.muzzleSmoke, pos + dir * 0.1f, dir * Random.Range(0.5f, 1.5f) + Random.insideUnitSphere * 0.3f, Random.Range(0.15f, 0.3f), Random.Range(0.4f, 0.9f), new Color(0.8f, 0.8f, 0.8f, 0.25f));
+    }
+
+    // Гильза из окна выброса: вправо-вверх-назад, кувырком
+    public static void Casing(Vector3 port, Vector3 dir, float caliber = 1f, bool shell = false)
+    {
+        if (I == null) return;
+        Vector3 right = Vector3.Cross(Vector3.up, dir).normalized;
+        var ep = new ParticleSystem.EmitParams
+        {
+            position = port,
+            velocity = right * Random.Range(2.2f, 3.4f) + Vector3.up * Random.Range(1.2f, 2.2f) - dir * Random.Range(0.2f, 0.8f),
+            startSize3D = shell ? new Vector3(0.022f, 0.022f, 0.07f) : new Vector3(0.009f, 0.009f, 0.042f) * caliber,
+            startLifetime = Random.Range(5f, 8f),
+            startColor = shell ? new Color(0.7f, 0.12f, 0.1f) : Color.white,
+            rotation3D = new Vector3(Random.Range(0, 360f), Random.Range(0, 360f), Random.Range(0, 360f)),
+            applyShapeToPosition = false
+        };
+        I.casings.Emit(ep, 1);
+        // звон о землю — слышно только рядом
+        var cam = Game.Cam;
+        if (cam != null && (cam.transform.position - port).sqrMagnitude < 64f && Random.value < 0.6f)
+            I.StartCoroutine(I.Tink(port, Random.Range(0.32f, 0.5f)));
+    }
+
+    System.Collections.IEnumerator Tink(Vector3 at, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        Sfx.Play("casing", at + Vector3.down * 1.2f, 0.22f, Random.Range(0.9f, 1.15f), 12f);
+    }
+
+    // Сизый дымок из ствола после очереди
+    public static void BarrelSmoke(Vector3 pos, Vector3 dir, float amount)
+    {
+        if (I == null) return;
+        Emit(I.muzzleSmoke, pos + dir * 0.05f, Vector3.up * Random.Range(0.15f, 0.4f) + dir * 0.1f + Random.insideUnitSphere * 0.05f, Random.Range(0.05f, 0.12f) * (0.6f + amount), Random.Range(1.2f, 2.2f), new Color(0.75f, 0.76f, 0.78f, 0.12f + 0.15f * amount));
     }
 
     public static void Explosion(Vector3 pos, float radius)

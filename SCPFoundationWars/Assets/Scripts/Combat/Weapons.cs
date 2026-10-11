@@ -372,6 +372,11 @@ public static class Ballistics
         bool isPlayer = owner != null && owner.isPlayer;
         Sfx.Play(SoundFor(def), muzzle, isPlayer ? 0.85f : 0.75f, Random.Range(0.93f, 1.07f), def.suppressor ? 40f : def.kind == WeaponKind.Sniper ? 400f : 220f, isPlayer ? 0.4f : 1f);
         Fx.MuzzleFlash(muzzle, dir, def.kind == WeaponKind.Shotgun || def.kind == WeaponKind.LMG ? 1.3f : def.kind == WeaponKind.Pistol ? 0.7f : 1f, def.suppressor);
+        // гильза (у дробовика и снайперки — при передёргивании, здесь только у самозарядных)
+        if (def.kind != WeaponKind.Launcher && def.kind != WeaponKind.Shotgun && !(def.kind == WeaponKind.Sniper && !def.auto && def.id != "svd" && def.id != "dmr"))
+            Fx.Casing(muzzle - dir * (def.kind == WeaponKind.Pistol ? 0.12f : 0.42f), dir, def.kind == WeaponKind.Pistol || def.kind == WeaponKind.SMG ? 0.8f : def.kind == WeaponKind.Sniper ? 1.3f : 1f);
+        else if (def.kind == WeaponKind.Shotgun && def.auto)
+            Fx.Casing(muzzle - dir * 0.45f, dir, 1f, true);
 
         if (def.kind == WeaponKind.Launcher)
         {
@@ -392,8 +397,10 @@ public static class Ballistics
                 float falloff = Mathf.Lerp(1f, 0.6f, Mathf.InverseLerp(def.range * 0.5f, def.range, hit.distance));
                 HitSurface(hit, d, def.damage * falloff, def.force / def.pellets, owner, def.name);
             }
-            if (def.pellets == 1 || p % 3 == 0)
-                Fx.TracerLine(muzzle, end, tc, def.kind == WeaponKind.Sniper ? 0.06f : 0.035f);
+            // трассирующий — только каждый 3–5-й патрон (как в снаряжённой ленте/магазине); остальные пули не видны
+            float tracerChance = def.kind == WeaponKind.LMG ? 0.34f : def.kind == WeaponKind.Sniper || def.kind == WeaponKind.Pistol || def.kind == WeaponKind.Shotgun ? 0f : 0.22f;
+            if (p == 0 && Random.value < tracerChance)
+                Fx.TracerLine(muzzle, end, tc, 0.04f);
             // свист пуль рядом с игроком
             if (player != null && player.unit.alive && owner != player.unit)
             {
