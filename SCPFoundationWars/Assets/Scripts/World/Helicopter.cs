@@ -298,6 +298,8 @@ public class Helicopter : MonoBehaviour
 
     public float LaunchTime => startTime;
     public bool IsWaiting => phase == Phase.Waiting;
+    public bool Cruising => phase == Phase.Inbound;
+    public Vector3 LZ => lz;
     public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting && !onPad) phase = Phase.Inbound; }
 
     // Доклады пилота борту с игроком

@@ -480,6 +480,7 @@ public partial class Game
         {
             Shadowed(new Rect(W / 2 - 300, 128, 600, 24), "[Enter] или Esc → «Вылететь сейчас» — не ждать вылета", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontSize = 14 }, new Color(1f, 0.85f, 0.5f));
         }
+        if (Cinematic.Active || Cinematic.Fade > 0.001f) { CinematicOverlay(); if (Cinematic.Active) { if (Paused) PauseGUI(); return; } }
         Speech.Draw(Screen.height / 1080f);
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
@@ -493,6 +494,28 @@ public partial class Game
         IntroOverlay(b);
         if (b.over && !Paused) Results(b);
         if (Paused) PauseGUI();
+    }
+
+    // Кинематографичная вставка: широкие полосы, титры места, затемнение между планами
+    void CinematicOverlay()
+    {
+        HudStyles();
+        if (Cinematic.Active)
+        {
+            float bar = H * 0.11f;
+            Rect(new Rect(0, 0, W, bar), Color.black);
+            Rect(new Rect(0, H - bar, W, bar), Color.black);
+            if (Cinematic.Caption != null)
+            {
+                float age = Time.time - Cinematic.CaptionT;
+                float a = Mathf.Clamp01((age - 0.6f) / 0.8f) * Mathf.Clamp01((7.2f - age) / 0.8f);
+                Shadowed(new Rect(80, H - bar - 120, W, 56), Cinematic.Caption, new GUIStyle(h1) { alignment = TextAnchor.MiddleLeft, fontSize = 44 }, new Color(1f, 1f, 1f, a));
+                Rect(new Rect(82, H - bar - 62, 260 * a, 2), new Color(1f, 0.78f, 0.3f, a));
+                Label(new Rect(82, H - bar - 56, W, 28), Cinematic.SubCaption, new GUIStyle(hudM) { alignment = TextAnchor.MiddleLeft }, new Color(0.85f, 0.85f, 0.8f, a));
+            }
+            Label(new Rect(W - 440, H - bar + 20, 400, 24), "[Enter] / [Пробел] — пропустить", new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 14 }, new Color(1, 1, 1, 0.4f));
+        }
+        if (Cinematic.Fade > 0.001f) Rect(new Rect(0, 0, W, H), new Color(0, 0, 0, Cinematic.Fade));
     }
 
     // Вступление: штамп места и времени, подсказка, затемнение с титрами операции

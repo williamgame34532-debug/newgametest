@@ -156,6 +156,7 @@ public partial class Battle
         cardSub = (cfg.op != null ? cfg.op.place : MapGen.MapNames[cfg.map]) + "   ·   " + sq.def.name + " " + sq.def.nick;
         cardT = Time.time;
         intro = false;
+        StartCoroutine(Cinematic.Play(heli, pc, (cfg.op != null ? cfg.op.place : MapGen.MapNames[cfg.map]).ToUpper(), Clock(cfg.time) + "   ·   " + (cfg.op != null ? cfg.op.title : "район операции")));
         yield return new WaitForSeconds(4.5f);
         cardTitle = null;
     }
