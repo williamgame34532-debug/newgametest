@@ -33,7 +33,15 @@ public static partial class MapGen
         float flat = (Mathf.PerlinNoise(x * 0.03f + 7, z * 0.03f + 3) - 0.5f) * 1.2f;
         float k = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(215f, 300f, r));
         float mid = (Mathf.PerlinNoise(x * 0.008f + 31, z * 0.008f + 77) - 0.5f) * 5f;   // пологие холмы внутри зоны боя
-        return Mathf.Lerp(flat + mid, hills * 1.6f + 3f, k);
+        float h = Mathf.Lerp(flat + mid, hills * 1.6f + 3f, k);
+        // Зона-19: площадка комплекса выровнена; под постройками Ворот A грунт чуть ниже их полов
+        float sf = SiteFlat(x, z);
+        if (sf > 0f)
+        {
+            float gate = Mathf.Abs(x) < 45f && Mathf.Abs(z) < 31f ? 0.25f : 0f;
+            h = Mathf.Lerp(h, SiteY - gate, sf);
+        }
+        return h;
     }
 
     public static void Build(int map, int time, List<Vector3> lzs, int seed)
@@ -56,20 +64,24 @@ public static partial class MapGen
         }
         Battle.DustColor = new Color(dirtColor.r, dirtColor.g, dirtColor.b, 0.45f);
         groundMat = Mats.Textured(Mats.GroundTex(g1, g2, g3, seed), Color.white, Vector2.one, map == 3 ? 0.35f : 0.08f);
-        concreteMat = Mats.Textured(Mats.ConcreteTex(new Color(0.58f, 0.57f, 0.54f), 3), Color.white, Vector2.one, 0.15f);
-        darkConcrete = Mats.Textured(Mats.ConcreteTex(new Color(0.4f, 0.4f, 0.39f), 5), Color.white, Vector2.one, 0.15f);
+        // бетон с мировой проекцией: шаг плит ~3 м на любых коробках
+        concreteMat = Mats.Tri(Mats.ConcreteTex(new Color(0.58f, 0.57f, 0.54f), 3), Color.white, 3f, 0.15f, 0.45f);
+        darkConcrete = Mats.Tri(Mats.ConcreteTex(new Color(0.4f, 0.4f, 0.39f), 5), Color.white, 3f, 0.15f, 0.45f);
+        foreach (var cm in new[] { concreteMat, darkConcrete }) cm.SetFloat("_Base", Height(0, 0));
 
         terrainMat = TerrainMaterial(map, seed);
         TreeMats(map == 3);
         treeChunks.Clear();
         BuildGround();
         foreach (var lz in lzs) Helipad(lz);
-        BuildFacility();
+        if (map == 0) BuildSite19(); else BuildFacility();
         BuildOutposts();
-        BuildRoads();
+        if (map != 0) BuildRoads();
         BuildCover(map);
+        natureMode = true;
         BuildNature(map);
         BuildGrass(map);
+        natureMode = false;
         BuildOuter(map);
         CombineTreeChunks();
         BuildBounds();
@@ -150,11 +162,18 @@ public static partial class MapGen
 
     static Vector3 OnGround(float x, float z, float yOff = 0) => new Vector3(x, (flatGround ? flatY : Height(x, z)) + yOff, z);
     static bool flatGround;      // постройки на ровной площадке (передовая база)
+    static bool natureMode;      // расставляется растительность
     static float flatY;
 
     static bool Blocked(Vector3 p, float r)
     {
         foreach (var k in keepOut) if (Vector2.Distance(new Vector2(p.x, p.z), new Vector2(k.x, k.z)) < r + 13f) return true;
+        if (mapKind == 0)
+        {
+            if (SiteBlocked(p, r)) return true;
+            if (natureMode && InSite(p.x, p.z)) return true;    // внутри периметра — ни деревьев, ни кустов
+            return false;
+        }
         if (Mathf.Abs(p.x) < 19f && Mathf.Abs(p.z) < 14f) return true; // здание в центре
         return false;
     }
@@ -769,6 +788,7 @@ public static partial class MapGen
         // база Фонда (юг) и лагерь Хаоса (север)
         Outpost(new Vector3(0, 0, -150), 0f, new Color(0.25f, 0.27f, 0.3f), root);
         Outpost(new Vector3(0, 0, 150), 180f, new Color(0.28f, 0.3f, 0.2f), root);
+        if (mapKind == 0) return;   // на Зоне-19 вместо руин — корпуса комплекса
         Ruins(new Vector3(-120, 0, 30), root);
         Ruins(new Vector3(125, 0, -35), root);
         Ruins(new Vector3(-60, 0, 95), root);

@@ -478,6 +478,8 @@ public class Scp096 : HumanScp
         return s;
     }
 
+    protected override string ModelId => "scp096";
+
     protected override void Dress()
     {
         Color skin = new Color(0.86f, 0.84f, 0.8f), dark = new Color(0.05f, 0.04f, 0.04f);

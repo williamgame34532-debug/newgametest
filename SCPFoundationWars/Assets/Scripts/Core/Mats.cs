@@ -178,6 +178,22 @@ public static class Mats
         m.EnableKeyword("_NORMALMAP");
     }
 
+    // Материал с мировой проекцией (стены, плиты, бетон) — шаг текстуры в метрах
+    static Shader tri; static bool triTried;
+    public static Material Tri(Texture2D tex, Color tint, float tileMeters, float smooth = 0.15f, float grime = 0.4f, float metal = 0f)
+    {
+        if (!triTried) { tri = Shader.Find("SCP/Triplanar"); triTried = true; }
+        if (tri == null) { var f = Textured(tex, tint, Vector2.one * 4f, smooth); f.SetFloat("_Metallic", metal); return f; }
+        var m = new Material(tri);
+        m.mainTexture = tex;
+        m.color = tint;
+        m.SetFloat("_Scale", tileMeters);
+        m.SetFloat("_Glossiness", smooth);
+        m.SetFloat("_Metallic", metal);
+        m.SetFloat("_Grime", grime);
+        return m;
+    }
+
     public static Material UnlitMat(Color c)
     {
         var m = new Material(UnlitShader);

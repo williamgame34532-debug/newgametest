@@ -23,3 +23,14 @@ scp106.bytes / scp106_* — "SCP-106 (version 3)" — Aruspice (model, textures)
 Лицензия: Creative Commons Attribution-ShareAlike 3.0 (https://creativecommons.org/licenses/by-sa/3.0/).
 Изменения: переведены в формат игры, перенос на 17-костный скелет, текстуры уменьшены до 1024, карты нормалей перепакованы.
 Эти изменённые модели распространяются под той же лицензией CC BY-SA 3.0.
+
+scp096.bytes / scp096_t* — модель SCP-096 из игры SCP - Containment Breach (Joonas Rikkonen "Regalis" и команда
+3D-моделлеров SCP:CB; по статье "SCP-096 - The 'Shy Guy'" автора "Dr Dan"), github.com/Regalis11/scpcb, GFX/npcs.
+Лицензия: Creative Commons Attribution-ShareAlike 3.0. Изменения: перевод из .b3d в формат игры, перенос на 17-костный скелет,
+поза «руки вниз», масштаб 2.38 м. Распространяется под той же лицензией.
+
+cb_gatea.bytes, cb_*.png — наземные постройки КПП «Ворота A» Зоны-19 (gatea_opt.rmesh) и текстуры карт из
+SCP - Containment Breach (Joonas Rikkonen "Regalis" и команда SCP:CB, github.com/Regalis11/scpcb, GFX/map).
+Лицензия: Creative Commons Attribution-ShareAlike 3.0. Изменения: перевод из .rmesh в формат игры (метры, 1 м = 152 ед.),
+разбиение по материалам, без карт освещения. Распространяется под той же лицензией.
+Остальные корпуса Зоны-19 (административный, лёгкое/тяжёлое содержание, энергоблок, периметр) построены процедурно.

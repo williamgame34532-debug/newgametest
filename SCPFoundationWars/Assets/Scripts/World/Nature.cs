@@ -134,7 +134,7 @@ public static partial class MapGen
         float fac = Mathf.Max(Mathf.Abs(x) - 26f, Mathf.Abs(z) - 20f);
         switch (mapKind)
         {
-            case 0: l3 = Mathf.SmoothStep(1f, 0f, fac / 10f); break;                                    // гравий вокруг комплекса
+            case 0: l3 = Mathf.Max(Mathf.SmoothStep(1f, 0f, fac / 10f), SiteFlat(x, z) * 0.85f); break;  // гравий/бетон на территории комплекса
             case 1: l3 = Mathf.Clamp01((Mathf.PerlinNoise(x * 0.04f, z * 0.04f + 77) - 0.65f) * 4f); break; // грязь в низинах
             case 2: l3 = Mathf.Clamp01((Mathf.PerlinNoise(x * 0.06f + 5, z * 0.06f) - 0.6f) * 3f) + Mathf.SmoothStep(1f, 0f, fac / 10f); break;
             case 3: l3 = 0f; dirt *= 0.4f; break;
