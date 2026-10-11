@@ -264,7 +264,18 @@ public class Helicopter : MonoBehaviour
         rotorSpeed = 0f;
         phase = Phase.Waiting;
     }
-    const float SpinUp = 12f;    // за сколько секунд до вылета запускают двигатели
+    const float SpinUp = 12f;
+    public int boarding;       // сколько человек ещё идут к борту — без них не взлетаем
+
+    // Путь посадки к месту: точка у двери снаружи (на земле), порог двери, само место
+    public void BoardPath(Transform seat, out Vector3 outside, out Vector3 door)
+    {
+        Vector3 sl = transform.InverseTransformPoint(seat.position);
+        float side = sl.x >= 0 ? 1f : -1f;
+        door = transform.TransformPoint(new Vector3(side * 1.25f, 0.1f, sl.z));
+        outside = transform.TransformPoint(new Vector3(side * 3.2f, 0f, sl.z));
+        outside.y = Battle.GroundHeight(outside);
+    }    // за сколько секунд до вылета запускают двигатели
 
     // Крейсерская высота: над самой высокой точкой рельефа по курсу
     Vector3 Cruise(Vector3 target, float margin)
@@ -423,7 +434,7 @@ public class Helicopter : MonoBehaviour
                     // стоит на колёсах; винт раскручивается — машина чуть «оживает»
                     transform.position = padPos + Vector3.up * 1.2f;
                     if (rotorSpeed > 0.3f) transform.rotation = Quaternion.Euler(Mathf.Sin(Time.time * 9f) * 0.15f * rotorSpeed, yaw, Mathf.Sin(Time.time * 7f) * 0.2f * rotorSpeed);
-                    if (Time.time >= startTime && rotorSpeed > 0.92f) { phase = Phase.TakeOff; velocity = Vector3.zero; }
+                    if (Time.time >= startTime && rotorSpeed > 0.92f && boarding <= 0) { phase = Phase.TakeOff; velocity = Vector3.zero; }
                 }
                 else if (Time.time >= startTime) phase = Phase.Inbound;
                 break;

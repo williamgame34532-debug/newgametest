@@ -503,6 +503,16 @@ public partial class Game
         }
         if (b.intro && b.fade < 0.5f)
             Label(new Rect(W - 440, 24, 400, 24), "[Enter] — пропустить брифинг", new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight, fontSize = 14 }, new Color(1, 1, 1, 0.45f));
+        if (b.fade <= 0.001f && b.cardTitle != null)
+        {
+            // титры поверх сцены на взлёте: кинематографичные полосы
+            float age = Time.time - b.cardT, a = Mathf.Clamp01(age / 0.8f) * Mathf.Clamp01((4.5f - age) / 0.8f);
+            Rect(new Rect(0, 0, W, 90 * a), new Color(0, 0, 0, 0.85f));
+            Rect(new Rect(0, H - 90 * a, W, 90 * a), new Color(0, 0, 0, 0.85f));
+            Shadowed(new Rect(0, H / 2 - 50, W, 60), b.cardTitle, new GUIStyle(h1) { alignment = TextAnchor.MiddleCenter, fontSize = 46 }, new Color(1f, 1f, 1f, a));
+            Rect(new Rect(W / 2 - 160, H / 2 + 16, 320, 2), new Color(1f, 0.78f, 0.3f, a));
+            Label(new Rect(0, H / 2 + 26, W, 30), b.cardSub, new GUIStyle(hudM) { alignment = TextAnchor.MiddleCenter }, new Color(0.85f, 0.85f, 0.8f, a));
+        }
         if (b.fade > 0.001f)
         {
             Rect(new Rect(0, 0, W, H), new Color(0, 0, 0, b.fade));
@@ -555,7 +565,7 @@ public partial class Game
                 float centered = Vector2.Distance(p, new Vector2(W / 2, H / 2));
                 float ma = Mathf.Lerp(0.25f, 0.85f, Mathf.InverseLerp(60f, 220f, centered)) * (Input.GetMouseButton(1) ? 0.35f : 1f);
                 var m = GUI.matrix;
-                GUIUtility.RotateAroundPivot(45, p);
+                RotateLocal(45, p);
                 Color oc = new Color(1f, 0.78f, 0.3f, ma);
                 Rect(new Rect(p.x - 6, p.y - 6, 12, 2), oc); Rect(new Rect(p.x - 6, p.y + 4, 12, 2), oc);
                 Rect(new Rect(p.x - 6, p.y - 6, 2, 12), oc); Rect(new Rect(p.x + 4, p.y - 6, 2, 12), oc);
@@ -575,6 +585,13 @@ public partial class Game
             Rect(new Rect(x + 10, y + 46, 500, 10), new Color(0.15f, 0.15f, 0.15f));
             Rect(new Rect(x + 10, y + 46, 500 * Mathf.Clamp01(ct.capture[1]), 10), Battle.TeamColor(Team.Chaos));
         }
+    }
+
+    // Поворот вокруг точки в координатах уже масштабированного интерфейса
+    // (GUIUtility.RotateAroundPivot берёт точку в пикселях экрана — при масштабе значок уезжал)
+    static void RotateLocal(float angle, Vector2 p)
+    {
+        GUI.matrix = GUI.matrix * Matrix4x4.TRS(p, Quaternion.Euler(0, 0, angle), Vector3.one) * Matrix4x4.Translate(-p);
     }
 
     void Feed(Battle b)
@@ -671,7 +688,7 @@ public partial class Game
             float a = 1f - (Time.time - d.y) / 2f;
             var m = GUI.matrix;
             Vector2 cc = new Vector2(W / 2, H / 2);
-            GUIUtility.RotateAroundPivot(d.x, cc);
+            RotateLocal(d.x, cc);
             for (int i = -3; i <= 3; i++) Rect(new Rect(cc.x + i * 14 - 6, cc.y - 230 + Mathf.Abs(i) * Mathf.Abs(i) * 2.2f, 12, 5), new Color(0.85f, 0.1f, 0.05f, a * 0.6f * (1f - Mathf.Abs(i) / 4f)));
             GUI.matrix = m;
         }
@@ -721,7 +738,7 @@ public partial class Game
             float delta = Mathf.Clamp(Mathf.DeltaAngle(yaw, bearing), -55f, 55f);
             float x = cx + delta * pxPerDeg;
             var m = GUI.matrix;
-            GUIUtility.RotateAroundPivot(45, new Vector2(x, y + 20));
+            RotateLocal(45, new Vector2(x, y + 20));
             Rect(new Rect(x - 5, y + 15, 10, 10), HudAmber);
             GUI.matrix = m;
             Label(new Rect(x - 60, y + 50, 120, 20), Mathf.RoundToInt(to.magnitude) + " м", new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 13 }, HudAmber);

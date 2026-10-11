@@ -11,6 +11,7 @@ public partial class Battle
     public bool intro;                 // идёт вступление (игрок на базе)
     public float fade;                 // затемнение экрана 0..1
     public string cardTitle, cardSub;  // титры при переходе
+    public float cardT;
     public float stampT = -1f;         // время показа штампа «место / время»
     public string stamp;
     bool skipIntro;
@@ -137,23 +138,57 @@ public partial class Battle
             yield return null;
         }
 
-        // посадка — затемнение и титры
+        // посадка: группа идёт к борту и рассаживается, игрок — вместе со всеми
+        heli.rotorVolume = 1f;
+        heli.LaunchNow();
+        int seat = 1;
+        float stagger = 0.3f;
+        foreach (var m in mates)
+            if (m != null && m.alive) { StartCoroutine(m.Board(heli, heli.seats[seat++ % heli.seats.Count], stagger)); stagger += Random.Range(0.35f, 0.7f); }
+        Message(sq.def.name + ": По машинам! Пошли, пошли!", new Color(1f, 0.85f, 0.55f), 3f);
+        yield return StartCoroutine(pc.BoardRoutine(heli, heli.seats[0]));
+        // титры — уже в салоне, на взлёте
         cardTitle = cfg.op != null ? cfg.op.code : "ОПЕРАЦИЯ ФОНДА";
         cardSub = (cfg.op != null ? cfg.op.place : MapGen.MapNames[cfg.map]) + "   ·   " + sq.def.name + " " + sq.def.nick;
-        for (float t = 0; t < 1f; t += Time.deltaTime / 0.8f) { fade = t; yield return null; }
-        fade = 1f;
-        int seat = 1;
-        foreach (var m in mates) if (m != null && m.alive) m.SitIn(heli.seats[seat++ % heli.seats.Count]);
-        pc.RideIn(heli, heli.seats[0]);
-        heli.playerPassenger = pc;
-        // борт на площадке уже гоняет винты — после титров видим настоящий взлёт с базы
-        heli.LaunchNow();
-        heli.rotorVolume = 1f;
-        yield return new WaitForSeconds(2.2f);
-        cardTitle = null;
-        for (float t = 0; t < 1f; t += Time.deltaTime / 1.4f) { fade = 1f - t; yield return null; }
-        fade = 0f;
+        cardT = Time.time;
         intro = false;
+        yield return new WaitForSeconds(4.5f);
+        cardTitle = null;
+    }
+
+    // Другие группы на базе: свой круг у борта (командир объясняет задачу), к вылету — посадка
+    IEnumerator SquadAtFob(Helicopter heli, SquadRt sq)
+    {
+        var mates = new List<Soldier>();
+        foreach (var m in sq.members) if (m != null && m.alive) mates.Add(m);
+        if (mates.Count == 0) yield break;
+        Vector3 spot = heli.transform.TransformPoint(new Vector3(-8f, -1.2f, -3f));
+        spot.y = Battle.GroundHeight(spot);
+        StandSoldier(mates[0], spot + heli.transform.forward * 1.2f, heli.transform.eulerAngles.y + 180f);
+        int n = mates.Count - 1;
+        for (int i = 1; i < mates.Count; i++)
+        {
+            float a = Mathf.Lerp(-70f, 70f, n <= 1 ? 0.5f : (i - 1) / (float)(n - 1)) * Mathf.Deg2Rad;
+            Vector3 f = -heli.transform.forward, r = heli.transform.right;
+            Vector3 p = spot + (f * Mathf.Cos(a) + r * Mathf.Sin(a)) * 2.6f;
+            p.y = Battle.GroundHeight(p);
+            Vector3 look = (spot + heli.transform.forward * 1.2f) - p;
+            StandSoldier(mates[i], p, Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg + Random.Range(-8f, 8f));
+        }
+        float gest = Time.time + 2f;
+        while (Time.time < heli.LaunchTime - 22f)
+        {
+            if (Time.time > gest)
+            {
+                gest = Time.time + Random.Range(3f, 6f);
+                if (mates[0] != null && mates[0].alive) mates[0].anim.DoSignal(Random.value < 0.5f ? Signal.Point : Signal.Hold);
+            }
+            yield return null;
+        }
+        int seat = 0;
+        float stagger = 0f;
+        foreach (var m in mates)
+            if (m != null && m.alive) { StartCoroutine(m.Board(heli, heli.seats[seat++ % heli.seats.Count], stagger)); stagger += Random.Range(0.4f, 0.8f); }
     }
 
     static void StandSoldier(Soldier s, Vector3 p, float yaw)

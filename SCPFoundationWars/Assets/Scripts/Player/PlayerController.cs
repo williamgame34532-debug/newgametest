@@ -165,6 +165,67 @@ public class PlayerController : MonoBehaviour
         yaw = 0; pitch = 5;
     }
 
+    // Посадка игрока: сам подходит к двери, поднимается на борт и садится (смотреть по сторонам можно)
+    public bool boarded;
+    public IEnumerator BoardRoutine(Helicopter h, Transform seat)
+    {
+        h.boarding++;
+        scripted = true; boarded = false;
+        cc.enabled = false;
+        h.BoardPath(seat, out var outside, out var door);
+        Vector3 local = h.transform.InverseTransformPoint(transform.position);
+        Vector3 doorLocal = h.transform.InverseTransformPoint(outside);
+        var path = new System.Collections.Generic.List<Vector3>();
+        if (Mathf.Sign(local.x) != Mathf.Sign(doorLocal.x) || Mathf.Abs(local.x) < 2.5f)
+        {
+            Vector3 w = h.transform.TransformPoint(new Vector3(Mathf.Sign(doorLocal.x) * 4.5f, 0, local.z < -2f ? Mathf.Max(local.z, -13f) : doorLocal.z - 4f));
+            w.y = Battle.GroundHeight(w);
+            path.Add(w);
+        }
+        path.Add(outside);
+        float stepT = 0;
+        foreach (var target in path)
+        {
+            while (!dead)
+            {
+                Vector3 to = target - transform.position; to.y = 0;
+                if (to.magnitude < 0.25f) break;
+                Vector3 p = transform.position + to.normalized * Mathf.Min(to.magnitude, 2.6f * Time.deltaTime);
+                p.y = Battle.GroundHeight(p) + 0.05f;
+                transform.position = p;
+                // взгляд мягко ведём по ходу, мышь добавляет поверх
+                float want = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
+                yaw = Mathf.MoveTowardsAngle(yaw, want, 90f * Time.deltaTime);
+                stepT += Time.deltaTime;
+                if (stepT > 0.42f) { stepT = 0; Sfx.Play2D("step", 0.35f, Random.Range(0.9f, 1.1f)); }
+                yield return null;
+            }
+        }
+        Vector3 a = transform.position;
+        float t = 0;
+        while (t < 0.6f && !dead)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0, 1, t / 0.6f);
+            transform.position = Vector3.Lerp(a, door, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.25f;
+            yield return null;
+        }
+        Sfx.Play2D("land", 0.4f, 0.9f);
+        a = transform.position;
+        t = 0;
+        while (t < 0.5f && !dead)
+        {
+            t += Time.deltaTime;
+            transform.position = Vector3.Lerp(a, seat.position, Mathf.SmoothStep(0, 1, t / 0.5f));
+            yield return null;
+        }
+        scripted = false;
+        RideIn(h, seat);
+        h.playerPassenger = this;
+        boarded = true;
+        h.boarding--;
+    }
+
     public void ExitHeli(Helicopter heli, Vector3 door, Vector3 ground, Vector3? ropeTop)
     {
         StartCoroutine(ExitRoutine(door, ground, ropeTop));

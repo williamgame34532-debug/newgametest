@@ -308,7 +308,7 @@ public class HumanAnimator : MonoBehaviour
         if (!idleOk) idleAct = -1;
         else if (idleAct < 0 && Time.time > nextIdle)
         {
-            idleAct = seated ? (Random.value < 0.6f ? 0 : 1) : Random.Range(0, 6);
+            idleAct = seated ? (Random.value < 0.6f ? 0 : 1) : new[] { 0, 3, 4, 5, 0, 3 }[Random.Range(0, 6)];   // без «руки к шлему»
             idleT = 0f;
             idleDur = new[] { 3.2f, 2.6f, 1.8f, 4f, 2.2f, 1.4f }[idleAct];
         }
@@ -825,11 +825,6 @@ public class HumanAnimator : MonoBehaviour
                 if (gun.mag != null && !gun.mag.gameObject.activeSelf) gun.mag.gameObject.SetActive(true);
             }
             // ---- бездействие: поправить шлем, постучать по магазину ----
-            if (idleAct == 2 && idleW > 0.01f)
-            {
-                Vector3 helm = b[HumanRig.Head].TransformPoint(new Vector3(-0.1f, 0.24f, 0.08f));
-                tL = Vector3.Lerp(tL, helm, idleW); rL = Quaternion.Slerp(rL, b[HumanRig.Head].rotation * Quaternion.Euler(180f, 0, -60f), idleW);
-            }
             if (idleAct == 5 && idleW > 0.01f && gun.mag != null)
             {
                 Vector3 mg = gun.mag.position - gt.up * (0.1f + Mathf.Abs(Mathf.Sin(idleT * 25f)) * 0.03f) * sc;

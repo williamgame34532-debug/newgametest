@@ -180,7 +180,11 @@ public partial class Battle : MonoBehaviour
             Vector3 exit = new Vector3(lz.x * 0.3f, lz.y + 120f, -MapGen.OuterR + 300f);
             float delay = introDur + 4f + i * 4f + pick.delay;
             if (fob != null && (playerHere || padN < fob.pads.Count))
+            {
                 heli.LaunchFromPad(fob.pads[playerHere ? 0 : padN++], 0f, lz, exit, delay);
+                // при вступлении другие группы тоже на базе: брифинг у своего борта и посадка
+                if (!playerHere && introLines != null) StartCoroutine(SquadAtFob(heli, sq));
+            }
             else
             {
                 Vector3 entry = new Vector3(lz.x * 0.3f + Random.Range(-30f, 30f), lz.y + 160f, -FarEntry);

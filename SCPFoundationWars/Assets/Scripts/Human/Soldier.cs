@@ -17,6 +17,10 @@ public class SquadRt
     public float arriveAt;      // время вылета вертолёта (Time.time)
     public bool reinforce, announced;
     public bool garrison;       // охрана объекта — держит свой сектор
+    // патруль у точки приказа: командир ведёт группу по маршруту, часовые стоят на постах
+    public Vector3 patrolPos; public float patrolUntil, pauseUntil; public bool patrolSet;
+    public Vector3 lastOrderPos;
+    public bool Sentry(Soldier s) => (hold || garrison) && s.index % 4 == 3;
     public Soldier Leader { get { foreach (var m in members) if (m != null && m.alive && !m.zombie && m.state == Soldier.State.Combat) return m; return null; } }
     public int Alive { get { int n = 0; foreach (var m in members) if (m != null && m.alive) n++; return n; } }
 }
@@ -56,6 +60,7 @@ public class Soldier : Unit
     bool meleeDone;
     float signalCd;
     bool holding;
+    bool patrolLook; Vector3 sentryDir;
 
     public override Vector3 Velocity => vel;
     public override Vector3 LookDir => aimDir;
@@ -178,6 +183,76 @@ public class Soldier : Unit
         if (f.sqrMagnitude > 0.01f) transform.rotation = Quaternion.LookRotation(f);
         state = State.Combat;
         thinkT = Time.time + Random.Range(0.1f, 0.5f);
+    }
+
+    // Посадка в вертолёт на базе: подойти к двери, запрыгнуть в салон, пройти к месту и сесть
+    public IEnumerator Board(Helicopter h, Transform seat, float delay)
+    {
+        h.boarding++;
+        yield return new WaitForSeconds(delay);
+        if (!alive || h == null) { if (h != null) h.boarding--; yield break; }
+        state = State.Scripted;
+        transform.SetParent(null, true);
+        anim.seated = false;
+        inVehicle = true;
+        h.BoardPath(seat, out var outside, out var door);
+        // обход хвоста: если стоим за вертолётом, сначала выходим на его борт
+        Vector3 local = h.transform.InverseTransformPoint(transform.position);
+        Vector3 doorLocal = h.transform.InverseTransformPoint(outside);
+        var path = new List<Vector3>();
+        if (Mathf.Sign(local.x) != Mathf.Sign(doorLocal.x) || Mathf.Abs(local.x) < 2.5f)
+        {
+            Vector3 w = h.transform.TransformPoint(new Vector3(Mathf.Sign(doorLocal.x) * 4.5f, 0, local.z < -2f ? Mathf.Max(local.z, -13f) : doorLocal.z - 4f));
+            w.y = Battle.GroundHeight(w);
+            path.Add(w);
+        }
+        path.Add(outside);
+        float speed = Random.Range(2.3f, 2.9f);
+        foreach (var target in path)
+        {
+            while (alive)
+            {
+                Vector3 to = target - transform.position; to.y = 0;
+                if (to.magnitude < 0.25f) break;
+                Vector3 step = to.normalized * Mathf.Min(to.magnitude, speed * Time.deltaTime);
+                Vector3 p = transform.position + step;
+                p.y = Mathf.Lerp(transform.position.y, Battle.GroundHeight(p), 0.5f);
+                vel = (p - transform.position) / Mathf.Max(0.001f, Time.deltaTime);
+                transform.position = p;
+                transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(to), 360f * Time.deltaTime);
+                anim.velocity = vel; anim.aimDir = transform.forward;
+                yield return null;
+            }
+        }
+        // шаг на порог (с подтягиванием) и проход к месту — уже на борту
+        Vector3 a = transform.position;
+        float t = 0;
+        Quaternion faceIn = Quaternion.LookRotation(new Vector3(door.x - a.x, 0, door.z - a.z).normalized);
+        while (t < 0.6f && alive)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0, 1, t / 0.6f);
+            transform.position = Vector3.Lerp(a, door, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.25f;
+            transform.rotation = Quaternion.Slerp(transform.rotation, faceIn, k);
+            anim.airborne = k > 0.2f && k < 0.8f;
+            anim.velocity = Vector3.zero;
+            yield return null;
+        }
+        anim.airborne = false;
+        Sfx.Play("step", door, 0.5f, 0.7f, 20f);
+        a = transform.position;
+        t = 0;
+        while (t < 0.5f && alive)
+        {
+            t += Time.deltaTime;
+            float k = Mathf.SmoothStep(0, 1, t / 0.5f);
+            transform.position = Vector3.Lerp(a, seat.position, k);
+            transform.rotation = Quaternion.Slerp(transform.rotation, seat.rotation, k);
+            anim.velocity = Vector3.zero;
+            yield return null;
+        }
+        if (alive) SitIn(seat);
+        h.boarding--;
     }
 
     // Выход из приземлившегося вертолёта: шаг к двери, прыжок, приземление, отбегание
@@ -507,10 +582,12 @@ public class Soldier : Unit
         else
         {
             Vector3 f = vel.sqrMagnitude > 0.5f ? vel.normalized : transform.forward;
+            if (holding && sentryDir.sqrMagnitude > 0.1f && vel.sqrMagnitude < 0.25f) f = sentryDir;
             f.y = -0.05f;
             desired = f.normalized;
-            // вертим головой по сторонам
-            desired = Quaternion.Euler(0, Mathf.Sin(Time.time * 0.6f + index) * 35f, 0) * desired;
+            // вертим головой по сторонам (на остановке патруля — шире, сектор за сектором)
+            float sweep = patrolLook ? 70f : holding ? 45f : 35f;
+            desired = Quaternion.Euler(0, Mathf.Sin(Time.time * (patrolLook ? 0.35f : 0.6f) + index * 1.7f) * sweep, 0) * desired;
         }
         aimDir = Vector3.RotateTowards(aimDir, desired, 260f * Mathf.Deg2Rad * dt, 1f).normalized;
     }
@@ -607,14 +684,75 @@ public class Soldier : Unit
         }
         else if (squadRt != null && squadRt.orderSet)
         {
-            // идём к точке приказа и занимаем место в построении вокруг неё
+            var sq = squadRt;
+            if ((sq.lastOrderPos - sq.orderPos).sqrMagnitude > 4f) { sq.lastOrderPos = sq.orderPos; sq.patrolSet = false; }
+            var leader = sq.Leader;
+            float dOrder = Vector3.Distance(me, sq.orderPos);
             float ang = index * 137.5f * Mathf.Deg2Rad;
-            float rad = squadRt.hold ? 4f + (index % 3) * 2.5f : 3f + (index % 4) * 2f;
-            Vector3 slot = squadRt.orderPos + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * rad;
-            float d = Vector3.Distance(me, slot);
-            goal = d > 1.5f ? slot : me;
-            agent.speed = baseSpeed * (d > 25f ? 1.3f : d > 6f ? 1f : 0.6f);
-            holding = squadRt.hold && d < 3f;
+            float rad = sq.hold ? 4f + (index % 3) * 2.5f : 3f + (index % 4) * 2f;
+            Vector3 slot = sq.orderPos + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * rad;
+            holding = false;
+            patrolLook = false;
+            if (sq.Sentry(this))
+            {
+                // часовой: свой пост лицом наружу, иногда переходит на пару метров
+                float d = Vector3.Distance(me, slot);
+                goal = d > 1.5f ? slot : me;
+                agent.speed = baseSpeed * (d > 25f ? 1.3f : d > 6f ? 1f : 0.5f);
+                holding = d < 3f;
+                sentryDir = (slot - sq.orderPos).normalized;
+            }
+            else if (leader == this)
+            {
+                if (dOrder > 45f && !sq.patrolSet)
+                {
+                    goal = sq.orderPos; agent.speed = baseSpeed * (dOrder > 25f ? 1.2f : 1f);
+                }
+                else
+                {
+                    // маршрут: точки вокруг позиции, пауза — осмотреться
+                    float pd = Vector3.Distance(me, sq.patrolPos);
+                    if (!sq.patrolSet || pd < 2.5f || Time.time > sq.patrolUntil)
+                    {
+                        if (sq.patrolSet && pd < 2.5f && Time.time > sq.pauseUntil + 1f) sq.pauseUntil = Time.time + Random.Range(4f, 9f);
+                        float leash = sq.hold || sq.garrison ? 26f : sq.overwatch ? 18f : 38f;
+                        for (int k = 0; k < 6; k++)
+                        {
+                            Vector2 rr = Random.insideUnitCircle.normalized * Random.Range(leash * 0.35f, leash);
+                            Vector3 cand = sq.orderPos + new Vector3(rr.x, 0, rr.y);
+                            if (NavMesh.SamplePosition(cand, out var ph, 5f, NavMesh.AllAreas) && Vector3.Distance(ph.position, me) > 8f) { sq.patrolPos = ph.position; break; }
+                        }
+                        sq.patrolSet = true;
+                        sq.patrolUntil = Time.time + 45f;
+                    }
+                    bool paused = Time.time < sq.pauseUntil;
+                    goal = paused ? me : sq.patrolPos;
+                    agent.speed = 1.55f;     // патрульный шаг
+                    patrolLook = paused;
+                }
+            }
+            else if (leader != null && sq.patrolSet && dOrder < 60f)
+            {
+                // колонна за командиром: по одному, со сдвигом через бойца
+                int rank = 0;
+                foreach (var m in sq.members) { if (m == this) break; if (m != null && m.alive && m != leader && !sq.Sentry(m)) rank++; }
+                Transform lt = leader.transform;
+                Vector3 back = -lt.forward;
+                Vector3 off = back * (2.6f + rank * 2.3f) + lt.right * ((rank % 2 == 0 ? 1f : -1f) * 0.9f);
+                Vector3 want = lt.position + off;
+                float d = Vector3.Distance(me, want);
+                goal = d > 1.2f ? want : me;
+                agent.speed = d > 8f ? baseSpeed : Mathf.Max(1.4f, leader.vel.magnitude * (d > 3f ? 1.25f : 1f));
+                patrolLook = leader.vel.magnitude < 0.3f;
+            }
+            else
+            {
+                // идём к точке приказа и занимаем место в построении вокруг неё
+                float d = Vector3.Distance(me, slot);
+                goal = d > 1.5f ? slot : me;
+                agent.speed = baseSpeed * (d > 25f ? 1.3f : d > 6f ? 1f : 0.6f);
+                holding = sq.hold && d < 3f;
+            }
         }
         else
         {
