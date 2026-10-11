@@ -254,6 +254,7 @@ public class Gun
     public int reserveMags = 99;
     public float nextFire;
     public bool reloading;
+    public bool semi;            // переводчик огня на одиночный (у автоматического оружия)
     public float reloadStart, reloadEnd;
     public GunModel model;
 

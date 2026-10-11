@@ -20,6 +20,8 @@ public class SquadRt
     // патруль у точки приказа: командир ведёт группу по маршруту, часовые стоят на постах
     public Vector3 patrolPos; public float patrolUntil, pauseUntil; public bool patrolSet;
     public Vector3 lastOrderPos;
+    // приказ игрока своему отряду (перекрывает командира на время)
+    public float playerCmdUntil = -1f; public bool playerFollow; public Vector3 playerCmdPos;
     public bool Sentry(Soldier s) => (hold || garrison) && s.index % 4 == 3;
     public Soldier Leader { get { foreach (var m in members) if (m != null && m.alive && !m.zombie && m.state == Soldier.State.Combat) return m; return null; } }
     public int Alive { get { int n = 0; foreach (var m in members) if (m != null && m.alive) n++; return n; } }
@@ -61,6 +63,14 @@ public class Soldier : Unit
     float signalCd;
     bool holding;
     bool patrolLook; Vector3 sentryDir;
+    // подавление: огонь по последнему месту, где видели противника
+    Unit lastTarget; Vector3 lastSeenPos; float suppressUntil;
+    // укрытие на время перезарядки и при ранении
+    Vector3 coverPos; float coverT = -1f;
+    // медик отряда
+    public int medkits = 2;
+    Unit healTarget; float healStart = -1f, medT;
+    bool IsMedic => squadRt != null && index == 1;
 
     public override Vector3 Velocity => vel;
     public override Vector3 LookDir => aimDir;
@@ -405,6 +415,8 @@ public class Soldier : Unit
         Aim(dt);
         Shoot();
         Move();
+        if (Time.time > medT) { medT = Time.time + 1f; MedicThink(); }
+        MedicUpdate();
 
         // анимация
         anim.velocity = vel;
@@ -496,6 +508,14 @@ public class Soldier : Unit
             if (score < bestScore) { bestScore = score; best = u; }
         }
         if (best != target) { aimSettle = 0; burstLeft = 0; }
+        if (best != null && target == null && Time.time - sightT > 8f) Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!");
+        if (best != null) { lastTarget = best; lastSeenPos = best.AimPoint; }
+        else if (target != null && lastTarget != null && lastTarget.alive && current != null && current.def.auto && Random.value < (current.def.kind == WeaponKind.LMG ? 0.9f : 0.45f))
+        {
+            // противник скрылся — прижимаем огнём, пока не высунется
+            suppressUntil = Time.time + Random.Range(1.5f, 3.5f);
+            if (Random.value < 0.3f) Callout("Прижимаю огнём!");
+        }
         if (best != null && target == null && squadRt != null && squadRt.Leader == this && Time.time > signalCd)
         {
             signalCd = Time.time + 15f;
@@ -517,7 +537,11 @@ public class Soldier : Unit
         // перезарядка в паузе
         if (current != null && !current.reloading && (current.ammo == 0 || (target == null && current.ammo < current.def.mag * 0.4f)))
         {
-            if (current.reserveMags > 0) current.StartReload(transform.position, 1f);
+            if (current.reserveMags > 0)
+            {
+                current.StartReload(transform.position, 1f);
+                if (target != null || Time.time - sightT < 5f) { Callout("Перезаряжаюсь, прикройте!"); coverT = -1f; }
+            }
             else if (current != primary) Equip(primary, flashlightOn);
         }
         // граната
@@ -528,8 +552,86 @@ public class Soldier : Unit
             {
                 grenadeT = Time.time + Random.Range(10f, 20f);
                 StartCoroutine(ThrowGrenade(target.transform.position));
+                Callout("Граната пошла!");
             }
         }
+    }
+
+    // медик: ищет раненого в своём отряде (включая игрока), пока нет контакта
+    void MedicThink()
+    {
+        if (!IsMedic || medkits <= 0 || target != null || Time.time - sightT < 6f) { if (healStart < 0) healTarget = null; return; }
+        if (healTarget != null && (!healTarget.alive || healTarget.hp > healTarget.maxHp * 0.8f)) { healTarget = null; healStart = -1f; }
+        if (healTarget != null) return;
+        float worst = 0.55f;
+        foreach (var m in squadRt.members)
+            if (m != null && m != this && m.alive && !m.zombie && m.state == State.Combat && m.hp / m.maxHp < worst && Vector3.Distance(m.transform.position, transform.position) < 40f) { worst = m.hp / m.maxHp; healTarget = m; }
+        var pc = PlayerController.I;
+        if (pc != null && !pc.dead && pc.squad == squad && pc.unit.hp / pc.unit.maxHp < worst && !pc.riding && Vector3.Distance(pc.transform.position, transform.position) < 40f) healTarget = pc.unit;
+        if (healTarget != null) Callout(healTarget.isPlayer ? "Ты ранен — стой, перевяжу!" : "Медик здесь, держись!");
+    }
+
+    void MedicUpdate()
+    {
+        if (healTarget == null) return;
+        float d = Vector3.Distance(healTarget.transform.position, transform.position);
+        if (d < 1.8f)
+        {
+            if (healStart < 0) { healStart = Time.time; Sfx.Play("magout", transform.position, 0.4f, 0.7f, 15f); }
+            anim.crouch = true;
+            anim.aimDir = (healTarget.transform.position - transform.position).normalized + Vector3.down * 0.8f;
+            if (Time.time - healStart > 3.2f)
+            {
+                healTarget.hp = Mathf.Min(healTarget.maxHp, healTarget.hp + healTarget.maxHp * 0.45f);
+                medkits--;
+                Sfx.Play("magin", transform.position, 0.4f, 0.7f, 15f);
+                if (healTarget.isPlayer) Battle.Message(CallSign + ": Готово, ты в строю.", new Color(0.6f, 0.9f, 0.6f), 3f);
+                healTarget = null; healStart = -1f;
+            }
+        }
+        else healStart = -1f;
+    }
+
+    public string CallSign => squad != null ? squad.name.Split(' ')[0].Split('-')[0] + "-" + (index + 1) : displayName;
+
+    // Голосовые доклады бойцов отряда игрока (субтитры, не чаще раза в несколько секунд на отряд)
+    static readonly Dictionary<SquadDef, float> calloutT = new Dictionary<SquadDef, float>();
+    void Callout(string text)
+    {
+        var pc = PlayerController.I;
+        if (pc == null || pc.dead || pc.squad != squad || squad == null) return;
+        if (Vector3.Distance(pc.transform.position, transform.position) > 60f) return;
+        calloutT.TryGetValue(squad, out float t);
+        if (Time.time < t) return;
+        calloutT[squad] = Time.time + Random.Range(4f, 7f);
+        Battle.Message(CallSign + ": " + text, new Color(0.75f, 0.85f, 0.95f), 3f);
+    }
+
+    string Bearing(Vector3 p)
+    {
+        Vector3 d = p - transform.position; d.y = 0;
+        float a = Mathf.Repeat(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 360f);
+        string[] n = { "север", "северо-восток", "восток", "юго-восток", "юг", "юго-запад", "запад", "северо-запад" };
+        return "на " + n[Mathf.RoundToInt(a / 45f) % 8];
+    }
+
+    // Ближайшая точка рядом, где противник нас не видит (за стеной, ящиком, машиной)
+    bool FindCover(Vector3 threat, out Vector3 best)
+    {
+        best = transform.position;
+        float bestD = float.MaxValue;
+        Vector3 me = transform.position;
+        for (int i = 0; i < 12; i++)
+        {
+            float a = i * 30f * Mathf.Deg2Rad + Random.Range(-0.2f, 0.2f);
+            Vector3 c = me + new Vector3(Mathf.Cos(a), 0, Mathf.Sin(a)) * Random.Range(2.5f, 9f);
+            if (!NavMesh.SamplePosition(c, out var h, 1.5f, NavMesh.AllAreas)) continue;
+            Vector3 head = h.position + Vector3.up * 1.0f;
+            if (Combat.Visible(threat, head)) continue;
+            float d = Vector3.Distance(me, h.position) + Vector3.Distance(h.position, threat) * 0.05f;
+            if (d < bestD) { bestD = d; best = h.position; }
+        }
+        return bestD < float.MaxValue;
     }
 
     IEnumerator ThrowGrenade(Vector3 at)
@@ -579,6 +681,11 @@ public class Soldier : Unit
                 desired = (desired + Vector3.up * dist * 0.012f).normalized;
             }
         }
+        else if (Time.time < suppressUntil)
+        {
+            if (Random.value < Time.deltaTime * 4f) aimNoise = Random.insideUnitSphere;
+            desired = (lastSeenPos + aimNoise * 1.6f - EyePos).normalized;
+        }
         else
         {
             Vector3 f = vel.sqrMagnitude > 0.5f ? vel.normalized : transform.forward;
@@ -594,7 +701,22 @@ public class Soldier : Unit
 
     void Shoot()
     {
-        if (current == null || target == null || !targetVisible || current.reloading || throwStart >= 0 || Time.time < switchT) return;
+        bool suppressing = (target == null || !targetVisible) && Time.time < suppressUntil && current != null && current.def.auto;
+        if (current == null || (!suppressing && (target == null || !targetVisible)) || current.reloading || throwStart >= 0 || Time.time < switchT || healStart >= 0) return;
+        if (suppressing)
+        {
+            if (current.ammo <= current.def.mag * 0.25f || Time.time < fireT) return;
+            Vector3 sm = current.model != null ? current.model.muzzle.position : EyePos;
+            if (Combat.Ray(sm, aimDir, 6f, this, out var fh, Layers.ShotMask)) { var fo = Combat.OwnerOf(fh.collider); if (fo != null && !IsEnemy(fo)) return; }
+            if (current.Fire(this, sm, aimDir, 2.2f / Mathf.Max(0.4f, accuracy), sm))
+            {
+                anim.Kick(current.def.recoil * 0.8f, current.def.recoil);
+                if (burstLeft <= 0) burstLeft = Random.Range(4, current.def.kind == WeaponKind.LMG ? 16 : 7);
+                burstLeft--;
+                if (burstLeft <= 0) fireT = Time.time + Random.Range(0.35f, 0.9f);
+            }
+            return;
+        }
         if (!target.alive || !target.Targetable) return;
         Vector3 want = (target.AimPoint - EyePos).normalized;
         if (Vector3.Angle(aimDir, want) > 10f) return;
@@ -638,6 +760,29 @@ public class Soldier : Unit
         Vector3 goal = me;
         bool lowHp = hp < maxHp * 0.3f && courage < 1.2f;
 
+        // медик идёт к раненому
+        if (healTarget != null)
+        {
+            goal = healTarget.transform.position + (me - healTarget.transform.position).normalized * 1.1f;
+            agent.speed = baseSpeed * 1.2f;
+            goal.y = me.y;
+            if (NavMesh.SamplePosition(goal, out var mh, 3f, NavMesh.AllAreas)) agent.SetDestination(mh.position);
+            moveT = Time.time + 0.4f;
+            return;
+        }
+        // перезарядка под огнём или тяжёлое ранение — в укрытие
+        if (target != null && ((current != null && current.reloading) || (hp < maxHp * 0.4f && courage < 1.5f)))
+        {
+            if (coverT < Time.time)
+            {
+                coverT = Time.time + 3f;
+                if (!FindCover(target.EyePos, out coverPos)) coverPos = me;
+            }
+            goal = coverPos; agent.speed = baseSpeed * 1.25f;
+            goal.y = me.y;
+            if (NavMesh.SamplePosition(goal, out var ch, 2f, NavMesh.AllAreas)) agent.SetDestination(ch.position);
+            return;
+        }
         if (target != null)
         {
             float R = EngageRange();
@@ -693,7 +838,14 @@ public class Soldier : Unit
             Vector3 slot = sq.orderPos + new Vector3(Mathf.Cos(ang), 0, Mathf.Sin(ang)) * rad;
             holding = false;
             patrolLook = false;
-            if (sq.Sentry(this))
+            bool follow = sq.playerFollow && sq.playerCmdUntil > Time.time;
+            if (follow)
+            {
+                float d = Vector3.Distance(me, slot);
+                goal = d > 1.5f ? slot : me;
+                agent.speed = baseSpeed * (d > 12f ? 1.3f : d > 4f ? 1f : 0.6f);
+            }
+            else if (sq.Sentry(this))
             {
                 // часовой: свой пост лицом наружу, иногда переходит на пару метров
                 float d = Vector3.Distance(me, slot);

@@ -442,11 +442,13 @@ public partial class Game
         if (GUI.Button(new Rect(x, y, 380, 40), Intro ? "Брифинг на базе перед вылетом: ВКЛ" : "Брифинг на базе перед вылетом: ВЫКЛ", Intro ? toggleOn : toggleOff)) Intro = !Intro;
         if (GUI.Button(new Rect(x + 400, y, 380, 40), PostFX.Enabled ? "Кинематографичная картинка: ВКЛ" : "Кинематографичная картинка: ВЫКЛ", PostFX.Enabled ? toggleOn : toggleOff)) PostFX.Enabled = !PostFX.Enabled;
         y += 60;
-        Label(new Rect(x, y, 800, 260),
+        Label(new Rect(x, y, 900, 340),
             "Управление:\n" +
-            "WASD — движение, Shift — бег, Ctrl/C — присесть, Пробел — прыжок\n" +
+            "WASD — движение, Shift — бег, Ctrl/C — присесть (на бегу — подкат), Z — лечь, Пробел — прыжок / перелезть\n" +
+            "Q/E — выглянуть из-за укрытия, B — переводчик огня (авто/одиночный)\n" +
             "ЛКМ — огонь, ПКМ — прицел, R — перезарядка (зажать — проверить магазин), 1/2/3 или колесо — оружие\n" +
-            "G — граната, H — аптечка, F — фонарик, V — удар прикладом, I — осмотреть оружие\nT — замедление времени, Esc — пауза\n" +
+            "G — граната, H — аптечка, F — фонарик, V — удар прикладом, I — осмотреть оружие\n" +
+            "Отряду: X — занять точку под прицелом, Y — за мной, U — вернуться к приказам командира\nT — замедление времени, Esc — пауза\n" +
             "После смерти: 1/ЛКМ — взять под контроль бойца Фонда, 2 — наблюдать\n" +
             "Наблюдатель: WASD/Q/E — полёт, Tab — следить за бойцом, Пробел — свободная камера, 1 — вселиться",
             body, new Color(0.75f, 0.78f, 0.8f));
@@ -798,7 +800,7 @@ public partial class Game
         float r = W - 34, y = H - 60;
         var right = new GUIStyle(hudL) { alignment = TextAnchor.MiddleRight };
         Label(new Rect(r - 500, y - 30, 500, 34), g.def.name.ToUpper(), right, HudWhite);
-        string mode = g.def.rocket ? "ОДИНОЧН. · ВЫСТРЕЛ" : g.def.kind == WeaponKind.Shotgun ? "ПОМПА" : g.def.auto ? "АВТО" : "ОДИНОЧН.";
+        string mode = g.def.rocket ? "ОДИНОЧН. · ВЫСТРЕЛ" : g.def.kind == WeaponKind.Shotgun ? "ПОМПА" : g.def.auto && !g.semi ? "АВТО" : "ОДИНОЧН.";
         if (g.reloading) mode = "ПЕРЕЗАРЯДКА";
         else if (g.ammo == 0) mode = "ПУСТО";
         Label(new Rect(r - 500, y + 2, 500, 22), mode, new GUIStyle(hudS) { alignment = TextAnchor.MiddleRight }, g.ammo == 0 && !g.reloading ? HudRed : HudDim);

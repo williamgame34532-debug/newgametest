@@ -291,6 +291,15 @@ public class TeamCommander
                 }
                 break;
         }
+        // приказ игрока своему отряду
+        foreach (var s in squads)
+            if (s.playerCmdUntil > Time.time && PlayerController.I != null && !PlayerController.I.dead)
+            {
+                s.orderSet = true;
+                s.orderPos = s.playerFollow ? PlayerController.I.transform.position - PlayerController.I.transform.forward * 3f : s.playerCmdPos;
+                s.hold = !s.playerFollow;
+                s.orderText = s.playerFollow ? "Следовать за вами" : "Удерживать указанную позицию";
+            }
         // гарнизон держит свой сектор при любой фазе
         foreach (var s in squads)
             if (s.garrison) { s.orderPos = s.lz; s.hold = true; s.orderText = "Удерживать сектор"; }

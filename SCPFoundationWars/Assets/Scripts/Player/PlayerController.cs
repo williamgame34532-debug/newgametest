@@ -65,6 +65,9 @@ public class PlayerController : MonoBehaviour
     Vector3 knock;
     bool flashlightOn;
     public float spreadNow;
+    // приёмы: выглядывание (Q/E), лёжа (Z), подкат (присед на бегу), перелезание (пробел у препятствия)
+    public float lean; public bool prone; float slideT = -1f; Vector3 slideDir; public bool vaulting;
+    public bool Sliding => slideT >= 0f;
     public Gun Current => guns[cur];
     public int CurIndex => cur;
     public Gun GunAt(int i) => guns[i];
@@ -438,15 +441,48 @@ public class PlayerController : MonoBehaviour
 
     void Move(float dt)
     {
+        if (vaulting) return;
         Vector3 input = new Vector3((Input.GetKey(KeyCode.D) ? 1 : 0) - (Input.GetKey(KeyCode.A) ? 1 : 0), 0, (Input.GetKey(KeyCode.W) ? 1 : 0) - (Input.GetKey(KeyCode.S) ? 1 : 0));
         if (input.sqrMagnitude > 1) input.Normalize();
-        bool wantCrouch = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
-        crouching = wantCrouch;
-        bool sprint = Input.GetKey(KeyCode.LeftShift) && input.z > 0.5f && !crouching && adsW < 0.3f && (Current == null || !Current.reloading);
-        float speed = crouching ? 2.3f : sprint ? 7.0f : 4.3f;
+        bool crouchKey = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.C);
+        bool crouchDown = Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.C);
+        // подкат: присесть на полном бегу
+        if (crouchDown && sprintW > 0.6f && grounded && slideT < 0 && !prone)
+        {
+            slideT = 0f; slideDir = new Vector3(velocity.x, 0, velocity.z).normalized;
+            Sfx.Play2D("dirt", 0.5f, 0.8f); Sfx.Play2D("whoosh", 0.35f, 0.7f);
+        }
+        // лёжа: Z — лечь/встать (встать можно, только если над головой свободно)
+        if (Input.GetKeyDown(KeyCode.Z) && grounded && slideT < 0)
+        {
+            if (!prone) { prone = true; Sfx.Play2D("bodyfall", 0.35f, 1.3f); }
+            else if (!Physics.SphereCast(transform.position + Vector3.up * 0.4f, 0.3f, Vector3.up, out _, 1.2f, 1 << Layers.World, QueryTriggerInteraction.Ignore)) prone = false;
+        }
+        if (prone && Input.GetKeyDown(KeyCode.Space)) prone = false;
+        crouching = (crouchKey || slideT >= 0) && !prone;
+        bool sprint = Input.GetKey(KeyCode.LeftShift) && input.z > 0.5f && !crouching && !prone && adsW < 0.3f && (Current == null || !Current.reloading);
+        float speed = prone ? 0.9f : crouching ? 2.3f : sprint ? 7.0f : 4.3f;
         speed *= squad.speed;
         if (adsW > 0.5f) speed *= 0.6f;
         Vector3 wish = transform.TransformDirection(input) * speed;
+        if (slideT >= 0)
+        {
+            slideT += dt;
+            wish = slideDir * Mathf.Lerp(8.8f, 2f, slideT / 0.8f);
+            if (slideT > 0.8f || !crouchKey && slideT > 0.35f) slideT = -1f;
+        }
+        // выглядывание из-за укрытия: камера смещается вбок, если там свободно
+        float leanIn = (Input.GetKey(KeyCode.E) ? 1f : 0f) - (Input.GetKey(KeyCode.Q) ? 1f : 0f);
+        if (sprintW > 0.4f || slideT >= 0) leanIn = 0f;
+        if (leanIn != 0f)
+        {
+            Vector3 head = transform.position + Vector3.up * camH;
+            if (Physics.SphereCast(head, 0.15f, transform.right * leanIn, out var lh, 0.55f, 1 << Layers.World, QueryTriggerInteraction.Ignore))
+                leanIn *= Mathf.Clamp01((lh.distance - 0.1f) / 0.45f);
+        }
+        lean = Mathf.Lerp(lean, leanIn, 1f - Mathf.Exp(-9f * dt));
+        // перелезание: пробел перед препятствием по пояс-грудь
+        if (grounded && !prone && !vaulting && Input.GetKeyDown(KeyCode.Space) && input.z > 0.3f && TryVault()) return;
         Vector3 hv = new Vector3(velocity.x, 0, velocity.z);
         float acc = grounded ? 14f : 3f;
         hv = Vector3.MoveTowards(hv, wish, acc * speed * dt * 0.5f + acc * dt);
@@ -456,7 +492,7 @@ public class PlayerController : MonoBehaviour
             if (vy < -8f) { landKick = Mathf.Clamp01(-vy / 12f); Sfx.Play2D("land", 0.7f); }
             if (vy < -16f) unit.TakeDamage(new DamageInfo { amount = (-vy - 16f) * 10f, type = DamageType.Fall, dir = Vector3.down, point = transform.position });
             vy = -2f;
-            if (Input.GetKeyDown(KeyCode.Space) && !crouching) vy = 5.2f;
+            if (Input.GetKeyDown(KeyCode.Space) && !crouching && !prone && !vaulting) vy = 5.2f;
         }
         else vy -= 20f * dt;
         knock = Vector3.Lerp(knock, Vector3.zero, dt * 3f);
@@ -464,10 +500,10 @@ public class PlayerController : MonoBehaviour
         cc.Move(velocity * dt);
         sprintW = Mathf.Lerp(sprintW, sprint && hv.magnitude > 4f ? 1f : 0f, 1f - Mathf.Exp(-8f * dt));
         // присед
-        float targetH = crouching ? 1.15f : 1.8f;
+        float targetH = prone ? 0.6f : crouching ? 1.15f : 1.8f;
         cc.height = Mathf.Lerp(cc.height, targetH, 1f - Mathf.Exp(-12f * dt));
         cc.center = new Vector3(0, cc.height / 2f, 0);
-        camH = Mathf.Lerp(camH, crouching ? 1.02f : 1.65f, 1f - Mathf.Exp(-12f * dt));
+        camH = Mathf.Lerp(camH, prone ? 0.36f : slideT >= 0 ? 0.85f : crouching ? 1.02f : 1.65f, 1f - Mathf.Exp(-(prone ? 6f : 12f) * dt));
         // покачивание головы
         float hs = hv.magnitude;
         if (grounded && hs > 0.5f)
@@ -479,7 +515,57 @@ public class PlayerController : MonoBehaviour
         bobAmt = Mathf.Lerp(bobAmt, grounded ? Mathf.Clamp01(hs / 7f) : 0f, 1f - Mathf.Exp(-6f * dt));
         landKick = Mathf.MoveTowards(landKick, 0, dt * 3f);
         Vector3 bobOff = new Vector3(Mathf.Cos(bob) * 0.03f, Mathf.Abs(Mathf.Sin(bob)) * 0.05f - 0.025f, 0) * bobAmt * (1f - adsW * 0.8f);
-        camHolder.localPosition = new Vector3(0, camH - landKick * 0.12f, 0) + bobOff + Fx.ShakeOffset;
+        camHolder.localPosition = new Vector3(lean * 0.42f, camH - landKick * 0.12f - Mathf.Abs(lean) * 0.07f, 0) + bobOff + Fx.ShakeOffset;
+        camHolder.localRotation = Quaternion.Euler(pitch - recoilP, 0, -lean * 13f + (slideT >= 0 ? 4f : 0f));
+    }
+
+    bool TryVault()
+    {
+        Vector3 f = transform.forward; f.y = 0; f.Normalize();
+        Vector3 feet = transform.position;
+        int mask = 1 << Layers.World;
+        if (!Physics.Raycast(feet + Vector3.up * 0.55f, f, out var low, 1.1f, mask, QueryTriggerInteraction.Ignore)) return false;
+        if (Physics.Raycast(feet + Vector3.up * 1.7f, f, low.distance + 0.6f, mask, QueryTriggerInteraction.Ignore)) return false;   // стена выше головы
+        Vector3 probe = feet + f * (low.distance + 0.45f) + Vector3.up * 1.8f;
+        if (!Physics.Raycast(probe, Vector3.down, out var top, 1.8f, mask, QueryTriggerInteraction.Ignore)) return false;
+        float h = top.point.y - feet.y;
+        if (h < 0.4f || h > 1.45f) return false;
+        // за препятствием: спускаемся на землю, если оно тонкое
+        Vector3 over = feet + f * (low.distance + 1.3f) + Vector3.up * (h + 1.2f);
+        Vector3 land = top.point + f * 0.3f;
+        if (Physics.Raycast(over, Vector3.down, out var beyond, h + 3f, mask, QueryTriggerInteraction.Ignore) && beyond.point.y < top.point.y - 0.3f)
+            land = beyond.point;
+        StartCoroutine(VaultRoutine(top.point, land, h));
+        return true;
+    }
+
+    IEnumerator VaultRoutine(Vector3 top, Vector3 land, float h)
+    {
+        vaulting = true;
+        cc.enabled = false;
+        Sfx.Play2D("land", 0.35f, 1.3f);
+        fp.Kick(-0.6f);
+        Vector3 a = transform.position, mid = top + Vector3.up * 0.15f;
+        float t = 0, d1 = 0.22f + h * 0.12f;
+        while (t < d1 && !dead)
+        {
+            t += Time.deltaTime; float k = Mathf.SmoothStep(0, 1, t / d1);
+            transform.position = Vector3.Lerp(a, mid, k) + Vector3.up * Mathf.Sin(k * Mathf.PI) * 0.2f;
+            camHolder.localRotation = Quaternion.Euler(pitch - recoilP + 6f * Mathf.Sin(k * Mathf.PI), 0, 8f * Mathf.Sin(k * Mathf.PI));
+            yield return null;
+        }
+        t = 0;
+        Vector3 b = transform.position;
+        while (t < 0.25f && !dead)
+        {
+            t += Time.deltaTime; float k = Mathf.SmoothStep(0, 1, t / 0.25f);
+            transform.position = Vector3.Lerp(b, land, k);
+            yield return null;
+        }
+        Sfx.Play2D("step", 0.45f, 0.9f);
+        cc.enabled = true;
+        velocity = transform.forward * 3.5f; vy = -2f;
+        vaulting = false;
     }
 
     void Weapons(float dt)
@@ -567,6 +653,10 @@ public class PlayerController : MonoBehaviour
             return;
         }
         if (Input.GetKeyDown(KeyCode.I)) fp.Inspect();
+        // переводчик огня
+        if (Input.GetKeyDown(KeyCode.B) && g.def.auto) { g.semi = !g.semi; Sfx.Play2D("click", 0.5f, 0.8f); }
+        // команды своему отряду: X — занять точку, куда смотрю; Y — за мной; U — вернуться к приказу командира
+        if (Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.Y) || Input.GetKeyDown(KeyCode.U)) SquadOrder();
         // аптечка
         if (Input.GetKeyDown(KeyCode.H) && medkits > 0 && healT < 0 && unit.hp < unit.maxHp)
         {
@@ -593,7 +683,7 @@ public class PlayerController : MonoBehaviour
         bool ads = Input.GetMouseButton(1) && (!g.reloading || g.Shells) && sprintW < 0.5f && healT < 0;
         adsW = Mathf.MoveTowards(adsW, ads ? 1f : 0f, dt / 0.18f);
         // стрельба
-        bool trig = g.def.auto ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
+        bool trig = g.def.auto && !g.semi ? Input.GetMouseButton(0) : Input.GetMouseButtonDown(0);
         if (trig && safe && Input.GetMouseButtonDown(0)) Sfx.Play2D("click", 0.3f, 1.4f);
         if (trig && !safe && Cursor.lockState == CursorLockMode.Locked && sprintW < 0.4f && healT < 0 && !fp.Busy)
         {
@@ -605,13 +695,13 @@ public class PlayerController : MonoBehaviour
             else
             {
                 float hv = new Vector2(velocity.x, velocity.z).magnitude;
-                float spread = Mathf.Lerp(1f, 0.3f, adsW) * (1f + hv / 6f) * (crouching ? 0.75f : 1f) * (grounded ? 1f : 2.5f);
+                float spread = Mathf.Lerp(1f, 0.3f, adsW) * (1f + hv / 6f) * (prone ? 0.55f : crouching ? 0.75f : 1f) * (grounded ? 1f : 2.5f) * (slideT >= 0 ? 1.8f : 1f);
                 if (g.def.kind == WeaponKind.Shotgun) spread = Mathf.Max(spread, 0.8f);
                 // мировая точка дульного среза (вьюмодель рисуется своей камерой — пересчитываем)
                 Vector3 worldMuzzle = fp.gm != null ? fp.ToWorld(fp.gm.muzzle.position) : camHolder.position;
                 if (g.Fire(unit, camHolder.position, camHolder.forward, spread, worldMuzzle))
                 {
-                    float r = g.def.recoil * (1f - adsW * 0.35f) * (crouching ? 0.8f : 1f);
+                    float r = g.def.recoil * (1f - adsW * 0.35f) * (prone ? 0.6f : crouching ? 0.8f : 1f);
                     recoilVelP += r * 16f;
                     pitch -= r * 0.35f;
                     yaw += Random.Range(-0.35f, 0.35f) * r;
@@ -621,6 +711,33 @@ public class PlayerController : MonoBehaviour
             }
         }
         spreadNow = g.def.spread * Mathf.Lerp(1f, 0.3f, adsW) * (1f + new Vector2(velocity.x, velocity.z).magnitude / 6f) * (crouching ? 0.75f : 1f);
+    }
+
+    void SquadOrder()
+    {
+        var b = Battle.I;
+        var sq = b != null ? b.SquadOf(squad) : null;
+        if (sq == null || sq.Alive == 0) return;
+        string who = squad.name.Split(' ')[0];
+        if (Input.GetKeyDown(KeyCode.U))
+        {
+            sq.playerCmdUntil = -1f;
+            Battle.Message("Вы → " + who + ": Работаем по приказу командира операции.", new Color(0.7f, 0.85f, 1f), 4f);
+        }
+        else if (Input.GetKeyDown(KeyCode.Y))
+        {
+            sq.playerCmdUntil = Time.time + 120f; sq.playerFollow = true;
+            Battle.Message("Вы → " + who + ": За мной! Держаться рядом.", new Color(0.7f, 0.85f, 1f), 4f);
+        }
+        else
+        {
+            Vector3 p = transform.position + transform.forward * 10f;
+            if (Physics.Raycast(camHolder.position, camHolder.forward, out var h, 120f, 1 << Layers.World, QueryTriggerInteraction.Ignore)) p = h.point;
+            sq.playerCmdUntil = Time.time + 120f; sq.playerFollow = false; sq.playerCmdPos = p;
+            Battle.Message("Вы → " + who + ": Занять позицию, " + Mathf.RoundToInt(Vector3.Distance(transform.position, p)) + " м впереди!", new Color(0.7f, 0.85f, 1f), 4f);
+        }
+        Sfx.Play2D("radio", 0.35f);
+        var l = sq.Leader; if (l != null) l.anim.DoSignal(Input.GetKeyDown(KeyCode.X) ? Signal.Point : Signal.Regroup);
     }
 
     void Blink()
