@@ -117,7 +117,9 @@ public class HumanAnimator : MonoBehaviour
             case HumanRig.Head: return 0.35f;
             case HumanRig.UArmL: case HumanRig.LArmL: case HumanRig.HandL:
             case HumanRig.UArmR: case HumanRig.LArmR: case HumanRig.HandR:
-                return !hasGun && style == AnimStyle.Soldier ? 0.9f : 0f;
+                // без оружия руки идут в такт ногам из той же записи (у SCP-096 — длинные руки болтаются)
+                if (hasGun || handsOnFace) return 0f;
+                return style == AnimStyle.Soldier ? 0.9f : style == AnimStyle.Shy ? 0.75f : style == AnimStyle.Doctor || style == AnimStyle.Old ? 0.35f : 0f;
             default: return 1f;
         }
     }
@@ -517,9 +519,10 @@ public class HumanAnimator : MonoBehaviour
                 break;
             }
             case AnimStyle.Shy:
-                tgt[HumanRig.Spine].x += 22f; tgt[HumanRig.Chest].x += 18f; tgt[HumanRig.Neck].x += 15f;
-                aL = new Vector3(sL * armAmp * 0.4f, 0, -4f); aR = new Vector3(sR * armAmp * 0.4f, 0, 4f);
-                eL = eR = new Vector3(-8f, 0, 0);
+                // сутулый, голова вперёд; руки висят и качаются из записи шага (без запаздывания)
+                tgt[HumanRig.Spine].x += 10f; tgt[HumanRig.Chest].x += 9f; tgt[HumanRig.Neck].x += 12f;
+                aL = new Vector3(0, 0, -5f); aR = new Vector3(0, 0, 5f);
+                eL = eR = new Vector3(-10f, 0, 0);
                 tgt[HumanRig.Chest].x += Mathf.Sin(time * 9f) * 2.5f * (handsOnFace ? 1f : 0.2f);
                 break;
             case AnimStyle.ShyRage:
@@ -603,7 +606,7 @@ public class HumanAnimator : MonoBehaviour
         for (int i = 0; i < HumanRig.Count; i++)
         {
             Quaternion q = Quaternion.Euler(tgt[i]);
-            float k = i >= HumanRig.ULegL ? 22f : i == HumanRig.Head || i == HumanRig.Neck ? 12f : 14f;
+            float k = i >= HumanRig.ULegL ? 22f : i == HumanRig.Head || i == HumanRig.Neck ? 12f : i >= HumanRig.UArmL && gun == null ? 24f : 14f;
             if (deathW > 0.5f) k = 18f;
             cur[i] = Quaternion.Slerp(cur[i], q, 1f - Mathf.Exp(-k * dt));
             Quaternion lr = cur[i];
