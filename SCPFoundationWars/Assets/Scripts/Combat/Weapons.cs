@@ -541,6 +541,10 @@ public class Rocket : MonoBehaviour
 // Ручная граната / выстрел гранатомёта
 public class Grenade : MonoBehaviour
 {
+    public static readonly List<Grenade> Live = new List<Grenade>();
+    void OnEnable() { Live.Add(this); }
+    void OnDisable() { Live.Remove(this); }
+    public bool Impact => impact;
     bool cosmetic;
     Unit owner;
     bool impact;

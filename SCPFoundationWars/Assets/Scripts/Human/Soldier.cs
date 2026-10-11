@@ -975,6 +975,22 @@ public class Soldier : Unit
         bool lowHp = hp < maxHp * 0.3f && courage < 1.2f;
 
         if (fleeing && FleeMove(me, baseSpeed)) return;
+        // граната рядом — кричим и уходим от неё
+        foreach (var gr in Grenade.Live)
+        {
+            if (gr == null || gr.Impact) continue;
+            Vector3 gp = gr.transform.position;
+            if ((gp - me).sqrMagnitude > 49f) continue;
+            Vector3 away = me - gp; away.y = 0;
+            if (away.sqrMagnitude < 0.01f) away = -transform.forward;
+            Vector3 dst = me + away.normalized * 9f;
+            agent.speed = baseSpeed * 1.5f;
+            if (NavMesh.SamplePosition(dst, out var gh, 4f, NavMesh.AllAreas)) agent.SetDestination(gh.position);
+            anim.crouch = false;
+            Callout(Random.value < 0.5f ? "Граната! Ложись!" : "Граната! В укрытие!", "grenade");
+            moveT = Time.time + 0.6f;
+            return;
+        }
         // носитель предмета содержания идёт к ослабленному объекту
         LoreItem li = null;
         foreach (var x in LoreItem.All) if (x != null && x.carrier == this) li = x;
