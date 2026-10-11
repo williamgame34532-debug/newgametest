@@ -363,7 +363,72 @@ public class FPView : MonoBehaviour
         if (rl >= 0 && lastReload < 0) { reloadWasEmpty = gun.ammo == 0; magDropped = false; }
         lastReload = rl;
         bool shells = def.kind == WeaponKind.Shotgun;
-        if (rl >= 0 && !shells)
+        bool at4 = def.id == "at4", rpg7 = rpg && !at4, mgl = def.kind == WeaponKind.Launcher && !rpg, lmg = def.kind == WeaponKind.LMG;
+        bool special = at4 || rpg7 || mgl || lmg;
+        // РПГ-7: после выстрела выстрела в стволе нет
+        if (rpg7 && rl < 0 && gun.ammo == 0) magHidden = true;
+        if (rl >= 0 && rpg7)
+        {
+            // ствол вверх-влево, левая рука за спину за выстрелом, вводит его в дуло и досылает
+            float tilt = S(0f, 0.12f, rl) * (1f - S(0.85f, 1f, rl));
+            pos += new Vector3(-0.04f, 0.03f, -0.04f) * tilt; rot += new Vector3(-18f, -12f, -20f) * tilt;
+            Vector3 behind = new Vector3(-0.25f, 0.35f, -0.35f), front = new Vector3(0f, 0f, 0.32f);
+            if (rl < 0.32f) magHidden = true;
+            else if (rl < 0.6f) { magOffset = Vector3.Lerp(behind, front, S(0.32f, 0.6f, rl)); magInHand = true; }
+            else if (rl < 0.74f) { magOffset = Vector3.Lerp(front, Vector3.zero, S(0.6f, 0.74f, rl)); magInHand = true; pos.z -= Bell(0.68f, 0.76f, rl) * 0.02f; }
+            Vector3 shoulder = root.TransformPoint(new Vector3(-0.25f, 0.05f, -0.15f));
+            Vector3 magW = gm.mag != null ? gm.mag.position : gm.foregrip.position;
+            lW = S(0.04f, 0.16f, rl) * (1f - S(0.78f, 0.88f, rl));
+            lTarget = rl < 0.32f ? Vector3.Lerp(gm.foregrip.position, shoulder, S(0.08f, 0.3f, rl)) : magW;
+            lRot = HandPose.Hold(gm.transform.rotation, 0.2f);
+        }
+        if (rl >= 0 && at4)
+        {
+            // одноразовая труба: отбросить пустую, снять со спины новую и вскинуть
+            float lower = S(0.05f, 0.3f, rl), raise = S(0.55f, 0.92f, rl);
+            float away = lower * (1f - raise);
+            pos += new Vector3(0.12f, -0.45f, -0.05f) * away; rot += new Vector3(40f, 25f, -35f) * away;
+            if (rl > 0.22f && !magDropped && reloadWasEmpty) { magDropped = true; DropTube(); }
+            if (rl > 0.3f && rl < 0.55f) gm.gameObject.SetActive(false); else gm.gameObject.SetActive(true);
+            lW = Bell(0.5f, 0.95f, rl);
+            lTarget = gm.foregrip.position + Vector3.up * 0.02f; lRot = HandPose.Support(gm.transform.rotation);
+        }
+        else if (at4 && gm != null && !gm.gameObject.activeSelf) gm.gameObject.SetActive(true);
+        if (rl >= 0 && mgl)
+        {
+            // барабан: открыть, по выстрелу из подсумка в каждое гнездо, барабан проворачивается
+            float tilt = S(0f, 0.1f, rl) * (1f - S(0.88f, 1f, rl));
+            pos += new Vector3(-0.03f, 0.02f, -0.02f) * tilt; rot += new Vector3(-14f, -16f, -40f) * tilt;
+            float k = Mathf.Clamp01((rl - 0.12f) / 0.72f) * 6f;
+            float cyc = Mathf.Repeat(k, 1f);
+            Vector3 pouch = root.TransformPoint(new Vector3(-0.15f, -0.48f, 0.18f));
+            Vector3 cyl = gm.mag != null ? gm.mag.position : gm.foregrip.position;
+            lW = tilt; lTarget = Vector3.Lerp(cyl, pouch, Mathf.Sin(cyc * Mathf.PI));
+            lRot = HandPose.Hold(gm.transform.rotation, 0.3f);
+            if (gm.mag != null) gm.mag.localRotation = Quaternion.Euler(0, 0, Mathf.Floor(k) * 60f + S(0.8f, 1f, cyc) * 60f);
+        }
+        else if (mgl && gm.mag != null) gm.mag.localRotation = Quaternion.identity;
+        if (rl >= 0 && lmg)
+        {
+            // пулемёт: поднять крышку ствольной коробки, сменить короб, уложить ленту, захлопнуть крышку
+            float tilt = S(0f, 0.08f, rl) * (1f - S(0.9f, 1f, rl));
+            pos += new Vector3(-0.03f, -0.03f, -0.03f) * tilt; rot += new Vector3(-6f, -18f, 22f) * tilt;
+            Vector3 cover = gm.transform.TransformPoint(new Vector3(0f, 0.13f, 0.08f));
+            Vector3 coverUp = gm.transform.TransformPoint(new Vector3(0f, 0.2f, 0.02f));
+            Vector3 pouch = root.TransformPoint(new Vector3(-0.12f, -0.55f, 0.18f));
+            Vector3 mdown = new Vector3(0, -0.32f, -0.04f);
+            Vector3 magW = gm.mag != null ? gm.mag.position : gm.foregrip.position;
+            if (rl < 0.2f) { lTarget = Vector3.Lerp(cover, coverUp, S(0.1f, 0.2f, rl)); }
+            else if (rl < 0.38f) { magOffset = Vector3.Lerp(Vector3.zero, mdown, S(0.22f, 0.38f, rl)); magInHand = true; lTarget = magW; }
+            else if (rl < 0.5f) { magHidden = true; magOffset = mdown; lTarget = pouch; }
+            else if (rl < 0.66f) { magOffset = Vector3.Lerp(mdown, Vector3.zero, S(0.5f, 0.66f, rl)); magInHand = true; lTarget = magW; }
+            else if (rl < 0.78f) { lTarget = Vector3.Lerp(cover + gm.transform.forward * 0.06f, cover - gm.transform.forward * 0.04f, S(0.66f, 0.78f, rl)); }
+            else { lTarget = Vector3.Lerp(coverUp, cover, S(0.78f, 0.84f, rl)); rot.x += Bell(0.82f, 0.88f, rl) * 2.5f; }
+            if (rl > 0.3f && !magDropped && reloadWasEmpty) { magDropped = true; DropMag(); }
+            lW = S(0.02f, 0.1f, rl) * (1f - S(0.88f, 0.96f, rl));
+            lRot = HandPose.Hold(gm.transform.rotation, rl < 0.2f || rl > 0.66f ? -0.6f : 0.6f);
+        }
+        if (rl >= 0 && !shells && !special)
         {
             float tilt = S(0f, 0.12f, rl) * (1f - S(0.86f, 1f, rl));
             pos += new Vector3(-0.02f, -0.04f, -0.02f) * tilt;
@@ -610,6 +675,35 @@ public class FPView : MonoBehaviour
     }
 
     // Пустой магазин падает на землю
+    // Пустая труба AT-4 летит на землю целиком
+    void DropTube()
+    {
+        if (gm == null) return;
+        var go = new GameObject("spentTube");
+        go.layer = Layers.Corpse;
+        go.transform.position = ToWorld(gm.transform.position);
+        go.transform.rotation = Game.Cam.transform.rotation * Quaternion.Inverse(root.rotation) * gm.transform.rotation;
+        foreach (var mf in gm.GetComponentsInChildren<MeshFilter>())
+        {
+            var mr = mf.GetComponent<MeshRenderer>();
+            if (mr == null || !mr.enabled) continue;
+            var p = new GameObject("part");
+            p.transform.SetParent(go.transform, false);
+            p.transform.localPosition = gm.transform.InverseTransformPoint(mf.transform.position);
+            p.transform.localRotation = Quaternion.Inverse(gm.transform.rotation) * mf.transform.rotation;
+            p.transform.localScale = mf.transform.lossyScale;
+            p.AddComponent<MeshFilter>().sharedMesh = mf.sharedMesh;
+            p.AddComponent<MeshRenderer>().sharedMaterials = mr.sharedMaterials;
+            p.layer = Layers.Corpse;
+        }
+        var bc = go.AddComponent<CapsuleCollider>(); bc.direction = 2; bc.radius = 0.05f; bc.height = 1f; bc.center = new Vector3(0, 0.08f, 0.04f);
+        var rb = go.AddComponent<Rigidbody>(); rb.mass = 2f;
+        rb.SetVel(Game.Cam.transform.right * 1.5f - Game.Cam.transform.up * 0.5f + pc.velocity);
+        rb.angularVelocity = Random.insideUnitSphere * 3f;
+        Sfx.Play("metal", go.transform.position, 0.4f, 0.7f, 20f);
+        Destroy(go, 60f);
+    }
+
     void DropMag()
     {
         if (gm.mag == null) return;
