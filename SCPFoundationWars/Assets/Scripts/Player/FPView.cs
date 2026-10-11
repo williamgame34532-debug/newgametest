@@ -249,7 +249,9 @@ public class FPView : MonoBehaviour
 
     public void Kick(float r)
     {
-        kickVel += new Vector3(Random.Range(-0.3f, 0.3f), 0.6f, -2.2f) * r;
+        // лёгкое оружие подбрасывает сильнее, тяжёлое — короче и в плечо
+        float wk = gun != null ? Mathf.Clamp(Mathf.Sqrt(3.5f / gun.def.Weight), 0.65f, 1.6f) : 1f;
+        kickVel += new Vector3(Random.Range(-0.35f, 0.35f) * wk, 0.6f * wk, -2.2f / Mathf.Sqrt(wk)) * r;
         if (gun != null && gun.def.kind == WeaponKind.Shotgun) pumpT = 0f;
         if (bodyAnim != null) bodyAnim.Kick(r * 0.6f, r);
     }
