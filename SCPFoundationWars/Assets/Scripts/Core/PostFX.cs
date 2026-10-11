@@ -7,8 +7,10 @@ public class PostFX : MonoBehaviour
     public static bool Enabled = true;
     static Material mat;
     static PostFX current;
-    public float exposure = 1.05f, contrast = 1.08f, saturation = 1.05f, vignette = 0.45f, grain = 0.035f, bloom = 0.55f, threshold = 1.0f, aberration = 0.0015f;
-    public Color tint = new Color(1.02f, 1f, 0.97f);
+    // «таркоподобная» картинка: приглушённые цвета, плотный контраст, резкость, тени с зеленцой, тёплые света
+    public float exposure = 1.08f, contrast = 1.13f, saturation = 0.86f, vignette = 0.5f, grain = 0.04f, bloom = 0.42f, threshold = 1.05f, aberration = 0.0012f, sharp = 0.55f;
+    public Color tint = new Color(1.0f, 1f, 0.96f);
+    public Color shadowTone = new Color(0.94f, 1.0f, 1.0f), highTone = new Color(1.04f, 1.0f, 0.93f);
 
     // Переносит эффект на камеру c (например, камеру оружия), с остальных снимает
     public static void SetTop(Camera c)
@@ -54,6 +56,9 @@ public class PostFX : MonoBehaviour
         mat.SetFloat("_Grain", grain * (MapGen.Night ? 1.6f : 1f));
         mat.SetFloat("_Hurt", hurt);
         mat.SetFloat("_Aberr", aberration);
+        mat.SetFloat("_Sharp", sharp);
+        mat.SetColor("_ShadowTone", MapGen.Night ? new Color(0.92f, 0.98f, 1.06f) : shadowTone);
+        mat.SetColor("_HighTone", MapGen.Night ? new Color(1f, 1f, 1f) : highTone);
         mat.SetFloat("_Time2", Time.unscaledTime % 100f);
         mat.SetColor("_Tint", MapGen.Night ? new Color(0.92f, 0.97f, 1.08f) : tint);
         Graphics.Blit(src, dst, mat, 2);

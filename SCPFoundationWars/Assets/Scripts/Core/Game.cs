@@ -55,6 +55,7 @@ public partial class Game : MonoBehaviour
         Cam.allowHDR = true;
         Cam.allowMSAA = true;
         camGo.AddComponent<AudioListener>();
+        WorldFX.Attach(Cam);     // до PostFX: эффекты изображения идут в порядке компонентов
         PostFX.SetTop(Cam);
         DontDestroyOnLoad(camGo);
 

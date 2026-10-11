@@ -7,8 +7,8 @@ Shader "SCP/Post"
     #include "UnityCG.cginc"
     sampler2D _MainTex, _Bloom;
     float4 _MainTex_TexelSize;
-    float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2;
-    float4 _Tint, _Dir;
+    float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2, _Sharp;
+    float4 _Tint, _Dir, _ShadowTone, _HighTone;
     fixed4 fragBright (v2f_img i) : SV_Target
     {
         float2 o = _MainTex_TexelSize.xy;
@@ -38,6 +38,12 @@ Shader "SCP/Post"
         col.r = tex2D(_MainTex, uv - cc * ab).r;
         col.g = tex2D(_MainTex, uv).g;
         col.b = tex2D(_MainTex, uv + cc * ab).b;
+        // резкость: усиливаем детали относительно соседей (как в современных шутерах)
+        float2 px = _MainTex_TexelSize.xy;
+        float3 nb = (tex2D(_MainTex, uv + float2(px.x, 0)).rgb + tex2D(_MainTex, uv - float2(px.x, 0)).rgb
+                   + tex2D(_MainTex, uv + float2(0, px.y)).rgb + tex2D(_MainTex, uv - float2(0, px.y)).rgb) * 0.25;
+        float3 detail = col - nb;
+        col = max(0, col + clamp(detail, -0.15, 0.15) * _Sharp);
         col += tex2D(_Bloom, uv).rgb * _BloomAmt;
         col *= _Exposure;
         col = ACES(col);
@@ -47,6 +53,11 @@ Shader "SCP/Post"
         col = lerp(lum.xxx, col, sat);
         col = (col - 0.5) * _Contrast + 0.5;
         col *= _Tint.rgb;
+        // раздельное тонирование: тени холодно-зелёные, света тёплые (приглушённая «военная» палитра)
+        float l2 = saturate(dot(saturate(col), float3(0.2126, 0.7152, 0.0722)));
+        col *= lerp(_ShadowTone.rgb, _HighTone.rgb, smoothstep(0.1, 0.75, l2));
+        // мягкое плечо в светах и приподнятый чёрный (плёночная кривая)
+        col = col * (1 - 0.06) + 0.012;
         // виньетка и красные края при ранении
         float v = smoothstep(0.8, 0.15, r2 * 2.2);
         col *= lerp(1, v, _Vignette);

@@ -22,6 +22,9 @@ public static partial class MapGen
     public static bool IsSnow => mapKind == 3;
     static readonly List<Light> lamps = new List<Light>();
     static Vector3 sunDir = Vector3.up;
+    public static Vector3 SunDir => sunDir;
+    public static Color SunColor => sunCol;
+    public static bool Dusk;
     static Color sunCol = Color.white, fogColor = Color.gray;
 
     static float R() => (float)rng.NextDouble();
@@ -643,7 +646,7 @@ public static partial class MapGen
         var skyShader = Shader.Find("SCP/Sky");
         var sky = new Material(skyShader != null ? skyShader : Shader.Find("Skybox/Procedural"));
         Color amb1, amb2, amb3;
-        float cover = map == 2 ? 0.22f : map == 1 ? 0.55f : map == 3 ? 0.62f : 0.42f;
+        float cover = map == 2 ? 0.28f : map == 1 ? 0.6f : map == 3 ? 0.66f : 0.52f;   // чаще пасмурно — мягкий рассеянный свет
         switch (time)
         {
             case 1: // закат
@@ -664,11 +667,12 @@ public static partial class MapGen
                 break;
             default:
                 sunGo.transform.rotation = Quaternion.Euler(48f, 35f, 0);
-                sun.color = map == 2 ? new Color(1f, 0.93f, 0.8f) : new Color(1f, 0.96f, 0.9f); sun.intensity = 1.25f;
+                sun.color = map == 2 ? new Color(1f, 0.93f, 0.8f) : new Color(1f, 0.95f, 0.86f); sun.intensity = 1.18f;
                 amb1 = new Color(0.55f, 0.6f, 0.7f); amb2 = new Color(0.4f, 0.4f, 0.38f); amb3 = new Color(0.2f, 0.18f, 0.15f);
                 Sky(sky, map == 2 ? new Color(0.25f, 0.45f, 0.78f) : new Color(0.2f, 0.4f, 0.78f), map == 2 ? new Color(0.85f, 0.82f, 0.75f) : new Color(0.66f, 0.79f, 0.93f), fog, new Color(1f, 0.95f, 0.85f), new Color(1f, 1f, 1f), new Color(0.55f, 0.6f, 0.68f), cover, 0f);
                 break;
         }
+        Dusk = time == 1;
         if (time != 2) sky.SetVector("_SunDir", -sunGo.transform.forward);
         sunDir = -sunGo.transform.forward;
         sunCol = sun.color * sun.intensity;
@@ -685,7 +689,7 @@ public static partial class MapGen
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
         RenderSettings.fogColor = fog;
-        RenderSettings.fogDensity = time == 2 ? 0.0055f : map == 1 ? 0.0028f : map == 3 ? 0.003f : 0.0015f;
+        RenderSettings.fogDensity = time == 2 ? 0.0055f : map == 1 ? 0.003f : map == 3 ? 0.0032f : 0.0021f;
         fogColor = fog;
         RenderSettings.reflectionIntensity = time == 2 ? 0.2f : 0.7f;
         QualitySettings.shadowDistance = 170f;
