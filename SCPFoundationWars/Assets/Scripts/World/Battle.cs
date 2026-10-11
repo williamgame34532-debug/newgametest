@@ -81,7 +81,7 @@ public partial class Battle : MonoBehaviour
         foreach (var u in Unit.All.ToArray()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
         // убитые и захваченные уже не в списке живых — удаляем все объекты юнитов
         foreach (var u in Compat.FindAll<Unit>()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
-        Sfx.StopAll();
+        Sfx.StopAll(); Speech.Clear();
         foreach (var c in Ragdoll.Corpses.ToArray()) if (c != null) Destroy(c.gameObject);
         Ragdoll.Corpses.Clear();
         foreach (var o in Compat.FindAll<ScpContainer>()) Destroy(o.gameObject);

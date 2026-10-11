@@ -480,6 +480,7 @@ public partial class Game
         {
             Shadowed(new Rect(W / 2 - 300, 128, 600, 24), "[Enter] или Esc → «Вылететь сейчас» — не ждать вылета", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter, fontSize = 14 }, new Color(1f, 0.85f, 0.5f));
         }
+        Speech.Draw(Screen.height / 1080f);
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);

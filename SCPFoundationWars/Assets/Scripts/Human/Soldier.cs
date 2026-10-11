@@ -510,13 +510,13 @@ public class Soldier : Unit
             if (score < bestScore) { bestScore = score; best = u; }
         }
         if (best != target) { aimSettle = 0; burstLeft = 0; }
-        if (best != null && target == null && Time.time - sightT > 8f) Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!");
+        if (best != null && target == null && Time.time - sightT > 8f) Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!", "contact");
         if (best != null) { lastTarget = best; lastSeenPos = best.AimPoint; }
         else if (target != null && lastTarget != null && lastTarget.alive && current != null && current.def.auto && Random.value < (current.def.kind == WeaponKind.LMG ? 0.9f : 0.45f))
         {
             // противник скрылся — прижимаем огнём, пока не высунется
             suppressUntil = Time.time + Random.Range(1.5f, 3.5f);
-            if (Random.value < 0.3f) Callout("Прижимаю огнём!");
+            if (Random.value < 0.3f) Callout("Прижимаю огнём!", "suppress");
         }
         if (best != null && target == null && squadRt != null && squadRt.Leader == this && Time.time > signalCd)
         {
@@ -542,7 +542,7 @@ public class Soldier : Unit
             if (current.reserveMags > 0)
             {
                 current.StartReload(transform.position, 1f);
-                if (target != null || Time.time - sightT < 5f) { Callout("Перезаряжаюсь, прикройте!"); coverT = -1f; }
+                if (target != null || Time.time - sightT < 5f) { Callout("Перезаряжаюсь, прикройте!", "reload"); coverT = -1f; }
             }
             else if (current != primary) Equip(primary, flashlightOn);
         }
@@ -554,7 +554,7 @@ public class Soldier : Unit
             {
                 grenadeT = Time.time + Random.Range(10f, 20f);
                 StartCoroutine(ThrowGrenade(target.transform.position));
-                Callout("Граната пошла!");
+                Callout("Граната пошла!", "grenade", true);
             }
         }
     }
@@ -570,7 +570,7 @@ public class Soldier : Unit
             if (m != null && m != this && m.alive && !m.zombie && m.state == State.Combat && m.hp / m.maxHp < worst && Vector3.Distance(m.transform.position, transform.position) < 40f) { worst = m.hp / m.maxHp; healTarget = m; }
         var pc = PlayerController.I;
         if (pc != null && !pc.dead && pc.squad == squad && pc.unit.hp / pc.unit.maxHp < worst && !pc.riding && Vector3.Distance(pc.transform.position, transform.position) < 40f) healTarget = pc.unit;
-        if (healTarget != null) Callout(healTarget.isPlayer ? "Ты ранен — стой, перевяжу!" : "Медик здесь, держись!");
+        if (healTarget != null) Callout(healTarget.isPlayer ? "Ты ранен — стой, перевяжу!" : "Медик здесь, держись!", "medic");
     }
 
     void MedicUpdate()
@@ -596,17 +596,44 @@ public class Soldier : Unit
 
     public string CallSign => squad != null ? squad.name.Split(' ')[0].Split('-')[0] + "-" + (index + 1) : displayName;
 
-    // Голосовые доклады бойцов отряда игрока (субтитры, не чаще раза в несколько секунд на отряд)
+    // Переговоры в бою: реплика над головой у любого бойца рядом с игроком (+голос, если есть запись);
+    // доклады своего отряда — ещё и строкой в ленте. Не чаще раза в несколько секунд на бойца и на отряд.
     static readonly Dictionary<SquadDef, float> calloutT = new Dictionary<SquadDef, float>();
-    void Callout(string text)
+    float myCalloutT;
+    public void Callout(string text, string voice = null, bool force = false)
     {
-        var pc = PlayerController.I;
-        if (pc == null || pc.dead || pc.squad != squad || squad == null) return;
-        if (Vector3.Distance(pc.transform.position, transform.position) > 60f) return;
+        if (!alive || zombie || squad == null) return;
+        var cam = Game.Cam;
+        if (cam == null || Vector3.Distance(cam.transform.position, transform.position) > 70f) return;
+        if (!force && Time.time < myCalloutT) return;
         calloutT.TryGetValue(squad, out float t);
-        if (Time.time < t) return;
-        calloutT[squad] = Time.time + Random.Range(4f, 7f);
-        Battle.Message(CallSign + ": " + text, new Color(0.75f, 0.85f, 0.95f), 3f);
+        if (!force && Time.time < t) return;
+        calloutT[squad] = Time.time + Random.Range(2.5f, 4.5f);
+        myCalloutT = Time.time + Random.Range(6f, 10f);
+        Color c = team == Team.Foundation ? new Color(0.65f, 0.82f, 1f) : team == Team.Chaos ? new Color(1f, 0.55f, 0.4f) : new Color(0.9f, 0.9f, 0.9f);
+        Speech.Say(transform, CallSign, text, -1f, c, voice != null ? "vo_" + voice + (team == Team.Chaos ? "_c" : "") : null);
+        var pc = PlayerController.I;
+        if (pc != null && !pc.dead && pc.squad == squad && Vector3.Distance(pc.transform.position, transform.position) < 60f)
+            Battle.Message(CallSign + ": " + text, new Color(0.75f, 0.85f, 0.95f), 3f);
+    }
+
+    static readonly string[] downLines = { "Человек ранен! Минус один!", "Потеряли бойца!", "Он готов, двухсотый!", "Бойца убили!" };
+    static readonly string[] killLines = { "Цель поражена!", "Минус один!", "Готов!", "Есть, лежит!" };
+    static readonly string[] moveLines = { "Двигаюсь!", "Перемещаюсь, прикрой!", "Пошёл!", "Меняю позицию!" };
+    public void SayMove() { if (Random.value < 0.25f) Callout(moveLines[Random.Range(0, moveLines.Length)], "move"); }
+
+    // Смерть бойца: ближайший товарищ кричит «минус один», убийца-человек — «цель поражена»
+    void DeathCallouts(DamageInfo d)
+    {
+        Soldier mate = null; float best = 30f * 30f;
+        foreach (var u in Unit.All)
+            if (u is Soldier s2 && s2 != this && s2.alive && s2.squad == squad)
+            {
+                float dd = (s2.transform.position - transform.position).sqrMagnitude;
+                if (dd < best) { best = dd; mate = s2; }
+            }
+        if (mate != null) mate.Callout(downLines[Random.Range(0, downLines.Length)], "mandown", true);
+        if (d.attacker is Soldier k && k.alive && Random.value < 0.6f) k.Callout(killLines[Random.Range(0, killLines.Length)], "enemydown");
     }
 
     string Bearing(Vector3 p)
@@ -818,6 +845,7 @@ public class Soldier : Unit
             {
                 coverT = Time.time + 3f;
                 if (!FindCover(target.EyePos, out coverPos)) coverPos = me;
+                else SayMove();
             }
             goal = coverPos; agent.speed = baseSpeed * 1.25f;
             goal.y = me.y;
@@ -1155,6 +1183,7 @@ public class Soldier : Unit
 
     protected override void Die(DamageInfo d)
     {
+        if (!zombie) DeathCallouts(d);
         state = State.Dead;
         StopAllCoroutines();
         if (transform.parent != null) transform.SetParent(null, true);

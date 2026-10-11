@@ -115,6 +115,7 @@ public partial class Battle
             if (skipIntro) break;
             Message(line.who + ": " + line.text, line.radio ? new Color(0.7f, 0.85f, 0.7f) : new Color(1f, 0.85f, 0.55f), line.dur + 0.4f);
             if (line.radio) Sfx.Play2D("radio", 0.35f);
+            else if (officer != null) Speech.Say(officer.transform, line.who, line.text, line.dur + 0.3f, new Color(1f, 0.85f, 0.55f), Random.value < 0.5f ? "vo_talk" : null);
             // командир говорит спокойно; сигналы рукой — только там, где они к месту
             if (officer != null && !line.radio)
             {
@@ -178,20 +179,64 @@ public partial class Battle
             Vector3 look = (spot + heli.transform.forward * 1.2f) - p;
             StandSoldier(mates[i], p, Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg + Random.Range(-8f, 8f));
         }
-        float gest = Time.time + 2f;
+        // командир группы проводит свой брифинг — его слышно и видно, если подойти
+        var lines = SquadBrief(sq);
+        int li = 0;
+        float gest = Time.time + 2f, nextLine = Time.time + Random.Range(2f, 5f);
         while (Time.time < heli.LaunchTime - 22f)
         {
+            var boss = mates[0];
+            if (boss == null || !boss.alive) break;
+            if (Time.time > nextLine)
+            {
+                string text = lines[li % lines.Count]; li++;
+                float d = Mathf.Clamp(2.2f + text.Length * 0.05f, 3f, 7.5f);
+                Speech.Say(boss.transform, sq.def.name.Split(' ')[0] + " — командир", text, d, new Color(1f, 0.85f, 0.55f), Random.value < 0.5f ? "vo_talk" : null);
+                boss.anim.DoSignal(Random.value < 0.7f ? Signal.Talk : Signal.Point);
+                // бойцы иногда отвечают
+                if (Random.value < 0.35f && mates.Count > 2)
+                {
+                    var m = mates[Random.Range(1, mates.Count)];
+                    if (m != null && m.alive) StartCoroutine(Reply(m, d * 0.9f));
+                }
+                nextLine = Time.time + d + Random.Range(0.6f, 1.6f);
+                if (li >= lines.Count) nextLine += 12f;
+            }
             if (Time.time > gest)
             {
                 gest = Time.time + Random.Range(3f, 6f);
-                if (mates[0] != null && mates[0].alive) mates[0].anim.DoSignal(Random.value < 0.8f ? Signal.Talk : Signal.Point);
+                mates[0].anim.DoSignal(Random.value < 0.8f ? Signal.Talk : Signal.Point);
             }
             yield return null;
         }
+        if (mates[0] != null && mates[0].alive) Speech.Say(mates[0].transform, sq.def.name.Split(' ')[0] + " — командир", "По машинам! Пошли, пошли!", 3f, new Color(1f, 0.85f, 0.55f), "vo_move");
         int seat = 0;
         float stagger = 0f;
         foreach (var m in mates)
             if (m != null && m.alive) { StartCoroutine(m.Board(heli, heli.seats[seat++ % heli.seats.Count], stagger)); stagger += Random.Range(0.4f, 0.8f); }
+    }
+
+    static readonly string[] replies = { "Понял.", "Принято.", "Есть.", "Ясно, командир.", "Сколько их там?", "А если объект уже вышел?", "Работаем." };
+    IEnumerator Reply(Soldier m, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+        if (m != null && m.alive) Speech.Say(m.transform, m.CallSign, replies[Random.Range(0, replies.Length)], 2.4f, new Color(0.8f, 0.88f, 0.95f));
+    }
+
+    // Брифинг чужой группы: задача по её роли и обстановке
+    List<string> SquadBrief(SquadRt sq)
+    {
+        var cfg = Cfg;
+        var l = new List<string>();
+        string n = sq.def.name;
+        l.Add("Так, " + n + ", слушаем. Вылетаем вторыми, высадка по команде штаба.");
+        if (cfg.op != null) l.Add("Операция «" + cfg.op.title + "». Наша задача — поддержать первую группу и закрыть подходы.");
+        else l.Add("Район — " + MapGen.MapNames[cfg.map] + ". Комплекс в центре, связь с охраной потеряна.");
+        if (cfg.scps.Count > 0) l.Add("Подтверждён прорыв: " + cfg.scps[0].def.name + ". В объект без команды не стрелять — только сдерживаем.");
+        if (cfg.chaos.Count > 0) l.Add("Хаос уже на месте. Работают группами, с тяжёлым вооружением. Не геройствуем.");
+        l.Add("После высадки — веером, двойками. Связь на втором канале.");
+        l.Add("Раненых не бросаем. Медик — за мной. Вопросы?");
+        return l;
     }
 
     static void StandSoldier(Soldier s, Vector3 p, float yaw)
