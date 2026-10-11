@@ -88,7 +88,7 @@ public partial class Battle
         // офицер за столом с картой, группа полукругом, игрок в центре
         Vector3 table = fob.brief + new Vector3(0, 0, 1.4f);
         var mates = new List<Soldier>();
-        foreach (var m in sq.members) if (m != null && m.alive) mates.Add(m);
+        foreach (var m in sq.members) if (m != null && m.alive && !m.remoteHuman) mates.Add(m);
         Soldier officer = mates.Count > 0 ? mates[0] : null;
         if (officer != null) StandSoldier(officer, table + new Vector3(0.2f, 0, 1.15f), 180f);
         int n = mates.Count - 1;
@@ -253,13 +253,13 @@ public partial class Battle
 
     void IntroInput()
     {
-        if (!intro || fade > 0.5f) return;
+        if (!intro || fade > 0.5f || (Net.IsClient && Net.InGame)) return;
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) skipIntro = true;
     }
 
     void LaunchInput()
     {
-        if (intro || Game.Paused) return;
+        if (intro || Game.Paused || (Net.IsClient && Net.InGame)) return;
         if ((Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter)) && PlayerCanLaunch) LaunchPlayerNow();
     }
 }

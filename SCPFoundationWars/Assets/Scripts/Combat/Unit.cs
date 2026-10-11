@@ -70,6 +70,37 @@ public class Unit : MonoBehaviour
     public float deathTime;
     public int kills;
 
+    // ---- сетевая игра: номер и «марионетка», которую двигают снимки хоста ----
+    public int netId = -1;
+    public bool netPuppet;
+    protected bool netHas;
+    protected Vector3 netPos, netVelocity;
+    protected float netYaw, netPitch, netLookYaw, netTime;
+    public byte netFlags, netWeapon, netExtra;
+    public virtual void NetReceive(Vector3 p, float yaw, float pitch, float lyaw, byte f, float hpNow, byte wpn, byte extra)
+    {
+        if (netHas)
+        {
+            float dt = Mathf.Max(0.03f, Time.time - netTime);
+            netVelocity = Vector3.Lerp(netVelocity, (p - netPos) / dt, 0.6f);
+            if (netVelocity.sqrMagnitude > 400f) netVelocity = Vector3.zero;
+        }
+        else { transform.position = p; transform.rotation = Quaternion.Euler(0, yaw, 0); }
+        netPos = p; netYaw = yaw; netPitch = pitch; netLookYaw = lyaw; netFlags = f; netWeapon = wpn; netExtra = extra;
+        netTime = Time.time; netHas = true;
+        if (alive) hp = Mathf.Max(1f, hpNow);
+        inVehicle = (f & 128) != 0;
+    }
+    public Vector3 NetLook => Quaternion.Euler(-netPitch, netLookYaw, 0) * Vector3.forward;
+    protected void NetMove(float dt)
+    {
+        if (!netHas) return;
+        Vector3 target = netPos + netVelocity * Mathf.Min(0.15f, Time.time - netTime);
+        if ((transform.position - target).sqrMagnitude > 36f) transform.position = target;
+        else transform.position = Vector3.Lerp(transform.position, target, 1f - Mathf.Exp(-14f * dt));
+        transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.Euler(0, netYaw, 0), 1f - Mathf.Exp(-12f * dt));
+    }
+
     public virtual Vector3 AimPoint => chestPoint != null ? chestPoint.position : transform.position + Vector3.up * 1.3f;
     public virtual Vector3 EyePos => eye != null ? eye.position : transform.position + Vector3.up * 1.65f;
     public virtual Vector3 Velocity => Vector3.zero;
@@ -84,6 +115,7 @@ public class Unit : MonoBehaviour
     public virtual void TakeDamage(DamageInfo d)
     {
         if (!alive) return;
+        if (Net.InterceptDamage(this, d)) return;
         float dmg = d.amount;
         bool scpHit = d.attacker != null && d.attacker.isScp && !isScp;
         if (scpHit) dmg *= 2.2f;   // SCP смертоносны: броня не спасает, удары вдвое сильнее
@@ -104,6 +136,7 @@ public class Unit : MonoBehaviour
             deathTime = Time.time;
             if (d.attacker != null && d.attacker != this) d.attacker.kills++;
             Battle.ReportKill(d.attacker, this, d);
+            Net.OnDeath(this, d);
             Die(d);
         }
     }

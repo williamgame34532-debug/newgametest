@@ -15,6 +15,7 @@ public static class Speech
     public static void Say(Transform who, string name, string text, float dur = -1f, Color? col = null, string voice = null)
     {
         if (who == null || string.IsNullOrEmpty(text)) return;
+        Net.OnSpeech(who, name, text, dur, col ?? new Color(0.92f, 0.94f, 0.96f), voice);
         if (dur <= 0) dur = Mathf.Clamp(1.8f + text.Length * 0.055f, 2.2f, 7.5f);
         lines.RemoveAll(l => l.who == who);
         lines.Add(new Line { who = who, name = name, text = text, t0 = Time.time, dur = dur, col = col ?? new Color(0.92f, 0.94f, 0.96f) });

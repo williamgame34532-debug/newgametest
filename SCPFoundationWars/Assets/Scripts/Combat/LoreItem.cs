@@ -101,9 +101,33 @@ public class LoreItem : MonoBehaviour
         Battle.Message("Носитель погиб: «" + def.name + "» на земле — подберите!", new Color(1f, 0.6f, 0.3f), 5f);
     }
 
+    // ---- сетевая игра: у клиента предметом управляет хост ----
+    public void NetAttach(Unit u) { if (u != null && carrier != u) { if (carrier == null && body != null) { } AttachTo(u); Battle.Message((u is Soldier s && s.remoteHuman ? s.nick : u.displayName) + " подобрал: «" + def.name + "»", new Color(0.7f, 0.9f, 1f), 4f); } }
+    public void NetApply(bool isUsed, Unit c, Vector3 p, float k)
+    {
+        applyK = k;
+        if (isUsed && !used) Finish();
+        if (used) return;
+        if (c != null && carrier != c) AttachTo(c);
+        else if (c == null && carrier != null)
+        {
+            transform.SetParent(null, true); carrier = null; prop.gameObject.SetActive(true);
+        }
+        if (carrier == null) transform.position = Vector3.Lerp(transform.position, p, 0.5f);
+    }
+    float pickReqT;
+
     void Update()
     {
         if (used) return;
+        if (Net.IsClient && Net.InGame)
+        {
+            // подобрать: просим хоста
+            var pc = PlayerController.I;
+            if (carrier == null && pc != null && !pc.dead && Time.time > pickReqT && (pc.transform.position - transform.position).sqrMagnitude < 2.2f)
+            { pickReqT = Time.time + 1f; Net.RequestPickup(All.IndexOf(this)); }
+            return;
+        }
         if (carrier != null && (!carrier.alive || (carrier is Soldier cs && cs.zombie))) Drop();
         if (carrier == null)
         {

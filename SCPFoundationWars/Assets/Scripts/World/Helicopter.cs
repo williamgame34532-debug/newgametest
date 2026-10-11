@@ -300,7 +300,23 @@ public class Helicopter : MonoBehaviour
     public bool IsWaiting => phase == Phase.Waiting;
     public bool Cruising => phase == Phase.Inbound;
     public Vector3 LZ => lz;
-    public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting && !onPad) phase = Phase.Inbound; }
+    public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting && !onPad) phase = Phase.Inbound; Net.OnLaunch(this); }
+
+    // Сетевая игра: у клиента борт идёт по снимкам хоста (логика полёта работает, но положение — хоста)
+    bool netDriven; Vector3 netPos; Quaternion netRot;
+    public void NetDrive(Vector3 p, Quaternion q)
+    {
+        if (!netDriven) { transform.position = p; transform.rotation = q; }
+        netDriven = true; netPos = p; netRot = q;
+    }
+    void LateUpdate()
+    {
+        if (!netDriven) return;
+        float k = 1f - Mathf.Exp(-10f * Time.deltaTime);
+        if ((transform.position - netPos).sqrMagnitude > 900f) transform.position = netPos;
+        transform.position = Vector3.Lerp(transform.position, netPos, k);
+        transform.rotation = Quaternion.Slerp(transform.rotation, netRot, k);
+    }
 
     // Доклады пилота борту с игроком
     int callStage;
@@ -636,6 +652,7 @@ public class Helicopter : MonoBehaviour
     // ---------------- урон и крушение ----------------
     public void Damage(float amount, Unit attacker)
     {
+        if (Net.IsClient && Net.InGame) return;   // повреждения бортов считает хост
         if (phase == Phase.Crash || phase == Phase.Dead || phase == Phase.Waiting) return;
         if (attacker != null && attacker.team == team) return;
         hp -= amount;
@@ -857,8 +874,8 @@ public class ScpContainer : MonoBehaviour
         Sfx.Play("door_open", dp, 1f, 0.8f, 120f);
         Sfx.Play("explosion", dp, 0.7f, 1.4f, 200f);
         Fx.Smoke(dp, 4f, new Color(0.6f, 0.6f, 0.6f, 0.5f), 5f, Vector3.up);
-        // выпускаем объекты
-        for (int i = 0; i < count; i++)
+        // выпускаем объекты (в сетевой игре у клиента их создаёт сообщение хоста)
+        for (int i = 0; i < count && !(Net.IsClient && Net.InGame); i++)
         {
             Vector3 p = transform.position + transform.forward * (kind == ScpKind.S682 ? 0f : -0.5f) + transform.right * ((i % 3) - 1) * 0.8f + transform.forward * -(i / 3) * 0.8f;
             var u = ScpFactory.Spawn(kind, p, transform.rotation);

@@ -333,7 +333,10 @@ public class Gun
         if (reloading) reloading = false; // выстрел прерывает зарядку дробовика
         ammo--;
         nextFire = Time.time + def.Interval;
-        Ballistics.Fire(def, owner, origin, dir, spreadMul, muzzle);
+        Net.InFire = true;
+        try { Ballistics.Fire(def, owner, origin, dir, spreadMul, muzzle); }
+        finally { Net.InFire = false; }
+        Net.OnFire(owner, def, origin, dir, spreadMul, muzzle);
         return true;
     }
 }
@@ -484,6 +487,7 @@ public class Surface : MonoBehaviour
 // Реактивная граната РПГ
 public class Rocket : MonoBehaviour
 {
+    bool cosmetic;   // сетевой повтор чужого выстрела: только эффект, урон считает хост
     Unit owner;
     WeaponDef def;
     Vector3 vel;
@@ -499,6 +503,7 @@ public class Rocket : MonoBehaviour
         MeshKit.Ball(go.transform, new Vector3(0, 0, -0.27f), Vector3.one * 0.12f, Mats.Glow(new Color(1f, 0.6f, 0.2f), 6f));
         var r = go.AddComponent<Rocket>();
         r.owner = owner; r.def = def; r.vel = dir * 70f;
+        r.cosmetic = Net.Cosmetic || (Net.IsClient && Net.InGame);
         var l = go.AddComponent<Light>();
         l.color = new Color(1f, 0.6f, 0.25f); l.range = 8; l.intensity = 2.5f;
     }
@@ -512,12 +517,17 @@ public class Rocket : MonoBehaviour
         if (Combat.Ray(transform.position, step.normalized, step.magnitude + 0.3f, owner, out var hit, Layers.ShotMask) || life > 5f)
         {
             Vector3 p = life > 5f ? transform.position : hit.point - step.normalized * 0.2f;
-            if (life <= 5f)
+            bool was = Net.Cosmetic; Net.Cosmetic = cosmetic;
+            try
             {
-                var heli = hit.collider.GetComponentInParent<Helicopter>();
-                if (heli != null) heli.Damage(def.damage * 2.5f, owner);
+                if (life <= 5f && !cosmetic)
+                {
+                    var heli = hit.collider.GetComponentInParent<Helicopter>();
+                    if (heli != null) heli.Damage(def.damage * 2.5f, owner);
+                }
+                Combat.Explode(p, 6.5f, def.damage, owner, def.name, 1100f);
             }
-            Combat.Explode(p, 6.5f, def.damage, owner, def.name, 1100f);
+            finally { Net.Cosmetic = was; }
             Destroy(gameObject);
             return;
         }
@@ -531,6 +541,7 @@ public class Rocket : MonoBehaviour
 // Ручная граната / выстрел гранатомёта
 public class Grenade : MonoBehaviour
 {
+    bool cosmetic;
     Unit owner;
     bool impact;
     float damage, t, fuse;
@@ -538,6 +549,7 @@ public class Grenade : MonoBehaviour
 
     public static void Spawn(Vector3 pos, Vector3 vel, Unit owner, bool impact, float damage = 160f)
     {
+        Net.OnThrow(owner, pos, vel, impact, damage);
         var go = new GameObject("grenade");
         go.layer = Layers.Corpse;
         go.transform.position = pos;
@@ -557,6 +569,7 @@ public class Grenade : MonoBehaviour
         rb.SetDamping(0.05f, 0.05f);
         var g = go.AddComponent<Grenade>();
         g.owner = owner; g.impact = impact; g.damage = damage; g.fuse = impact ? 6f : Random.Range(2.6f, 3.2f);
+        g.cosmetic = Net.Cosmetic || (Net.IsClient && Net.InGame);
         if (owner != null)
             foreach (var c in owner.GetComponentsInChildren<Collider>()) Physics.IgnoreCollision(col, c);
     }
@@ -578,7 +591,9 @@ public class Grenade : MonoBehaviour
     {
         if (this == null || !enabled) return;
         enabled = false;
-        Combat.Explode(transform.position + Vector3.up * 0.2f, impact ? 5f : 7f, damage, owner, impact ? "Гранатомёт" : "Граната", 1000f);
+        bool was = Net.Cosmetic; Net.Cosmetic = cosmetic;
+        try { Combat.Explode(transform.position + Vector3.up * 0.2f, impact ? 5f : 7f, damage, owner, impact ? "Гранатомёт" : "Граната", 1000f); }
+        finally { Net.Cosmetic = was; }
         Destroy(gameObject);
     }
 }

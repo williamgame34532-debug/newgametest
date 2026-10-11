@@ -16,6 +16,8 @@ public class BattleConfig
     public bool friendlyFire;
     public int playerSquad;
     public int seed = 1;
+    public List<NetHuman> humans;     // сетевая игра: живые игроки по отрядам (null — одиночная)
+    public bool introOn;
     public OperationDef op;          // сценарий «Реальные операции» (или null)
     public bool captureEnds = true;
 }
@@ -109,6 +111,8 @@ public partial class Battle : MonoBehaviour
     {
         loading = true;
         var cfg = Cfg;
+        Random.InitState(cfg.seed);   // одинаковая раскладка у всех участников сетевой игры
+        netSetupDone = false;
         startTime = Time.time;
         Ragdoll.MaxCorpses = Game.CorpseLimit;
         Fx.BloodLevel = Game.Blood;
@@ -138,6 +142,22 @@ public partial class Battle : MonoBehaviour
         var nav = MapGen.BakeNavAsync();
         while (nav != null && !nav.isDone) { loadProgress = nav.progress; yield return null; }
         loadProgress = 1f;
+        // сетевая игра: все загрузили карту — начинаем одновременно
+        if (Net.InGame)
+        {
+            if (Net.IsHost)
+            {
+                float until = Time.realtimeSinceStartup + 90f;
+                while (!Net.AllLoaded && Time.realtimeSinceStartup < until) yield return null;
+                Net.SendGo();
+            }
+            else
+            {
+                Net.ReportLoaded();
+                while (!Net.Go && Net.InGame) yield return null;
+            }
+            Random.InitState(cfg.seed + 1);
+        }
         loading = false;
         Ambience.Create(cfg.time == 2, cfg.map).transform.SetParent(transform);
         for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, cfg.foundation[i].placed ? MapGen.Height(lzF[i].x, lzF[i].z) : GroundHeight(lzF[i]), lzF[i].z);
@@ -149,7 +169,8 @@ public partial class Battle : MonoBehaviour
         List<IntroLine> introLines = null;
         float introDur = 0f;
         bool hasPlayerSquad = cfg.playerFps && cfg.foundation.Count > 0 && !cfg.foundation[Mathf.Clamp(cfg.playerSquad, 0, cfg.foundation.Count - 1)].placed;
-        if (hasPlayerSquad && Game.Intro) { introLines = Script(cfg); introDur = IntroLength(introLines); }
+        if (cfg.humans != null) hasPlayerSquad = HumansIn(cfg, Team.Foundation, Mathf.Clamp(cfg.playerSquad, 0, Mathf.Max(0, cfg.foundation.Count - 1))).Count > 0;
+        if (hasPlayerSquad && (cfg.humans != null ? cfg.introOn : Game.Intro)) { introLines = Script(cfg); introDur = IntroLength(introLines); }
         playerHeli = null; SquadRt playerSq = null;
         // передовая база в южной долине: борта Фонда стоят на площадках
         fob = null;
@@ -160,35 +181,31 @@ public partial class Battle : MonoBehaviour
         for (int i = 0; i < nF; i++)
         {
             var pick = cfg.foundation[i];
-            bool playerHere = cfg.playerFps && i == cfg.playerSquad;
+            var humans = HumansIn(cfg, Team.Foundation, i);
+            bool playerHere = humans.Count > 0;
             var lz = lzF[i];
             if (pick.placed && !playerHere) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
             var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 4f + i * 4f + pick.delay };
             squads.Add(sq);
-            int bots = playerHere ? pick.count - 1 : pick.count;
-            int seat = playerHere ? 1 : 0;
+            int bots = Mathf.Max(0, pick.count - humans.Count);
+            int seat = humans.Count;
             for (int k = 0; k < bots; k++)
             {
-                var s = Soldier.Create(pick.def, heli.transform.position, heli.transform.rotation, k + (playerHere ? 1 : 0), night);
+                var s = Soldier.Create(pick.def, heli.transform.position, heli.transform.rotation, k + humans.Count, night);
+                Net.Assign(s);
                 s.squadRt = sq; sq.members.Add(s);
                 s.SitIn(heli.seats[(seat + k) % heli.seats.Count]);
                 heli.passengers.Add(s);
             }
-            if (playerHere)
-            {
-                var pc = PlayerController.Create(pick.def);
-                pc.RideIn(heli, heli.seats[0]);
-                heli.playerPassenger = pc;
-                playerHeli = heli; playerSq = sq;
-            }
+            if (SpawnHumans(humans, pick.def, heli, sq, night)) { playerHeli = heli; playerSq = sq; }
             Vector3 exit = new Vector3(lz.x * 0.3f, lz.y + 120f, -MapGen.OuterR + 300f);
             float delay = introDur + 4f + i * 4f + pick.delay;
             if (fob != null && (playerHere || padN < fob.pads.Count))
             {
                 heli.LaunchFromPad(fob.pads[playerHere ? 0 : padN++], 0f, lz, exit, delay);
                 // при вступлении другие группы тоже на базе: брифинг у своего борта и посадка
-                if (!playerHere && introLines != null) StartCoroutine(SquadAtFob(heli, sq));
+                if (!playerHere && introLines != null && !Net.IsClient) StartCoroutine(SquadAtFob(heli, sq));
             }
             else
             {
@@ -202,19 +219,23 @@ public partial class Battle : MonoBehaviour
         {
             var pick = cfg.chaos[i];
             var lz = lzC[i];
-            if (pick.placed) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
+            var humansC = HumansIn(cfg, Team.Chaos, i);
+            if (pick.placed && humansC.Count == 0) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
             bool rope = pick.def.fastRope;
             var heli = Helicopter.Create(Team.Chaos, pick.def.label, new Color(0.24f, 0.26f, 0.17f), pick.def.look.accent, Mathf.Max(pick.count, 2), rope);
             var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 6f + i * 4f + pick.delay };
             squads.Add(sq);
-            for (int k = 0; k < pick.count; k++)
+            int botsC = Mathf.Max(0, pick.count - humansC.Count);
+            for (int k = 0; k < botsC; k++)
             {
-                var s = Soldier.Create(pick.def, heli.transform.position, heli.transform.rotation, k, night);
+                var s = Soldier.Create(pick.def, heli.transform.position, heli.transform.rotation, k + humansC.Count, night);
+                Net.Assign(s);
                 s.squadRt = sq; sq.members.Add(s);
-                s.SitIn(heli.seats[k % heli.seats.Count]);
+                s.SitIn(heli.seats[(k + humansC.Count) % heli.seats.Count]);
                 heli.passengers.Add(s);
                 s.homeDir = Vector3.forward;
             }
+            if (SpawnHumans(humansC, pick.def, heli, sq, night)) playerSqRt = sq;
             Vector3 entry = new Vector3(lz.x * 0.3f + Random.Range(-30f, 30f), lz.y + 260f, FarEntry);
             Vector3 exit = new Vector3(lz.x * 0.3f, lz.y + 160f, FarEntry + 300f);
             heli.Launch(entry, lz, exit, introDur + 6f + i * 4f + pick.delay);
@@ -236,6 +257,7 @@ public partial class Battle : MonoBehaviour
                     p.y = MapGen.Height(p.x, p.z);
                     if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 8f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
                     var u = ScpFactory.Spawn(pick.def.kind, p, Quaternion.Euler(0, Random.Range(0f, 360f), 0));
+                    Net.Assign(u);
                     if (u != null) Register(u);
                     if (u is ScpUnit su) su.Hold(false);
                     else if (u is Soldier zs) zs.BeginCombat(p);
@@ -264,11 +286,12 @@ public partial class Battle : MonoBehaviour
         cmdC = new TeamCommander(Team.Chaos, bC);
         foreach (var sq in squads) (sq.team == Team.Foundation ? cmdF : cmdC).squads.Add(sq);
         startTime = Time.time;
-        playerSqRt = playerSq;
+        if (playerSq != null || playerSqRt == null) playerSqRt = playerSq;
+        netSetupDone = true;
         GiveLoreItem(cfg, playerSq);
         if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
         if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
-        if (introLines != null && playerHeli != null && PlayerController.I != null)
+        if (introLines != null && playerHeli != null && PlayerController.I != null && PlayerController.I.unit.team == Team.Foundation)
         {
             playerHeli.playerPassenger = null;
             StartCoroutine(IntroRoutine(playerHeli, playerSq, PlayerController.I, introLines));
@@ -300,6 +323,7 @@ public partial class Battle : MonoBehaviour
             p.y = MapGen.Height(p.x, p.z);
             if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 6f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
             var s = Soldier.Create(pick.def, p, Quaternion.LookRotation(face), k, night);
+            Net.Assign(s);
             s.squadRt = sq; sq.members.Add(s);
             s.homeDir = face;
             s.BeginCombat(p);
@@ -310,6 +334,7 @@ public partial class Battle : MonoBehaviour
     public static void Message(string text, Color c, float life = 5f)
     {
         if (I == null) return;
+        Net.OnMessage(text, c, life);
         I.messages.Add(new FeedEntry { text = text, color = c, time = Time.unscaledTime, life = life });
         if (I.messages.Count > 6) I.messages.RemoveAt(0);
     }
@@ -329,7 +354,63 @@ public partial class Battle : MonoBehaviour
         if (I.feed.Count > 7) I.feed.RemoveAt(0);
     }
 
-    public static void Register(Unit u) { }
+    public static void Register(Unit u) { if (I != null && I.netSetupDone) Net.HostSpawned(u); }
+    public bool netSetupDone;
+
+    // Живые игроки в отряде (одиночная игра — только сам игрок в своём отряде)
+    static List<NetHuman> HumansIn(BattleConfig cfg, Team t, int i)
+    {
+        var l = new List<NetHuman>();
+        if (cfg.humans != null) { foreach (var h in cfg.humans) if (h.team == t && h.squad == i) l.Add(h); }
+        else if (t == Team.Foundation && cfg.playerFps && i == cfg.playerSquad) l.Add(new NetHuman { peer = 0, team = t, squad = i });
+        return l;
+    }
+
+    // Посадка живых игроков в борт: свой — управляемый игрок, чужие — их тела-представители. true — среди них свой.
+    bool SpawnHumans(List<NetHuman> humans, SquadDef def, Helicopter heli, SquadRt sq, bool night)
+    {
+        bool mine = false;
+        for (int j = 0; j < humans.Count; j++)
+        {
+            var h = humans[j];
+            var seat = heli.seats[j % heli.seats.Count];
+            bool local = Cfg.humans == null || h.peer == Net.MyPeer;
+            if (local)
+            {
+                var pc = PlayerController.Create(def);
+                Net.Assign(pc.unit);
+                pc.RideIn(heli, seat);
+                heli.playerPassenger = pc;
+                mine = true;
+            }
+            else
+            {
+                var s = Soldier.Create(def, heli.transform.position, heli.transform.rotation, j, night);
+                s.remoteHuman = true; s.netPeer = h.peer; s.nick = h.nick; s.displayName = h.nick;
+                Net.Assign(s);
+                s.squadRt = sq; sq.members.Add(s);
+                s.SitIn(seat);
+            }
+        }
+        return mine;
+    }
+
+    // Клиент: хост поднял борт (пропустил брифинг) — у нас тоже
+    public void NetLaunch(int i)
+    {
+        if (i < 0 || i >= helis.Count || helis[i] == null) return;
+        var h = helis[i];
+        if (h == playerHeli && intro) { skipIntro = true; return; }   // брифинг сам доведёт до посадки
+        h.LaunchNow();
+        var pc = PlayerController.I;
+        if (h == playerHeli && pc != null && !pc.riding && !pc.dead)
+        {
+            int seat = 0;
+            if (Cfg.humans != null) for (int j = 0; j < Cfg.humans.Count; j++) if (Cfg.humans[j].peer == Net.MyPeer) { seat = j; break; }
+            pc.RideIn(h, h.seats[seat % h.seats.Count]);
+            h.playerPassenger = pc;
+        }
+    }
 
     // ---------------- запросы ----------------
     public static float GroundHeight(Vector3 p)
@@ -503,6 +584,7 @@ public partial class Battle : MonoBehaviour
         if (loading) return;
         IntroInput();
         LaunchInput();
+        if (Net.IsClient && Net.InGame) return;   // у клиента бой ведёт хост
         if (!over)
         {
             cmdF?.Tick(Time.deltaTime);

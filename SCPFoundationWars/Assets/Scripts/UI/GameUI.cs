@@ -4,7 +4,7 @@ using UnityEngine;
 // Интерфейс (IMGUI): главное меню, выбор отрядов, настройки, HUD, пауза, итоги
 public partial class Game
 {
-    GUIStyle title, h1, h2, body, small, btn, btnBig, card, cardSel, panel, center, ammoBig, feedSt, msgSt, toggleOn, toggleOff, tagSt;
+    GUIStyle title, h1, h2, body, small, btn, btnBig, card, cardSel, panel, center, ammoBig, feedSt, msgSt, toggleOn, toggleOff, tagSt, field;
     Texture2D white;
     Vector2 scrollF, scrollC, scrollS;
     float W, H;
@@ -46,6 +46,8 @@ public partial class Game
         feedSt = new GUIStyle { fontSize = 17, alignment = TextAnchor.MiddleRight, fontStyle = FontStyle.Bold };
         msgSt = new GUIStyle { fontSize = 26, alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
         toggleOn = new GUIStyle(btn) { fontSize = 17 }; toggleOn.normal.background = Solid(new Color(0.2f, 0.45f, 0.75f)); toggleOn.hover.background = Solid(new Color(0.25f, 0.52f, 0.85f));
+        field = new GUIStyle(GUI.skin.textField) { fontSize = 18, alignment = TextAnchor.MiddleLeft };
+        field.padding = new RectOffset(8, 8, 4, 4);
         toggleOff = new GUIStyle(btn) { fontSize = 17 };
         tagSt = new GUIStyle { fontSize = 14, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleCenter };
         tagSt.normal.textColor = Color.black;
@@ -86,6 +88,7 @@ public partial class Game
             case Scr.Settings: SettingsGUI(); break;
             case Scr.Ops: OpsGUI(); break;
             case Scr.Battle: BattleGUI(); break;
+            case Scr.Net: NetGUI(); break;
         }
     }
 
@@ -136,6 +139,8 @@ public partial class Game
         y += 68;
         if (lastCfg != null) { if (MenuButton(new Rect(64, y, 560, 58), "Повторить последнюю", "Тот же состав, новая карта")) { var c = lastCfg; c.seed = Random.Range(1, 99999); StartBattle(c); } y += 68; }
         if (MenuButton(new Rect(64, y, 560, 58), "Быстрый бой", "Случайные отряды, противник и место")) { Randomize(); StartBattle(MakeConfig()); }
+        y += 68;
+        if (MenuButton(new Rect(64, y, 560, 58), "Сетевая игра", "С друзьями: Steam или по IP — кооператив и песочница")) screen = Scr.Net;
         y += 68;
         if (MenuButton(new Rect(64, y, 560, 58), "Настройки", "Графика, звук, управление")) { settingsReturn = Scr.Menu; screen = Scr.Settings; }
         y += 68;
@@ -248,9 +253,9 @@ public partial class Game
         string why = !okF ? "Выбери хотя бы один отряд Фонда" : !okE ? "Выбери противников: Хаос и/или SCP" : "";
         if (why != "") Label(new Rect(W - 520, by - 40, 480, 30), why, small, new Color(1f, 0.5f, 0.4f));
         GUI.enabled = okF && okE;
-        if (GUI.Button(new Rect(W - 380, by + 18, 340, 60), "В БОЙ!", btnBig)) { Sfx.Play2D("ui"); StartBattle(MakeConfig()); }
+        if (GUI.Button(new Rect(W - 380, by + 18, 340, 60), NetHosting ? "НАЧАТЬ У ВСЕХ" : "В БОЙ!", btnBig)) { Sfx.Play2D("ui"); Launch(MakeConfig()); }
         GUI.enabled = true;
-        if (GUI.Button(new Rect(40, by + 82, 160, 40), "← Назад", btn)) { SavePrefs(); screen = Scr.Menu; }
+        if (GUI.Button(new Rect(40, by + 82, 160, 40), "← Назад", btn)) { SavePrefs(); screen = NetHosting ? Scr.Net : Scr.Menu; }
         if (playerFps && fOrder.Count > 0)
         {
             string pn = "";
@@ -402,9 +407,9 @@ public partial class Game
 
         float by = H - 130;
         Rect(new Rect(0, by - 8, W, 138), new Color(0, 0, 0, 0.6f));
-        if (GUI.Button(new Rect(40, by + 30, 160, 50), "← Назад", btn)) { Sfx.Play2D("ui"); screen = Scr.Menu; }
+        if (GUI.Button(new Rect(40, by + 30, 160, 50), "← Назад", btn)) { Sfx.Play2D("ui"); screen = NetHosting ? Scr.Net : Scr.Menu; }
         if (GUI.Button(new Rect(230, by + 30, 300, 50), playerFps ? "Режим: от первого лица" : "Режим: наблюдатель", playerFps ? toggleOn : toggleOff)) playerFps = !playerFps;
-        if (GUI.Button(new Rect(W - 460, by + 20, 420, 66), "НАЧАТЬ ОПЕРАЦИЮ", btnBig)) { Sfx.Play2D("ui_confirm"); StartBattle(op.ToConfig(playerFps)); }
+        if (GUI.Button(new Rect(W - 460, by + 20, 420, 66), NetHosting ? "НАЧАТЬ У ВСЕХ" : "НАЧАТЬ ОПЕРАЦИЮ", btnBig)) { Sfx.Play2D("ui_confirm"); Launch(op.ToConfig(true)); }
     }
 
     // ---------------- настройки ----------------
@@ -482,6 +487,7 @@ public partial class Game
         }
         if (Cinematic.Active || Cinematic.Fade > 0.001f) { CinematicOverlay(); if (Cinematic.Active) { if (Paused) PauseGUI(); return; } }
         Speech.Draw(Screen.height / 1080f);
+        NickLabels();
         var pc = PlayerController.I;
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
@@ -1062,6 +1068,7 @@ public partial class Game
         float tm = Time.time - b.startTime;
         Label(new Rect(x + 60, yy + 6, w - 120, 30), "Длительность боя: " + string.Format("{0:00}:{1:00}", (int)(tm / 60), (int)(tm % 60)), body, Color.white);
         yy += 60;
+        if (Net.InGame) { NetEndButtons(x + 60, yy); return; }
         if (GUI.Button(new Rect(x + 40, yy, 220, 54), "Ещё раз", btn)) { var c = MakeConfig(); if (lastCfg != null) { lastCfg.seed = Random.Range(1, 99999); c = lastCfg; } StartBattle(c); }
         if (GUI.Button(new Rect(x + 270, yy, 220, 54), b.debrief != null ? "Другая операция" : "Изменить отряды", btn)) { ShowMenu(); screen = b.debrief != null ? Scr.Ops : Scr.Setup; }
         if (GUI.Button(new Rect(x + 500, yy, 220, 54), "Главное меню", btn)) ShowMenu();
@@ -1080,6 +1087,7 @@ public partial class Game
             if (GUI.Button(new Rect(x, y, 300, 54), "Вылететь сейчас", btn)) { Battle.I.LaunchPlayerNow(); Paused = false; }
             y += 64;
         }
+        if (Net.InGame) { NetEndButtons(x, y); y += 64; if (GUI.Button(new Rect(x, y, 300, 54), "Выход из игры", btn)) Application.Quit(); SettingsBody(x + 340, 140); return; }
         if (GUI.Button(new Rect(x, y, 300, 54), "Начать заново", btn)) { var c = lastCfg; if (c != null) { c.seed = Random.Range(1, 99999); StartBattle(c); } }
         y += 64;
         if (GUI.Button(new Rect(x, y, 300, 54), "Изменить отряды", btn)) { ShowMenu(); screen = Scr.Setup; }

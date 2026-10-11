@@ -177,8 +177,26 @@ public abstract class ScpUnit : Unit
         transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(dir), speed * dt);
     }
 
+    // сетевое состояние объекта (у 096 — режим) и его отображение у клиента
+    public virtual byte NetState() => 0;
+    protected virtual void NetVisual(byte s) { }
+
+    void PuppetUpdate()
+    {
+        float dt = Time.deltaTime;
+        if (agent != null && agent.enabled) agent.enabled = false;
+        NetMove(dt);
+        SetAnimVelocity(netHas ? netVelocity : Vector3.zero);
+        subdued = (netFlags & 4) != 0;
+        itemApplied = (netFlags & 16) != 0;
+        if ((netFlags & 8) != 0 && !captured) Capture(Team.Foundation);
+        NetVisual(netExtra);
+        if (subdued) SubduedPose();
+    }
+
     protected virtual void Update()
     {
+        if (netPuppet) { if (alive) PuppetUpdate(); return; }
         if (!alive || held) return;
         if (subdued)
         {
@@ -682,6 +700,19 @@ public class Scp096 : HumanScp
         base.OnHurt(d, dmg);
     }
 
+    public override byte NetState() => (byte)mode;
+    byte shownMode;
+    protected override void NetVisual(byte s)
+    {
+        anim.aimDir = netHas ? NetLook : transform.forward;
+        if (s == shownMode) return;
+        shownMode = s;
+        mode = (Mode)s;
+        if (mode == Mode.Triggered) { Sfx.Play(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform.position, 1f, 1f, 220f); if (cry != null) cry.Stop(); anim.handsOnFace = true; }
+        if (mode == Mode.Rage) { anim.style = AnimStyle.ShyRage; anim.handsOnFace = false; if (rageLoop == null) rageLoop = Sfx.Loop(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform, 0.85f, 160f, 1f); else rageLoop.Play(); }
+        if (mode == Mode.Calm) { anim.style = AnimStyle.Shy; if (rageLoop != null) rageLoop.Stop(); if (cry != null && !cry.isPlaying) cry.Play(); }
+    }
+
     protected override void Die(DamageInfo d)
     {
         if (cry != null) cry.Stop();
@@ -763,6 +794,7 @@ public class Scp049 : HumanScp
                 {
                     p.Reanimate();
                     Battle.Register(p);
+                    Net.HostReanimated(p);
                     Battle.Message("SCP-049 «вылечил» бойца — встаёт SCP-049-2", new Color(0.8f, 0.9f, 0.6f));
                 }
                 if (AgentOk) agent.isStopped = false;

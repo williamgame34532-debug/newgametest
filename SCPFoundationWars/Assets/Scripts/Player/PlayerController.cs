@@ -11,7 +11,7 @@ public class PlayerUnit : Unit
     public override Vector3 AimPoint => transform.position + Vector3.up * (pc != null && pc.crouching ? 0.85f : 1.25f);
     public override Vector3 Velocity => pc != null ? pc.velocity : Vector3.zero;
     protected override void OnHurt(DamageInfo d, float dmg) { pc.OnHurt(d, dmg); }
-    protected override void Die(DamageInfo d) { pc.OnDeath(d); }
+    protected override void Die(DamageInfo d) { Net.LocalDied(d); pc.OnDeath(d); }
     public override void HitFx(Vector3 point, Vector3 normal, Vector3 dir, Hitbox hb)
     {
         Fx.Blood(point, dir, 0.6f);
@@ -95,7 +95,7 @@ public class PlayerController : MonoBehaviour
         pc.unit = go.AddComponent<PlayerUnit>();
         pc.unit.pc = pc;
         pc.unit.isPlayer = true;
-        pc.unit.team = Team.Foundation;
+        pc.unit.team = def.team;
         pc.unit.squad = def;
         pc.unit.displayName = "Игрок";
         pc.unit.maxHp = pc.unit.hp = def.hp;
@@ -378,7 +378,8 @@ public class PlayerController : MonoBehaviour
     // Ravenfield-стиль: взять под контроль живого бойца своей стороны
     public static bool TakeOver(Soldier s)
     {
-        if (s == null || !s.alive) return false;
+        if (s == null || !s.alive || s.remoteHuman || (Net.IsClient && Net.InGame)) return false;
+        int nid = s.netId;
         var def = s.squad;
         var pos = s.transform.position;
         var rot = s.transform.rotation;
@@ -391,6 +392,7 @@ public class PlayerController : MonoBehaviour
         pc.transform.position = pos;
         pc.yaw = rot.eulerAngles.y;
         pc.unit.hp = hp;
+        Net.Rebind(pc.unit, nid);
         Battle.Message("Вы взяли под контроль: " + def.name + " " + def.nick, new Color(0.6f, 0.85f, 1f));
         return true;
     }

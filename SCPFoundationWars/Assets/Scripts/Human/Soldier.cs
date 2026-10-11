@@ -76,6 +76,8 @@ public class Soldier : Unit
     Unit healTarget; float healStart = -1f, medT;
     bool IsMedic => squadRt != null && index == 1;
     // страх: видел, как SCP выкашивает группу; бегство к другой группе с докладом
+    // сетевая игра: представитель живого игрока (у хоста — тело клиента, у клиента — тело хоста/других)
+    public bool remoteHuman; public int netPeer = -1; public string nick;
     public float fear; public bool fleeing; SquadRt fleeTo; Vector3 dangerPos; string dangerName; float fleeStart;
     float chatT;
 
@@ -388,6 +390,7 @@ public class Soldier : Unit
         float dt = Time.deltaTime;
         if (dt <= 0) return;
         if (state == State.Dead || !alive) return;
+        if (netPuppet) { PuppetUpdate(dt); return; }
         Vector3 p = transform.position;
         if (state == State.Combat) vel = agent != null && agent.enabled ? agent.velocity : Vector3.zero;
         lastPos = p;
@@ -483,6 +486,26 @@ public class Soldier : Unit
         face.y = 0;
         if (face.sqrMagnitude > 0.001f)
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(face), 400f * dt);
+    }
+
+    // Марионетка: положение, взгляд, поза и оружие — из сети
+    void PuppetUpdate(float dt)
+    {
+        if (agent != null && agent.enabled) agent.enabled = false;
+        if (current != null) current.Tick(transform.position);
+        bool seatedNet = (netFlags & 2) != 0;
+        if (transform.parent != null && netHas && !seatedNet) transform.SetParent(null, true);
+        if (transform.parent == null) NetMove(dt);
+        vel = transform.parent == null ? netVelocity : Vector3.zero;
+        if (state == State.Transport && netHas && !seatedNet) state = State.Combat;
+        anim.velocity = vel;
+        anim.aimDir = netHas ? NetLook : transform.forward;
+        anim.crouch = (netFlags & 1) != 0;
+        anim.seated = seatedNet && transform.parent != null;
+        anim.sprint = (netFlags & 32) != 0;
+        anim.speedMul = speedMul;
+        Gun want = netWeapon == 1 && secondary != null ? secondary : netWeapon == 2 && special != null ? special : primary;
+        if (want != null && want != current) Equip(want, flashlightOn);
     }
 
     float EngageRange()
@@ -1311,7 +1334,7 @@ public class Soldier : Unit
 
     protected override void Die(DamageInfo d)
     {
-        if (!zombie) { DeathCallouts(d); if (d.attacker is ScpUnit killer) Witnesses(killer); }
+        if (!zombie && !netPuppet) { DeathCallouts(d); if (d.attacker is ScpUnit killer) Witnesses(killer); }
         state = State.Dead;
         StopAllCoroutines();
         if (transform.parent != null) transform.SetParent(null, true);

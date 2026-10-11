@@ -11,7 +11,7 @@ public partial class Game : MonoBehaviour
     public static bool Intro = true;   // брифинг на базе перед вылетом
     public static bool Paused;
 
-    public enum Scr { Menu, Setup, Settings, Battle, Ops }
+    public enum Scr { Menu, Setup, Settings, Battle, Ops, Net }
     public static Scr screen = Scr.Menu;
     Scr settingsReturn = Scr.Menu;
 
@@ -64,6 +64,8 @@ public partial class Game : MonoBehaviour
         I = go.AddComponent<Game>();
         Sfx.Init();
         Fx.Init();
+        Net.EnsureRunner();
+        SteamNet.Init();
         I.LoadPrefs();
         I.ShowMenu();
     }
@@ -242,12 +244,13 @@ public partial class Game : MonoBehaviour
             return;
         }
         if (Input.GetKeyDown(KeyCode.Escape)) Paused = !Paused;
-        if (!Paused && Input.GetKeyDown(KeyCode.T))
+        if (!Paused && !Net.InGame && Input.GetKeyDown(KeyCode.T))
         {
             slowMo = slowMo < 1f ? 1f : 0.3f;
             Battle.Message(slowMo < 1f ? "Замедление времени" : "Нормальная скорость", Color.white);
         }
-        Time.timeScale = Paused ? 0f : slowMo;
+        if (Net.InGame) slowMo = 1f;   // в сетевой игре время не останавливается
+        Time.timeScale = Paused && !Net.InGame ? 0f : slowMo;
         Time.fixedDeltaTime = 0.02f * Mathf.Max(0.05f, Time.timeScale);
         var pc = PlayerController.I;
         bool wantLock = !Paused && ((pc != null && !pc.dead) || SpectatorCam.Active);
@@ -286,6 +289,7 @@ public partial class Game : MonoBehaviour
                     if (d < bd) { bd = d; best = s; }
                 }
         if (best == null) { Battle.Message("Нет живых бойцов Фонда", new Color(1f, 0.5f, 0.4f)); return; }
+        if (Net.IsClient && Net.InGame) { Battle.Message("В сетевой игре после гибели — только наблюдение", new Color(1f, 0.7f, 0.4f)); return; }
         PlayerController.TakeOver(best);
     }
 }
