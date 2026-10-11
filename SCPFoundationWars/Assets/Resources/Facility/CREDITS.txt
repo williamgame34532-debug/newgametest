@@ -1,0 +1,5 @@
+room_*.bytes, fx_*.jpg/png — помещения и текстуры комплекса из SCP - Containment Breach (Joonas Rikkonen "Regalis"
+и команда SCP:CB, github.com/Regalis11/scpcb, GFX/map). Лицензия: Creative Commons Attribution-ShareAlike 3.0
+(https://creativecommons.org/licenses/by-sa/3.0/). Изменения: перевод .rmesh в формат игры (метры), разбиение по материалам,
+отдельные части невидимой коллизии, без карт освещения, текстуры уменьшены до 512 px. Распространяется под той же лицензией.
+Раскладка комплекса (лабиринт зон, КПП, лифты) генерируется игрой.

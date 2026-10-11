@@ -425,6 +425,8 @@ public class Soldier : Unit
         Aim(dt);
         Shoot();
         Move();
+        // лифт/спуск в подземный комплекс (связь навмеша): мгновенный переход
+        if (agent.isOnOffMeshLink) agent.CompleteOffMeshLink();
         if (squadRt != null && squadRt.cautious && target == null && !fleeing)
         {
             // предупреждённая группа: тихо, пригнувшись
@@ -486,6 +488,11 @@ public class Soldier : Unit
         face.y = 0;
         if (face.sqrMagnitude > 0.001f)
             transform.rotation = Quaternion.RotateTowards(transform.rotation, Quaternion.LookRotation(face), 400f * dt);
+    }
+
+    public void NetWarp(Vector3 p)
+    {
+        if (agent != null && agent.enabled) agent.Warp(p); else transform.position = p;
     }
 
     // Марионетка: положение, взгляд, поза и оружие — из сети

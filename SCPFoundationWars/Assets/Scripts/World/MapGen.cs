@@ -10,6 +10,7 @@ public static partial class MapGen
     public static readonly string[] TimeNames = { "День", "Закат", "Ночь" };
 
     public static GameObject Root;
+    public static bool SkipFacility;   // сцена главного меню — без подземного комплекса
     public static bool Night;
     static NavMeshDataInstance navInstance;
     static System.Random rng;

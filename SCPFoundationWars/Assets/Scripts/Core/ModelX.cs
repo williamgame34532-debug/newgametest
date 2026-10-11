@@ -14,12 +14,14 @@ public class ModelX
 
     static readonly Dictionary<string, ModelX> cache = new Dictionary<string, ModelX>();
 
-    public static ModelX Load(string name)
+    public string folder = "Models/";
+    public static ModelX Load(string name, string folder = "Models/")
     {
-        if (cache.TryGetValue(name, out var m)) return m;
-        var ta = Resources.Load<TextAsset>("Models/" + name);
-        if (ta == null) { cache[name] = null; return null; }
-        m = new ModelX();
+        string key = folder + name;
+        if (cache.TryGetValue(key, out var m)) return m;
+        var ta = Resources.Load<TextAsset>(folder + name);
+        if (ta == null) { cache[key] = null; return null; }
+        m = new ModelX { folder = folder };
         using (var br = new BinaryReader(new MemoryStream(ta.bytes)))
         {
             br.ReadBytes(4); br.ReadInt32();
@@ -57,7 +59,7 @@ public class ModelX
                 m.parts.Add(p);
             }
         }
-        cache[name] = m;
+        cache[key] = m;
         return m;
     }
 
@@ -71,7 +73,7 @@ public class ModelX
         if (c.a < 0.99f) mat = Mats.Glass(c, matSM[i].x);
         else
         {
-            var tex = string.IsNullOrEmpty(matTex[i]) ? null : Resources.Load<Texture2D>("Models/" + matTex[i]);
+            var tex = string.IsNullOrEmpty(matTex[i]) ? null : Resources.Load<Texture2D>(folder + matTex[i]);
             mat = tex != null ? Mats.Textured(tex, c, Vector2.one, matSM[i].x) : Mats.Get(c, matSM[i].x, matSM[i].y);
             mat.SetFloat("_Metallic", matSM[i].y);
             if (tex != null)

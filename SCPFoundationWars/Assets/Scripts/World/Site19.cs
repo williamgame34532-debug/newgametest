@@ -74,6 +74,8 @@ public static partial class MapGen
         Parking(root, new Vector3(84, y, -38), 26, 14);
         Perimeter(root, y);
         SiteRoads(y);
+        // подземный комплекс (комнаты SCP:CB) под площадкой, лифты и спуски с поверхности
+        if (!SkipFacility) Facility.Build(Root.transform, new Vector3(0, SiteY - 46f, 0), rng.Next(100000));
         // освещение двора
         foreach (var p in new[] { new Vector3(-60, 0, -40), new Vector3(60, 0, -60), new Vector3(-60, 0, 40), new Vector3(60, 0, 50), new Vector3(0, 0, -70), new Vector3(0, 0, 70), new Vector3(-140, 0, -50), new Vector3(140, 0, 40) })
             if (!SiteBlocked(p, 1f)) LightPole(OnGround(p.x, p.z), root);

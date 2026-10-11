@@ -164,7 +164,9 @@ public partial class Game : MonoBehaviour
     // Живая сцена в главном меню: строй бойцов, вертолёт с крутящимся винтом, SCP-173 в тени
     void BuildMenuScene()
     {
+        MapGen.SkipFacility = true;
         MapGen.Build(0, 1, new List<Vector3> { new Vector3(0, 0, -64f) }, 7);
+        MapGen.SkipFacility = false;
         float gy = Battle.GroundHeight(new Vector3(0, 0, -64f));
         var heli = Helicopter.Create(Team.Foundation, "MTF E-11", new Color(0.12f, 0.13f, 0.15f), new Color(0.15f, 0.45f, 1f), 8, false);
         heli.transform.position = new Vector3(0, gy + 1.2f, -64f);

@@ -162,6 +162,14 @@ public class PlayerController : MonoBehaviour
         velocity = Vector3.zero; vy = 0;
     }
 
+    public void Teleport(Vector3 p)
+    {
+        cc.enabled = false;
+        transform.position = p;
+        cc.enabled = true;
+        velocity = Vector3.zero; vy = 0f;
+    }
+
     // ---------------- вертолёт ----------------
     public void RideIn(Helicopter heli, Transform seat)
     {

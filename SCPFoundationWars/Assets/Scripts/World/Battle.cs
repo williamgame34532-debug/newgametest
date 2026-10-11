@@ -83,7 +83,7 @@ public partial class Battle : MonoBehaviour
         foreach (var u in Unit.All.ToArray()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
         // убитые и захваченные уже не в списке живых — удаляем все объекты юнитов
         foreach (var u in Compat.FindAll<Unit>()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
-        Sfx.StopAll(); Speech.Clear(); Cinematic.Reset();
+        Sfx.StopAll(); Speech.Clear(); Cinematic.Reset(); FacilityLink.Prompt = null; Facility.RootT = null;
         foreach (var c in Ragdoll.Corpses.ToArray()) if (c != null) Destroy(c.gameObject);
         Ragdoll.Corpses.Clear();
         foreach (var o in Compat.FindAll<ScpContainer>()) Destroy(o.gameObject);
@@ -141,6 +141,7 @@ public partial class Battle : MonoBehaviour
         yield return null;
         var nav = MapGen.BakeNavAsync();
         while (nav != null && !nav.isDone) { loadProgress = nav.progress; yield return null; }
+        Facility.AfterBake();
         loadProgress = 1f;
         // сетевая игра: все загрузили карту — начинаем одновременно
         if (Net.InGame)

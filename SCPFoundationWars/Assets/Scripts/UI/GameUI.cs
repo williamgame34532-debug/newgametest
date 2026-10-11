@@ -767,6 +767,8 @@ public partial class Game
 
         if (!pc.riding && !pc.safe) Compass(pc);
         LoreMarkers(pc);
+        if (FacilityLink.Prompt != null)
+            Shadowed(new Rect(0, H * 0.62f, W, 30), FacilityLink.Prompt, new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 18 }, new Color(1f, 0.85f, 0.5f));
         // выносливость и дыхание — тонкие полосы внизу по центру, только когда не полные
         float st = pc.stamina, br = pc.breath;
         if (st < 0.99f || br < 0.99f)
