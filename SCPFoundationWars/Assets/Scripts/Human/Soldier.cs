@@ -67,6 +67,8 @@ public class Soldier : Unit
     Unit lastTarget; Vector3 lastSeenPos; float suppressUntil;
     // укрытие на время перезарядки и при ранении
     Vector3 coverPos; float coverT = -1f;
+    // линия огня перекрыта — обходим препятствие
+    float blockedT = -10f; Vector3 firePos; float firePosT = -1f;
     // медик отряда
     public int medkits = 2;
     Unit healTarget; float healStart = -1f, medT;
@@ -615,6 +617,28 @@ public class Soldier : Unit
         return "на " + n[Mathf.RoundToInt(a / 45f) % 8];
     }
 
+    // Точка рядом, откуда ствол «видит» цель целиком (обход укрытия сбоку)
+    bool FindFiringPos(Unit t, out Vector3 best)
+    {
+        best = transform.position;
+        float bestD = float.MaxValue;
+        Vector3 me = transform.position, tp = t.AimPoint;
+        Vector3 to = tp - me; to.y = 0; to.Normalize();
+        Vector3 side = Vector3.Cross(Vector3.up, to);
+        for (int i = 0; i < 14; i++)
+        {
+            float lat = (i % 2 == 0 ? 1f : -1f) * (2f + (i / 2) * 1.6f);
+            float fwd = (i % 3) * 2f;
+            Vector3 c = me + side * lat + to * fwd;
+            if (!NavMesh.SamplePosition(c, out var h, 1.5f, NavMesh.AllAreas)) continue;
+            Vector3 muzzleH = h.position + Vector3.up * 1.25f;
+            if (!Combat.Visible(muzzleH, tp) || !Combat.Visible(h.position + Vector3.up * 1.6f, tp)) continue;
+            float d = Vector3.Distance(me, h.position);
+            if (d < bestD) { bestD = d; best = h.position; }
+        }
+        return bestD < float.MaxValue;
+    }
+
     // Ближайшая точка рядом, где противник нас не видит (за стеной, ящиком, машиной)
     bool FindCover(Vector3 threat, out Vector3 best)
     {
@@ -723,13 +747,19 @@ public class Soldier : Unit
         if (Time.time < fireT) return;
         if (current.ammo <= 0) { current.StartReload(transform.position); return; }
 
-        // не стреляем через своих
+        // не стреляем через своих и в укрытие перед целью (ствол ниже глаз: голова видит, а пуля уйдёт в ящик)
         Vector3 muzzle = current.model != null ? current.model.muzzle.position : EyePos;
         float dist = Vector3.Distance(muzzle, target.AimPoint);
         if (Combat.Ray(muzzle, aimDir, dist, this, out var hit, Layers.ShotMask))
         {
             var o = Combat.OwnerOf(hit.collider);
             if (o != null && o.alive && !IsEnemy(o) && o != target) { strafeT = 0; fireT = Time.time + 0.3f; return; }
+            if (o == null && hit.distance < dist - 0.7f && current.def.kind != WeaponKind.Launcher)
+            {
+                blockedT = Time.time; fireT = Time.time + 0.25f;
+                if (moveT > Time.time + 0.2f) moveT = Time.time + 0.1f;   // сразу ищем позицию для стрельбы
+                return;
+            }
         }
         if (current.def.kind == WeaponKind.Launcher)
         {
@@ -760,6 +790,16 @@ public class Soldier : Unit
         Vector3 goal = me;
         bool lowHp = hp < maxHp * 0.3f && courage < 1.2f;
 
+        // носитель предмета содержания идёт к ослабленному объекту
+        var li = LoreItem.Active;
+        if (li != null && li.carrier == this && li.Goal(out var lg))
+        {
+            goal = lg + (me - lg).normalized * 1.6f; agent.speed = baseSpeed * 1.2f;
+            goal.y = me.y;
+            if (NavMesh.SamplePosition(goal, out var lh, 3f, NavMesh.AllAreas)) agent.SetDestination(lh.position);
+            moveT = Time.time + 0.4f;
+            return;
+        }
         // медик идёт к раненому
         if (healTarget != null)
         {
@@ -781,6 +821,19 @@ public class Soldier : Unit
             goal = coverPos; agent.speed = baseSpeed * 1.25f;
             goal.y = me.y;
             if (NavMesh.SamplePosition(goal, out var ch, 2f, NavMesh.AllAreas)) agent.SetDestination(ch.position);
+            return;
+        }
+        // цель за укрытием — смещаемся туда, откуда есть чистая линия огня (обход, а не стрельба по ящикам)
+        if (target != null && Time.time - blockedT < 2.5f)
+        {
+            if (firePosT < Time.time)
+            {
+                firePosT = Time.time + 2f;
+                if (!FindFiringPos(target, out firePos)) firePos = me + Vector3.Cross(Vector3.up, (target.transform.position - me).normalized) * strafeDir * 5f;
+            }
+            goal = firePos; agent.speed = baseSpeed * 1.1f;
+            goal.y = me.y;
+            if (NavMesh.SamplePosition(goal, out var fh2, 2f, NavMesh.AllAreas)) agent.SetDestination(fh2.position);
             return;
         }
         if (target != null)
@@ -830,7 +883,7 @@ public class Soldier : Unit
         else if (squadRt != null && squadRt.orderSet)
         {
             var sq = squadRt;
-            if ((sq.lastOrderPos - sq.orderPos).sqrMagnitude > 4f) { sq.lastOrderPos = sq.orderPos; sq.patrolSet = false; }
+            if ((sq.lastOrderPos - sq.orderPos).sqrMagnitude > 4f || !(sq.hold || sq.garrison)) { sq.lastOrderPos = sq.orderPos; sq.patrolSet = false; }
             var leader = sq.Leader;
             float dOrder = Vector3.Distance(me, sq.orderPos);
             float ang = index * 137.5f * Mathf.Deg2Rad;
@@ -854,7 +907,7 @@ public class Soldier : Unit
                 holding = d < 3f;
                 sentryDir = (slot - sq.orderPos).normalized;
             }
-            else if (leader == this)
+            else if (leader == this && (sq.hold || sq.garrison))
             {
                 if (dOrder > 45f && !sq.patrolSet)
                 {
@@ -883,7 +936,7 @@ public class Soldier : Unit
                     patrolLook = paused;
                 }
             }
-            else if (leader != null && sq.patrolSet && dOrder < 60f)
+            else if (leader != null && leader != this && sq.patrolSet && (sq.hold || sq.garrison) && dOrder < 60f)
             {
                 // колонна за командиром: по одному, со сдвигом через бойца
                 int rank = 0;

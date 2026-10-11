@@ -90,6 +90,7 @@ public partial class Battle : MonoBehaviour
         PlayerController.Remove();
         Scp096.PlayerExposure = 0f;
         Fx.Clear();
+        LoreItem.Clear();
         MapGen.Clear();
         Time.timeScale = 1f;
     }
@@ -259,6 +260,7 @@ public partial class Battle : MonoBehaviour
         cmdC = new TeamCommander(Team.Chaos, bC);
         foreach (var sq in squads) (sq.team == Team.Foundation ? cmdF : cmdC).squads.Add(sq);
         startTime = Time.time;
+        GiveLoreItem(cfg, playerSq);
         if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
         if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
         if (introLines != null && playerHeli != null && PlayerController.I != null)
@@ -371,6 +373,23 @@ public partial class Battle : MonoBehaviour
         return null;
     }
 
+    // Предмет содержания по лору — у бойца группы игрока (или первой группы Фонда)
+    void GiveLoreItem(BattleConfig cfg, SquadRt playerSq)
+    {
+        LoreItemDef def = null;
+        foreach (var sp in cfg.scps) { def = LoreItem.For(sp.def.kind); if (def != null) break; }
+        if (def == null) return;
+        SquadRt sq = playerSq;
+        if (sq == null) foreach (var x in squads) if (x.team == Team.Foundation && x.members.Count > 0) { sq = x; break; }
+        if (sq == null) return;
+        Soldier carrier = null;
+        foreach (var m in sq.members) if (m != null && m.alive && m.index == 2) carrier = m;
+        if (carrier == null) foreach (var m in sq.members) if (m != null && m.alive) carrier = m;
+        if (carrier == null) return;
+        LoreItem.Spawn(def, carrier);
+        if (playerSq == sq) Message(carrier.CallSign + " несёт: «" + def.name + "». Без него объект не взять — береги носителя.", new Color(0.7f, 0.9f, 1f), 7f);
+    }
+
     // ---------------- захват SCP ----------------
     readonly List<Unit> capBuf = new List<Unit>();
     public ScpUnit captureTarget;   // ослабленный SCP, вокруг которого идёт бой (для интерфейса)
@@ -390,6 +409,11 @@ public partial class Battle : MonoBehaviour
                 if (x.team == Team.Foundation) f++; else if (x.team == Team.Chaos) c++;
             }
             float rate = dt / 14f;
+            // Фонду нужен предмет содержания, если он предусмотрен для этого объекта
+            var li = LoreItem.Active;
+            bool needItem = li != null && li.def.scp == su.kind && !su.itemApplied;
+            if (needItem && c == 0) { if (f > 0) su.subduedUntil = Mathf.Max(su.subduedUntil, Time.time + 6f); continue; }
+            if (su.itemApplied) rate *= 1.6f;
             if (f > 0 && c == 0) { su.capture[0] += rate * (1f + 0.15f * (f - 1)); su.capture[1] = Mathf.Max(0, su.capture[1] - rate); }
             else if (c > 0 && f == 0) { su.capture[1] += rate * (1f + 0.15f * (c - 1)); su.capture[0] = Mathf.Max(0, su.capture[0] - rate); }
             else if (f == 0 && c == 0) { su.capture[0] = Mathf.Max(0, su.capture[0] - rate * 0.3f); su.capture[1] = Mathf.Max(0, su.capture[1] - rate * 0.3f); }

@@ -38,6 +38,7 @@ public abstract class ScpUnit : Unit
 
     // ---- захват: SCP можно не убить, а ослабить и удержать рядом с ним территорию ----
     public bool subdued, captured;
+    public bool itemApplied;      // применён предмет содержания (мешок, ремни, кислота…)
     public float subduedUntil;
     public readonly float[] capture = new float[3];   // прогресс захвата по сторонам 0..1
     public virtual bool Capturable => kind != ScpKind.S0492;
@@ -525,8 +526,8 @@ public class Scp096 : HumanScp
         var head = rig.b[HumanRig.Head];
         Vector3 face = head.position + head.up * 0.15f;
         Vector3 faceFwd = head.forward;
-        // лицо закрыто руками (плачет) — увидеть его нельзя
-        bool covered = anim.handsOnFace;
+        // лицо закрыто руками (плачет) или мешком — увидеть его нельзя
+        bool covered = anim.handsOnFace || itemApplied;
         float playerExp = 0f;
         foreach (var u in Unit.All)
         {

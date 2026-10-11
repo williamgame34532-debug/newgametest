@@ -586,6 +586,13 @@ public partial class Game
             Rect(new Rect(x + 10, y + 30, 500 * Mathf.Clamp01(ct.capture[0]), 10), Battle.TeamColor(Team.Foundation));
             Rect(new Rect(x + 10, y + 46, 500, 10), new Color(0.15f, 0.15f, 0.15f));
             Rect(new Rect(x + 10, y + 46, 500 * Mathf.Clamp01(ct.capture[1]), 10), Battle.TeamColor(Team.Chaos));
+            var li = LoreItem.Active;
+            if (li != null && li.def.scp == ct.kind && !ct.itemApplied)
+            {
+                string who = li.carrier == null ? "лежит на земле — подберите" : li.carrier.isPlayer ? "у вас — подойдите вплотную" : "несёт " + (li.carrier is Soldier cs ? cs.CallSign : li.carrier.displayName);
+                Rect(new Rect(x, y + 66, 520, 28), new Color(0, 0, 0, 0.6f));
+                Label(new Rect(x, y + 68, 520, 24), "Нужен предмет: «" + li.def.name + "» (" + who + ")" + (li.applyK > 0.01f ? "  " + Mathf.RoundToInt(li.applyK * 100) + "%" : ""), new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(0.75f, 0.9f, 1f));
+            }
         }
     }
 
