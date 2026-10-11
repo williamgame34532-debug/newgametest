@@ -34,3 +34,15 @@ SCP - Containment Breach (Joonas Rikkonen "Regalis" и команда SCP:CB, gi
 Лицензия: Creative Commons Attribution-ShareAlike 3.0. Изменения: перевод из .rmesh в формат игры (метры, 1 м = 152 ед.),
 разбиение по материалам, без карт освещения. Распространяется под той же лицензией.
 Остальные корпуса Зоны-19 (административный, лёгкое/тяжёлое содержание, энергоблок, периметр) построены процедурно.
+
+gun_r_*.bytes, gunr_*.jpg/_n/_m — реалистичные модели оружия, все по лицензии Creative Commons Attribution 4.0
+(http://creativecommons.org/licenses/by/4.0/). Изменения: переведены в формат и оси игры, масштаб в метрах, отделены
+магазины/цевьё помпы, текстуры уменьшены до 1024 px и перекодированы, карты металличности/шероховатости перепакованы.
+  "Ak-47" by _Alexandr — https://sketchfab.com/3d-models/ak-47-933b9c9665de40eba6b2f2e10d927ff4
+  "M4A1 Rifle" by ErhanMatur — https://sketchfab.com/3d-models/m4a1-rifle-02dc5977e560464dbf419c2aeac709e2
+  "Beretta 92FS - Game Ready - FREE" by Ika3D — https://sketchfab.com/ikagogava
+  "MP5 | PBR | High Poly" by Stein Games — https://sketchfab.com/3d-models/mp5-pbr-high-poly-60ec470e41ff47368c792dd6caa74529
+  "Remington870 Shotgun" by Trip — https://sketchfab.com/3d-models/remington870-shotgun-a4852997660a43839c30e36dfca5a3e7
+  "M24 Bounty Hunter Sniper Rifle" by Naudaff3D — https://sketchfab.com/3d-models/m24-bounty-hunter-sniper-rifle-d40e74e2259549f5b025807163f1028c
+  "RPG-7" by paolinorenzo — https://sketchfab.com/3d-models/rpg-7-6c8683f0dbc04d75b610a2e656e639a8
+Steamworks.NET (Assets/Plugins/Steamworks.NET) — MIT, (c) 2013-2022 Riley Labrecque.

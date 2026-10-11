@@ -12,36 +12,17 @@
 # Цвета: body accent metal dark wood olive glass amber dot white
 
 gun e11
-glb rifle_battle
-holo 0 0.122 0.11
-a sight 0 0.122 -0.04
-a fore 0 0.02 0.27
+glb r_m4
+a sight 0 0.098 -0.005
+a fore 0 0.008 0.244
 a grip 0 -0.035 0.0
-a muzzle 0 0.045 0.595
-
+a muzzle 0 0.033 0.533
 gun ak
-ext body 0.05 0 -0.07,0.005 -0.07,0.068 -0.04,0.084 0.22,0.084 0.25,0.07 0.25,0.005
-ext accent 0.056 0 0.25,0.0 0.25,0.062 0.47,0.06 0.5,0.048 0.5,0.012 0.47,0.0
-cyl accent z 0 0.088 0.37 0.036 0.24
-cyl metal z 0 0.045 0.62 0.022 0.34
-brake 0.8 0.045 0.032
-ext metal 0.022 0 0.64,0.035 0.64,0.072 0.66,0.104 0.675,0.104 0.69,0.072 0.69,0.035
-ext metal 0.032 0 0.15,0.083 0.15,0.095 0.2,0.104 0.23,0.104 0.24,0.084
-ext accent 0.044 0 -0.07,0.064 -0.07,0.012 -0.31,-0.058 -0.36,-0.062 -0.37,-0.05 -0.37,0.05 -0.34,0.056
-ext metal 0.048 0 -0.37,-0.062 -0.38,-0.062 -0.38,0.052 -0.37,0.052
-ext dark 0.032 0 -0.035,0.004 -0.005,0.004 -0.03,-0.1 -0.068,-0.106 -0.06,-0.004
-ext metal 0.008 0 0.0,0.004 0.07,0.004 0.07,-0.026 0.0,-0.026 0.0,-0.018 0.062,-0.018 0.062,-0.004 0.0,-0.004
-mag
-ext dark 0.03 0 0.06,0.006 0.13,0.006 0.15,-0.08 0.18,-0.17 0.12,-0.195 0.09,-0.1
-port 0.12 0.062 0.026
-tguard 0.0 0.004
-bolt 0.2 0.072
-mag
-ribs 0.075 -0.02 0.15 -0.16 5 0.03
-a sight 0 0.104 -0.08
-a fore 0 0.015 0.3
-a muzzle 0 0.045 0.83
-
+glb r_ak
+a sight 0 0.086 0.221
+a fore 0 -0.002 0.30
+a grip 0 -0.035 0.0
+a muzzle 0 0.038 0.602
 gun p90
 glb smg_full
 holo 0 0.098 0.09
@@ -51,14 +32,11 @@ a grip 0 -0.035 0.0
 a muzzle 0 0.045 0.29
 
 gun crossvec
-glb smg_full
-holo 0 0.098 0.09
-a sight 0 0.098 -0.05
-a fore 0 0.015 0.15
+glb r_mp5
+a sight 0 0.098 -0.021
+a fore 0 0.013 0.237
 a grip 0 -0.035 0.0
-cyl dark z 0 0.045 0.39 0.045 0.2
-a muzzle 0 0.045 0.49
-
+a muzzle 0 0.042 0.382
 gun vector
 glb smg_full
 holo 0 0.098 0.09
@@ -68,12 +46,11 @@ a grip 0 -0.035 0.0
 a muzzle 0 0.045 0.29
 
 gun fsp9
-glb smg_compact
-a sight 0 0.075 -0.12
-a fore 0 0.02 0.12
+glb r_mp5
+a sight 0 0.098 -0.021
+a fore 0 0.013 0.237
 a grip 0 -0.035 0.0
-a muzzle 0 0.045 0.205
-
+a muzzle 0 0.042 0.382
 gun frmg
 ext body 0.07 0 -0.08,-0.005 -0.08,0.09 0.0,0.11 0.3,0.11 0.33,0.085 0.33,-0.005
 ext olive 0.072 0 0.33,0.0 0.33,0.08 0.58,0.075 0.6,0.06 0.6,0.01 0.58,0.0
@@ -117,19 +94,11 @@ a fore 0 0.0 0.37
 a muzzle 0 0.045 1.0
 
 gun dmr
-glb sniper_rifle
-ext dark 0.02 0 0.0,0.085 0.0,0.1 0.03,0.1 0.03,0.085
-ext dark 0.02 0 0.17,0.085 0.17,0.1 0.2,0.1 0.2,0.085
-cyl dark z 0 0.12 0.1 0.042 0.32
-cyl dark z 0 0.12 0.26 0.056 0.06
-cyl dark z 0 0.12 -0.07 0.052 0.05
-glass
-cyl glass z 0 0.12 0.292 0.048 0.004
-a sight 0 0.12 -0.1
-a fore 0 0.02 0.25
+glb r_m24
+a sight 0 0.082 -0.018
+a fore 0 -0.016 0.39
 a grip 0 -0.035 0.0
-a muzzle 0 0.045 0.665
-
+a muzzle 0 0.032 0.81
 gun svd
 glb rifle_assault
 a sight 0 0.11 -0.08
@@ -138,12 +107,11 @@ a grip 0 -0.035 0.0
 a muzzle 0 0.045 0.584
 
 gun m870
-glb shotgun_pump
-a sight 0 0.069 -0.08
-a fore 0 -0.002 0.4
-a grip 0 -0.02 -0.02
-a muzzle 0 0.045 0.624
-
+glb r_m870
+a sight 0 0.05 0.08
+a fore 0 -0.017 0.41
+a grip 0 -0.035 0.0
+a muzzle 0 0.042 0.705
 gun saiga
 glb shotgun_auto
 a sight 0 0.13 -0.1
@@ -152,34 +120,23 @@ a grip 0 -0.035 0.0
 a muzzle 0 0.045 0.53
 
 gun com15
-glb pistol_full
-a sight 0 0.07 -0.12
-a fore 0 -0.05 -0.02
-a muzzle 0 0.045 0.168
-
+glb r_beretta
+a sight 0 0.043 -0.011
+a fore 0 -0.02 0.06
+a grip 0 -0.035 0.0
+a muzzle 0 0.029 0.168
 gun pm
-glb pistol_compact
-a sight 0 0.06 -0.12
-a fore 0 -0.05 -0.02
-a muzzle 0 0.045 0.142
-
+glb r_beretta
+a sight 0 0.043 -0.011
+a fore 0 -0.02 0.06
+a grip 0 -0.035 0.0
+a muzzle 0 0.029 0.168
 gun rpg
-cyl olive z 0 0.08 0.05 0.07 1.0
-cyl wood z 0 0.08 -0.08 0.085 0.28
-cyl metal z 0 0.08 -0.5 0.09 0.1
-ext dark 0.03 0 -0.035,0.04 -0.005,0.04 -0.03,-0.06 -0.068,-0.066 -0.06,0.04
-ext dark 0.03 0 0.17,0.04 0.2,0.04 0.18,-0.06 0.145,-0.066 0.15,0.04
-mag
-cyl olive z 0 0.08 0.64 0.06 0.16
-ext olive 0.11 0 0.72,0.08 0.72,0.135 0.85,0.105 0.88,0.08 0.85,0.055 0.72,0.025
-ext dark 0.03 0 -0.03,0.12 -0.03,0.155 0.03,0.155 0.03,0.12
-ext metal 0.012 0 0.36,0.12 0.36,0.155 0.37,0.155 0.37,0.12
-tguard 0.0 0.04
-a sight 0 0.155 -0.12
-a fore 0 -0.04 0.18
-a grip 0 -0.035 -0.005
-a muzzle 0 0.08 0.58
-
+glb r_rpg7
+a sight 0 0.105 -0.146
+a fore 0 0.023 0.14
+a grip 0 -0.035 0.0
+a muzzle 0 0.048 0.21
 gun gl
 cyl olive z 0 0.06 0.2 0.06 0.36
 mag
@@ -210,3 +167,4 @@ a sight 0 0.16 -0.12
 a fore 0 -0.04 0.17
 a grip 0 -0.035 -0.01
 a muzzle 0 0.08 0.57
+

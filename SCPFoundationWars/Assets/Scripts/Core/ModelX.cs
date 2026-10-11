@@ -74,7 +74,18 @@ public class ModelX
             var tex = string.IsNullOrEmpty(matTex[i]) ? null : Resources.Load<Texture2D>("Models/" + matTex[i]);
             mat = tex != null ? Mats.Textured(tex, c, Vector2.one, matSM[i].x) : Mats.Get(c, matSM[i].x, matSM[i].y);
             mat.SetFloat("_Metallic", matSM[i].y);
-            if (tex != null) Mats.AddNormal(mat, Mats.BytesTex(matTex[i] + "_n", true));
+            if (tex != null)
+            {
+                Mats.AddNormal(mat, Mats.BytesTex(matTex[i] + "_n", true));
+                // карта металличности/гладкости (из glTF: R — металл, A — гладкость)
+                var mt = Mats.BytesTex(matTex[i] + "_m", true);
+                if (mt != null)
+                {
+                    mat.SetTexture("_MetallicGlossMap", mt);
+                    mat.EnableKeyword("_METALLICGLOSSMAP");
+                    mat.SetFloat("_GlossMapScale", Mathf.Clamp01(matSM[i].x));
+                }
+            }
         }
         return mat;
     }
