@@ -115,9 +115,12 @@ public partial class Battle
             if (skipIntro) break;
             Message(line.who + ": " + line.text, line.radio ? new Color(0.7f, 0.85f, 0.7f) : new Color(1f, 0.85f, 0.55f), line.dur + 0.4f);
             if (line.radio) Sfx.Play2D("radio", 0.35f);
-            if (officer != null && line.gesture != Signal.None) officer.anim.DoSignal(line.gesture);
-            // группа иногда переглядывается / кивает
-            if (mates.Count > 2 && Random.value < 0.35f) mates[Random.Range(1, mates.Count)].anim.DoSignal(Signal.Hold);
+            // командир говорит спокойно; сигналы рукой — только там, где они к месту
+            if (officer != null && !line.radio)
+            {
+                var g = line.gesture == Signal.Point || line.gesture == Signal.MoveUp ? line.gesture : Random.value < 0.6f ? Signal.Talk : Signal.None;
+                if (g != Signal.None) officer.anim.DoSignal(g);
+            }
             float until = Time.time + line.dur;
             while (Time.time < until && !skipIntro) yield return null;
         }
@@ -181,7 +184,7 @@ public partial class Battle
             if (Time.time > gest)
             {
                 gest = Time.time + Random.Range(3f, 6f);
-                if (mates[0] != null && mates[0].alive) mates[0].anim.DoSignal(Random.value < 0.5f ? Signal.Point : Signal.Hold);
+                if (mates[0] != null && mates[0].alive) mates[0].anim.DoSignal(Random.value < 0.8f ? Signal.Talk : Signal.Point);
             }
             yield return null;
         }

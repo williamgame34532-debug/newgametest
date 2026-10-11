@@ -3,7 +3,7 @@ using UnityEngine;
 public enum AnimStyle { Soldier, Zombie, Shy, ShyRage, Doctor, Old, Burning }
 
 // Жесты командира
-public enum Signal { None, Point, MoveUp, Hold, Regroup }
+public enum Signal { None, Point, MoveUp, Hold, Regroup, Talk }
 
 // Процедурная анимация человека.
 // Каждое состояние (покой, ходьба, бег, стрейф, присед, прицел, перезарядка, бросок, удар, сидение, канат, прыжок,
@@ -253,7 +253,7 @@ public class HumanAnimator : MonoBehaviour
         kick += kickVel * dt;
         for (int i = 0; i < react.Length; i++) react[i] = Vector3.Lerp(react[i], Vector3.zero, 1f - Mathf.Exp(-5.5f * dt));
         hipsReact = Vector3.Lerp(hipsReact, Vector3.zero, 1f - Mathf.Exp(-5f * dt));
-        if (signalT >= 0) { signalT += dt / 1.6f; if (signalT >= 1f) signalT = -1f; }
+        if (signalT >= 0) { signalT += dt / (signal == Signal.Talk ? 2.4f : signal == Signal.Point ? 1.3f : 1.5f); if (signalT >= 1f) signalT = -1f; }
 
         float free = (1f - seatW) * (1f - ropeW) * (1f - airW) * (1f - kneelW);
         float move = Mathf.Clamp01(spd / (0.9f * scaleK)) * free;
@@ -765,11 +765,10 @@ public class HumanAnimator : MonoBehaviour
         {
             var gt = gun.transform;
             rR = HandPose.Grip(gt.rotation);
-            tR = HandPose.Wrist(gun.grip.position + gt.right * 0.022f * sc, rR, sc);
+            tR = HandPose.GripWrist(gt.rotation, gun.grip.position, sc);
             ikR = gunW * (1f - throwW);
-            rL = pistol ? HandPose.Grip(gt.rotation) * Quaternion.Euler(0, 160, 0) : HandPose.Support(gt.rotation);
-            Vector3 forePalm = pistol ? gun.grip.position - gt.right * 0.03f * sc : gun.foregrip.position - gt.up * 0.025f * sc;
-            Vector3 fore = HandPose.Wrist(forePalm, rL, sc);
+            rL = pistol ? HandPose.Grip(gt.rotation) : HandPose.Support(gt.rotation);
+            Vector3 fore = pistol ? HandPose.GripWrist(gt.rotation, gun.grip.position, sc, true) : HandPose.SupportWrist(gt.rotation, gun.foregrip.position, sc);
             tL = fore;
             ikL = gunW;
             // ---- перезарядка ----
@@ -872,28 +871,56 @@ public class HumanAnimator : MonoBehaviour
             rR = h.rotation * Quaternion.Euler(170f, 0, 15f);
             rL = h.rotation * Quaternion.Euler(170f, 0, -15f);
         }
-        // ---- жесты командира (левая рука) ----
+        // ---- жесты (левая рука): тактические сигналы и спокойная жестикуляция при разговоре ----
         if (signalT >= 0)
         {
-            float k = S01(0f, 0.15f, signalT) * (1f - S01(0.85f, 1f, signalT));
-            Vector3 p; Quaternion q;
+            float k = S01(0f, 0.2f, signalT) * (1f - S01(0.8f, 1f, signalT));
+            Vector3 sh = b[HumanRig.UArmL].position;
+            Vector3 fw = transform.forward, up = transform.up, lf = -transform.right;
+            Vector3 p, fingers, palm;
             switch (signal)
             {
                 case Signal.Point:
-                    p = chest.TransformPoint(new Vector3(-0.15f, 0.3f, 0.65f)); q = transform.rotation * Quaternion.Euler(-90f, 0, 0); break;
+                {
+                    // рука вытянута туда, куда смотрит боец, на уровне плеча
+                    Vector3 dir = Vector3.ProjectOnPlane(aimDir.sqrMagnitude > 0.01f ? aimDir : fw, up).normalized;
+                    dir = (dir + up * 0.08f).normalized;
+                    p = sh + dir * 0.6f * sc + lf * 0.04f * sc;
+                    fingers = dir; palm = -up;
+                    break;
+                }
                 case Signal.MoveUp:
                 {
-                    float w = Mathf.Sin(signalT * Mathf.PI * 4f);
-                    p = chest.TransformPoint(new Vector3(-0.25f, 0.55f + w * 0.12f, 0.15f + w * 0.25f)); q = transform.rotation * Quaternion.Euler(-160f + w * 40f, 0, 0); break;
+                    // «вперёд»: ладонь ребром, рука от головы рубит вперёд — один раз
+                    float c = S01(0.25f, 0.6f, signalT);
+                    p = sh + (up * Mathf.Lerp(0.22f, 0.02f, c) + fw * Mathf.Lerp(0.12f, 0.55f, c) + lf * 0.06f) * sc;
+                    fingers = Vector3.Slerp(up, fw, c); palm = transform.right;
+                    break;
                 }
                 case Signal.Hold:
-                    p = chest.TransformPoint(new Vector3(-0.28f, 0.6f, 0.05f)); q = transform.rotation * Quaternion.Euler(180f, 0, 0); break;
+                    // «стоп»: кулак у головы, локоть в сторону
+                    p = sh + (up * 0.24f + lf * 0.16f + fw * 0.06f) * sc;
+                    fingers = up; palm = fw;
+                    break;
+                case Signal.Regroup:
+                {
+                    // «ко мне»: рука поднята, небольшой круг кистью
+                    float a = signalT * Mathf.PI * 2f;
+                    p = sh + (up * 0.42f + lf * 0.08f + fw * 0.04f + (lf * Mathf.Cos(a) + fw * Mathf.Sin(a)) * 0.05f) * sc;
+                    fingers = up; palm = fw;
+                    break;
+                }
                 default:
                 {
-                    float a = signalT * Mathf.PI * 6f;
-                    p = chest.TransformPoint(new Vector3(-0.15f + Mathf.Cos(a) * 0.15f, 0.75f, Mathf.Sin(a) * 0.15f)); q = transform.rotation * Quaternion.Euler(180f, 0, 0); break;
+                    // разговор: кисть у пояса перед собой, открытая ладонь, лёгкие движения
+                    float a = signalT * Mathf.PI * 2f;
+                    p = chest.position + (fw * 0.32f - up * 0.32f + lf * 0.12f + up * Mathf.Sin(a * 1.5f) * 0.04f + lf * Mathf.Sin(a) * 0.03f) * sc;
+                    fingers = (fw + lf * 0.25f - up * 0.1f).normalized; palm = (up + transform.right * 0.4f).normalized;
+                    k *= 0.85f;
+                    break;
                 }
             }
+            Quaternion q = LeftHandRot(fingers, palm);
             tL = Vector3.Lerp(tL, p, k); rL = Quaternion.Slerp(rL, q, k); ikL = Mathf.Max(ikL, k);
         }
         // ---- ранен: рука прижата к боку ----
@@ -920,6 +947,15 @@ public class HumanAnimator : MonoBehaviour
 
     // Аналитический IK двух звеньев. Кость направлена по -Y.
     // Руки: сгиб вперёд (локоть уходит к полюсу, кисть — от него). Ноги (legs = true): колено — к полюсу.
+    // Поворот левой кисти по направлению пальцев и ладони (кости смотрят вдоль -Y, ладонь левой руки — вдоль +X)
+    static Quaternion LeftHandRot(Vector3 fingers, Vector3 palm)
+    {
+        Vector3 upv = -fingers.normalized;
+        palm = Vector3.ProjectOnPlane(palm, upv).normalized;
+        Vector3 thumb = Vector3.Cross(palm, upv);
+        return Quaternion.LookRotation(thumb, upv);
+    }
+
     public static void TwoBone(Transform a, Transform b, Transform c, Vector3 target, Vector3 pole, float w, bool legs = false)
     {
         Vector3 A = a.position;

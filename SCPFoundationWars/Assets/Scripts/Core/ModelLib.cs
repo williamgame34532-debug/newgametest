@@ -184,18 +184,18 @@ public static class ModelLib
     public static Mesh LegsMesh(int[] slotOf, int slots)
     {
         var d = Soldier;
-        float cut = d.jointAbs[HumanRig.Hips].y * 0.95f;   // ниже пояса (у моделей разный рост таза)
+        float cut = d.jointAbs[HumanRig.Spine].y + 0.06f;   // ноги вместе с поясом и подсумками (без груди — она у камеры)
         return BodyMesh("legs_" + string.Join(",", slotOf), slotOf, slots, t =>
         {
-            float y = 0; int legs = 0;
+            float y = 0; int arms = 0;
             for (int k = 0; k < 3; k++)
             {
                 int vi = d.tris[t * 3 + k];
                 y += d.pos[vi].y;
                 int b = d.bw[vi].boneIndex0;
-                if (b >= HumanRig.ULegL) legs++;
+                if (b >= HumanRig.UArmL && b <= HumanRig.HandR) arms++;
             }
-            return legs >= 2 && y / 3f < cut;
+            return arms == 0 && d.side[t] == 0 && y / 3f < cut;   // руки не берём — у них своя модель от первого лица
         });
     }
 

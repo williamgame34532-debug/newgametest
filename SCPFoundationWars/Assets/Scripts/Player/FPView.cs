@@ -13,19 +13,32 @@ public static class HandPose
         return Quaternion.LookRotation(z, y);
     }
 
-    // правая кисть обхватывает пистолетную рукоять: ладонь к рукояти, пальцы вперёд-вниз
-    public static Quaternion Grip(Quaternion gun)
+    // Кисть модели согнута в полухват: пальцы образуют «кольцо». Хват строится так, чтобы ось рукояти/цевья
+    // проходила через центр этого кольца (в осях кости кисти: X — ладонь левой руки, -Y — к пальцам, Z — большой палец).
+    public static float HandSize = 0.2f;     // длина кисти модели от запястья до кончиков пальцев
+    static Vector3 Ring(bool left, float s) => new Vector3(left ? 0.37f : -0.37f, -0.42f, 0f) * HandSize * s;
+    static Quaternion Frame(Vector3 z, Vector3 x)
     {
-        Vector3 f = gun * Vector3.forward, u = gun * Vector3.up, r = gun * Vector3.right;
-        return Basis(r, -(f * 0.5f - u * 0.86f));
+        z.Normalize(); x = Vector3.ProjectOnPlane(x, z).normalized;
+        return Quaternion.LookRotation(z, Vector3.Cross(z, x));
+    }
+    static Vector3 GripAxis(Quaternion gun) => -(gun * Vector3.up * 0.86f + gun * Vector3.forward * 0.5f).normalized;   // вниз-назад вдоль рукояти
+
+    // правая кисть на пистолетной рукояти: большой палец вверх по рукояти, ладонь к рукояти справа
+    public static Quaternion Grip(Quaternion gun) => Frame(-GripAxis(gun), gun * Vector3.right);
+    public static Vector3 GripWrist(Quaternion gun, Vector3 gripTop, float s = 1f, bool left = false)
+    {
+        Vector3 c = gripTop + GripAxis(gun) * 0.045f * s - (left ? gun * Vector3.right * 0.03f * s : Vector3.zero);
+        return c - Grip(gun) * Ring(left, s);
     }
 
-    // левая кисть под цевьём: ладонь вверх, пальцы обхватывают справа
+    // левая кисть под цевьём: ладонь вверх-вправо к цевью, большой палец вдоль ствола, пальцы обхватывают справа
     public static Quaternion Support(Quaternion gun)
     {
         Vector3 f = gun * Vector3.forward, u = gun * Vector3.up, r = gun * Vector3.right;
-        return Basis(u * 0.9f + r * 0.3f, -(r * 0.75f + f * 0.55f));
+        return Frame(f, u * 0.75f + r * 0.66f);
     }
+    public static Vector3 SupportWrist(Quaternion gun, Vector3 fore, float s = 1f) => fore + gun * Vector3.up * 0.025f * s - Support(gun) * Ring(true, s);
 
     // левая кисть держит предмет перед собой (граната, шприц, магазин)
     public static Quaternion Hold(Quaternion view, float tilt = 0f)
@@ -72,6 +85,7 @@ public class FPView : MonoBehaviour
     public bool Busy => inspectT >= 0 || meleeT >= 0 || magCheckW > 0.05f;
     // проверка магазина (зажатый R): вес позы и экранная точка для подписи
     float magCheckW;
+    float proneW, slideW;
     public float MagCheckW => magCheckW;
     public Vector2 MagLabelScreen;
 
@@ -521,12 +535,13 @@ public class FPView : MonoBehaviour
         // ---- руки (IK) ----
         Quaternion gq = gm.transform.rotation;
         Quaternion rq = HandPose.Grip(gq);
-        Vector3 rPalm = gm.grip.position + gm.transform.right * 0.022f;
+        Vector3 rWrist = HandPose.GripWrist(gq, gm.grip.position);
         Quaternion lq = HandPose.Support(gq);
-        Vector3 lPalm = gm.foregrip.position - gm.transform.up * 0.025f;
-        if (pistol) { lq = HandPose.Grip(gq) * Quaternion.Euler(0, 160, 0); lPalm = gm.grip.position - gm.transform.right * 0.03f + gm.transform.forward * 0.01f; }
-        if (lTarget.HasValue) { lPalm = Vector3.Lerp(lPalm, lTarget.Value, lW); lq = Quaternion.Slerp(lq, lRot, lW); }
-        if (rTarget.HasValue) { rPalm = Vector3.Lerp(rPalm, rTarget.Value, rW); rq = Quaternion.Slerp(rq, rRot, rW); }
+        Vector3 lWrist = HandPose.SupportWrist(gq, gm.foregrip.position);
+        if (pistol) { lq = HandPose.Grip(gq); lWrist = HandPose.GripWrist(gq, gm.grip.position, 1f, true); }
+        if (lTarget.HasValue) { lWrist = Vector3.Lerp(lWrist, HandPose.Wrist(lTarget.Value, lRot), lW); lq = Quaternion.Slerp(lq, lRot, lW); }
+        if (rTarget.HasValue) { rWrist = Vector3.Lerp(rWrist, HandPose.Wrist(rTarget.Value, rRot), rW); rq = Quaternion.Slerp(rq, rRot, rW); }
+        Vector3 lPalm = lWrist - lq * new Vector3(0, 0.075f, 0);
         if (magInHand && gm.mag != null && lW > 0.5f) gm.mag.position = Vector3.Lerp(gm.mag.position, lPalm + lq * new Vector3(0, -0.04f, 0), 0.6f);
         if (magCheckW > 0.01f && vmCam != null)
         {
@@ -538,9 +553,11 @@ public class FPView : MonoBehaviour
         uL.localPosition = Vector3.Lerp(uL.localPosition, shoulderL + new Vector3(pos.x * 0.3f, pos.y * 0.25f, 0), 1f - Mathf.Exp(-12f * dt));
         uR.localPosition = Vector3.Lerp(uR.localPosition, shoulderR + new Vector3(pos.x * 0.3f, pos.y * 0.25f, 0), 1f - Mathf.Exp(-12f * dt));
         Vector3 down = -root.up, right = root.right, back = -root.forward;
-        HumanAnimator.TwoBone(uR, lR, hR, HandPose.Wrist(rPalm, rq), uR.position + down * 0.8f + right * 0.5f + back * 0.2f, 1f);
+        // плечо подаётся к оружию, если рука не дотягивается (как у стрелка, вытянувшего руку к цевью)
+        Reach(uL, lL, hL, lWrist); Reach(uR, lR, hR, rWrist);
+        HumanAnimator.TwoBone(uR, lR, hR, rWrist, uR.position + down * 0.8f + right * 0.5f + back * 0.2f, 1f);
         hR.rotation = rq;
-        HumanAnimator.TwoBone(uL, lL, hL, HandPose.Wrist(lPalm, lq), uL.position + down * 0.8f - right * 0.5f + back * 0.1f, 1f);
+        HumanAnimator.TwoBone(uL, lL, hL, lWrist, uL.position + down * 0.8f - right * 0.5f + back * 0.1f, 1f);
         hL.rotation = lq;
         if (showGrenade) grenadeProp.position = hL.position + hL.rotation * new Vector3(0, -0.09f, 0.0f);
         if (showSyringe) { syringeProp.position = hL.position + hL.rotation * new Vector3(0, -0.08f, 0); syringeProp.rotation = hL.rotation * Quaternion.Euler(90, 0, 0); }
@@ -551,7 +568,13 @@ public class FPView : MonoBehaviour
             bodyAnim.velocity = pc.velocity;
             bodyAnim.aimDir = pc.camHolder.forward;
             bodyAnim.aiming = ads > 0.5f || Input.GetMouseButton(0);
-            bodyAnim.crouch = pc.crouching;
+            bodyAnim.crouch = pc.crouching || pc.prone;
+            // лёжа — тело вытянуто вперёд под камерой; подкат — откинуто назад
+            float lie = pc.prone ? 1f : 0f, sl = pc.Sliding ? 1f : 0f;
+            proneW = Mathf.MoveTowards(proneW, lie, dt * 2.5f); slideW = Mathf.MoveTowards(slideW, sl, dt * 6f);
+            bodyRig.transform.localRotation = Quaternion.Euler(proneW * 86f - slideW * 28f, 0, 0);
+            bodyRig.transform.localPosition = new Vector3(0, proneW * 0.12f, -proneW * 1.45f + slideW * 0.35f);
+            if (proneW > 0.5f) bodyAnim.velocity = Vector3.zero;
             bodyAnim.sprint = spr > 0.5f;
             bodyAnim.seated = pc.riding && !pc.OnRope;
             bodyAnim.onRope = pc.OnRope;
@@ -559,6 +582,14 @@ public class FPView : MonoBehaviour
             bodyAnim.reload01 = rl;
             bodyAnim.throw01 = th;
         }
+    }
+
+    static void Reach(Transform u, Transform l, Transform h, Vector3 target)
+    {
+        float len = (l.localPosition.magnitude + h.localPosition.magnitude) * 0.94f;
+        Vector3 d = target - u.position;
+        float dist = d.magnitude;
+        if (dist > len) u.position += d / dist * Mathf.Min(dist - len, 0.25f);
     }
 
     // Пустой магазин падает на землю
