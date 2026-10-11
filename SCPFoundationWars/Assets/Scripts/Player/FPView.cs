@@ -32,11 +32,12 @@ public static class HandPose
         return c - Grip(gun) * Ring(left, s);
     }
 
-    // левая кисть под цевьём: ладонь вверх-вправо к цевью, большой палец вдоль ствола, пальцы обхватывают справа
+    // левая кисть под цевьём: ладонь вверх к цевью, запястье уходит назад-влево-вниз по линии предплечья
+    // (рука подходит к оружию снизу слева, кисть не выворачивается), пальцы обхватывают цевьё справа
     public static Quaternion Support(Quaternion gun)
     {
         Vector3 f = gun * Vector3.forward, u = gun * Vector3.up, r = gun * Vector3.right;
-        return Frame(f, u * 0.75f + r * 0.66f);
+        return Basis(u + r * 0.3f, -(r * 0.6f + f * 0.7f + u * 0.35f));
     }
     public static Vector3 SupportWrist(Quaternion gun, Vector3 fore, float s = 1f) => fore + gun * Vector3.up * 0.025f * s - Support(gun) * Ring(true, s);
 
@@ -63,7 +64,7 @@ public class FPView : MonoBehaviour
     Transform uL, lL, hL, uR, lR, hR;
     readonly List<GameObject> props = new List<GameObject>();
     Transform grenadeProp, syringeProp, ropeL;
-    Vector3 shoulderL = new Vector3(-0.17f, -0.34f, -0.02f), shoulderR = new Vector3(0.22f, -0.33f, -0.14f);
+    Vector3 shoulderL = new Vector3(-0.24f, -0.30f, 0.06f), shoulderR = new Vector3(0.2f, -0.3f, -0.12f);
     float armScale = 1f;
 
     // тело игрока
@@ -286,7 +287,7 @@ public class FPView : MonoBehaviour
         if (pumpT >= 0) { pumpT += dt / Mathf.Max(0.3f, def.Interval * 0.85f); if (pumpT >= 1f) pumpT = -1f; }
 
         // ---- базовая поза оружия ----
-        Vector3 hip = pistol ? new Vector3(0.12f, -0.16f, 0.33f) : rpg ? new Vector3(0.17f, -0.17f, 0.18f) : new Vector3(0.15f, -0.17f, 0.26f);
+        Vector3 hip = pistol ? new Vector3(0.12f, -0.16f, 0.33f) : rpg ? new Vector3(0.17f, -0.17f, 0.18f) : new Vector3(0.12f, -0.14f, 0.22f);
         Vector3 rot = Vector3.zero;
         Vector3 pos = hip;
         float calm = 1f - ads * 0.92f;
