@@ -31,8 +31,8 @@ public static class Speech
         if (nameSt == null)
         {
             white = Texture2D.whiteTexture;
-            nameSt = new GUIStyle(GUI.skin.label) { fontSize = 12, fontStyle = FontStyle.Bold, alignment = TextAnchor.LowerCenter, wordWrap = false };
-            textSt = new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.UpperCenter, wordWrap = true };
+            nameSt = new GUIStyle(GUI.skin.label) { fontSize = 11, fontStyle = FontStyle.Bold, alignment = TextAnchor.MiddleLeft, wordWrap = false };
+            textSt = new GUIStyle(GUI.skin.label) { fontSize = 14, alignment = TextAnchor.UpperLeft, wordWrap = true };
         }
         lines.RemoveAll(l => l.who == null || Time.time - l.t0 > l.dur);
         var old = GUI.color;
@@ -48,16 +48,21 @@ public static class Speech
             float age = Time.time - l.t0;
             float a = Mathf.Clamp01(age / 0.15f) * Mathf.Clamp01((l.dur - age) / 0.4f) * Mathf.Clamp01((Range - dist) / 10f);
             float x = sp.x / scale, y = (Screen.height - sp.y) / scale;
-            float w = Mathf.Clamp(l.text.Length * 7.2f, 120f, 340f);
-            float h = textSt.CalcHeight(new GUIContent(l.text), w);
-            y -= h + 18f;
-            GUI.color = new Color(0, 0, 0, 0.45f * a);
-            GUI.DrawTexture(new Rect(x - w / 2 - 8, y - 16, w + 16, h + 20), white);
+            float w = Mathf.Clamp(textSt.CalcSize(new GUIContent(l.text)).x + 28f, 110f, 330f);
+            float h = textSt.CalcHeight(new GUIContent(l.text), w - 20);
+            float pop = 1f - Mathf.Clamp01(age / 0.18f);
+            y -= h + 30f + pop * 8f;
+            float H2 = h + 26;
+            // карточка: тёмная, цветная полоса слева, хвостик к голове
+            GUI.color = new Color(0.02f, 0.03f, 0.04f, 0.68f * a);
+            GUI.DrawTexture(new Rect(x - w / 2, y - 6, w, H2), white);
+            GUI.DrawTexture(new Rect(x - 4, y - 6 + H2, 8, 4), white);
+            GUI.DrawTexture(new Rect(x - 2, y - 2 + H2, 4, 4), white);
             GUI.color = new Color(l.col.r, l.col.g, l.col.b, a);
-            GUI.DrawTexture(new Rect(x - w / 2 - 8, y - 16, 3, h + 20), white);
-            GUI.Label(new Rect(x - w / 2, y - 16, w, 16), l.name, nameSt);
+            GUI.DrawTexture(new Rect(x - w / 2, y - 6, 3, H2), white);
+            GUI.Label(new Rect(x - w / 2 + 10, y - 4, w - 20, 16), l.name.ToUpper(), nameSt);
             GUI.color = new Color(1, 1, 1, a);
-            GUI.Label(new Rect(x - w / 2, y + 1, w, h), l.text, textSt);
+            GUI.Label(new Rect(x - w / 2 + 10, y + 13, w - 20, h), l.text, textSt);
         }
         GUI.color = old;
     }

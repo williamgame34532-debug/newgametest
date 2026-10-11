@@ -32,3 +32,8 @@ webdevcody/survive-the-night-fps (client/audio/samples, CREDITS.md) и jaher/sha
   rotor_1  — Helicopter Rotor Loop (qubodup, CC0), петля из simlexx-k/rotorfrontier
 К записям выстрелов добавлено небольшое уличное эхо (синтезированный отклик холмов).
 Голос SCP-096 (cry, scream), гильзы (casing) и выстрел с глушителем (suppressed) — синтезированы для игры.
+
+cry096_*.ogg, scream096_1.ogg, kill096_1.ogg — звуки SCP-096, присланные автором проекта (файлы 096_4.mp3,
+kill-sound-scp-096.mp3, scpsl-096-crying.mp3, scpsl-096-trying-not-cry.mp3). Судя по названиям, часть взята из
+SCP: Secret Laboratory (Northwood Studios) — права на них принадлежат правообладателю; перед публичным
+распространением игры их нужно заменить на свободные записи.

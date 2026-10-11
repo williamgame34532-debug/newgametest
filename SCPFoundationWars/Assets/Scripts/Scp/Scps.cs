@@ -490,7 +490,7 @@ public class Scp096 : HumanScp
         s.BuildBody(BodyShape.Tall096(), AnimStyle.Shy);
         s.SetupAgent(0.4f, 2.4f, 1.2f, 40f);
         s.home = pos;
-        s.cry = Sfx.Loop("cry", go.transform, 0.55f, 32f, Random.Range(0.95f, 1.05f));
+        s.cry = Sfx.Loop(Sfx.Clip("cry096") != null ? "cry096" : "cry", go.transform, 0.6f, 36f, Random.Range(0.97f, 1.03f));
         ScpSkin.Apply(go, ScpSkin.Kind.Pale);
         return s;
     }
@@ -583,7 +583,7 @@ public class Scp096 : HumanScp
         mode = Mode.Triggered;
         modeT = Time.time + 5f;
         if (agent != null && agent.enabled) agent.isStopped = true;
-        Sfx.Play("scream", transform.position, 1f, 1f, 220f);
+        Sfx.Play(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform.position, 1f, 1f, 220f);
         Battle.Message("SCP-096 В ЯРОСТИ", new Color(1f, 0.15f, 0.15f));
         if (cry != null) cry.Stop();
     }
@@ -628,7 +628,7 @@ public class Scp096 : HumanScp
                 {
                     mode = Mode.Rage; if (AgentOk) agent.isStopped = false;
                     // во время погони — непрерывный вой, слышно издалека
-                    if (rageLoop == null) rageLoop = Sfx.Loop("scream", transform, 0.85f, 160f, 0.97f);
+                    if (rageLoop == null) rageLoop = Sfx.Loop(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform, 0.85f, 160f, 1f);
                     else rageLoop.Play();
                 }
                 break;
@@ -670,6 +670,7 @@ public class Scp096 : HumanScp
                     Fx.Blood(target.AimPoint, dir, 3f);
                     Fx.Blood(target.AimPoint, -dir, 2f);
                     Sfx.Play("flesh", target.AimPoint, 1f, 0.7f, 40f);
+                    Sfx.Play("kill096", target.AimPoint, 1f, Random.Range(0.95f, 1.05f), 70f);
                     Slay(target, DamageType.Melee, dir, 2200f, "Разорван SCP-096");
                 }
                 break;

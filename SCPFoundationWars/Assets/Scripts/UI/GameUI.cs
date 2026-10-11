@@ -646,29 +646,57 @@ public partial class Game
     }
 
     // Переговоры и события — субтитрами внизу, как радиообмен
+    // Субтитры и радиообмен: карточки снизу по центру — цветная метка говорящего, тег рации, текст;
+    // новые выезжают снизу, старые бледнеют
     void Messages(Battle b)
     {
         HudStyles();
-        float y = H - 250;
-        for (int i = b.messages.Count - 1; i >= 0 && i >= b.messages.Count - 4; i--)
+        float y = H - 236;
+        int shown = 0;
+        for (int i = b.messages.Count - 1; i >= 0 && shown < 4; i--, shown++)
         {
             var m = b.messages[i];
             float age = Time.unscaledTime - m.time;
-            float a = Mathf.Clamp01(m.life - age) * Mathf.Clamp01(age * 6f);
-            string text = m.text;
-            string who = null;
+            float a = Mathf.Clamp01(m.life - age) * Mathf.Clamp01(age * 5f) * (shown == 0 ? 1f : 0.72f);
+            if (a <= 0.01f) continue;
+            string text = m.text, who = null;
             int c = text.IndexOf(": ");
-            if (c > 0 && c < 40) { who = text.Substring(0, c); text = text.Substring(c + 2); }
-            var size = hudSub.CalcHeight(new GUIContent(text), 900);
-            float w = 960, x = W / 2 - w / 2;
-            Rect(new Rect(x, y - size - 6, w, size + (who != null ? 30 : 10)), new Color(0, 0, 0, 0.42f * a));
+            if (c > 0 && c < 48) { who = text.Substring(0, c); text = text.Substring(c + 2); }
+            bool radio = who != null && (who.StartsWith("Пилот") || who.StartsWith("Штаб") || who.StartsWith("Диспетчер") || who.StartsWith("Наблюдение") || m.color.g > m.color.r + 0.1f && m.color.r < 0.8f && m.color.b < 0.8f);
+            var st = new GUIStyle(hudSub) { alignment = TextAnchor.UpperLeft, wordWrap = true, fontSize = shown == 0 ? 21 : 18 };
+            float w = Mathf.Min(860f, Mathf.Max(420f, st.CalcSize(new GUIContent(text)).x + 60f));
+            float th = st.CalcHeight(new GUIContent(text), w - 44);
+            float h = th + (who != null ? 34 : 16);
+            float slide = (1f - Mathf.Clamp01(age * 6f)) * 14f;
+            float x = W / 2 - w / 2, top = y - h + slide;
+            Color acc = new Color(m.color.r, m.color.g, m.color.b, a);
+            // фон: плотнее слева, к краю растворяется
+            Rect(new Rect(x, top, w, h), new Color(0.02f, 0.03f, 0.04f, 0.55f * a));
+            Rect(new Rect(x, top, w * 0.35f, h), new Color(0.02f, 0.03f, 0.04f, 0.25f * a));
+            Rect(new Rect(x, top, 4, h), acc);
+            Rect(new Rect(x + 4, top + h - 1, w - 4, 1), new Color(m.color.r, m.color.g, m.color.b, 0.25f * a));
+            float tx = x + 22;
             if (who != null)
             {
-                Label(new Rect(x + 10, y - size - 4, w - 20, 22), "◉ " + who.ToUpper(), new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 14 }, new Color(m.color.r, m.color.g, m.color.b, a));
-                Label(new Rect(x + 30, y - size + 16, w - 60, size), text, hudSub, new Color(1, 1, 1, a));
+                var ns = new GUIStyle(hudS) { alignment = TextAnchor.MiddleLeft, fontSize = 13, fontStyle = FontStyle.Bold };
+                string name = who.ToUpper();
+                float nw = ns.CalcSize(new GUIContent(name)).x;
+                Label(new Rect(tx, top + 7, nw + 4, 18), name, ns, acc);
+                if (radio)
+                {
+                    Rect(new Rect(tx + nw + 12, top + 9, 54, 15), new Color(m.color.r, m.color.g, m.color.b, 0.22f * a));
+                    Label(new Rect(tx + nw + 12, top + 8, 54, 17), "РАЦИЯ", new GUIStyle(hudS) { alignment = TextAnchor.MiddleCenter, fontSize = 10, fontStyle = FontStyle.Bold }, acc);
+                    // «волна» эфира
+                    for (int k = 0; k < 5; k++)
+                    {
+                        float bh = 3 + Mathf.Abs(Mathf.Sin(Time.unscaledTime * 9f + k * 1.3f)) * 9f * (shown == 0 ? 1f : 0.3f);
+                        Rect(new Rect(x + w - 40 + k * 5, top + 16 - bh / 2, 3, bh), new Color(m.color.r, m.color.g, m.color.b, 0.6f * a));
+                    }
+                }
+                Label(new Rect(tx, top + 27, w - 44, th), text, st, new Color(0.96f, 0.96f, 0.94f, a));
             }
-            else Label(new Rect(x + 30, y - size - 2, w - 60, size), text, hudSub, new Color(m.color.r, m.color.g, m.color.b, a));
-            y -= size + (who != null ? 40 : 20);
+            else Label(new Rect(tx, top + 8, w - 44, th), text, st, acc);
+            y = top - 8;
         }
     }
 
