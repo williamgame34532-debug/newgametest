@@ -75,9 +75,12 @@ public class QuadScp : ScpUnit
         jaw = B("jaw", head, new Vector3(0, -0.06f, 0.0f));
 
         // туловище
-        MeshKit.Ball(pelvis, new Vector3(0, 0, 0.05f), new Vector3(w * 1.0f, w * 0.9f, len * 0.6f), sk);
-        MeshKit.Ball(chest, new Vector3(0, 0, -0.05f), new Vector3(w * 1.15f, w * 1.05f, len * 0.65f), sk);
-        MeshKit.Ball(chest, new Vector3(0, -0.12f * w, -0.1f), new Vector3(w * 0.9f, w * 0.7f, len * 0.6f), dk);
+        if (!reptile)
+        {
+            MeshKit.Ball(pelvis, new Vector3(0, 0, 0.05f), new Vector3(w * 1.0f, w * 0.9f, len * 0.6f), sk);
+            MeshKit.Ball(chest, new Vector3(0, 0, -0.05f), new Vector3(w * 1.15f, w * 1.05f, len * 0.65f), sk);
+            MeshKit.Ball(chest, new Vector3(0, -0.12f * w, -0.1f), new Vector3(w * 0.9f, w * 0.7f, len * 0.6f), dk);
+        }
         // гребень / шипы
         for (int i = 0; i < 6; i++)
         {
@@ -85,15 +88,18 @@ public class QuadScp : ScpUnit
             float z = (i % 3) * 0.18f * len - 0.1f;
             MeshKit.Part(parent, MeshKit.Frustum(0.1f), dk, new Vector3(0, w * 0.45f, z), new Vector3(0.08f * w * 2, 0.18f * w * 2, 0.08f * w * 2), new Vector3(-20, 0, 0));
         }
-        if (reptile)
+        if (false)
             for (int i = 0; i < 10; i++)
                 MeshKit.Box(i < 5 ? pelvis : chest, new Vector3(Random.Range(-w, w) * 0.4f, w * 0.38f, Random.Range(-0.3f, 0.3f) * len), new Vector3(0.12f, 0.06f, 0.14f) * w * 2.2f, dk, new Vector3(Random.Range(-20, 20), Random.Range(0, 90), Random.Range(-20, 20)));
         // шея
-        MeshKit.Taper(neck, new Vector3(0, 0, 0.12f), w * 0.55f, w * 0.75f, 0.32f, skin, new Vector3(-80, 0, 0));
+        if (!reptile) MeshKit.Taper(neck, new Vector3(0, 0, 0.12f), w * 0.55f, w * 0.75f, 0.32f, skin, new Vector3(-80, 0, 0));
         // голова: длинная безглазая морда (939) или крокодилья (682)
         float hl = reptile ? 0.5f : 0.38f;
-        MeshKit.Box(head, new Vector3(0, 0.02f, hl * 0.5f), new Vector3(w * 0.55f, w * 0.32f, hl), sk);
-        MeshKit.Box(head, new Vector3(0, 0.08f, hl * 0.15f), new Vector3(w * 0.6f, w * 0.25f, hl * 0.5f), sk);
+        if (!reptile)
+        {
+            MeshKit.Box(head, new Vector3(0, 0.02f, hl * 0.5f), new Vector3(w * 0.55f, w * 0.32f, hl), sk);
+            MeshKit.Box(head, new Vector3(0, 0.08f, hl * 0.15f), new Vector3(w * 0.6f, w * 0.25f, hl * 0.5f), sk);
+        }
         if (reptile)
         {
             MeshKit.Ball(head, new Vector3(-w * 0.27f, 0.1f, hl * 0.3f), Vector3.one * 0.06f, Mats.Glow(new Color(1f, 0.7f, 0.1f), 2f));
@@ -105,7 +111,7 @@ public class QuadScp : ScpUnit
             MeshKit.Part(head, MeshKit.Frustum(0.1f), teeth, new Vector3(-w * 0.22f, -0.07f, z), new Vector3(0.03f, 0.07f, 0.03f), new Vector3(180, 0, 0));
             MeshKit.Part(head, MeshKit.Frustum(0.1f), teeth, new Vector3(w * 0.22f, -0.07f, z), new Vector3(0.03f, 0.07f, 0.03f), new Vector3(180, 0, 0));
         }
-        MeshKit.Box(jaw, new Vector3(0, -0.04f, hl * 0.45f), new Vector3(w * 0.5f, w * 0.15f, hl * 0.9f), sk);
+        if (!reptile) MeshKit.Box(jaw, new Vector3(0, -0.04f, hl * 0.45f), new Vector3(w * 0.5f, w * 0.15f, hl * 0.9f), sk);
         MeshKit.Box(jaw, new Vector3(0, -0.01f, hl * 0.45f), new Vector3(w * 0.4f, 0.02f, hl * 0.8f), Mats.Get(new Color(0.4f, 0.05f, 0.05f), 0.7f));
         for (int i = 0; i < 6; i++)
         {
@@ -122,9 +128,12 @@ public class QuadScp : ScpUnit
             legU[i] = B("legU" + i, parent, new Vector3(sx * w * 0.42f, -0.05f, front ? 0.05f : -0.05f));
             legL[i] = B("legL" + i, legU[i], new Vector3(0, -a, 0));
             foot[i] = B("foot" + i, legL[i], new Vector3(0, -b, 0));
-            MeshKit.Taper(legU[i], new Vector3(0, -a * 0.5f, 0), w * 0.3f, w * 0.45f, a + 0.05f, skin);
-            MeshKit.Taper(legL[i], new Vector3(0, -b * 0.5f, 0), w * 0.2f, w * 0.3f, b + 0.03f, skin);
-            MeshKit.Box(foot[i], new Vector3(0, -0.02f, 0.06f), new Vector3(w * 0.35f, 0.06f, w * 0.5f), dk);
+            if (!reptile)
+            {
+                MeshKit.Taper(legU[i], new Vector3(0, -a * 0.5f, 0), w * 0.3f, w * 0.45f, a + 0.05f, skin);
+                MeshKit.Taper(legL[i], new Vector3(0, -b * 0.5f, 0), w * 0.2f, w * 0.3f, b + 0.03f, skin);
+                MeshKit.Box(foot[i], new Vector3(0, -0.02f, 0.06f), new Vector3(w * 0.35f, 0.06f, w * 0.5f), dk);
+            }
             for (int c = -1; c <= 1; c++)
                 MeshKit.Part(foot[i], MeshKit.Frustum(0.1f), teeth, new Vector3(c * w * 0.1f, -0.03f, w * 0.3f), new Vector3(0.025f, 0.08f, 0.025f), new Vector3(100, 0, 0));
         }
@@ -135,10 +144,12 @@ public class QuadScp : ScpUnit
         {
             var t = B("tail" + i, tp, new Vector3(0, i == 0 ? 0.0f : 0, i == 0 ? -len * 0.3f : -0.3f));
             float d = w * 0.5f * (1f - i / (float)(segs + 1));
-            MeshKit.Taper(t, new Vector3(0, 0, -0.15f), d, d * 0.7f, 0.34f, skin, new Vector3(-90, 0, 0));
+            if (!reptile) MeshKit.Taper(t, new Vector3(0, 0, -0.15f), d, d * 0.7f, 0.34f, skin, new Vector3(-90, 0, 0));
             tail.Add(t);
             tp = t;
         }
+        // SCP-682: цельное скинированное тело с чешуёй и ранами вместо примитивов
+        if (reptile) Scp682Body.Make(transform, pelvis, chest, neck, head, jaw, legU, legL, foot, tail, w, hl);
         // объединяем меши
         var bones = new List<Transform> { pelvis, chest, neck, head, jaw };
         bones.AddRange(legU); bones.AddRange(legL); bones.AddRange(foot); bones.AddRange(tail);
