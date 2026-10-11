@@ -25,7 +25,15 @@ public static partial class MapGen
     }
 
     // kind: 0 трава, 1 лесная подстилка, 2 земля, 3 камень, 4 снег, 5 песок, 6 гравий, 7 сухая потрескавшаяся земля, 8 грязь
+    // Слои рельефа: фото-скан, если он есть; иначе процедурная текстура
+    static readonly string[] LayerPhoto = { "forest2", "grass", "forest", "rock", "snow", "cracked", "gravel", "dirt", "mud" };
     static Texture2D LayerTex(int kind, int seed)
+    {
+        if (kind >= 0 && kind < LayerPhoto.Length) { var ph = Mats.Photo(LayerPhoto[kind]); if (ph != null) return ph; }
+        return LayerTexProc(kind, seed);
+    }
+
+    static Texture2D LayerTexProc(int kind, int seed)
     {
         float ox = seed * 3.7f, oy = seed * 1.9f;
         return Mats.MakeTex(256, (x, y) =>
@@ -113,7 +121,7 @@ public static partial class MapGen
             t.anisoLevel = 4;
             m.SetTexture(slots[i], t);
         }
-        m.SetFloat("_Scale", 0.17f);
+        m.SetFloat("_Scale", Mats.Photo("grass") != null ? 0.3f : 0.17f);   // фото-скан ~3 м на тайл
         m.SetVector("_Gloss", map == 3 ? new Vector4(0.45f, 0.1f, 0.15f, 0.5f) : new Vector4(0.04f, 0.08f, 0.15f, 0.12f));
         return m;
     }

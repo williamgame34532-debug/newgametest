@@ -27,10 +27,12 @@ public static partial class MapGen
         Color hesco = map == 2 || map == 0 ? new Color(0.66f, 0.58f, 0.42f) : map == 3 ? new Color(0.7f, 0.68f, 0.62f) : new Color(0.5f, 0.46f, 0.34f);
 
         // грунт (гравий) и бетонная стоянка вертолётов
-        var gm = Mats.Textured(Mats.GroundTex(dirt, dirt * 0.88f, dirt * 1.08f, 77), Color.white, Vector2.one * 40f, map == 3 ? 0.3f : 0.05f);
+        var gph = Mats.Photo(map == 3 ? "snow" : map == 2 ? "cracked" : "gravel");
+        var gm = gph != null ? Mats.Tri(gph, Color.white, 3f, map == 3 ? 0.3f : 0.05f, 0.3f) : Mats.Textured(Mats.GroundTex(dirt, dirt * 0.88f, dirt * 1.08f, 77), Color.white, Vector2.one * 40f, map == 3 ? 0.3f : 0.05f);
         var ground = Solid(c + new Vector3(0, -15f, 0), new Vector3(300f, 30f, 300f), gm, Quaternion.identity, dirt, false, root);
         ground.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-        var apron = Mats.Textured(Mats.ConcreteTex(new Color(0.46f, 0.46f, 0.44f), 9), Color.white, new Vector2(8f, 5f), 0.15f);
+        var aph = Mats.Photo("concrete_floor");
+        var apron = aph != null ? Mats.Tri(aph, new Color(0.9f, 0.9f, 0.9f), 3f, 0.15f, 0.3f) : Mats.Textured(Mats.ConcreteTex(new Color(0.46f, 0.46f, 0.44f), 9), Color.white, new Vector2(8f, 5f), 0.15f);
         Solid(c + new Vector3(0, 0.02f, 20f), new Vector3(150f, 0.06f, 36f), apron, Quaternion.identity, new Color(0.45f, 0.45f, 0.44f), false, root);
 
         // площадки с разметкой

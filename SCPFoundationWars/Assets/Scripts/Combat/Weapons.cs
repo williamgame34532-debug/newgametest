@@ -370,7 +370,12 @@ public static class Ballistics
     public static void Fire(WeaponDef def, Unit owner, Vector3 origin, Vector3 dir, float spreadMul, Vector3 muzzle)
     {
         bool isPlayer = owner != null && owner.isPlayer;
-        Sfx.Play(SoundFor(def), muzzle, isPlayer ? 0.85f : 0.75f, Random.Range(0.93f, 1.07f), def.suppressor ? 40f : def.kind == WeaponKind.Sniper ? 400f : 220f, isPlayer ? 0.4f : 1f);
+        // вдалеке слышно не сам выстрел, а хлопок с раскатом по холмам — отдельная запись
+        float camD = Game.Cam != null ? Vector3.Distance(Game.Cam.transform.position, muzzle) : 0f;
+        if (!isPlayer && !def.suppressor && camD > 110f && def.kind != WeaponKind.Launcher)
+            Sfx.Play("gunfar", muzzle, def.kind == WeaponKind.Pistol || def.kind == WeaponKind.SMG ? 0.6f : 0.85f, Random.Range(0.92f, 1.08f) * (def.kind == WeaponKind.Sniper ? 0.85f : 1f), 700f);
+        else
+            Sfx.Play(SoundFor(def), muzzle, isPlayer ? 0.85f : 0.75f, Random.Range(0.93f, 1.07f), def.suppressor ? 40f : def.kind == WeaponKind.Sniper ? 400f : 220f, isPlayer ? 0.4f : 1f);
         Fx.MuzzleFlash(muzzle, dir, def.kind == WeaponKind.Shotgun || def.kind == WeaponKind.LMG ? 1.3f : def.kind == WeaponKind.Pistol ? 0.7f : 1f, def.suppressor);
         // гильза (у дробовика и снайперки — при передёргивании, здесь только у самозарядных)
         if (def.kind != WeaponKind.Launcher && def.kind != WeaponKind.Shotgun && !(def.kind == WeaponKind.Sniper && !def.auto && def.id != "svd" && def.id != "dmr"))

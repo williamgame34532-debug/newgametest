@@ -178,6 +178,18 @@ public static class Mats
         m.EnableKeyword("_NORMALMAP");
     }
 
+    // Фото-текстуры (Poly Haven / ambientCG, CC0) из Resources/Textures
+    static readonly Dictionary<string, Texture2D> photos = new Dictionary<string, Texture2D>();
+    public static Texture2D Photo(string name)
+    {
+        if (photos.TryGetValue(name, out var t)) return t;
+        t = Resources.Load<Texture2D>("Textures/photo_" + name);
+        if (t != null) { t.wrapMode = TextureWrapMode.Repeat; t.anisoLevel = 8; }
+        photos[name] = t;
+        return t;
+    }
+    public static Texture2D PhotoOr(string name, Texture2D fallback) { var t = Photo(name); return t != null ? t : fallback; }
+
     // Материал с мировой проекцией (стены, плиты, бетон) — шаг текстуры в метрах
     static Shader tri; static bool triTried;
     public static Material Tri(Texture2D tex, Color tint, float tileMeters, float smooth = 0.15f, float grime = 0.4f, float metal = 0f)

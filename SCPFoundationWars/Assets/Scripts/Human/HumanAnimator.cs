@@ -302,7 +302,7 @@ public class HumanAnimator : MonoBehaviour
         {
             var cam = Camera.main;
             if (cam != null && (cam.transform.position - transform.position).sqrMagnitude < 900f)
-                Sfx.Play("step", transform.position, 0.1f + run * 0.15f, Random.Range(0.85f, 1.15f), 25f);
+                Sfx.Play(Sfx.Step, transform.position, 0.1f + run * 0.15f, Random.Range(0.85f, 1.15f), 25f);
         }
 
         // ---- бездействие ----

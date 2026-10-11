@@ -34,11 +34,11 @@ public static partial class MapGen
 
     static void SiteMaterials()
     {
-        wallWhite = Mats.Tri(TexOr("cb_whitewall", Mats.ConcreteTex(new Color(0.75f, 0.74f, 0.7f), 11)), new Color(0.92f, 0.91f, 0.88f), 2.5f, 0.12f, 0.5f);
-        wallGrey = Mats.Tri(Mats.ConcreteTex(new Color(0.52f, 0.52f, 0.5f), 13), Color.white, 3f, 0.12f, 0.55f);
-        roofMat = Mats.Tri(TexOr("cb_concretefloor", Mats.ConcreteTex(new Color(0.38f, 0.38f, 0.37f), 17)), new Color(0.7f, 0.7f, 0.68f), 4f, 0.1f, 0.5f);
-        metalDark = Mats.Tri(TexOr("cb_metalpanels2", Mats.ConcreteTex(new Color(0.3f, 0.32f, 0.33f), 19)), new Color(0.75f, 0.78f, 0.8f), 2f, 0.35f, 0.3f, 0.4f);
-        asphalt = Mats.Tri(Mats.ConcreteTex(new Color(0.2f, 0.2f, 0.19f), 23), Color.white, 6f, 0.08f, 0.6f);
+        wallWhite = Mats.Tri(Mats.PhotoOr("concrete_wall", TexOr("cb_whitewall", Mats.ConcreteTex(new Color(0.75f, 0.74f, 0.7f), 11))), new Color(1.25f, 1.24f, 1.2f), 3f, 0.12f, 0.35f);
+        wallGrey = Mats.Tri(Mats.PhotoOr("dirty_concrete", Mats.ConcreteTex(new Color(0.52f, 0.52f, 0.5f), 13)), Color.white, 3f, 0.12f, 0.35f);
+        roofMat = Mats.Tri(Mats.PhotoOr("concrete_floor", TexOr("cb_concretefloor", Mats.ConcreteTex(new Color(0.38f, 0.38f, 0.37f), 17))), new Color(0.85f, 0.85f, 0.83f), 3f, 0.1f, 0.35f);
+        metalDark = Mats.Tri(Mats.PhotoOr("corrugated", TexOr("cb_metalpanels2", Mats.ConcreteTex(new Color(0.3f, 0.32f, 0.33f), 19))), new Color(0.8f, 0.82f, 0.85f), 2f, 0.35f, 0.25f, 0.5f);
+        asphalt = Mats.Tri(Mats.PhotoOr("asphalt", Mats.ConcreteTex(new Color(0.2f, 0.2f, 0.19f), 23)), Color.white, 4f, 0.1f, 0.3f);
         glassDark = Mats.Get(new Color(0.08f, 0.1f, 0.12f), 0.92f, 0.1f);
         hazard = Mats.Textured(Mats.MakeTex(64, (x, y) => Mathf.Repeat((x + y) * 4f, 1f) < 0.5f ? new Color(0.9f, 0.72f, 0.1f) : new Color(0.08f, 0.08f, 0.08f)), Color.white, Vector2.one, 0.3f);
         foreach (var m in new[] { wallWhite, wallGrey, roofMat, metalDark, asphalt }) m.SetFloat("_Base", SiteY);

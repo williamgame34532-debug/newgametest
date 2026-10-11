@@ -1,0 +1,8 @@
+Фото-текстуры (photo_*.jpg) — сканы Poly Haven (polyhaven.com) и ambientCG (ambientcg.com), лицензия CC0 1.0
+(общественное достояние, указание авторства не требуется). Уменьшены до 1024×1024.
+Наборы: aerial_grass_rock, forrest_ground_01, forest_ground_04, dry_ground_01, aerial_rocks_02, snow_02, coast_sand_05,
+gravel_floor_02, sandstone_cracks, brown_mud_rocks_01, concrete_wall_007, concrete_floor_02, dirty_concrete, asphalt_01,
+metal_plate, corrugated_iron_02 (Poly Haven, авторы — Rob Tuytel, Dimitrios Savva и др.).
+Файлы взяты из открытых репозиториев GitHub, где эти CC0-сканы лежат в составе проектов:
+kandaman/dpskofduty, shadow-kernel/Vortex-Engine-Horror-Template, mikatomik/Godot-4-Overgrown-Subway-Demo,
+RobertBeckebans/RBDOOM-3-BFG_mod_unittests, JR-Bam/Perlin-Simplex-Biome-Gen-Pipeline, Libre-TrainSim/Libre-TrainSim.

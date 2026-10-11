@@ -201,7 +201,7 @@ public class PlayerController : MonoBehaviour
                 float want = Mathf.Atan2(to.x, to.z) * Mathf.Rad2Deg;
                 yaw = Mathf.MoveTowardsAngle(yaw, want, 90f * Time.deltaTime);
                 stepT += Time.deltaTime;
-                if (stepT > 0.42f) { stepT = 0; Sfx.Play2D("step", 0.35f, Random.Range(0.9f, 1.1f)); }
+                if (stepT > 0.42f) { stepT = 0; Sfx.Play2D(Sfx.Step, 0.35f, Random.Range(0.9f, 1.1f)); }
                 yield return null;
             }
         }
@@ -283,7 +283,7 @@ public class PlayerController : MonoBehaviour
         OnRope = false;
         transform.position = ground + Vector3.up * 0.05f;
         landKick = 1f;
-        Sfx.Play2D("step", 0.8f, 0.8f);
+        Sfx.Play2D(Sfx.Step, 0.8f, 0.8f);
         riding = false;
         unit.inVehicle = false;
         cc.enabled = true;
@@ -511,7 +511,7 @@ public class PlayerController : MonoBehaviour
         {
             float prev = bob;
             bob += hs * dt * 1.6f;
-            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) Sfx.Play2D("step", 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f));
+            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) Sfx.Play2D(Sfx.Step, 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f));
         }
         bobAmt = Mathf.Lerp(bobAmt, grounded ? Mathf.Clamp01(hs / 7f) : 0f, 1f - Mathf.Exp(-6f * dt));
         landKick = Mathf.MoveTowards(landKick, 0, dt * 3f);
@@ -563,7 +563,7 @@ public class PlayerController : MonoBehaviour
             transform.position = Vector3.Lerp(b, land, k);
             yield return null;
         }
-        Sfx.Play2D("step", 0.45f, 0.9f);
+        Sfx.Play2D(Sfx.Step, 0.45f, 0.9f);
         cc.enabled = true;
         velocity = transform.forward * 3.5f; vy = -2f;
         vaulting = false;

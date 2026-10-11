@@ -13,5 +13,22 @@
   walking, land.
 Ветер и часть слоёв синтезированы.
 
-Выстрелы (rifle/smg/lmg/pistol/shotgun/sniper/suppressed) и голос SCP-096 (cry, scream) — синтезированы
-с нуля (ударная волна, газы, механика, уличная акустика; голос — модель источник-фильтр), чужих записей нет.
+Записанные звуки (версия 4.2) — все CC0 1.0 с Freesound (freesound.org), взяты из подборок открытых проектов
+webdevcody/survive-the-night-fps (client/audio/samples, CREDITS.md) и jaher/shadow-six (assets/audio, CREDITS.md):
+  rifle_*  — AR15 rifle shot (michorvath, #427596), Ar15-Real Recording / AssaultRifle1 (SuperPhat)
+  lmg_*    — AK-47 (duesto, #156073), AK47 down the block (Franki-01234, #201669)
+  smg_*    — MP5 down the street (Franki-01234, #201671), Submachine gun automatic fire (SuperPhat, #417689)
+  pistol_* — 9mm pistol shot (michorvath, #427592), Glock 19X (areniporgen, #828786), 9mm short reverb (gattoangus, #217805)
+  shotgun_*— 20 gauge (michorvath, #427595), Mossberg 500A (AnthonyChan0, #159710), Shotgun Shot 03 (LilMati, #473846)
+  sniper_* — Sniper Rifle / SemiAutoRifleShot (SuperPhat, #514228, #421710)
+  gunfar_* — AR15 shot from 50 yards (michorvath, #427597), distant SMG (SuperPhat, #417690)
+  dirt_*   — VisceralBulletImpacts (u1769092, #423301); metal_* — zbig77, Anthousai, snardin42
+  ricochet_* — bullet ricochet (aust_paul, #30932)
+  magin/magout/bolt/pump/click — nioczkus, serøutōnin--deprivəd, GreenFireSound, AlexCoover, dasBUTCHER84, Krovi и др.
+  step_*   — Footsteps Dirt Gravel (PotatokingXII), Nox_Sound, felix.blume, jedg
+  stepsnow_* — snow footsteps (Nimlos, #432285; cabled_mess, #384423)
+  explosion_* — modusmogulus, derplayer, Big Far Explosion (unfa, #156500)
+  wind_1   — Wind in a pine tree (felix.blume, #655501)
+  rotor_1  — Helicopter Rotor Loop (qubodup, CC0), петля из simlexx-k/rotorfrontier
+К записям выстрелов добавлено небольшое уличное эхо (синтезированный отклик холмов).
+Голос SCP-096 (cry, scream), гильзы (casing) и выстрел с глушителем (suppressed) — синтезированы для игры.

@@ -251,7 +251,7 @@ public class Soldier : Unit
             yield return null;
         }
         anim.airborne = false;
-        Sfx.Play("step", door, 0.5f, 0.7f, 20f);
+        Sfx.Play(Sfx.Step, door, 0.5f, 0.7f, 20f);
         a = transform.position;
         t = 0;
         while (t < 0.5f && alive)
@@ -305,7 +305,7 @@ public class Soldier : Unit
             yield return null;
         }
         anim.airborne = false;
-        Sfx.Play("step", ground, 0.5f, 0.8f, 25f);
+        Sfx.Play(Sfx.Step, ground, 0.5f, 0.8f, 25f);
         if (!alive) yield break;
         inVehicle = false;
         BeginCombat(ground);
@@ -356,7 +356,7 @@ public class Soldier : Unit
         anim.onRope = false;
         anim.slung = false;
         onDone?.Invoke();
-        Sfx.Play("step", ground, 0.5f, 0.8f, 25f);
+        Sfx.Play(Sfx.Step, ground, 0.5f, 0.8f, 25f);
         if (!alive) yield break;
         BeginCombat(ground);
         if (agent != null && agent.enabled && agent.isOnNavMesh)

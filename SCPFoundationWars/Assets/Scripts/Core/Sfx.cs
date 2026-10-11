@@ -14,6 +14,8 @@ public static class Sfx
     static GameObject host;
     static int next;
     public static float Volume = 0.9f;
+    // шаги: на зимней карте — по снегу
+    public static string Step => MapGen.Root != null && MapGen.IsSnow ? "stepsnow" : "step";
 
     static System.Random rng = new System.Random(1234);
     static float N() => (float)(rng.NextDouble() * 2.0 - 1.0);

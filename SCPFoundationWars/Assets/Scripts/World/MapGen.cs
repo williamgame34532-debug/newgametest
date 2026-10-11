@@ -19,6 +19,7 @@ public static partial class MapGen
     public const float Size = 640f;
     public const float Play = 235f;
     static int mapKind;
+    public static bool IsSnow => mapKind == 3;
     static readonly List<Light> lamps = new List<Light>();
     static Vector3 sunDir = Vector3.up;
     static Color sunCol = Color.white, fogColor = Color.gray;
@@ -65,8 +66,8 @@ public static partial class MapGen
         Battle.DustColor = new Color(dirtColor.r, dirtColor.g, dirtColor.b, 0.45f);
         groundMat = Mats.Textured(Mats.GroundTex(g1, g2, g3, seed), Color.white, Vector2.one, map == 3 ? 0.35f : 0.08f);
         // бетон с мировой проекцией: шаг плит ~3 м на любых коробках
-        concreteMat = Mats.Tri(Mats.ConcreteTex(new Color(0.58f, 0.57f, 0.54f), 3), Color.white, 3f, 0.15f, 0.45f);
-        darkConcrete = Mats.Tri(Mats.ConcreteTex(new Color(0.4f, 0.4f, 0.39f), 5), Color.white, 3f, 0.15f, 0.45f);
+        concreteMat = Mats.Tri(Mats.PhotoOr("concrete_wall", Mats.ConcreteTex(new Color(0.58f, 0.57f, 0.54f), 3)), Color.white, 3f, 0.15f, 0.35f);
+        darkConcrete = Mats.Tri(Mats.PhotoOr("dirty_concrete", Mats.ConcreteTex(new Color(0.4f, 0.4f, 0.39f), 5)), new Color(0.75f, 0.75f, 0.74f), 3f, 0.15f, 0.35f);
         foreach (var cm in new[] { concreteMat, darkConcrete }) cm.SetFloat("_Base", Height(0, 0));
 
         terrainMat = TerrainMaterial(map, seed);
@@ -865,7 +866,7 @@ public static partial class MapGen
     static void BuildRoads()
     {
         Color road = mapKind == 2 ? new Color(0.55f, 0.46f, 0.33f) : mapKind == 3 ? new Color(0.55f, 0.57f, 0.6f) : new Color(0.24f, 0.23f, 0.21f);
-        var m = Mats.Get(road, 0.15f);
+        var m = Mats.Photo("asphalt") != null ? Mats.Tri(Mats.Photo("asphalt"), Color.Lerp(Color.white, road * 3f, 0.3f), 4f, 0.12f, 0.3f) : Mats.Get(road, 0.15f);
         Road(new[] { new Vector3(0, 0, -300), new Vector3(8, 0, -150), new Vector3(0, 0, -20) }, 7f, m);
         Road(new[] { new Vector3(0, 0, 20), new Vector3(-8, 0, 150), new Vector3(0, 0, 300) }, 7f, m);
         Road(new[] { new Vector3(-300, 0, 10), new Vector3(-120, 0, 25), new Vector3(-24, 0, 0) }, 6f, m);
