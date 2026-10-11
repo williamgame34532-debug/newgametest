@@ -100,7 +100,7 @@ public static partial class MapGen
         }, false);
     }
 
-    static Material TerrainMaterial(int map, int seed)
+    static Material TerrainMaterial(int map, int seed, int last = -1)
     {
         var sh = Shader.Find("SCP/Terrain");
         if (sh == null) return null;
@@ -109,7 +109,7 @@ public static partial class MapGen
         string[] slots = { "_L0", "_L1", "_L2", "_L3" };
         for (int i = 0; i < 4; i++)
         {
-            var t = LayerTex(kinds[i], seed + i * 7);
+            var t = LayerTex(i == 3 && last >= 0 ? last : kinds[i], seed + i * 7);
             t.anisoLevel = 4;
             m.SetTexture(slots[i], t);
         }
@@ -403,24 +403,66 @@ public static partial class MapGen
         treeChunks.Clear();
     }
 
-    // ---------------- внешний мир: рельеф до гор и дальний лес ----------------
-    static float OuterHeight(float x, float z)
+    // ---------------- внешний мир: настоящие горы с долинами до горизонта ----------------
+    // Четыре долины по сторонам света — по ним летают вертолёты; на юге в долине стоит база.
+    public const float OuterR = 2700f;
+    public static float ValleyOpen(float x, float z)
     {
+        float d = Mathf.Min(Mathf.Abs(x), Mathf.Abs(z));
         float r = Mathf.Sqrt(x * x + z * z);
-        float rise = Mathf.SmoothStep(0f, 1f, (r - 330f) / 500f);
-        float hills = (Mathf.PerlinNoise(x * 0.004f + 11, z * 0.004f + 3) - 0.35f) * 90f + (Mathf.PerlinNoise(x * 0.012f, z * 0.012f + 50) - 0.5f) * 20f;
-        return Height(x, z) + rise * Mathf.Max(0f, hills + 25f);
+        float w = 90f + r * 0.06f;                          // долина расширяется наружу
+        return 1f - Mathf.SmoothStep(0f, 1f, (d - w * 0.5f) / w);
+    }
+
+    // Передовая база стоит в южной долине на выровненной площадке
+    public static readonly Vector2 FobXZ = new Vector2(0f, -1300f);
+    public static Vector3 FobCenter() => new Vector3(FobXZ.x, OuterRaw(FobXZ.x, FobXZ.y), FobXZ.y);
+
+    public static float OuterHeight(float x, float z)
+    {
+        float h = OuterRaw(x, z);
+        float fd = Vector2.Distance(new Vector2(x, z), FobXZ);
+        if (fd < 280f) h = Mathf.Lerp(OuterRaw(FobXZ.x, FobXZ.y) - 0.4f, h, Mathf.SmoothStep(0f, 1f, (fd - 165f) / 115f));
+        return h;
+    }
+
+    static float OuterRaw(float x, float z)
+    {
+        float e = Mathf.Max(Mathf.Abs(x), Mathf.Abs(z));
+        float r = Mathf.Sqrt(x * x + z * z);
+        float baseH = Height(Mathf.Clamp(x, -Size / 2, Size / 2), Mathf.Clamp(z, -Size / 2, Size / 2));
+        float near = Mathf.SmoothStep(0f, 1f, (e - Size / 2 - 4f) / 260f);
+        // холмы предгорий
+        float hills = (Mathf.PerlinNoise(x * 0.004f + 11, z * 0.004f + 3) - 0.35f) * 70f + (Mathf.PerlinNoise(x * 0.012f, z * 0.012f + 50) - 0.5f) * 18f;
+        hills = Mathf.Max(0f, hills + 20f);
+        // хребты: «гребневой» шум, высота растёт к краю мира
+        float ridge = 0f, amp = 1f, f = 0.0016f, tot = 0f;
+        for (int o = 0; o < 5; o++)
+        {
+            float n = 1f - Mathf.Abs(Mathf.PerlinNoise(x * f + 31.7f + o * 13f, z * f + 7.3f - o * 5f) * 2f - 1f);
+            ridge += n * n * amp; tot += amp;
+            amp *= 0.5f; f *= 2.05f;
+        }
+        ridge /= tot;
+        float mtnK = Mathf.SmoothStep(0f, 1f, (r - 520f) / 900f);
+        float peaks = ridge * Mathf.Lerp(80f, mapKind == 2 ? 330f : 520f, Mathf.Clamp01((r - 500f) / 1800f)) * mtnK;
+        float valley = ValleyOpen(x, z);
+        float floor = Mathf.Clamp01((r - 400f) / 2000f) * 35f;   // дно долины плавно поднимается
+        float h = hills * (1f - valley * 0.85f) + peaks * (1f - valley) + floor * valley;
+        // край мира загибаем вверх — горизонт закрыт стеной гор
+        h += Mathf.SmoothStep(0f, 1f, (r - OuterR + 700f) / 700f) * 420f * (1f - valley * 0.6f);
+        return baseH + near * h;
     }
 
     static void BuildOuter(int map)
     {
-        int seg = 160, rings = 40;
-        float r0 = 300f, r1 = 1250f;
+        int seg = 288, rings = 84;
+        float r0 = 300f, r1 = OuterR;
         var v = new List<Vector3>(); var t = new List<int>();
         for (int j = 0; j <= rings; j++)
         {
             float k = j / (float)rings;
-            float r = Mathf.Lerp(r0, r1, k * k * 0.6f + k * 0.4f);
+            float r = Mathf.Lerp(r0, r1, k * k * 0.55f + k * 0.45f);
             for (int i = 0; i < seg; i++)
             {
                 float a = i / (float)seg * Mathf.PI * 2f;
@@ -435,35 +477,56 @@ public static partial class MapGen
             for (int i = 0; i < seg; i++)
             {
                 int a = j * seg + i, b = j * seg + (i + 1) % seg, c = (j + 1) * seg + i, d = (j + 1) * seg + (i + 1) % seg;
-                t.Add(a); t.Add(c); t.Add(b); t.Add(b); t.Add(c); t.Add(d);
+                t.Add(a); t.Add(b); t.Add(c); t.Add(b); t.Add(d); t.Add(c);
             }
         var m = new Mesh { name = "outer", indexFormat = IndexFormat.UInt32 };
         m.SetVertices(v); m.SetTriangles(t, 0);
         m.RecalculateNormals(); m.RecalculateBounds();
-        PaintGround(m);
+        // склоны — камень, вершины — снег (кроме пустыни)
+        {
+            var nv = m.normals; var cols = new Color[v.Count];
+            for (int i = 0; i < v.Count; i++)
+            {
+                Color w = GroundWeights(v[i].x, v[i].z, 1f - nv[i].y);
+                if (map != 2)
+                {
+                    float snowLine = map == 3 ? 40f : 230f;
+                    float sn = Mathf.Clamp01((v[i].y - snowLine + (Mathf.PerlinNoise(v[i].x * 0.01f, v[i].z * 0.01f) - 0.5f) * 80f) / 60f) * Mathf.Clamp01(nv[i].y * 1.6f - 0.3f);
+                    w.a = 0f;
+                    if (sn > 0f) w = Color.Lerp(w, new Color(0, 0, 1f - sn, sn), sn);
+                }
+                cols[i] = w;
+            }
+            m.colors = cols;
+        }
         var go = new GameObject("OuterGround");
         go.transform.SetParent(Root.transform);
         go.AddComponent<MeshFilter>().sharedMesh = m;
         var mr = go.AddComponent<MeshRenderer>();
-        mr.sharedMaterial = terrainMat != null ? terrainMat : groundMat;
+        var om = map != 2 ? TerrainMaterial(map, 91, 4) : null;
+        mr.sharedMaterial = om != null ? om : terrainMat != null ? terrainMat : groundMat;
         mr.shadowCastingMode = ShadowCastingMode.Off;
+        var col = go.AddComponent<MeshCollider>();
+        col.sharedMesh = m;
 
         // дальний лес/кактусы на склонах вокруг
         if (map == 2) return;
         var root = new GameObject("FarForest").transform;
         root.SetParent(Root.transform);
-        int n = map == 1 ? 2600 : map == 3 ? 1600 : 1500;
+        int n = map == 1 ? 4200 : map == 3 ? 2600 : 2600;
         for (int i = 0; i < n; i++)
         {
-            float a = R(0, Mathf.PI * 2), r = R(335f, 950f);
+            float a = R(0, Mathf.PI * 2), r = R(335f, 1700f);
             float x = Mathf.Cos(a) * r, z = Mathf.Sin(a) * r;
             if (Mathf.Abs(x) < Size / 2 && Mathf.Abs(z) < Size / 2) continue;
             // лес гуще в низинах, просеки по перевалам
-            float pass = 1f;
-            for (int q = 0; q < 4; q++) pass = Mathf.Min(pass, Mathf.Abs(Mathf.DeltaAngle(a * Mathf.Rad2Deg, q * 90f)) / 10f);
-            if (pass < 1f && R() > pass) continue;
+            // просека по дну долины — там ходят вертолёты
+            if (Vector2.Distance(new Vector2(x, z), FobXZ) < 260f) continue;
+            if (ValleyOpen(x, z) > 0.55f && Mathf.Min(Mathf.Abs(x), Mathf.Abs(z)) < 45f + r * 0.02f) continue;
             if (Mathf.PerlinNoise(x * 0.01f, z * 0.01f) < 0.38f) continue;
-            Conifer(new Vector3(x, OuterHeight(x, z) - 0.3f, z), root, map == 3, R(0.9f, 1.4f), false);
+            float fy = OuterHeight(x, z);
+            if (fy > (map == 3 ? 60f : 200f)) continue;            // выше границы леса — голые скалы
+            Conifer(new Vector3(x, fy - 0.3f, z), root, map == 3, R(0.9f, 1.4f), false);
         }
     }
 }

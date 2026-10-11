@@ -74,7 +74,6 @@ public static partial class MapGen
         CombineTreeChunks();
         BuildBounds();
         Lighting(map, time, fog);
-        Mountains(map, fog);
         Physics.SyncTransforms();
     }
 
@@ -658,7 +657,7 @@ public static partial class MapGen
         RenderSettings.fog = true;
         RenderSettings.fogMode = FogMode.ExponentialSquared;
         RenderSettings.fogColor = fog;
-        RenderSettings.fogDensity = time == 2 ? 0.009f : map == 1 ? 0.0055f : map == 3 ? 0.006f : 0.0035f;
+        RenderSettings.fogDensity = time == 2 ? 0.0055f : map == 1 ? 0.0028f : map == 3 ? 0.003f : 0.0015f;
         fogColor = fog;
         RenderSettings.reflectionIntensity = time == 2 ? 0.2f : 0.7f;
         QualitySettings.shadowDistance = 140f;

@@ -51,7 +51,7 @@ public partial class Game : MonoBehaviour
         Cam = camGo.AddComponent<Camera>();
         Cam.fieldOfView = Fov;
         Cam.nearClipPlane = 0.05f;
-        Cam.farClipPlane = 1600f;
+        Cam.farClipPlane = 3400f;
         Cam.allowHDR = true;
         Cam.allowMSAA = true;
         camGo.AddComponent<AudioListener>();

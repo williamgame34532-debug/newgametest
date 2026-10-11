@@ -12,3 +12,6 @@
 * Kenney Starter Kit FPS (https://github.com/KenneyNL/Starter-Kit-FPS) — MIT / CC0 ассеты:
   walking, land.
 Ветер и часть слоёв синтезированы.
+
+Выстрелы (rifle/smg/lmg/pistol/shotgun/sniper/suppressed) и голос SCP-096 (cry, scream) — синтезированы
+с нуля (ударная волна, газы, механика, уличная акустика; голос — модель источник-фильтр), чужих записей нет.

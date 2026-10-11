@@ -105,7 +105,7 @@ public abstract class ScpUnit : Unit
         maxHp = hp = def != null ? def.hp : 1000f;
         threat = Mathf.Clamp(maxHp / 400f, 1.5f, 6f);
         // гнетущий гул рядом с аномалией
-        if (k == ScpKind.S173 || k == ScpKind.S106 || k == ScpKind.S049 || k == ScpKind.S096) Sfx.Loop("scp_hum", transform, 0.35f, 28f, k == ScpKind.S106 ? 0.7f : 1f);
+        if (k == ScpKind.S173 || k == ScpKind.S106 || k == ScpKind.S049) Sfx.Loop("scp_hum", transform, 0.35f, 28f, k == ScpKind.S106 ? 0.7f : 1f);
     }
 
     float agR = 0.4f, agH = 1.9f, agSpeed = 3f, agAccel = 12f;
@@ -201,10 +201,25 @@ public abstract class HumanScp : ScpUnit
     protected Vector3 aimDir;
     protected float attackStart = -1;
 
+    // Готовая модель персонажа (SCP: Unity, CC BY-SA 3.0); если файла нет — собирается процедурное тело
+    protected virtual string ModelId => null;
+    public bool Textured { get; private set; }
+
     protected void BuildBody(BodyShape shape, AnimStyle style)
     {
-        rig = HumanRig.Create(transform, shape);
-        Dress();
+        string prev = ModelLib.Active;
+        if (ModelId != null) { ModelLib.Use(ModelId); Textured = ModelLib.Active == ModelId; }
+        if (Textured)
+        {
+            rig = HumanRig.Create(transform, ModelLib.SoldierShape());
+            rig.DressTable(ModelId);
+        }
+        else
+        {
+            rig = HumanRig.Create(transform, shape);
+            Dress();
+        }
+        ModelLib.Use(prev);
         rig.Finish();
         ragdoll = Ragdoll.BuildHuman(rig, this, 1.1f);
         anim = gameObject.AddComponent<HumanAnimator>();
@@ -298,6 +313,9 @@ public class Scp173 : ScpUnit
         model = new GameObject("model").transform;
         model.SetParent(transform, false);
         var t = model;
+        // готовая модель статуи (SCP: Unity, CC BY-SA 3.0); процедурная — запасной вариант
+        var mx = ModelX.Load("scp173");
+        if (mx != null && mx.parts.Count > 0) { mx.Spawn("statue", t, Color.white, Vector3.zero); BuildHitboxes(); return; }
         Color con = new Color(0.7f, 0.66f, 0.58f), red = new Color(0.55f, 0.08f, 0.05f), green = new Color(0.2f, 0.45f, 0.15f), brown = new Color(0.35f, 0.22f, 0.12f);
         var cm = Mats.Get(con, 0.1f);
         MeshKit.Part(t, MeshKit.Frustum(0.8f), cm, new Vector3(-0.11f, 0.3f, 0), new Vector3(0.2f, 0.6f, 0.22f));
@@ -319,7 +337,11 @@ public class Scp173 : ScpUnit
         MeshKit.Box(t, new Vector3(-0.1f, 1.35f, -0.16f), new Vector3(0.25f, 0.1f, 0.01f), green, new Vector3(0, 0, 30));
         MeshKit.Box(t, new Vector3(0.0f, 0.7f, 0.15f), new Vector3(0.1f, 0.3f, 0.01f), red, new Vector3(0, 0, 50));
         MeshKit.CombineParts(t);
+        BuildHitboxes();
+    }
 
+    void BuildHitboxes()
+    {
         var rb = gameObject.AddComponent<Rigidbody>(); rb.isKinematic = true;
         var bodyHb = new GameObject("hb_body");
         bodyHb.transform.SetParent(transform, false);
@@ -436,7 +458,7 @@ public class Scp096 : HumanScp
     readonly List<Unit> targets = new List<Unit>();
     float modeT, checkT, wanderT;
     Vector3 home;
-    AudioSource cry;
+    AudioSource cry, rageLoop;
     bool hitDone;
 
     public bool Enraged => mode != Mode.Calm;
@@ -451,7 +473,7 @@ public class Scp096 : HumanScp
         s.BuildBody(BodyShape.Tall096(), AnimStyle.Shy);
         s.SetupAgent(0.4f, 2.4f, 1.2f, 40f);
         s.home = pos;
-        s.cry = Sfx.Loop("cry", go.transform, 0.5f, 35f);
+        s.cry = Sfx.Loop("cry", go.transform, 0.55f, 32f, Random.Range(0.95f, 1.05f));
         ScpSkin.Apply(go, ScpSkin.Kind.Pale);
         return s;
     }
@@ -583,7 +605,13 @@ public class Scp096 : HumanScp
                 anim.Flinch(Random.insideUnitSphere, 0.2f);
                 vel = Vector3.zero;
                 Animate(transform.forward + Vector3.up * 0.3f);
-                if (Time.time > modeT) { mode = Mode.Rage; if (AgentOk) agent.isStopped = false; }
+                if (Time.time > modeT)
+                {
+                    mode = Mode.Rage; if (AgentOk) agent.isStopped = false;
+                    // во время погони — непрерывный вой, слышно издалека
+                    if (rageLoop == null) rageLoop = Sfx.Loop("scream", transform, 0.85f, 160f, 0.97f);
+                    else rageLoop.Play();
+                }
                 break;
 
             case Mode.Rage:
@@ -596,6 +624,7 @@ public class Scp096 : HumanScp
                     // все, кто видел лицо, мертвы — успокаивается
                     mode = Mode.Calm;
                     home = transform.position;
+                    if (rageLoop != null) rageLoop.Stop();
                     if (cry != null) cry.Play();
                     break;
                 }
@@ -636,6 +665,7 @@ public class Scp096 : HumanScp
     protected override void Die(DamageInfo d)
     {
         if (cry != null) cry.Stop();
+        if (rageLoop != null) rageLoop.Stop();
         base.Die(d);
     }
 }
@@ -659,6 +689,8 @@ public class Scp049 : HumanScp
         ScpSkin.Apply(go, ScpSkin.Kind.Leather, 0.3f);
         return s;
     }
+
+    protected override string ModelId => "scp049";
 
     protected override void Dress()
     {
@@ -767,6 +799,8 @@ public class Scp106 : HumanScp
         ScpSkin.Apply(go, ScpSkin.Kind.Rot, 0.7f);
         return s;
     }
+
+    protected override string ModelId => "scp106";
 
     protected override void Dress()
     {

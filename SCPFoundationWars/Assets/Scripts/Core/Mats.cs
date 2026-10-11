@@ -153,6 +153,31 @@ public static class Mats
         return m;
     }
 
+    // Текстуры из Resources/Models/*.bytes (PNG): цвет — sRGB, карта нормалей — линейная (X продублирован в альфе)
+    static readonly Dictionary<string, Texture2D> byteTex = new Dictionary<string, Texture2D>();
+    public static Texture2D BytesTex(string name, bool linear)
+    {
+        if (string.IsNullOrEmpty(name)) return null;
+        if (byteTex.TryGetValue(name, out var t)) return t;
+        var ta = Resources.Load<TextAsset>("Models/" + name);
+        if (ta == null) { byteTex[name] = null; return null; }
+        t = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear);
+        t.LoadImage(ta.bytes);
+        t.wrapMode = TextureWrapMode.Repeat;
+        t.anisoLevel = 4;
+        t.Apply(true, true);
+        byteTex[name] = t;
+        return t;
+    }
+
+    public static void AddNormal(Material m, Texture2D n, float scale = 1f)
+    {
+        if (m == null || n == null) return;
+        m.SetTexture("_BumpMap", n);
+        m.SetFloat("_BumpScale", scale);
+        m.EnableKeyword("_NORMALMAP");
+    }
+
     public static Material UnlitMat(Color c)
     {
         var m = new Material(UnlitShader);

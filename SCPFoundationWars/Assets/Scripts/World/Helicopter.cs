@@ -21,7 +21,7 @@ public class Helicopter : MonoBehaviour
     public bool Done => phase == Phase.Outbound || phase == Phase.Dead || phase == Phase.Crash;
     public bool Unloaded { get; private set; }
 
-    enum Phase { Waiting, Inbound, Approach, Descend, Unload, Climb, Outbound, Crash, Dead }
+    enum Phase { Waiting, TakeOff, Inbound, Approach, Descend, Unload, Climb, Outbound, Crash, Dead }
     Phase phase = Phase.Waiting;
     Transform rotor, tailRotor, rotorDisc;
     Vector3 entry, lz, exit, approachDir;
@@ -250,9 +250,44 @@ public class Helicopter : MonoBehaviour
         startTime = float.MaxValue;
         phase = Phase.Waiting;
     }
+    // Вертолёт стоит на площадке базы с заглушенными винтами; к вылету раскручивается и взлетает сам
+    public bool onPad;
+    Vector3 padPos;
+    public void LaunchFromPad(Vector3 pad, float yawDeg, Vector3 lz, Vector3 exit, float delay)
+    {
+        Launch(pad, lz, exit, delay);
+        onPad = true; padPos = pad;
+        transform.position = pad + Vector3.up * 1.2f;
+        yaw = yawDeg;
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
+        velocity = Vector3.zero;
+        rotorSpeed = 0f;
+        phase = Phase.Waiting;
+    }
+    const float SpinUp = 12f;    // за сколько секунд до вылета запускают двигатели
+
+    // Крейсерская высота: над самой высокой точкой рельефа по курсу
+    Vector3 Cruise(Vector3 target, float margin)
+    {
+        Vector3 p = transform.position;
+        Vector3 to = target - p; to.y = 0;
+        float d = to.magnitude;
+        if (d < 1f) return target;
+        Vector3 dir = to / d;
+        float top = -1000f;
+        for (int k = 0; k <= 8; k++)
+        {
+            Vector3 q = p + dir * Mathf.Min(d, k * 60f);
+            top = Mathf.Max(top, MapGen.OuterHeight(q.x, q.z));
+        }
+        float want = top + (d > 450f ? margin : margin * 0.6f);
+        if (target.y < want) target.y = want;
+        return target;
+    }
+
     public float LaunchTime => startTime;
     public bool IsWaiting => phase == Phase.Waiting;
-    public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting) phase = Phase.Inbound; }
+    public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting && !onPad) phase = Phase.Inbound; }
 
     // Доклады пилота борту с игроком
     int callStage;
@@ -331,7 +366,7 @@ public class Helicopter : MonoBehaviour
         float fogD = RenderSettings.fog ? Mathf.Max(0.0015f, RenderSettings.fogDensity) : 0.0015f;
         float range = Mathf.Clamp(1.9f / fogD, 350f, 900f);
         var cam = Game.Cam;
-        bool want = mine || showcase || (phase != Phase.Waiting && (cam == null || (transform.position - cam.transform.position).sqrMagnitude < range * range));
+        bool want = mine || showcase || ((phase != Phase.Waiting || onPad) && (cam == null || (transform.position - cam.transform.position).sqrMagnitude < range * range));
         if (want)
         {
             if (!shown) { foreach (var r in hidden) if (r != null) r.enabled = true; hidden.Clear(); shown = true; }
@@ -357,7 +392,9 @@ public class Helicopter : MonoBehaviour
         UpdateVisibility();
         // винты
         float targetRotor = phase == Phase.Dead ? 0f : phase == Phase.Crash ? 0.6f : 1f;
-        rotorSpeed = Mathf.MoveTowards(rotorSpeed, targetRotor, dt * 0.4f);
+        bool idle = onPad && phase == Phase.Waiting && Time.time < startTime - SpinUp;
+        if (idle) targetRotor = 0f;
+        rotorSpeed = Mathf.MoveTowards(rotorSpeed, targetRotor, dt * (onPad && phase <= Phase.TakeOff ? 0.09f : 0.4f));
         if (rotor != null) rotor.Rotate(0, 1150f * rotorSpeed * dt, 0, Space.Self);
         if (tailRotor != null) tailRotor.Rotate(2400f * rotorSpeed * dt, 0, 0, Space.Self);
         if (rotorDisc != null) rotorDisc.gameObject.SetActive(rotorSpeed > 0.5f);
@@ -381,13 +418,30 @@ public class Helicopter : MonoBehaviour
         switch (phase)
         {
             case Phase.Waiting:
-                if (Time.time >= startTime) phase = Phase.Inbound;
+                if (onPad)
+                {
+                    // стоит на колёсах; винт раскручивается — машина чуть «оживает»
+                    transform.position = padPos + Vector3.up * 1.2f;
+                    if (rotorSpeed > 0.3f) transform.rotation = Quaternion.Euler(Mathf.Sin(Time.time * 9f) * 0.15f * rotorSpeed, yaw, Mathf.Sin(Time.time * 7f) * 0.2f * rotorSpeed);
+                    if (Time.time >= startTime && rotorSpeed > 0.92f) { phase = Phase.TakeOff; velocity = Vector3.zero; }
+                }
+                else if (Time.time >= startTime) phase = Phase.Inbound;
                 break;
+            case Phase.TakeOff:
+            {
+                // отрыв, висение, набор высоты с разворотом на курс
+                float h = transform.position.y - padPos.y;
+                Vector3 up = new Vector3(padPos.x, padPos.y + 22f, padPos.z) + (h > 8f ? approachDir * 25f : Vector3.zero);
+                Fly(up, h < 4f ? 2.5f : 7f, 2.5f, dt, false);
+                if (h > 18f) { phase = Phase.Inbound; onPad = false; }
+                break;
+            }
             case Phase.Inbound:
             {
                 Vector3 ap = lz - approachDir * 70f + Vector3.up * (groundY + 32f - lz.y);
-                Fly(ap, 48f, 9f, dt, false);
-                if ((ap - transform.position).magnitude < 25f) phase = Phase.Approach;
+                Vector3 hd = ap - transform.position; hd.y = 0;
+                Fly(Cruise(ap, 70f), 52f, 9f, dt, false);
+                if (hd.magnitude < 25f) phase = Phase.Approach;
                 break;
             }
             case Phase.Approach:
@@ -422,8 +476,8 @@ public class Helicopter : MonoBehaviour
                 break;
             }
             case Phase.Outbound:
-                Fly(exit, 55f, 8f, dt, false);
-                if ((exit - transform.position).magnitude < 30f) Destroy(gameObject);
+                Fly(Cruise(exit, 80f), 55f, 8f, dt, false);
+                { Vector3 ed = exit - transform.position; ed.y = 0; if (ed.magnitude < 40f) Destroy(gameObject); }
                 break;
             case Phase.Crash:
                 CrashUpdate(dt, agl);

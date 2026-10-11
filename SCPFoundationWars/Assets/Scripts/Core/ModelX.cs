@@ -74,6 +74,7 @@ public class ModelX
             var tex = string.IsNullOrEmpty(matTex[i]) ? null : Resources.Load<Texture2D>("Models/" + matTex[i]);
             mat = tex != null ? Mats.Textured(tex, c, Vector2.one, matSM[i].x) : Mats.Get(c, matSM[i].x, matSM[i].y);
             mat.SetFloat("_Metallic", matSM[i].y);
+            if (tex != null) Mats.AddNormal(mat, Mats.BytesTex(matTex[i] + "_n", true));
         }
         return mat;
     }

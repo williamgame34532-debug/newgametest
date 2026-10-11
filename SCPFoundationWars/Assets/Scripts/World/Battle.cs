@@ -94,7 +94,8 @@ public partial class Battle : MonoBehaviour
         Time.timeScale = 1f;
     }
 
-    public const float FarEntry = 1300f;   // вертолёты заходят из-за гор, через перевалы
+    public const float FarEntry = 2300f;   // вертолёты Хаоса и SCP заходят из-за гор по долинам
+    MapGen.FobInfo fob;
     public bool loading;
     public float loadProgress;
     public TeamCommander cmdF, cmdC;
@@ -145,6 +146,10 @@ public partial class Battle : MonoBehaviour
         bool hasPlayerSquad = cfg.playerFps && cfg.foundation.Count > 0 && !cfg.foundation[Mathf.Clamp(cfg.playerSquad, 0, cfg.foundation.Count - 1)].placed;
         if (hasPlayerSquad && Game.Intro) { introLines = Script(cfg); introDur = IntroLength(introLines); }
         Helicopter playerHeli = null; SquadRt playerSq = null;
+        // передовая база в южной долине: борта Фонда стоят на площадках
+        fob = null;
+        foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); break; }
+        int padN = cfg.playerFps && cfg.foundation.Count > 0 ? 1 : 0;   // площадка 0 — борт игрока
 
         // ФОНД
         for (int i = 0; i < nF; i++)
@@ -172,9 +177,15 @@ public partial class Battle : MonoBehaviour
                 heli.playerPassenger = pc;
                 playerHeli = heli; playerSq = sq;
             }
-            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, -FarEntry);
-            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, -FarEntry - 40f);
-            heli.Launch(entry, lz, exit, introDur + 4f + i * 4f + pick.delay);
+            Vector3 exit = new Vector3(lz.x * 0.3f, lz.y + 120f, -MapGen.OuterR + 300f);
+            float delay = introDur + 4f + i * 4f + pick.delay;
+            if (fob != null && (playerHere || padN < fob.pads.Count))
+                heli.LaunchFromPad(fob.pads[playerHere ? 0 : padN++], 0f, lz, exit, delay);
+            else
+            {
+                Vector3 entry = new Vector3(lz.x * 0.3f + Random.Range(-30f, 30f), lz.y + 160f, -FarEntry);
+                heli.Launch(entry, lz, exit, delay);
+            }
             helis.Add(heli);
         }
         // ХАОС
@@ -195,8 +206,8 @@ public partial class Battle : MonoBehaviour
                 heli.passengers.Add(s);
                 s.homeDir = Vector3.forward;
             }
-            Vector3 entry = new Vector3(lz.x * 0.6f + Random.Range(-30f, 30f), lz.y + 110f, FarEntry);
-            Vector3 exit = new Vector3(lz.x * 2f, lz.y + 120f, FarEntry + 40f);
+            Vector3 entry = new Vector3(lz.x * 0.3f + Random.Range(-30f, 30f), lz.y + 260f, FarEntry);
+            Vector3 exit = new Vector3(lz.x * 0.3f, lz.y + 160f, FarEntry + 300f);
             heli.Launch(entry, lz, exit, introDur + 6f + i * 4f + pick.delay);
             helis.Add(heli);
         }
@@ -226,8 +237,8 @@ public partial class Battle : MonoBehaviour
             var cont = ScpContainer.Create(pick.def.kind, pick.count);
             heli.AttachSling(cont);
             float side = Mathf.Sign(lz.x);
-            Vector3 entry = new Vector3(side * FarEntry, lz.y + 115f, lz.z + Random.Range(-40f, 40f));
-            Vector3 exit = new Vector3(side * (FarEntry + 40f), lz.y + 120f, lz.z * 2f);
+            Vector3 entry = new Vector3(side * FarEntry, lz.y + 260f, lz.z * 0.3f + Random.Range(-40f, 40f));
+            Vector3 exit = new Vector3(side * (FarEntry + 300f), lz.y + 160f, lz.z * 0.3f);
             heli.Launch(entry, lz, exit, introDur + i * 3f);
             cont.transform.position = heli.transform.position + Vector3.down * (9f + cont.height);
             cont.transform.rotation = Quaternion.Euler(0, side > 0 ? -90 : 90, 0);

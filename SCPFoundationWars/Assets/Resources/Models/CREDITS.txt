@@ -14,3 +14,12 @@ GLB-версии из репозитория roobie/skelly. Изменения: 
 vanguard.bytes / vanguard_tex / vanguard_mask — персонаж «Vanguard» (Mixamo, Adobe), файл Soldier.glb из примеров three.js
 (github.com/mrdoob/three.js, examples/models/gltf). Персонажи Mixamo разрешено использовать в играх.
 Изменения: перенос на 17-костный скелет игры, поза «руки вниз», маска классов для перекраски под отряды.
+Пальцы согнуты в спокойный полухват.
+
+scp173.bytes / scp173_tex* — "SCP-173 (version 2)" — Aruspice (model, textures), Shakles (rig, animation), PixelPuffin (concept art).
+scp049.bytes / scp049_* — "SCP-049" — Aruspice (model, textures), Shakles (rig, animation), PixelPuffin (concept art).
+scp106.bytes / scp106_* — "SCP-106 (version 3)" — Aruspice (model, textures), Shakles (rig, animation), PixelPuffin (concept art).
+Источник: проект SCP: Unity, репозиторий github.com/Yni-Viar/scp-unity-assets.
+Лицензия: Creative Commons Attribution-ShareAlike 3.0 (https://creativecommons.org/licenses/by-sa/3.0/).
+Изменения: переведены в формат игры, перенос на 17-костный скелет, текстуры уменьшены до 1024, карты нормалей перепакованы.
+Эти изменённые модели распространяются под той же лицензией CC BY-SA 3.0.

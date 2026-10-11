@@ -19,6 +19,32 @@ public static class ModelLib
         public int[] tris;
         public byte[] grp, side;
         public Vector2[] uv;          // только у текстурированных моделей (vanguard)
+        // таблица материалов (SCPU v3: готовые персонажи-SCP со своими текстурами)
+        public List<Color> matCol; public List<string> matTex, matNrm; public List<bool> matCut; public List<float> matSmooth;
+    }
+
+    // Материалы модели по её таблице: цвет + карта нормалей
+    public static Material[] TableMaterials(string id, out int[] slotOf)
+    {
+        var d = Load(id);
+        slotOf = new int[G_COUNT];
+        for (int i = 0; i < slotOf.Length; i++) slotOf[i] = -1;
+        if (d == null || d.matCol == null) return new Material[0];
+        var mats = new Material[d.matCol.Count];
+        for (int i = 0; i < mats.Length && i < slotOf.Length; i++)
+        {
+            slotOf[i] = i;
+            var tex = Mats.BytesTex(d.matTex[i], false);
+            mats[i] = tex != null ? Mats.Textured(tex, d.matCol[i], Vector2.one, d.matSmooth[i]) : Mats.Get(d.matCol[i], d.matSmooth[i]);
+            mats[i].SetFloat("_Metallic", 0f);
+            Mats.AddNormal(mats[i], Mats.BytesTex(d.matNrm[i], true));
+            if (d.matCut[i])
+            {
+                mats[i].SetFloat("_Mode", 1f); mats[i].SetFloat("_Cutoff", 0.5f);
+                mats[i].EnableKeyword("_ALPHATEST_ON"); mats[i].renderQueue = 2450;
+            }
+        }
+        return mats;
     }
 
     // Модели бойцов: "soldier" — присланный low-poly солдат (открытое лицо, кепки, Класс-D),
@@ -84,7 +110,7 @@ public static class ModelLib
             if (ta == null) { Debug.LogWarning("Нет Resources/Models/" + id + ".bytes"); return null; }
             using (var br = new BinaryReader(new MemoryStream(ta.bytes)))
             {
-                bool hasUV = System.Text.Encoding.ASCII.GetString(br.ReadBytes(4)) == "SCPU"; br.ReadInt32();
+                bool hasUV = System.Text.Encoding.ASCII.GetString(br.ReadBytes(4)) == "SCPU"; int ver = br.ReadInt32();
                 var d = new SoldierData();
                 int nj = br.ReadInt32();
                 d.parent = new int[nj]; d.jointLocal = new Vector3[nj]; d.jointAbs = new Vector3[nj];
@@ -114,6 +140,18 @@ public static class ModelLib
                 {
                     d.tris[i * 3] = br.ReadInt32(); d.tris[i * 3 + 1] = br.ReadInt32(); d.tris[i * 3 + 2] = br.ReadInt32();
                     d.grp[i] = br.ReadByte(); d.side[i] = br.ReadByte();
+                }
+                if (hasUV && ver >= 3)
+                {
+                    int nm = br.ReadInt32();
+                    d.matCol = new List<Color>(); d.matTex = new List<string>(); d.matNrm = new List<string>(); d.matCut = new List<bool>(); d.matSmooth = new List<float>();
+                    for (int i = 0; i < nm; i++)
+                    {
+                        d.matCol.Add(new Color(br.ReadSingle(), br.ReadSingle(), br.ReadSingle(), br.ReadSingle()));
+                        d.matTex.Add(System.Text.Encoding.UTF8.GetString(br.ReadBytes(br.ReadByte())));
+                        d.matNrm.Add(System.Text.Encoding.UTF8.GetString(br.ReadBytes(br.ReadByte())));
+                        d.matCut.Add(br.ReadByte() != 0); d.matSmooth.Add(br.ReadSingle());
+                    }
                 }
                 soldiers[id] = d;
                 return d;
@@ -146,6 +184,7 @@ public static class ModelLib
     public static Mesh LegsMesh(int[] slotOf, int slots)
     {
         var d = Soldier;
+        float cut = d.jointAbs[HumanRig.Hips].y * 0.95f;   // ниже пояса (у моделей разный рост таза)
         return BodyMesh("legs_" + string.Join(",", slotOf), slotOf, slots, t =>
         {
             float y = 0; int legs = 0;
@@ -156,7 +195,7 @@ public static class ModelLib
                 int b = d.bw[vi].boneIndex0;
                 if (b >= HumanRig.ULegL) legs++;
             }
-            return legs >= 2 && y / 3f < 0.86f;
+            return legs >= 2 && y / 3f < cut;
         });
     }
 
@@ -171,14 +210,19 @@ public static class ModelLib
         var subs = new List<int>[slots];
         for (int i = 0; i < slots; i++) subs[i] = new List<int>();
         int nt = d.grp.Length;
+        // текстурированные модели — общие вершины (гладкое затенение); простой солдат — гранями, как задуман
+        bool share = d.uv != null;
+        var remap = share ? new Dictionary<int, int>() : null;
         for (int t = 0; t < nt; t++)
         {
-            int slot = slotOf[d.grp[t]];
+            int slot = d.grp[t] < slotOf.Length ? slotOf[d.grp[t]] : -1;
             if (slot < 0) continue;
             if (filter != null && !filter(t)) continue;
             for (int k = 0; k < 3; k++)
             {
                 int vi = d.tris[t * 3 + k];
+                if (share && remap.TryGetValue(vi, out int ni)) { subs[slot].Add(ni); continue; }
+                if (share) remap[vi] = verts.Count;
                 subs[slot].Add(verts.Count);
                 verts.Add(d.pos[vi]);
                 if (d.uv != null) uvs.Add(d.uv[vi]);
@@ -186,12 +230,14 @@ public static class ModelLib
             }
         }
         var m = new Mesh { name = "soldier_" + key };
+        if (verts.Count > 65000) m.indexFormat = IndexFormat.UInt32;
         m.SetVertices(verts);
         if (uvs.Count == verts.Count) m.SetUVs(0, uvs);
         m.boneWeights = bws.ToArray();
         m.subMeshCount = slots;
         for (int i = 0; i < slots; i++) m.SetTriangles(subs[i], i);
         m.RecalculateNormals();
+        if (uvs.Count == verts.Count) m.RecalculateTangents();
         m.RecalculateBounds();
         var bp = new Matrix4x4[d.jointAbs.Length];
         for (int i = 0; i < bp.Length; i++) bp[i] = Matrix4x4.Translate(-d.jointAbs[i]);

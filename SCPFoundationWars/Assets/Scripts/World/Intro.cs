@@ -14,7 +14,6 @@ public partial class Battle
     public float stampT = -1f;         // время показа штампа «место / время»
     public string stamp;
     bool skipIntro;
-    public static readonly Vector3 FobPos = new Vector3(0, 0, -2600f);
 
     static float Dur(string t) => Mathf.Clamp(2.4f + t.Length * 0.052f, 3.2f, 8.5f);
 
@@ -77,27 +76,14 @@ public partial class Battle
     }
 
     // ---------------- сама сцена ----------------
-    readonly List<GameObject> introProps = new List<GameObject>();
-
     IEnumerator IntroRoutine(Helicopter heli, SquadRt sq, PlayerController pc, List<IntroLine> lines)
     {
         intro = true;
         skipIntro = false;
         var cfg = Cfg;
-        var fob = MapGen.BuildFob(FobPos, cfg.map);
-        // вертолёт группы ждёт на площадке, рядом — борты других групп
-        var show = Helicopter.Create(Team.Foundation, sq.def.label, new Color(0.12f, 0.13f, 0.15f), sq.def.look.accent, 8, false);
-        show.Park(fob.pads[0], 180f); show.rotorVolume = 0.4f;
-        introProps.Add(show.gameObject);
-        int extra = 1;
-        foreach (var f in cfg.foundation)
-        {
-            if (f.def == sq.def || f.placed || extra >= fob.pads.Count) continue;
-            var h = Helicopter.Create(Team.Foundation, f.def.label, new Color(0.12f, 0.13f, 0.15f), f.def.look.accent, 8, false);
-            h.Park(fob.pads[extra++], 180f); h.rotorVolume = 0.3f;
-            introProps.Add(h.gameObject);
-        }
-
+        var fob = this.fob;
+        if (fob == null) { intro = false; yield break; }
+        heli.rotorVolume = 0.45f;
         // офицер за столом с картой, группа полукругом, игрок в центре
         Vector3 table = fob.brief + new Vector3(0, 0, 1.4f);
         var mates = new List<Soldier>();
@@ -160,11 +146,10 @@ public partial class Battle
         foreach (var m in mates) if (m != null && m.alive) m.SitIn(heli.seats[seat++ % heli.seats.Count]);
         pc.RideIn(heli, heli.seats[0]);
         heli.playerPassenger = pc;
-        foreach (var g in introProps) if (g != null) Destroy(g);
-        introProps.Clear();
-        if (fob.root != null) Destroy(fob.root.gameObject);
+        // борт на площадке уже гоняет винты — после титров видим настоящий взлёт с базы
         heli.LaunchNow();
-        yield return new WaitForSeconds(2.6f);
+        heli.rotorVolume = 1f;
+        yield return new WaitForSeconds(2.2f);
         cardTitle = null;
         for (float t = 0; t < 1f; t += Time.deltaTime / 1.4f) { fade = 1f - t; yield return null; }
         fade = 0f;

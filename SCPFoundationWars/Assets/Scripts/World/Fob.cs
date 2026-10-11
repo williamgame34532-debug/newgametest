@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 
 // Передовая база Фонда (FOB): отсюда отряды вылетают в район операции.
-// Стоит далеко за горами, на своей ровной площадке; после вылета удаляется.
+// Стоит в южной долине, в 1.3 км от района операции: вертолёты взлетают отсюда по-настоящему.
 public static partial class MapGen
 {
     public class FobInfo
@@ -28,15 +28,17 @@ public static partial class MapGen
 
         // грунт (гравий) и бетонная стоянка вертолётов
         var gm = Mats.Textured(Mats.GroundTex(dirt, dirt * 0.88f, dirt * 1.08f, 77), Color.white, Vector2.one * 40f, map == 3 ? 0.3f : 0.05f);
-        var ground = Solid(c + new Vector3(0, -0.5f, 0), new Vector3(420f, 1f, 420f), gm, Quaternion.identity, dirt, false, root);
+        var ground = Solid(c + new Vector3(0, -15f, 0), new Vector3(300f, 30f, 300f), gm, Quaternion.identity, dirt, false, root);
         ground.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         var apron = Mats.Textured(Mats.ConcreteTex(new Color(0.46f, 0.46f, 0.44f), 9), Color.white, new Vector2(8f, 5f), 0.15f);
-        Solid(c + new Vector3(0, 0.02f, 18f), new Vector3(90f, 0.06f, 34f), apron, Quaternion.identity, new Color(0.45f, 0.45f, 0.44f), false, root);
+        Solid(c + new Vector3(0, 0.02f, 20f), new Vector3(150f, 0.06f, 36f), apron, Quaternion.identity, new Color(0.45f, 0.45f, 0.44f), false, root);
 
         // площадки с разметкой
-        for (int i = 0; i < 3; i++)
+        // первая площадка — у стола брифинга (борт группы игрока)
+        float[] padX = { -28f, 0f, -56f, 28f, 56f };
+        for (int i = 0; i < padX.Length; i++)
         {
-            Vector3 p = c + new Vector3(-28f + i * 28f, 0, 20f);
+            Vector3 p = c + new Vector3(padX[i], 0, 20f);
             info.pads.Add(p);
             var mark = Mats.Get(new Color(0.92f, 0.85f, 0.25f), 0.3f);
             var h = new GameObject("pad"); h.transform.SetParent(root); h.transform.position = p + Vector3.up * 0.06f;
@@ -81,11 +83,11 @@ public static partial class MapGen
         for (int i = 0; i < 6; i++) Container(c + new Vector3(30f + (i % 3) * 3.2f, (i / 3) * 2.6f, -36f), 90, cc[i % 3], root);
         for (int i = 0; i < 3; i++) Container(c + new Vector3(52f, 0, -40f + i * 7f), 0, cc[(i + 1) % 3], root);
         // техника, ящики, топливо, генератор
-        Truck(c + new Vector3(-62f, 0, 4f), 15, root);
-        Truck(c + new Vector3(-62f, 0, 14f), 25, root);
+        Truck(c + new Vector3(-66f, 0, -8f), 15, root);
+        Truck(c + new Vector3(-64f, 0, -20f), 25, root);
         for (int i = 0; i < 12; i++) Crate(c + new Vector3(R(-40f, -20f), 0, R(-50f, -45f)), root);
         Generator(c + new Vector3(44f, 0, -14f), root);
-        FuelBladder(c + new Vector3(60f, 0, 30f), root);
+        FuelBladder(c + new Vector3(64f, 0, -6f), root);
         // вышки, мачта связи, освещение, флаг
         Tower(c + new Vector3(-hx + 4f, 0, hz - 4f), root);
         Tower(c + new Vector3(hx - 4f, 0, -hz + 4f), root);

@@ -206,6 +206,24 @@ public class HumanRig : MonoBehaviour
         foreach (var t in b) MeshKit.CombineParts(t);
     }
 
+    // Готовый персонаж со своими текстурами (SCP-049, SCP-106): материалы из таблицы модели
+    public void DressTable(string id)
+    {
+        var mats = ModelLib.TableMaterials(id, out int[] slotOf);
+        var mesh = ModelLib.BodyMesh("table", slotOf, mats.Length);
+        var go = new GameObject("body");
+        go.transform.SetParent(transform, false);
+        body = go.AddComponent<SkinnedMeshRenderer>();
+        body.sharedMesh = mesh;
+        body.bones = b;
+        body.rootBone = b[Hips];
+        body.sharedMaterials = mats;
+        body.localBounds = new Bounds(new Vector3(0, 0.1f, 0), new Vector3(2.8f, 2.8f, 2.8f));
+        body.updateWhenOffscreen = false;
+        body.skinnedMotionVectors = false;
+        body.quality = SkinQuality.Bone4;
+    }
+
     // Своё снаряжение поверх бронированной модели (в духе МОГ из вселенной SCP): противогаз с фильтрами,
     // подсумки, рация с антенной, полосы-опознаватели на плечах, ПНВ
     void VanguardGear(Look L, string key)
