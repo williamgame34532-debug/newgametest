@@ -37,3 +37,8 @@ cry096_*.ogg, scream096_1.ogg, kill096_1.ogg — звуки SCP-096, присл�
 kill-sound-scp-096.mp3, scpsl-096-crying.mp3, scpsl-096-trying-not-cry.mp3). Судя по названиям, часть взята из
 SCP: Secret Laboratory (Northwood Studios) — права на них принадлежат правообладателю; перед публичным
 распространением игры их нужно заменить на свободные записи.
+
+vo_*.ogg — Kenney "Voiceover Pack" 1.0 (www.kenney.nl), голоса: Jeffrey M. Smith, Giselle. Лицензия CC0 1.0.
+Изменения: полосовой фильтр и компрессия (звучание «в бою»), для Хаоса — понижение тона. Зеркало: github.com/series-ai/jam-ready-assets.
+pain_4..25, death_6..23, shout_* — "Male Grunt/Yelling sounds" (HaelDB, CC0) и "grunts of male death and pain"
+(thebardofblasphemy, CC0) с OpenGameArt; обработанные копии из github.com/alesha-pro/bench-portal.
