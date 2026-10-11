@@ -129,7 +129,7 @@ public abstract class ScpUnit : Unit
     // Параметры агента; сам агент создаётся, когда объект окажется на навмеше
     protected void SetupAgent(float radius, float height, float speed, float accel = 12f)
     {
-        agR = radius; agH = height; agSpeed = speed; agAccel = accel;
+        agR = radius; agH = height; agSpeed = speed * (speed < 10f ? 1.3f : 1f); agAccel = accel * 1.5f;   // SCP быстрее и резче
     }
 
     protected bool EnsureAgent()

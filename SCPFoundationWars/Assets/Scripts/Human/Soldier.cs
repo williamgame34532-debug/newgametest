@@ -1165,7 +1165,7 @@ public class Soldier : Unit
             Sfx.Play("death", AimPoint, 0.8f, Random.Range(0.88f, 1.08f), 55f);
         // от пули в корпус/конечности боец сначала оседает (подгибаются колени), а потом падает физически;
         // взрыв, выстрел в голову, удар SCP — сразу безвольное тело
-        bool collapse = (d.type == DamageType.Bullet || d.type == DamageType.Melee || d.type == DamageType.Fire) && !headshot && d.force < 900f && anim.enabled && !zombie;
+        bool collapse = (d.type == DamageType.Bullet || d.type == DamageType.Melee || d.type == DamageType.Fire) && !headshot && d.force < 900f && anim.enabled && !zombie && !(d.attacker is ScpUnit);
         if (collapse) StartCoroutine(Collapse(d));
         else
         {
@@ -1185,6 +1185,7 @@ public class Soldier : Unit
             Sfx.Play("headshot", d.point, 0.7f, Random.Range(0.9f, 1.1f), 30f);
         }
         if (d.type != DamageType.Corrosion && d.type != DamageType.Fire) StartCoroutine(BleedOut(d));
+        if (!zombie) Dismember.OnDeath(this, d);
     }
 
     IEnumerator Collapse(DamageInfo d)

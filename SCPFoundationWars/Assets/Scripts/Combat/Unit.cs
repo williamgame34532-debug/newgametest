@@ -85,7 +85,9 @@ public class Unit : MonoBehaviour
     {
         if (!alive) return;
         float dmg = d.amount;
-        if (d.type == DamageType.Bullet || d.type == DamageType.Explosion || d.type == DamageType.Melee)
+        bool scpHit = d.attacker != null && d.attacker.isScp && !isScp;
+        if (scpHit) dmg *= 2.2f;   // SCP смертоносны: броня не спасает, удары вдвое сильнее
+        else if (d.type == DamageType.Bullet || d.type == DamageType.Explosion || d.type == DamageType.Melee)
             dmg *= 1f - armor * (d.hitbox != null && d.hitbox.head ? 0.5f : 1f);
         if (d.attacker != null && !Battle.Hostile(d.attacker.team, team) && d.attacker != this)
             dmg *= Battle.FriendlyFire;

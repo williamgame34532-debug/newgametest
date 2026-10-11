@@ -438,6 +438,8 @@ public partial class Battle : MonoBehaviour
             var li = LoreItem.Find(su.kind);
             bool needItem = (li != null && !su.itemApplied) || chaosGrab;
             if (chaosGrab) f = 0;
+            // группа игрока ещё не на земле — союзники объект не берут, ждут её
+            if (Cfg != null && Cfg.playerFps && playerSqRt != null && PlayerController.I != null && (PlayerController.I.riding || intro || PlayerController.I.unit.inVehicle)) f = 0;
             if (needItem && c == 0) { if (f > 0) su.subduedUntil = Mathf.Max(su.subduedUntil, Time.time + 6f); continue; }
             if (su.itemApplied) rate *= 1.6f;
             if (f > 0 && c == 0) { su.capture[0] += rate * (1f + 0.15f * (f - 1)); su.capture[1] = Mathf.Max(0, su.capture[1] - rate); }
