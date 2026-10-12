@@ -56,6 +56,7 @@ public static partial class MapGen
     public static void Build(int map, int time, List<Vector3> lzs, int seed)
     {
         Clear();
+        Mats.EnvMode = true;
         mapKind = map;
         rng = new System.Random(seed);
         Night = time == 2;
@@ -64,7 +65,7 @@ public static partial class MapGen
         keepOut.AddRange(lzs);
         Root = new GameObject("Map");
         if (Game.Cam != null) { Game.Cam.clearFlags = map == FacilityMapIndex ? CameraClearFlags.SolidColor : CameraClearFlags.Skybox; Game.Cam.backgroundColor = Color.black; }
-        if (map == FacilityMapIndex) { BuildFacilityMap(); return; }
+        if (map == FacilityMapIndex) { BuildFacilityMap(); Mats.EnvMode = false; return; }
 
         Color g1, g2, g3, fog;
         switch (map)
@@ -107,6 +108,7 @@ public static partial class MapGen
         probe.size = new Vector3(Size, 120f, Size); probe.resolution = 256; probe.boxProjection = false;
         probe.intensity = Night ? 0.4f : 1f;
         probe.RenderProbe();
+        Mats.EnvMode = false;
     }
 
     public static void Clear()

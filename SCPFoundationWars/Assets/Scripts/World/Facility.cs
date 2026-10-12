@@ -384,6 +384,11 @@ public class FacilityDoor : MonoBehaviour
     Transform a, b; float k, checkT; bool open;
     public static void Create(Transform parent, Vector3 p, float yaw, bool heavy)
     {
+        bool env = Mats.EnvMode; Mats.EnvMode = false;   // створки двигаются — без мировой проекции фактуры
+        try { Build(parent, p, yaw, heavy); } finally { Mats.EnvMode = env; }
+    }
+    static void Build(Transform parent, Vector3 p, float yaw, bool heavy)
+    {
         var go = new GameObject("door");
         go.transform.SetParent(parent, false);
         go.transform.position = p; go.transform.rotation = Quaternion.Euler(0, yaw, 0);

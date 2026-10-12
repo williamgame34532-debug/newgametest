@@ -39,8 +39,23 @@ public static class Mats
     }
 
     // Обычный непрозрачный материал
+    // Пока строится карта: неподвижные постройки и предметы получают фактуру (грязь, потёртости) в мировой проекции
+    public static bool EnvMode;
     public static Material Get(Color c, float smooth = 0.25f, float metal = 0f)
     {
+        if (EnvMode && c.a > 0.99f)
+        {
+            long ke = Key(c, smooth, metal, 7);
+            if (cache.TryGetValue(ke, out var me) && me != null) return me;
+            var gt = Photo("grime");
+            if (gt != null)
+            {
+                me = Tri(gt, new Color(Mathf.Min(1f, c.r * 1.2f), Mathf.Min(1f, c.g * 1.2f), Mathf.Min(1f, c.b * 1.2f)), metal > 0.2f ? 1.2f : 2.2f, smooth, 0.55f, metal);
+                me.enableInstancing = true;
+                cache[ke] = me;
+                return me;
+            }
+        }
         long k = Key(c, smooth, metal, 0);
         if (cache.TryGetValue(k, out var m) && m != null) return m;
         m = new Material(Std);

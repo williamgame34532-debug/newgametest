@@ -188,7 +188,7 @@ public partial class Battle : MonoBehaviour
         playerHeli = null; SquadRt playerSq = null;
         // передовая база в южной долине: борта Фонда стоят на площадках
         fob = null;
-        if (!fac) foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); break; }
+        if (!fac) foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { Mats.EnvMode = true; fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); Mats.EnvMode = false; break; }
         int padN = cfg.playerFps && cfg.foundation.Count > 0 ? 1 : 0;   // площадка 0 — борт игрока
 
         // ФОНД
