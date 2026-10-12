@@ -7,6 +7,7 @@ public class PostFX : MonoBehaviour
     public static bool Enabled = true;
     static Material mat;
     static PostFX current;
+    public static Camera Top => current != null && current.enabled ? current.GetComponent<Camera>() : null;
     // «таркоподобная» картинка: приглушённые цвета, плотный контраст, резкость, тени с зеленцой, тёплые света
     public float exposure = 1.08f, contrast = 1.13f, saturation = 0.86f, vignette = 0.5f, grain = 0.04f, bloom = 0.42f, threshold = 1.05f, aberration = 0.0012f, sharp = 0.55f;
     public Color tint = new Color(1.0f, 1f, 0.96f);

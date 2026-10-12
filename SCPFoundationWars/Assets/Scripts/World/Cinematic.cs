@@ -9,6 +9,9 @@ public static class Cinematic
     public static string Caption, SubCaption;
     public static float CaptionT, Fade;
     static bool skip;
+    // что вернуть после вставки (даже если её прервали)
+    static Camera rCam; static Transform rParent; static Vector3 rLp; static Quaternion rLr; static float rFov, rFar; static PlayerController rPc;
+    static float lastTick;
 
     public static IEnumerator Play(Helicopter heli, PlayerController pc, string place, string sub)
     {
@@ -20,14 +23,13 @@ public static class Cinematic
         if (heli == null || pc == null || pc.dead || !pc.riding) yield break;
 
         var cam = Game.Cam;
-        Transform parent = cam.transform.parent;
-        Vector3 lp = cam.transform.localPosition; Quaternion lr = cam.transform.localRotation;
-        float fov0 = cam.fieldOfView;
-        Active = true; skip = false; Caption = null;
+        rCam = cam; rParent = pc.camHolder != null ? pc.camHolder : cam.transform.parent; rLp = Vector3.zero; rLr = Quaternion.identity;
+        rFov = cam.fieldOfView; rFar = cam.farClipPlane; rPc = pc;
+        Active = true; skip = false; Caption = null; lastTick = Time.unscaledTime;
         if (pc.fp != null) pc.fp.SetVisible(false);
         PostFX.SetTop(cam);
         cam.transform.SetParent(null, true);
-        float far0 = cam.farClipPlane;
+        float far0 = rFar;
 
         yield return FadeTo(1f, 0.35f);
         // 1. сопровождение: камера летит рядом с бортом и медленно обходит его
@@ -90,19 +92,37 @@ public static class Cinematic
                 yield return null;
             }
         }
-        yield return FadeTo(1f, 0.3f);
+        if (!skip) yield return FadeTo(1f, 0.3f);
         // обратно в салон
-        Caption = null;
-        cam.farClipPlane = far0;
-        if (parent != null) { cam.transform.SetParent(parent, false); cam.transform.localPosition = lp; cam.transform.localRotation = lr; }
-        cam.fieldOfView = fov0;
-        if (pc != null && pc.fp != null) { pc.fp.SetVisible(true); if (pc.fp.VmCam != null) PostFX.SetTop(pc.fp.VmCam); }
-        Active = false;
+        Restore();
         yield return FadeTo(0f, 0.5f);
+    }
+
+    // Камера — обратно в голову игрока, оружие и постобработка — на место
+    static void Restore()
+    {
+        Caption = null;
+        if (rCam != null)
+        {
+            rCam.farClipPlane = rFar;
+            rCam.fieldOfView = rFov;
+            if (rParent != null) { rCam.transform.SetParent(rParent, false); rCam.transform.localPosition = rLp; rCam.transform.localRotation = rLr; }
+        }
+        if (rPc != null && rPc.fp != null && !rPc.dead) { rPc.fp.SetVisible(true); if (rPc.fp.VmCam != null) PostFX.SetTop(rPc.fp.VmCam); }
+        rCam = null; rPc = null;
+        Active = false;
+    }
+
+    // Вызывается каждый кадр игроком: если вставку оборвали (корутину остановили) — всё вернуть
+    public static void Watchdog()
+    {
+        if (Active && Time.unscaledTime - lastTick > 1f) { Restore(); Fade = 0f; }
     }
 
     static bool Skip()
     {
+        lastTick = Time.unscaledTime;
+        if (rPc == null || rPc.dead || !rPc.riding) skip = true;   // высадка/гибель — вставка сразу заканчивается
         if (Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter) || Input.GetKeyDown(KeyCode.Space)) skip = true;
         return skip;
     }
@@ -110,9 +130,9 @@ public static class Cinematic
     static IEnumerator FadeTo(float target, float time)
     {
         float s = Fade;
-        for (float t = 0; t < 1f; t += Time.deltaTime / time) { Fade = Mathf.Lerp(s, target, t); yield return null; }
+        for (float t = 0; t < 1f; t += Time.deltaTime / time) { lastTick = Time.unscaledTime; Fade = Mathf.Lerp(s, target, t); yield return null; }
         Fade = target;
     }
 
-    public static void Reset() { Active = false; Caption = null; Fade = 0f; }
+    public static void Reset() { if (Active) Restore(); Active = false; Caption = null; Fade = 0f; rCam = null; rPc = null; }
 }

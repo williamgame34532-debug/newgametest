@@ -412,6 +412,13 @@ public class PlayerController : MonoBehaviour
         if (Game.Paused) return;
         if (dead) { DeathCam(dt); return; }
         unit.alive = unit.hp > 0;
+        Cinematic.Watchdog();
+        if (!Cinematic.Active && !SpectatorCam.Active)
+        {
+            var gc = Game.Cam;
+            if (gc != null && gc.transform.parent != camHolder) { gc.transform.SetParent(camHolder, false); gc.transform.localPosition = Vector3.zero; gc.transform.localRotation = Quaternion.identity; }
+            if (fp != null) fp.EnsureShown();
+        }
 
         // взгляд
         float wkg = Current != null ? Current.def.Weight : 3f;

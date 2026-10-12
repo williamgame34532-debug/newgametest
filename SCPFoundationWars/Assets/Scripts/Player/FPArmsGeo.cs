@@ -341,7 +341,7 @@ public class ArmGeo
                 g.Tube(PAD, padC, outw, new[] { 0.0032f, 0.0036f, 0.0032f }, new[] { rad[f] * 0.75f, rad[f] * 0.8f, rad[f] * 0.75f }, 8, wHand, null, 0.6f, 0.9f, 0.9f, 14f);
             }
             // большой палец: из основания ладони через верх рукояти на дальнюю сторону
-            var tp = new[] { H(0.01f, -0.03f, 0.014f), H(0.03f, -0.042f, 0.034f), H(0.064f, -0.05f, 0.049f), H(0.1f, -0.072f, 0.05f), H(0.111f, -0.103f, 0.047f) };
+            var tp = new[] { H(0.01f, -0.03f, 0.014f), H(0.03f, -0.042f, 0.034f), H(0.064f, -0.046f, 0.05f), H(0.097f, -0.059f, 0.058f), H(0.113f, -0.085f, 0.062f) };
             var tc = CatmullRom(tp, 4);
             var trx = new float[tc.Length]; var trz = new float[tc.Length];
             for (int i = 0; i < tc.Length; i++)

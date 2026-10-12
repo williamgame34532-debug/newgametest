@@ -131,6 +131,14 @@ public class FPView : MonoBehaviour
 
     void OnDestroy() { Dispose(); }
 
+    // Самопроверка каждый кадр: оружие в руках видно, постобработка — на камере оружия
+    public void EnsureShown()
+    {
+        if (root != null && !root.gameObject.activeSelf) SetVisible(true);
+        if (vmCam != null && !vmCam.enabled) vmCam.enabled = true;
+        if (vmCam != null && PostFX.Top != vmCam) PostFX.SetTop(vmCam);
+    }
+
     public void SetVisible(bool on)
     {
         if (root != null) root.gameObject.SetActive(on);
