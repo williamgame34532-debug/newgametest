@@ -259,34 +259,42 @@ public static partial class MapGen
         Solid(new Vector3(W / 4 + 2, y + Hh + 0.25f, 0), new Vector3(W / 2 - 4, 0.5f, D + 1), concreteMat, Quaternion.identity, cs, false, root);
         Solid(new Vector3(0, y + Hh + 0.25f, -D / 4 - 2), new Vector3(8, 0.5f, D / 2 - 4), concreteMat, Quaternion.identity, cs, false, root);
         Solid(new Vector3(0, y + Hh + 0.25f, D / 4 + 2), new Vector3(8, 0.5f, D / 2 - 4), concreteMat, Quaternion.identity, cs, false, root);
-        // логотип Фонда на крыше-парапете
+        // табличка у главного входа: тёмная эмалированная пластина с трафаретной надписью и знаком Фонда
         var font = Helicopter.UIFont();
-        if (font != null)
+        string site = mapKind == 1 ? "БИОИЗОЛЯЦИОННАЯ ЗОНА-06 · КПП" : mapKind == 2 ? "ЗОНА-██ · ПУСТЫННЫЙ СЕКТОР" : mapKind == 3 ? "ЗОНА-██ · СЕВЕРНЫЙ ФИЛИАЛ" : "ЗОНА-19";
+        foreach (int side in new[] { -1, 1 })
         {
-            foreach (int side in new[] { -1, 1 })
+            float zf = side * (D / 2 + th / 2 + 0.03f);
+            Quaternion face = Quaternion.Euler(0, side > 0 ? 180 : 0, 0);
+            Vector3 at = new Vector3(4.6f, y + 2.1f, zf);
+            var plate = MeshKit.Box(root, at, new Vector3(2.2f, 0.9f, 0.04f), new Color(0.13f, 0.14f, 0.15f), face.eulerAngles, 0.35f, 0.4f);
+            plate.transform.SetParent(root, true);
+            if (font != null)
             {
                 var tg = new GameObject("sign");
                 tg.transform.SetParent(root);
-                tg.transform.position = new Vector3(0, y + Hh - 1.2f, side * (D / 2 + th / 2 + 0.02f));
-                tg.transform.rotation = Quaternion.Euler(0, side > 0 ? 180 : 0, 0);
-                tg.transform.localScale = Vector3.one * 0.25f;
+                tg.transform.position = at + face * new Vector3(0.25f, 0.12f, -0.03f) * 1f;
+                tg.transform.rotation = face;
+                tg.transform.localScale = Vector3.one * 0.022f;
                 var tm = tg.AddComponent<TextMesh>();
                 tm.font = font; tm.fontSize = 60; tm.anchor = TextAnchor.MiddleCenter;
-                tm.text = "ФОНД SCP — ЗОНА-19\nОБЕЗОПАСИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.";
-                tm.color = new Color(0.1f, 0.1f, 0.1f);
-                tm.alignment = TextAlignment.Center;
+                tm.text = "ФОНД SCP\n" + site + "\nВХОД ТОЛЬКО ПО ДОПУСКУ";
+                tm.color = new Color(0.86f, 0.86f, 0.82f);
+                tm.alignment = TextAlignment.Left;
                 tg.GetComponent<MeshRenderer>().sharedMaterial = Helicopter.TextMat(font);
-                // знак Фонда (круг со стрелками)
-                var logo = new GameObject("logo");
-                logo.transform.SetParent(root);
-                logo.transform.position = new Vector3(side * 0 + 9f, y + Hh - 1.8f, side * (D / 2 + th / 2 + 0.03f));
-                logo.transform.rotation = Quaternion.Euler(90, 0, 0);
-                MeshKit.Cyl(logo.transform, Vector3.zero, 2.2f, 0.02f, new Color(0.9f, 0.9f, 0.9f));
-                MeshKit.Cyl(logo.transform, new Vector3(0, side * 0.01f, 0), 1.5f, 0.02f, new Color(0.12f, 0.12f, 0.12f));
-                MeshKit.Cyl(logo.transform, new Vector3(0, side * 0.02f, 0), 0.9f, 0.02f, new Color(0.9f, 0.9f, 0.9f));
-                for (int a = 0; a < 3; a++)
-                    MeshKit.Box(logo.transform, Quaternion.Euler(0, a * 120, 0) * new Vector3(0, side * 0.025f, 0.9f), new Vector3(0.3f, 0.02f, 0.9f), Mats.Get(new Color(0.9f, 0.9f, 0.9f)), new Vector3(0, a * 120, 0));
             }
+            // маленький знак Фонда слева на пластине
+            var logo = new GameObject("logo");
+            logo.transform.SetParent(root);
+            logo.transform.position = at + face * new Vector3(-0.75f, 0f, -0.03f);
+            logo.transform.rotation = face * Quaternion.Euler(-90, 0, 0);
+            MeshKit.Cyl(logo.transform, Vector3.zero, 0.62f, 0.01f, new Color(0.85f, 0.85f, 0.82f));
+            MeshKit.Cyl(logo.transform, new Vector3(0, 0.006f, 0), 0.44f, 0.01f, new Color(0.13f, 0.14f, 0.15f));
+            MeshKit.Cyl(logo.transform, new Vector3(0, 0.012f, 0), 0.26f, 0.01f, new Color(0.85f, 0.85f, 0.82f));
+            for (int a = 0; a < 3; a++)
+                MeshKit.Box(logo.transform, Quaternion.Euler(0, a * 120, 0) * new Vector3(0, 0.016f, 0.25f), new Vector3(0.08f, 0.01f, 0.25f), Mats.Get(new Color(0.85f, 0.85f, 0.82f)), new Vector3(0, a * 120, 0));
+            // жёлто-чёрная полоса по низу стены и предупреждение у двери
+            MeshKit.Box(root, new Vector3(0, y + 0.18f, zf), new Vector3(W, 0.3f, 0.02f), new Color(0.75f, 0.6f, 0.1f), face.eulerAngles, 0.2f, 0f);
         }
         // ящики и стеллажи внутри
         for (int i = 0; i < 10; i++)
