@@ -147,7 +147,21 @@ public class PlayerController : MonoBehaviour
     }
 
     // ---------------- передовая база ----------------
-    float lockT; bool wasLocked; float lastYawBC, bcRoll;
+    float lockT; bool wasLocked;
+    // ---- круговое меню жестов (удерживать G) ----
+    public static readonly string[] GestureNames = { "Стоп", "За мной", "Занять точку", "Пригнуться", "Сбор ко мне", "Осмотреть оружие", "Часы", "По приказу" };
+    public bool RadialOpen; float gDownT = -1f; Vector2 radialVec;
+    public int RadialSel => radialVec.magnitude < 1.2f ? -1 : Mathf.RoundToInt(Mathf.Repeat(90f - Mathf.Atan2(radialVec.y, radialVec.x) * Mathf.Rad2Deg, 360f) / 45f) % 8;
+    void DoGesture(int k)
+    {
+        if (fp != null) fp.Gesture(k);
+        var sig = k == 0 ? Signal.Hold : k == 1 || k == 4 ? Signal.Regroup : k == 2 ? Signal.Point : k == 3 ? Signal.Hold : Signal.None;
+        if (fp != null && sig != Signal.None) fp.BodySignal(sig);
+        if (k == 6) Battle.Message("Время на часах: " + System.DateTime.Now.ToString("HH:mm"), new Color(0.8f, 0.85f, 0.9f), 3f);
+        if (k == 5) return;
+        int cmd = k == 0 || k == 3 ? 3 : k == 1 || k == 4 ? 1 : k == 2 ? 0 : k == 7 ? 2 : -1;
+        if (cmd >= 0) SquadCmd(cmd, k == 3);
+    } float lastYawBC, bcRoll;
     public bool safe;   // на базе оружие на предохранителе
     public void StandAt(Vector3 p, float yawDeg)
     {
@@ -445,6 +459,7 @@ public class PlayerController : MonoBehaviour
             if (Time.unscaledTime - lockT < 0.25f || Time.unscaledDeltaTime > 0.25f) { rx = 0; ry = 0; }
             rx = Mathf.Clamp(rx, -25f, 25f); ry = Mathf.Clamp(ry, -25f, 25f);
             float mx = rx * sens, my = ry * sens;
+            if (RadialOpen) { radialVec = Vector2.ClampMagnitude(radialVec + new Vector2(rx, ry) * 0.6f, 6f); mx = 0; my = 0; }
             if (freeLook) { freeYaw = Mathf.Clamp(freeYaw + mx, -80f, 80f); freePitch = Mathf.Clamp(freePitch - my, -45f, 50f); }
             else { yaw += mx; pitch -= my; }
         }
@@ -558,7 +573,7 @@ public class PlayerController : MonoBehaviour
         {
             float prev = bob;
             bob += hs * dt * 1.6f;
-            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) { Sfx.Play2D(Sfx.Step, 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f)); if (Random.value < 0.3f + sprintW * 0.4f) Sfx.Play2D("gear", 0.07f + sprintW * 0.1f, Random.Range(0.9f, 1.15f)); }
+            if (Mathf.Floor(prev / Mathf.PI) != Mathf.Floor(bob / Mathf.PI)) { Hearing.Emit(transform.position, crouching || prone ? 2.5f : sprintW > 0.5f ? 22f : 9f, unit); Sfx.Play2D(Sfx.Step, 0.18f + sprintW * 0.12f, Random.Range(0.85f, 1.15f)); if (Random.value < 0.3f + sprintW * 0.4f) Sfx.Play2D("gear", 0.07f + sprintW * 0.1f, Random.Range(0.9f, 1.15f)); }
         }
         bobAmt = Mathf.Lerp(bobAmt, grounded ? Mathf.Clamp01(hs / 7f) : 0f, 1f - Mathf.Exp(-6f * dt));
         landKick = Mathf.MoveTowards(landKick, 0, dt * 3f);
@@ -693,12 +708,14 @@ public class PlayerController : MonoBehaviour
             fp.SetFlashlight(flashlightOn);
             Sfx.Play2D("click", 0.5f);
         }
-        // граната
-        if (Input.GetKeyDown(KeyCode.G) && grenades > 0 && throwT < 0 && !safe)
+        // G: короткое нажатие — граната, удержание — круговое меню жестов
+        if (Input.GetKeyDown(KeyCode.G)) { gDownT = Time.unscaledTime; radialVec = Vector2.zero; }
+        if (Input.GetKey(KeyCode.G) && gDownT >= 0 && Time.unscaledTime - gDownT > 0.22f) RadialOpen = true;
+        if (Input.GetKeyUp(KeyCode.G) && gDownT >= 0)
         {
-            magCheck = false;
-            throwT = 0;
-            g.CancelReload();
+            if (RadialOpen) { if (RadialSel >= 0) DoGesture(RadialSel); }
+            else if (grenades > 0 && throwT < 0 && !safe) { magCheck = false; throwT = 0; g.CancelReload(); }
+            RadialOpen = false; gDownT = -1f;
         }
         if (throwT >= 0)
         {
@@ -744,7 +761,7 @@ public class PlayerController : MonoBehaviour
         // переводчик огня
         if (Input.GetKeyDown(KeyCode.B) && g.def.auto) { g.semi = !g.semi; Sfx.Play2D("click", 0.5f, 0.8f); }
         // команды своему отряду: X — занять точку, куда смотрю; Y — за мной; U — вернуться к приказу командира
-        if (Input.GetKeyDown(KeyCode.X) || Input.GetKeyDown(KeyCode.Y) || Input.GetKeyDown(KeyCode.U)) SquadOrder();
+        if (Input.GetKeyDown(KeyCode.X)) SquadCmd(0); else if (Input.GetKeyDown(KeyCode.Y)) SquadCmd(1); else if (Input.GetKeyDown(KeyCode.U)) SquadCmd(2);
         // аптечка
         if (Input.GetKeyDown(KeyCode.H) && medkits > 0 && healT < 0 && unit.hp < unit.maxHp)
         {
@@ -810,21 +827,27 @@ public class PlayerController : MonoBehaviour
         spreadNow = g.def.spread * Mathf.Lerp(1f, 0.3f, adsW) * (1f + new Vector2(velocity.x, velocity.z).magnitude / 6f) * (crouching ? 0.75f : 1f);
     }
 
-    void SquadOrder()
+    // Приказ своему отряду: 0 — занять точку под прицелом, 1 — за мной, 2 — по приказу командира, 3 — стоять здесь
+    void SquadCmd(int cmd, bool low = false)
     {
         var b = Battle.I;
         var sq = b != null ? b.SquadOf(squad) : null;
         if (sq == null || sq.Alive == 0) return;
         string who = squad.name.Split(' ')[0];
-        if (Input.GetKeyDown(KeyCode.U))
+        if (cmd == 2)
         {
             sq.playerCmdUntil = -1f;
             Battle.Message("Вы → " + who + ": Работаем по приказу командира операции.", new Color(0.7f, 0.85f, 1f), 4f);
         }
-        else if (Input.GetKeyDown(KeyCode.Y))
+        else if (cmd == 1)
         {
             sq.playerCmdUntil = Time.time + 120f; sq.playerFollow = true;
             Battle.Message("Вы → " + who + ": За мной! Держаться рядом.", new Color(0.7f, 0.85f, 1f), 4f);
+        }
+        else if (cmd == 3)
+        {
+            sq.playerCmdUntil = Time.time + 120f; sq.playerFollow = false; sq.playerCmdPos = transform.position;
+            Battle.Message("Вы → " + who + (low ? ": Пригнуться! Тихо, ждём здесь." : ": Стоп! Держать позицию."), new Color(0.7f, 0.85f, 1f), 4f);
         }
         else
         {
@@ -834,7 +857,7 @@ public class PlayerController : MonoBehaviour
             Battle.Message("Вы → " + who + ": Занять позицию, " + Mathf.RoundToInt(Vector3.Distance(transform.position, p)) + " м впереди!", new Color(0.7f, 0.85f, 1f), 4f);
         }
         Sfx.Play2D("radio", 0.35f);
-        var l = sq.Leader; if (l != null) l.anim.DoSignal(Input.GetKeyDown(KeyCode.X) ? Signal.Point : Signal.Regroup);
+        var l = sq.Leader; if (l != null) l.anim.DoSignal(cmd == 0 ? Signal.Point : cmd == 3 ? Signal.Hold : Signal.Regroup);
     }
 
     void Blink()

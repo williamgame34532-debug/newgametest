@@ -473,20 +473,22 @@ public static class ModelLib
                     // открытый голографический прицел: основание, две стойки, козырёк, прозрачное стекло и яркая марка
                     float cx = F(w[1]), cy = F(w[2]), cz = F(w[3]);
                     var dk = GunMat("dark", def);
-                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy - 0.032f, cz), new Vector3(0.052f, 0.01f, 0.075f));
-                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx - 0.0275f, cy - 0.002f, cz + 0.02f), new Vector3(0.005f, 0.062f, 0.034f));
-                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.0275f, cy - 0.002f, cz + 0.02f), new Vector3(0.005f, 0.062f, 0.034f));
-                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy + 0.03f, cz + 0.02f), new Vector3(0.06f, 0.006f, 0.034f));
-                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.033f, cy - 0.015f, cz - 0.01f), new Vector3(0.008f, 0.012f, 0.02f));
-                    MeshKit.Part(root, MeshKit.Cube, Mats.Glass(new Color(0.75f, 0.55f, 0.35f, 0.12f), 1f), new Vector3(cx, cy, cz + 0.03f), new Vector3(0.05f, 0.056f, 0.002f));
-                    var dot = Mats.Glow(new Color(1f, 0.1f, 0.05f), 10f);
-                    MeshKit.Part(root, MeshKit.Sphere, dot, new Vector3(cx, cy, cz + 0.029f), new Vector3(0.0035f, 0.0035f, 0.001f));
-                    // кольцо голографической марки (тонкие засечки)
-                    for (int k = 0; k < 4; k++)
+                    // корпус как у EOTech: низкое основание с батарейным отсеком сзади, тонкий капюшон над окном
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy - 0.031f, cz), new Vector3(0.036f, 0.011f, 0.085f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy - 0.019f, cz - 0.022f), new Vector3(0.032f, 0.016f, 0.04f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.0185f, cy - 0.022f, cz - 0.022f), new Vector3(0.004f, 0.007f, 0.012f));   // кнопки
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx - 0.0215f, cy + 0.001f, cz + 0.022f), new Vector3(0.0035f, 0.054f, 0.03f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx + 0.0215f, cy + 0.001f, cz + 0.022f), new Vector3(0.0035f, 0.054f, 0.03f));
+                    MeshKit.Part(root, MeshKit.Cube, dk, new Vector3(cx, cy + 0.0275f, cz + 0.022f), new Vector3(0.046f, 0.0035f, 0.03f));
+                    MeshKit.Part(root, MeshKit.Cube, Mats.Glass(new Color(0.45f, 0.6f, 0.75f, 0.1f), 1f), new Vector3(cx, cy + 0.001f, cz + 0.03f), new Vector3(0.039f, 0.05f, 0.0015f));
+                    var dot = Mats.Glow(new Color(1f, 0.12f, 0.06f), 10f);
+                    MeshKit.Part(root, MeshKit.Sphere, dot, new Vector3(cx, cy, cz + 0.029f), new Vector3(0.0018f, 0.0018f, 0.0005f));
+                    // кольцо голографической марки: 24 тонких сегмента
+                    for (int k = 0; k < 24; k++)
                     {
-                        float a = k * Mathf.PI * 0.5f;
-                        Vector3 o = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0) * 0.011f;
-                        MeshKit.Part(root, MeshKit.Cube, dot, new Vector3(cx, cy, cz + 0.029f) + o, k % 2 == 0 ? new Vector3(0.0012f, 0.004f, 0.001f) : new Vector3(0.004f, 0.0012f, 0.001f));
+                        float a = k * Mathf.PI * 2f / 24f;
+                        Vector3 o = new Vector3(Mathf.Cos(a), Mathf.Sin(a), 0) * 0.0105f;
+                        MeshKit.Part(root, MeshKit.Cube, dot, new Vector3(cx, cy, cz + 0.029f) + o, new Vector3(0.0028f, 0.0006f, 0.0005f), new Vector3(0, 0, a * Mathf.Rad2Deg + 90f));
                     }
                     continue;
                 }

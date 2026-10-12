@@ -333,6 +333,7 @@ public class Gun
         if (reloading) reloading = false; // выстрел прерывает зарядку дробовика
         ammo--;
         nextFire = Time.time + def.Interval;
+        if (!Net.Cosmetic) Hearing.Emit(origin, Hearing.GunRadius(def), owner);
         Net.InFire = true;
         try { Ballistics.Fire(def, owner, origin, dir, spreadMul, muzzle); }
         finally { Net.InFire = false; }

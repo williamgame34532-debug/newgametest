@@ -5,6 +5,8 @@ using UnityEngine;
 // Тексты брифингов — пересказ документов вики, а не цитаты. Это художественная вселенная.
 public class OperationDef
 {
+    // название в кавычках-ёлочках, если своих кавычек в нём ещё нет
+    public static string Quoted(string t) => string.IsNullOrEmpty(t) ? "" : t.Contains("«") ? t : "«" + t + "»";
     public string id, code, title, date, place, source;
     public string briefing;          // что произошло по документам
     public string task;              // задача игрока

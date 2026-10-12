@@ -67,6 +67,30 @@ public class Soldier : Unit
     bool patrolLook; Vector3 sentryDir;
     // подавление: огонь по последнему месту, где видели противника
     Unit lastTarget; Vector3 lastSeenPos; float suppressUntil;
+    // услышанный шум: куда смотреть и что проверить
+    public Vector3 heardPos; public float heardUntil; float heardCallT; bool heardInvestigate;
+
+    public void Hear(Vector3 pos, float dist, Unit src)
+    {
+        if (!alive || state != State.Combat || target != null) return;
+        // чем дальше, тем неточнее направление
+        Vector2 jit = Random.insideUnitCircle * dist * 0.08f;
+        heardPos = pos + new Vector3(jit.x, 0, jit.y);
+        bool fresh = Time.time > heardUntil;
+        heardUntil = Time.time + Mathf.Lerp(18f, 9f, dist / 400f);
+        heardInvestigate = dist < 160f && !(squadRt != null && (squadRt.hold || squadRt.garrison) && Vector3.Distance(pos, squadRt.orderPos) > 50f);
+        if (fresh && Time.time > heardCallT)
+        {
+            heardCallT = Time.time + 20f;
+            string what = dist < 25f ? "Шаги рядом" : src != null && src.isScp ? "Что-то там есть" : "Слышу стрельбу";
+            Callout(what + " — " + Bearing(pos) + (dist > 25f ? ", метров " + Mathf.RoundToInt(dist / 10f) * 10 : "") + "!", "contact");
+            // соседи по отряду тоже настораживаются
+            if (squadRt != null)
+                foreach (var m in squadRt.members)
+                    if (m != null && m != this && m.alive && m.target == null && (m.transform.position - transform.position).sqrMagnitude < 900f)
+                    { m.heardPos = heardPos; m.heardUntil = heardUntil; m.heardInvestigate = heardInvestigate; }
+        }
+    }
     // укрытие на время перезарядки и при ранении
     Vector3 coverPos; float coverT = -1f;
     // линия огня перекрыта — обходим препятствие
@@ -915,6 +939,12 @@ public class Soldier : Unit
                 desired = (desired + Vector3.up * dist * 0.012f).normalized;
             }
         }
+        else if (Time.time < heardUntil && target == null)
+        {
+            // смотрит в сторону шума, водит стволом по сектору
+            Vector3 hd = heardPos + Vector3.up * 1.3f - EyePos;
+            desired = Quaternion.Euler(0, Mathf.Sin(Time.time * 0.8f + index) * 14f, 0) * hd.normalized;
+        }
         else if (Time.time < suppressUntil)
         {
             if (Random.value < Time.deltaTime * 4f) aimNoise = Random.insideUnitSphere;
@@ -1037,6 +1067,20 @@ public class Soldier : Unit
             if (NavMesh.SamplePosition(goal, out var mh, 3f, NavMesh.AllAreas)) agent.SetDestination(mh.position);
             moveT = Time.time + 0.4f;
             return;
+        }
+        // услышали шум: идём проверить — пригнувшись, медленно, останавливаясь не доходя
+        if (target == null && heardInvestigate && Time.time < heardUntil)
+        {
+            float dh = Vector3.Distance(me, heardPos);
+            if (dh > 12f)
+            {
+                Vector3 hg = Vector3.MoveTowards(me, heardPos, Mathf.Min(dh - 10f, 25f)) + Vector3.Cross(Vector3.up, (heardPos - me).normalized) * ((index % 3) - 1) * 3f;
+                agent.speed = baseSpeed * 0.75f;
+                if (NavMesh.SamplePosition(hg, out var hh, 4f, NavMesh.AllAreas)) agent.SetDestination(hh.position);
+                moveT = Time.time + 1.2f;
+                return;
+            }
+            heardInvestigate = false;
         }
         // перезарядка под огнём или тяжёлое ранение — в укрытие
         if (target != null && ((current != null && current.reloading) || (hp < maxHp * 0.4f && courage < 1.5f)))

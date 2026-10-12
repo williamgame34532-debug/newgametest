@@ -66,7 +66,7 @@ public partial class Game
         Label(new Rect(172, 112, 900, 24), "СЕКРЕТНО  ·  УРОВЕНЬ ДОПУСКА 3", new GUIStyle(small) { fontSize = 14 }, new Color(1f, 0.35f, 0.28f, 0.6f + 0.4f * Mathf.Abs(Mathf.Sin(t * 1.7f))));
 
         // заголовок операции
-        string head = cfg != null && cfg.op != null ? cfg.op.code + " — «" + cfg.op.title + "»" : "ОПЕРАЦИЯ";
+        string head = cfg != null && cfg.op != null ? cfg.op.code + " — " + OperationDef.Quoted(cfg.op.title) : "ОПЕРАЦИЯ";
         string place = cfg != null ? (cfg.op != null ? cfg.op.place : MapGen.MapNames[Mathf.Clamp(cfg.map, 0, MapGen.MapNames.Length - 1)]) : "";
         string when = cfg != null ? MapGen.TimeNames[Mathf.Clamp(cfg.time, 0, 2)] : "";
         Shadowed(new Rect(64, 190, 1150, 64), head.ToUpper(), new GUIStyle(h1) { fontSize = 46, alignment = TextAnchor.MiddleLeft }, Color.white);

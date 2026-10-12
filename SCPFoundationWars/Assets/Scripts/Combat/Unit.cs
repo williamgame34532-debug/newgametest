@@ -218,6 +218,7 @@ public static class Combat
     {
         Fx.Explosion(pos, radius * 0.6f);
         Sfx.Play("explosion", pos, 1f, Random.Range(0.85f, 1.1f), 260f);
+        Hearing.Emit(pos, 450f, attacker);
         // урон живым
         var done = new HashSet<Unit>();
         foreach (var u in Unit.All.ToArray())

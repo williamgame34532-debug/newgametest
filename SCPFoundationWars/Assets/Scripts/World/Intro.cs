@@ -33,7 +33,7 @@ public partial class Battle
         l.Add(L(boss, "Так, " + sqName + ", подошли ближе. Слушаем внимательно, повторять не буду.", false, Signal.Regroup));
         if (cfg.op != null)
         {
-            l.Add(L(boss, "Операция «" + cfg.op.title + "». Район — " + cfg.op.place + ".", false, Signal.Point));
+            l.Add(L(boss, "Операция " + OperationDef.Quoted(cfg.op.title) + ". Район — " + cfg.op.place + ".", false, Signal.Point));
             foreach (var s in Split(cfg.op.briefing)) l.Add(L(boss, s, false, Random.value < 0.4f ? Signal.Point : Signal.None));
             foreach (var s in Split(cfg.op.task)) l.Add(L(boss, s, false, Signal.Hold));
         }
@@ -233,7 +233,7 @@ public partial class Battle
         var l = new List<string>();
         string n = sq.def.name;
         l.Add("Так, " + n + ", слушаем. Вылетаем вторыми, высадка по команде штаба.");
-        if (cfg.op != null) l.Add("Операция «" + cfg.op.title + "». Наша задача — поддержать первую группу и закрыть подходы.");
+        if (cfg.op != null) l.Add("Операция " + OperationDef.Quoted(cfg.op.title) + ". Наша задача — поддержать первую группу и закрыть подходы.");
         else l.Add("Район — " + MapGen.MapNames[cfg.map] + ". Комплекс в центре, связь с охраной потеряна.");
         if (cfg.scps.Count > 0) l.Add("Подтверждён прорыв: " + cfg.scps[0].def.name + ". В объект без команды не стрелять — только сдерживаем.");
         if (cfg.chaos.Count > 0) l.Add("Хаос уже на месте. Работают группами, с тяжёлым вооружением. Не геройствуем.");

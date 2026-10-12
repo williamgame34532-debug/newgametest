@@ -1,5 +1,6 @@
-// Трава: пучки из скрещённых карточек. Обычный вершинно-фрагментный шейдер (без surface-магии):
-// ветер в вершинах, отсечение по альфе, освещение солнцем + окружение, туман, растворение вдали.
+// Трава: пучки из скрещённых карточек. Поверхностный шейдер — свет, тени и окружение считает сам Unity
+// (нормаль травы смотрит вверх, как у земли — пучок освещён так же, как почва под ним), ветер в вершинах,
+// отсечение по альфе, растворение вдали, просвечивание против солнца.
 Shader "SCP/Grass"
 {
     Properties
@@ -12,64 +13,42 @@ Shader "SCP/Grass"
     SubShader
     {
         Tags { "Queue"="AlphaTest" "RenderType"="TransparentCutout" "IgnoreProjector"="True" }
-        Pass
+        Cull Off
+        CGPROGRAM
+        #pragma surface surf Grass vertex:vert alphatest:_Cutoff
+        #pragma target 3.0
+        sampler2D _MainTex;
+        float _Wind, _Fade;
+        struct Input { float2 uv_MainTex; float4 color : COLOR; float fade; };
+        void vert (inout appdata_full v, out Input o)
         {
-            Tags { "LightMode"="ForwardBase" }
-            Cull Off
-            CGPROGRAM
-            #pragma vertex vert
-            #pragma fragment frag
-            #pragma multi_compile_fog
-            #pragma multi_compile_fwdbase
-            #include "UnityCG.cginc"
-            #include "Lighting.cginc"
-            #include "AutoLight.cginc"
-            sampler2D _MainTex; float4 _MainTex_ST;
-            float _Cutoff, _Wind, _Fade;
-            struct appdata { float4 vertex : POSITION; float2 uv : TEXCOORD0; fixed4 color : COLOR; };
-            struct v2f
-            {
-                float4 pos : SV_POSITION;
-                float2 uv : TEXCOORD0;
-                fixed4 col : COLOR;
-                float fade : TEXCOORD1;
-                SHADOW_COORDS(2)
-                UNITY_FOG_COORDS(3)
-            };
-            v2f vert (appdata v)
-            {
-                v2f o;
-                float4 wp = mul(unity_ObjectToWorld, v.vertex);
-                float h = v.uv.y;
-                float t = _Time.y * _Wind;
-                float sway = sin(t * 1.6 + wp.x * 0.31 + wp.z * 0.23) * 0.6 + sin(t * 3.3 + wp.x * 1.3 + wp.z * 0.7) * 0.25;
-                wp.xz += float2(sway, sway * 0.55) * 0.13 * h * h;
-                o.pos = mul(UNITY_MATRIX_VP, wp);
-                o.uv = TRANSFORM_TEX(v.uv, _MainTex);
-                float d = distance(wp.xyz, _WorldSpaceCameraPos);
-                o.fade = saturate((_Fade - d) / (_Fade * 0.3));
-                // освещение как у земли (нормаль вверх) + чуть темнее у корня
-                float3 L = normalize(_WorldSpaceLightPos0.xyz);
-                float ndl = saturate(dot(float3(0, 1, 0), L));
-                // против солнца травинки просвечивают, кончики светлее
-                float3 V = normalize(_WorldSpaceCameraPos - wp.xyz);
-                float back = pow(saturate(dot(V, -L)), 4) * 0.7 * h;
-                float3 light = _LightColor0.rgb * (ndl * 0.85 + back * float3(1.0, 1.15, 0.55)) + ShadeSH9(float4(0, 1, 0, 1));
-                o.col = fixed4(v.color.rgb * light * lerp(0.65, 1.0, h), 1);
-                TRANSFER_SHADOW(o);
-                UNITY_TRANSFER_FOG(o, o.pos);
-                return o;
-            }
-            fixed4 frag (v2f i) : SV_Target
-            {
-                fixed4 c = tex2D(_MainTex, i.uv);
-                clip(c.a * i.fade - _Cutoff);
-                fixed4 col = fixed4(c.rgb * i.col.rgb * lerp(0.7, 1.0, SHADOW_ATTENUATION(i)), 1);
-                UNITY_APPLY_FOG(i.fogCoord, col);
-                return col;
-            }
-            ENDCG
+            UNITY_INITIALIZE_OUTPUT(Input, o);
+            float4 wp = mul(unity_ObjectToWorld, v.vertex);
+            float h = v.texcoord.y;
+            float t = _Time.y * _Wind;
+            float sway = sin(t * 1.6 + wp.x * 0.31 + wp.z * 0.23) * 0.6 + sin(t * 3.3 + wp.x * 1.3 + wp.z * 0.7) * 0.25;
+            float3 off = float3(sway, 0, sway * 0.55) * 0.13 * h * h;
+            v.vertex.xyz += mul((float3x3)unity_WorldToObject, off);
+            v.normal = mul((float3x3)unity_WorldToObject, float3(0, 1, 0));
+            float d = distance(wp.xyz, _WorldSpaceCameraPos);
+            o.fade = saturate((_Fade - d) / (_Fade * 0.3));
+            o.color = v.color * lerp(0.65, 1.0, h);
+            o.color.a = h;
         }
+        half4 LightingGrass (SurfaceOutput s, half3 lightDir, half3 viewDir, half atten)
+        {
+            half ndl = saturate(dot(half3(0, 1, 0), lightDir)) * 0.8 + 0.2;
+            half back = pow(saturate(dot(viewDir, -lightDir)), 4) * 0.7 * s.Gloss;
+            return half4(s.Albedo * _LightColor0.rgb * (ndl + back * half3(1.0, 1.15, 0.55)) * atten, s.Alpha);
+        }
+        void surf (Input IN, inout SurfaceOutput o)
+        {
+            fixed4 c = tex2D(_MainTex, IN.uv_MainTex);
+            o.Albedo = c.rgb * IN.color.rgb;
+            o.Gloss = IN.color.a;
+            o.Alpha = c.a * IN.fade;
+        }
+        ENDCG
     }
     FallBack Off
 }

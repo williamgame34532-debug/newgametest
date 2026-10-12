@@ -139,6 +139,17 @@ public class FPView : MonoBehaviour
         if (vmCam != null && PostFX.Top != vmCam) PostFX.SetTop(vmCam);
     }
 
+    // ---- жесты (круговое меню G) ----
+    int gestKind = -1; float gestT, gestLW, gestW, gestA; Vector3 gestPalm; Quaternion gestRot = Quaternion.identity;
+    public void Gesture(int k) { gestKind = k; gestT = 0f; }
+    public void BodySignal(Signal s) { if (bodyAnim != null) bodyAnim.DoSignal(s); }
+    static Quaternion HandRot(Vector3 palmDir, Vector3 fingerDir)
+    {
+        Vector3 y = -fingerDir.normalized;
+        Vector3 x = Vector3.ProjectOnPlane(palmDir, y).normalized;
+        return Quaternion.LookRotation(Vector3.Cross(x, y), y);
+    }
+
     public void SetVisible(bool on)
     {
         if (root != null) root.gameObject.SetActive(on);
@@ -604,6 +615,13 @@ public class FPView : MonoBehaviour
 
         // свободный обзор: оружие остаётся направленным по корпусу
         root.localRotation = Quaternion.Inverse(pc.FreeRot);
+        // жест: правая рука опускает оружие (осмотр — разворачивает его к себе)
+        if (gestW > 0.001f)
+        {
+            if (gestKind == 5) { pos += new Vector3(-0.05f, 0.03f, -0.04f) * gestW; rot += new Vector3(0, -40f, -45f + 30f * gestA) * gestW; }
+            else { pos += new Vector3(0.05f, -0.12f, -0.06f) * gestW; rot += new Vector3(20f, 12f, 15f) * gestW; }
+            ads *= 1f - gestW;
+        }
         // ---- ставим оружие; в прицеле — прицельная марка ровно в центре экрана ----
         Quaternion q = Quaternion.Euler(rot);
         Vector3 sight = gm.sight.localPosition;
@@ -626,10 +644,45 @@ public class FPView : MonoBehaviour
         Quaternion gq = gm.transform.rotation;
         Quaternion rq = HandPose.Grip(gq);
         Vector3 rWrist = HandPose.GripWrist(gq, gm.grip.position);
+        // жест левой рукой (оружие опускается в правой)
+        if (gestKind >= 0)
+        {
+            gestT += dt;
+            float len = gestKind == 5 ? 3.2f : gestKind == 6 ? 2.2f : 1.5f;
+            float gw = S(0f, 0.22f, gestT) * (1f - S(len - 0.3f, len, gestT));
+            if (gestT > len) gestKind = -1;
+            else if (gestKind == 5)
+            {
+                // осмотр оружия: поворот к себе, проверка затвора и магазина
+                gestA = Mathf.Sin(Mathf.Clamp01(gestT / len) * Mathf.PI * 2f);
+                gestW = gw;
+            }
+            else
+            {
+                Vector3 F = root.forward, U = root.up, Rr = root.right;
+                Vector3 local; Quaternion hr; float tt = gestT;
+                switch (gestKind)
+                {
+                    case 0: local = new Vector3(-0.15f, 0.1f, 0.42f); hr = HandRot(F, U); break;                                         // кулак вверх — стоп
+                    case 1: local = new Vector3(-0.12f, 0.02f + Mathf.Sin(tt * 9f) * 0.05f, 0.38f + Mathf.Sin(tt * 9f) * 0.05f); hr = HandRot(-U, F + U * 0.3f); break;   // взмах вперёд — за мной
+                    case 2: local = new Vector3(-0.1f, 0.0f, 0.56f); hr = HandRot(-Rr, F); break;                                        // указать
+                    case 3: local = new Vector3(-0.16f, -0.06f + Mathf.Abs(Mathf.Sin(tt * 7f)) * -0.05f, 0.4f); hr = HandRot(-U, F); break;   // ладонь вниз — пригнуться
+                    case 4: local = new Vector3(-0.05f + Mathf.Cos(tt * 8f) * 0.07f, 0.24f + Mathf.Sin(tt * 8f) * 0.05f, 0.3f); hr = HandRot(F, U); break;   // круг над головой — сбор
+                    case 6: local = new Vector3(-0.04f, -0.07f, 0.3f); hr = HandRot(F, Rr); break;                                          // часы перед глазами
+                    default: local = new Vector3(-0.2f + Mathf.Sin(tt * 6f) * 0.1f, -0.02f, 0.42f); hr = HandRot(-U, Rr); break;             // отмах — по приказу
+                }
+                gestLW = gw;
+                gestPalm = root.position + root.rotation * local;
+                gestRot = hr;
+                gestW = gw;
+            }
+        }
+        else { gestLW = 0f; gestW = 0f; }
         Quaternion lq = HandPose.Support(gq);
         Vector3 lWrist = HandPose.SupportWrist(gq, gm.foregrip.position);
         if (pistol) { lq = HandPose.Support(gq); lWrist = HandPose.SupportWrist(gq, gm.grip.position + gq * new Vector3(0f, -0.075f, 0.035f)); }   // левая ладонь чашей под кулаком правой
         if (lTarget.HasValue) { lWrist = Vector3.Lerp(lWrist, HandPose.Wrist(lTarget.Value, lRot), lW); lq = Quaternion.Slerp(lq, lRot, lW); }
+        if (gestLW > 0.001f) { lWrist = Vector3.Lerp(lWrist, HandPose.Wrist(gestPalm, gestRot), gestLW); lq = Quaternion.Slerp(lq, gestRot, gestLW); }
         if (rTarget.HasValue) { rWrist = Vector3.Lerp(rWrist, HandPose.Wrist(rTarget.Value, rRot), rW); rq = Quaternion.Slerp(rq, rRot, rW); }
         Vector3 lPalm = lWrist - lq * new Vector3(0, 0.075f, 0);
         if (magInHand && gm.mag != null && lW > 0.5f) gm.mag.position = Vector3.Lerp(gm.mag.position, lPalm + lq * new Vector3(0, -0.04f, 0), 0.6f);

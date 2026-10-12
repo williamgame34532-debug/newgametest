@@ -482,6 +482,29 @@ public partial class Game
         }
     }
 
+    // Круговое меню жестов: удерживать G, мышью выбрать сектор, отпустить
+    void RadialMenu(PlayerController pc)
+    {
+        Vector2 c = new Vector2(W / 2, H / 2);
+        float R = 190f;
+        // тёмный диск
+        for (int k = 0; k < 18; k++) { float r = R + 60 - k * 6; Rect(new Rect(c.x - r, c.y - r * 0.02f, r * 2, r * 0.04f), new Color(0, 0, 0, 0.012f)); }
+        var old = GUI.matrix;
+        int sel = pc.RadialSel;
+        var st = new GUIStyle(body) { alignment = TextAnchor.MiddleCenter, fontSize = 20, fontStyle = FontStyle.Bold };
+        for (int i = 0; i < 8; i++)
+        {
+            float a = (90f - i * 45f) * Mathf.Deg2Rad;
+            Vector2 p = c + new Vector2(Mathf.Cos(a), -Mathf.Sin(a)) * R;
+            bool on = i == sel;
+            Rect(new Rect(p.x - 95, p.y - 26, 190, 52), new Color(0.03f, 0.04f, 0.05f, on ? 0.85f : 0.55f));
+            Rect(new Rect(p.x - 95, p.y + 24, 190, 2), on ? new Color(1f, 0.72f, 0.2f) : new Color(1, 1, 1, 0.15f));
+            Label(new Rect(p.x - 95, p.y - 26, 190, 52), PlayerController.GestureNames[i], st, on ? new Color(1f, 0.85f, 0.45f) : new Color(0.85f, 0.87f, 0.88f));
+        }
+        GUI.matrix = old;
+        Label(new Rect(c.x - 150, c.y - 20, 300, 40), sel >= 0 ? "отпустите G" : "мышь — выбрать жест", new GUIStyle(small) { alignment = TextAnchor.MiddleCenter }, new Color(1, 1, 1, 0.6f));
+    }
+
     void BattleGUI()
     {
         var b = Battle.I;
@@ -507,6 +530,7 @@ public partial class Game
         var pc = PlayerController.I;
         if (pc != null && !pc.dead && PostFX.Bodycam && PostFX.Enabled) BodycamStamp(pc);
         if (pc != null && !pc.dead) PlayerHUD(pc);
+        if (pc != null && !pc.dead && pc.RadialOpen) RadialMenu(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
         else if (SpectatorCam.Active) SpectatorHUD();
 
