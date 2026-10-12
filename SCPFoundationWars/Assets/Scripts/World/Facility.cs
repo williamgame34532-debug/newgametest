@@ -234,6 +234,7 @@ public static class Facility
                     l.shadows = LightShadows.None;
                     l.renderMode = i == 0 ? LightRenderMode.ForcePixel : LightRenderMode.Auto;
                     if (rng.Next(100) < 14) lg.AddComponent<LampFlicker>();   // повреждённая проводка после прорыва
+                    if (i == 0) WorldFX.Lamps.Add(l);   // светится в воздухе и даёт тени вблизи
                 }
                 go.AddComponent<FacilityRoom>().Init(pos);
                 int ex = 0; for (int d = 0; d < 4; d++) if ((c.mask & (1 << d)) != 0) ex++;

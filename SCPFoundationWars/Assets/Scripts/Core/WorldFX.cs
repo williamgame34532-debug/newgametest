@@ -14,6 +14,55 @@ public class WorldFX : MonoBehaviour
     float focus = 50f;
 
     // туман Unity выключаем на время кадра сцены — его заменяет воздушная перспектива в постобработке
+    // Лампы, которые светятся в воздухе (и отбрасывают тени, если рядом) — регистрируются при постройке
+    public static readonly System.Collections.Generic.List<Light> Lamps = new System.Collections.Generic.List<Light>();
+    readonly Vector4[] lp = new Vector4[4], lc = new Vector4[4];
+    readonly Light[] best = new Light[4]; readonly float[] bestD = new float[4];
+    readonly System.Collections.Generic.List<Light> shadowed = new System.Collections.Generic.List<Light>();
+    float shadowT;
+    void PickLamps(Vector3 cp, bool on)
+    {
+        for (int k = 0; k < 4; k++) { best[k] = null; bestD[k] = 1e9f; }
+        if (on)
+        {
+            for (int i = Lamps.Count - 1; i >= 0; i--)
+            {
+                var l = Lamps[i];
+                if (l == null) { Lamps.RemoveAt(i); continue; }
+                if (!l.enabled || !l.gameObject.activeInHierarchy || l.intensity < 0.05f) continue;
+                float d = (l.transform.position - cp).sqrMagnitude;
+                if (d > 40f * 40f) continue;
+                for (int k = 0; k < 4; k++)
+                    if (d < bestD[k]) { for (int m = 3; m > k; m--) { best[m] = best[m - 1]; bestD[m] = bestD[m - 1]; } best[k] = l; bestD[k] = d; break; }
+            }
+        }
+        float dens = MapGen.FacilityMap || Facility.Underground(cp) ? 0.022f : 0.012f;
+        for (int k = 0; k < 4; k++)
+        {
+            var l = best[k];
+            if (l == null) { lp[k] = Vector4.zero; lc[k] = Vector4.zero; continue; }
+            Vector3 p = l.transform.position;
+            lp[k] = new Vector4(p.x, p.y, p.z, l.range);
+            Color c = l.color * l.intensity * dens;
+            lc[k] = new Vector4(c.r, c.g, c.b, 1);
+        }
+        mat.SetVectorArray("_LampP", lp);
+        mat.SetVectorArray("_LampC", lc);
+        // тени — у двух ближайших ламп (дорого, поэтому только рядом)
+        if (Time.unscaledTime > shadowT)
+        {
+            shadowT = Time.unscaledTime + 0.4f;
+            foreach (var l in shadowed) if (l != null) l.shadows = LightShadows.None;
+            shadowed.Clear();
+            for (int k = 0; k < 2; k++)
+                if (best[k] != null && bestD[k] < 22f * 22f && best[k].type != LightType.Directional)
+                {
+                    best[k].shadows = LightShadows.Soft; best[k].shadowStrength = 0.85f; best[k].shadowNormalBias = 0.6f;
+                    shadowed.Add(best[k]);
+                }
+        }
+    }
+
     void OnPreCull()
     {
         fogHidden = false;
@@ -133,6 +182,9 @@ public class WorldFX : MonoBehaviour
             mat.SetTexture("_Dof", dof);
         }
         else { mat.SetVector("_DofP", Vector4.zero); mat.SetTexture("_Dof", Texture2D.blackTexture); }
+
+        // ---- объёмный свет ближайших ламп ----
+        PickLamps(camPos, under || night);
 
         Graphics.Blit(src, dst, mat, 4);
         if (dof != null) RenderTexture.ReleaseTemporary(dof);

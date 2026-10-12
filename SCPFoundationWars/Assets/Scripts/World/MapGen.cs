@@ -14,6 +14,7 @@ public static partial class MapGen
     public static GameObject Root;
     public static bool SkipFacility;   // сцена главного меню — без подземного комплекса
     public static bool Night;
+    public static bool Raining;   // дождь: мокрые поверхности, лужи, струи
     static NavMeshDataInstance navInstance;
     static System.Random rng;
     static readonly List<Vector3> keepOut = new List<Vector3>();
@@ -58,6 +59,7 @@ public static partial class MapGen
         mapKind = map;
         rng = new System.Random(seed);
         Night = time == 2;
+        Raining = false;
         keepOut.Clear();
         keepOut.AddRange(lzs);
         Root = new GameObject("Map");
@@ -489,7 +491,7 @@ public static partial class MapGen
             MeshKit.Cyl(lg.transform, new Vector3(0, 0, 0.26f), 0.45f, 0.02f, Mats.Glow(new Color(1f, 0.95f, 0.8f), 5f), new Vector3(90, 0, 0));
             var l = lg.AddComponent<Light>(); l.type = LightType.Spot; l.spotAngle = 35; l.range = 70; l.intensity = 4f; l.color = new Color(1f, 0.95f, 0.85f);
             l.shadows = LightShadows.Hard;
-            lamps.Add(l);
+            lamps.Add(l); WorldFX.Lamps.Add(l);
             lg.AddComponent<Searchlight>();
         }
     }
@@ -515,7 +517,7 @@ public static partial class MapGen
         l.type = spot ? LightType.Spot : LightType.Point;
         if (spot) { lg.transform.rotation = Quaternion.Euler(90, 0, 0); l.spotAngle = 110; }
         l.color = c; l.range = range; l.intensity = intensity; l.shadows = LightShadows.None;
-        lamps.Add(l);
+        lamps.Add(l); WorldFX.Lamps.Add(l);
     }
 
     static void Truck(Vector3 p, float yaw, Transform root)
@@ -742,7 +744,8 @@ public static partial class MapGen
         var sh = Shader.Find("SCP/SkyPano");
         var meta = Resources.Load<TextAsset>("Sky/sky");
         if (sh == null || meta == null) return null;
-        string want = time == 1 ? "sunset" : time == 2 ? "night" : map == 2 ? "clear" : map == 3 ? "overcast" : map == 1 && R() < 0.5f ? "overcast" : "day";
+        string want = time == 1 ? "sunset" : time == 2 ? "night" : map == 2 ? "clear" : map == 3 ? "overcast" : (map == 1 || map == 0) && R() < 0.45f ? "overcast" : "day";
+        Raining = (want == "overcast" && map != 3 && R() < 0.7f) || (want == "night" && map == 1 && R() < 0.4f);
         foreach (var raw in meta.text.Split('\n'))
         {
             var f = raw.Trim().Split('|');

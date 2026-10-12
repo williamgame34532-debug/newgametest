@@ -23,6 +23,7 @@ Shader "SCP/Triplanar"
         fixed4 _Color;
         float _Scale, _Base;
         half _Glossiness, _Metallic, _Grime;
+        float _Wetness;
         struct Input { float3 worldPos; float3 worldNormal; };
         void surf (Input IN, inout SurfaceOutputStandard o)
         {
@@ -36,9 +37,11 @@ Shader "SCP/Triplanar"
             // потёки и сырость у земли
             float wet = saturate(1.0 - (IN.worldPos.y - _Base) / 1.2) * (1.0 - n.y);
             c.rgb *= 1.0 - wet * 0.22 * _Grime;
-            o.Albedo = c.rgb * _Color.rgb;
+            // дождь: поверхность темнеет и блестит, сильнее сверху
+            float rw = _Wetness * (0.45 + 0.55 * n.y);
+            o.Albedo = c.rgb * _Color.rgb * lerp(1, 0.62, rw);
             o.Metallic = _Metallic;
-            o.Smoothness = _Glossiness * (1.0 + wet * 0.6);
+            o.Smoothness = lerp(_Glossiness * (1.0 + wet * 0.6), 0.78, rw);
             o.Alpha = 1;
         }
         ENDCG

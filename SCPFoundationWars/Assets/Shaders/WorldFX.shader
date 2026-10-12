@@ -21,7 +21,24 @@ Shader "SCP/WorldFX"
     float4 _CamPos, _RayR, _RayU, _RayF;   // луч взгляда = F + R*ndc.x + U*ndc.y (уже с тангенсами)
     float4x4 _PrevVP;
     float4 _Motion;                        // x — сила размытия движения, y — предел длины (uv)
-    float4 _DofP;                          // x — дистанция фокуса, y — сила, z — радиус (текселей), w — ближняя граница
+    float4 _DofP;
+    float4 _LampP[4], _LampC[4];           // ближайшие лампы: позиция + радиус, цвет * сила
+    // свечение воздуха вокруг лампы вдоль луча (аналитический интеграл 1/r² по отрезку)
+    float3 LampGlow (float3 dir, float len)
+    {
+        float3 acc = 0;
+        [unroll]
+        for (int k = 0; k < 4; k++)
+        {
+            float3 lp = _LampP[k].xyz - _CamPos.xyz;
+            float tc = dot(lp, dir);
+            float h = max(length(lp - dir * tc), 0.25);
+            float a0 = atan((0 - tc) / h), a1 = atan((len - tc) / h);
+            float fall = saturate(1 - (h - 0.25) / max(_LampP[k].w, 0.01));
+            acc += _LampC[k].rgb * (a1 - a0) / h * fall * fall;
+        }
+        return acc;
+    }                          // x — дистанция фокуса, y — сила, z — радиус (текселей), w — ближняя граница
     float2 ScreenUV (float2 uv)
     {
         #if UNITY_UV_STARTS_AT_TOP
@@ -212,6 +229,8 @@ Shader "SCP/WorldFX"
         // воздушная перспектива: дальнее голубеет и тонет в дымке, против солнца дымка светится
         if (!isSky && _Fog.x > 0) c = Atmosphere(c, ray, eye * length(ray));
         c += tex2D(_Shafts, uv).rgb * _SunCol.rgb * _SunPos.z;
+        // объёмный свет ламп в пыльном воздухе
+        if (_LampC[0].a > 0) c += LampGlow(normalize(ray), min(isSky ? 60 : eye * length(ray), 60));
         return fixed4(c, 1);
     }
     ENDCG

@@ -169,6 +169,19 @@ public static class Sfx
         Gunshot("shotgun", 1.2f, 12f, 60f, 1.4f, 4f, 0.25f);
         Gunshot("sniper", 1.6f, 10f, 55f, 1.6f, 2.5f, 0.28f);
         {
+            // дождь: шелест (два слоя отфильтрованного шума) и отдельные капли
+            float a = 0, b = 0;
+            var rr = new System.Random(11);
+            Make("rain", 4f, (t, i) =>
+            {
+                float n = N();
+                a += (n - a) * 0.35f; b += (n - b) * 0.05f;
+                float drop = rr.NextDouble() < 0.0009 ? (float)(rr.NextDouble() - 0.5) * 3f : 0f;
+                float loop = Mathf.Min(1f, Mathf.Min(t, 4f - t) * 8f);   // мягкие края для зацикливания
+                return (a * 0.55f + b * 0.9f + drop) * (0.8f + 0.2f * loop);
+            });
+        }
+        {
             float lp = 0;
             Make("suppressed", 0.25f, (t, i) => { lp += (N() - lp) * 0.12f; return lp * Mathf.Exp(-t * 45f) + Mathf.Sin(t * 2 * Mathf.PI * 300) * Mathf.Exp(-t * 80) * 0.3f; });
         }

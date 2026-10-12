@@ -169,6 +169,8 @@ public partial class Battle : MonoBehaviour
         }
         loading = false;
         Ambience.Create(cfg.time == 2, cfg.map).transform.SetParent(transform);
+        Shader.SetGlobalFloat("_Wetness", 0f);
+        if (MapGen.Raining && !MapGen.FacilityMap) { Weather.Create().transform.SetParent(transform); Message("Идёт дождь — земля раскисла, видимость ниже", new Color(0.7f, 0.8f, 0.9f)); }
         if (!fac)
         for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, cfg.foundation[i].placed ? MapGen.Height(lzF[i].x, lzF[i].z) : GroundHeight(lzF[i]), lzF[i].z);
         if (!fac)

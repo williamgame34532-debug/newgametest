@@ -24,7 +24,7 @@ Shader "SCP/Terrain"
         #pragma surface surf Standard fullforwardshadows vertex:vert
         #pragma target 4.0
         sampler2D _L0, _L1, _L2, _L3, _N0, _N1, _N2, _N3;
-        float _Scale, _NStr; float4 _Gloss;
+        float _Scale, _NStr, _Wetness; float4 _Gloss;
         struct Input { float3 worldPos; float4 vcol; float3 wn; };
         void vert (inout appdata_full v, out Input o)
         {
@@ -60,14 +60,18 @@ Shader "SCP/Terrain"
             c *= lerp(0.8, 1.12, saturate(macro * 1.6)) * lerp(0.9, 1.08, saturate(macro2 * 1.8));
             // затенение в складках склона
             c *= lerp(0.85, 1.0, saturate(wn.y * 1.4));
+            // дождь: земля темнеет, в низинах — лужи с отражением неба
+            float puddle = saturate((tex2D(_L1, IN.worldPos.xz * 0.013 + 0.2).r - 0.58) * 7) * saturate((wn.y - 0.96) * 30) * _Wetness;
+            c *= lerp(1, 0.58, _Wetness * 0.85);
+            c = lerp(c, c * 0.45, puddle);
             o.Albedo = c;
             // рельеф поверхности по картам нормалей слоёв (касательные меша идут вдоль мировых X/Z, как и uv)
             float3 nrm = UnpackNormal(tex2D(_N0, uv)) * hw.x + UnpackNormal(tex2D(_N1, uv * 1.3)) * hw.y
                        + UnpackNormal(tex2D(_N2, uv * 0.6)) * hw.z * bw.y + float3(0, 0, 1) * hw.z * (1 - bw.y)
                        + UnpackNormal(tex2D(_N3, uv * 0.9)) * hw.w;
             nrm.xy *= _NStr * lerp(1.0, 0.5, far);
-            o.Normal = normalize(nrm);
-            o.Smoothness = dot(hw, _Gloss);
+            o.Normal = normalize(lerp(nrm, float3(0, 0, 1), puddle));
+            o.Smoothness = lerp(lerp(dot(hw, _Gloss), 0.55, _Wetness), 0.97, puddle);
             o.Metallic = 0;
             o.Occlusion = lerp(0.7, 1.0, saturate(Lum(c) * 2.2));
         }
