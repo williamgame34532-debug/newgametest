@@ -5,9 +5,10 @@ Shader "SCP/Post"
     Properties { _MainTex ("Tex", 2D) = "white" {} }
     CGINCLUDE
     #include "UnityCG.cginc"
-    sampler2D _MainTex, _Bloom;
+    sampler2D _MainTex, _Bloom, _Lum, _LumPrev;
     float4 _MainTex_TexelSize;
     float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2, _Sharp;
+    float _Fisheye, _Body, _AdaptK, _AutoExp;
     float4 _Tint, _Dir, _ShadowTone, _HighTone;
     // NaN/бесконечность из любого шейдера сцены не должны расползаться свечением в чёрные квадраты
     float3 Safe (float3 c) { c = (c == c) ? c : 0; return clamp(c, 0, 64); }
@@ -28,11 +29,23 @@ Shader "SCP/Post"
         c += (tex2D(_MainTex, i.uv + d * 3.231).rgb + tex2D(_MainTex, i.uv - d * 3.231).rgb) * 0.070;
         return fixed4(c, 1);
     }
+    // яркость кадра для автоэкспозиции: плавно догоняет текущую (как у нательной камеры)
+    fixed4 fragAdapt (v2f_img i) : SV_Target
+    {
+        float3 c = Safe(tex2D(_MainTex, float2(0.5, 0.5)).rgb);
+        float cur = max(0.02, dot(c, float3(0.2126, 0.7152, 0.0722)));
+        float prev = tex2D(_LumPrev, float2(0.5, 0.5)).r;
+        prev = (prev == prev && prev > 0.0001) ? prev : cur;
+        return fixed4(lerp(prev, cur, _AdaptK).xxx, 1);
+    }
     float3 ACES (float3 x) { return saturate((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14)); }
     float Hash (float2 p) { return frac(sin(dot(p, float2(12.9898, 78.233))) * 43758.5453); }
     fixed4 fragFinal (v2f_img i) : SV_Target
     {
-        float2 uv = i.uv;
+        // широкоугольная «бочка» нательной камеры: края кадра выгнуты
+        float2 c0 = i.uv - 0.5;
+        float rr = dot(c0, c0);
+        float2 uv = 0.5 + c0 * (1 + _Fisheye * rr) / (1 + _Fisheye * 0.5);
         float2 cc = uv - 0.5;
         float r2 = dot(cc, cc);
         // хроматическая аберрация к краям (и сильнее при ранении)
@@ -50,6 +63,9 @@ Shader "SCP/Post"
         col = max(0, col + clamp(detail, -0.15, 0.15) * _Sharp);
         col += Safe(tex2D(_Bloom, uv).rgb) * _BloomAmt;
         col *= _Exposure;
+        // автоэкспозиция: в тёмном помещении картинку вытягивает (с шумом), при выходе на свет — пересвет
+        float avg = max(0.02, tex2D(_Lum, float2(0.5, 0.5)).r);
+        col *= lerp(1, clamp(0.28 / avg, 0.85, 2.4), _AutoExp);
         col = ACES(col);
         // цветокоррекция: контраст вокруг серого, насыщенность, оттенок
         float lum = dot(col, float3(0.2126, 0.7152, 0.0722));
@@ -69,6 +85,15 @@ Shader "SCP/Post"
         // зерно плёнки
         float n = Hash(uv * _MainTex_TexelSize.zw + _Time2 * 37.0) - 0.5;
         col += n * _Grain * (1.2 - lum);
+        // цифровая матрица: цветной шум в тенях, лёгкие строки развёртки, пережатые света
+        if (_Body > 0.001)
+        {
+            float3 cn = float3(Hash(uv * 711.3 + _Time2 * 13.1), Hash(uv * 517.9 + _Time2 * 7.7), Hash(uv * 331.7 + _Time2 * 5.3)) - 0.5;
+            col += cn * 0.05 * _Body * saturate(1 - lum * 1.6);
+            col *= 1 - 0.035 * _Body * step(0.5, frac(uv.y * _MainTex_TexelSize.w * 0.5));
+            col = lerp(col, smoothstep(0.0, 1.04, col), 0.5 * _Body);
+            col.b *= 1 + 0.04 * _Body;
+        }
         return fixed4(saturate(col), 1);
     }
     ENDCG
@@ -86,6 +111,10 @@ Shader "SCP/Post"
         Pass { CGPROGRAM
                #pragma vertex vert_img
                #pragma fragment fragFinal
+               ENDCG }
+        Pass { CGPROGRAM
+               #pragma vertex vert_img
+               #pragma fragment fragAdapt
                ENDCG }
     }
     FallBack Off

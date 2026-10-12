@@ -281,10 +281,48 @@ public static partial class MapGen
         return t;
     }
 
-    static Material barkM, barkBirch;
+    static Material barkM, barkBirch, firCard, leafCard;
     static readonly Material[] leafM = new Material[4];
+    static Mesh cardMesh;
+
+    // Карточка ветки: полоса от ствола (v=0) к концу (v=1), провисает к концу
+    static Mesh CardMesh()
+    {
+        if (cardMesh != null) return cardMesh;
+        var v = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+        int rows = 4;
+        for (int i = 0; i <= rows; i++)
+        {
+            float k = i / (float)rows;
+            float y = -0.22f * k * k;
+            v.Add(new Vector3(-0.5f, y, k)); uv.Add(new Vector2(0, k));
+            v.Add(new Vector3(0.5f, y, k)); uv.Add(new Vector2(1, k));
+            if (i > 0) { int b = i * 2; t.AddRange(new[] { b - 2, b, b - 1, b - 1, b, b + 1 }); }
+        }
+        cardMesh = new Mesh { name = "branchCard" };
+        cardMesh.SetVertices(v); cardMesh.SetUVs(0, uv); cardMesh.SetTriangles(t, 0);
+        cardMesh.RecalculateNormals(); cardMesh.RecalculateBounds();
+        return cardMesh;
+    }
+
+    static Material FoliageMat(string tex, Color tint)
+    {
+        var sh = Shader.Find("SCP/Foliage");
+        var tx = Resources.Load<Texture2D>("Textures/" + tex);
+        if (sh == null || tx == null) return null;
+        var m = new Material(sh);
+        m.SetTexture("_MainTex", tx);
+        m.SetColor("_Color", tint);
+        m.SetFloat("_Cutoff", 0.38f);
+        m.SetFloat("_Wind", 0.1f);
+        m.enableInstancing = true;
+        return m;
+    }
+
     static void TreeMats(bool snow)
     {
+        firCard = FoliageMat(snow ? "foliage_fir_snow" : "foliage_fir", snow ? new Color(0.9f, 0.95f, 0.95f) : new Color(0.85f, 0.95f, 0.85f));
+        leafCard = FoliageMat("foliage_leaf", new Color(0.95f, 1f, 0.9f));
         barkM = Mats.Get(new Color(0.24f, 0.17f, 0.11f), 0.05f);
         barkBirch = Mats.Get(new Color(0.82f, 0.8f, 0.74f), 0.1f);
         for (int i = 0; i < 4; i++)
@@ -298,6 +336,7 @@ public static partial class MapGen
     // Ель: конический ствол, ярусы рваных «юбок» с наклоном вниз, лёгкий наклон всего дерева
     static void Conifer(Vector3 p, Transform root, bool snow, float scale = 1f, bool collider = true)
     {
+        if (firCard != null) { ConiferCards(p, root, scale, collider); return; }
         var ch = TreeChunk(p, root);
         float h = R(9f, 17f) * scale;
         Quaternion lean = Quaternion.Euler(R(-3, 3), R(0, 360), R(-3, 3));
@@ -315,9 +354,45 @@ public static partial class MapGen
         if (collider) TreeCollider(p, h, 0.32f * scale);
     }
 
+    // Ель из настоящих «лап»: ярусы веток-карточек с хвоей, провисающих к концам, и верхушка
+    static void ConiferCards(Vector3 p, Transform root, float scale, bool near)
+    {
+        var ch = TreeChunk(p, root);
+        var card = CardMesh();
+        float h = R(10f, 18f) * scale;
+        Quaternion lean = Quaternion.Euler(R(-2.5f, 2.5f), R(0, 360), R(-2.5f, 2.5f));
+        MeshKit.Part(ch, MeshKit.Frustum(0.2f, 7), barkM, p + lean * new Vector3(0, h * 0.45f, 0), new Vector3(0.38f * scale, h * 0.9f, 0.38f * scale), lean.eulerAngles);
+        int tiers = near ? Mathf.RoundToInt(R(10, 12)) : 6;
+        int per = near ? 6 : 4;
+        float baseY = h * R(0.12f, 0.22f);
+        for (int i = 0; i < tiers; i++)
+        {
+            float k = i / (float)(tiers - 1);
+            float y = Mathf.Lerp(baseY, h * 0.94f, k);
+            float len = Mathf.Lerp(3.6f, 0.7f, Mathf.Pow(k, 0.9f)) * (h / 14f) * R(0.85f, 1.12f);
+            float a0 = R(0, 360);
+            for (int b = 0; b < per; b++)
+            {
+                float yaw = a0 + b * 360f / per + R(-18, 18);
+                float droop = Mathf.Lerp(22f, 4f, k) + R(-6, 6);
+                var rot = lean * Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(droop, 0, 0);
+                Vector3 at = p + lean * new Vector3(0, y + R(-0.15f, 0.15f), 0);
+                float w = len * 0.95f;
+                MeshKit.Part(ch, card, firCard, at, new Vector3(w, len, len), rot.eulerAngles);
+                if (near) MeshKit.Part(ch, card, firCard, at, new Vector3(w * 0.8f, len, len * 0.92f), (rot * Quaternion.Euler(0, 0, 90)).eulerAngles);
+            }
+        }
+        // верхушка — две скрещённые вертикальные карточки
+        Vector3 top = p + lean * new Vector3(0, h * 0.8f, 0);
+        for (int c = 0; c < 2; c++)
+            MeshKit.Part(ch, card, firCard, top, new Vector3(1.5f * scale, 1f, 2.6f * scale), (lean * Quaternion.Euler(-90f, c * 90f, 0)).eulerAngles);
+        if (near) TreeCollider(p, h, 0.3f * scale);
+    }
+
     // Лиственное дерево: ствол с развилкой и неровная крона из «облаков» листвы
     static void Broadleaf(Vector3 p, Transform root, bool birch)
     {
+        if (leafCard != null) { BroadleafCards(p, root, birch); return; }
         var ch = TreeChunk(p, root);
         float h = R(7f, 12f);
         var bark = birch ? barkBirch : barkM;
@@ -335,6 +410,42 @@ public static partial class MapGen
             Vector3 o = new Vector3(R(-2.4f, 2.4f), h * R(0.62f, 0.98f), R(-2.4f, 2.4f));
             float s = R(2.2f, 3.6f);
             MeshKit.Part(ch, MeshKit.Sphere, leafM[1 + (int)(R() * 2.99f)], p + o, new Vector3(s, s * R(0.7f, 0.9f), s), new Vector3(0, R(0, 360), 0));
+        }
+        TreeCollider(p, h, 0.3f);
+    }
+
+    // Лиственное: ствол, 4–5 скелетных ветвей, крона из пучков листвы-карточек вокруг их концов
+    static void BroadleafCards(Vector3 p, Transform root, bool birch)
+    {
+        var ch = TreeChunk(p, root);
+        var card = CardMesh();
+        float h = R(8f, 13f);
+        var bark = birch ? barkBirch : barkM;
+        MeshKit.Part(ch, MeshKit.Frustum(0.55f, 7), bark, p + new Vector3(0, h * 0.3f, 0), new Vector3(0.42f, h * 0.6f, 0.42f), new Vector3(R(-4, 4), 0, R(-4, 4)));
+        int limbs = Mathf.RoundToInt(R(4, 6));
+        for (int b = 0; b < limbs; b++)
+        {
+            float a = b * 360f / limbs + R(-25, 25);
+            Vector3 dir = (Quaternion.Euler(0, a, 0) * new Vector3(0, 1f, R(0.5f, 0.9f))).normalized;
+            Vector3 start = p + new Vector3(0, h * R(0.45f, 0.6f), 0);
+            float L = R(2.2f, 3.4f);
+            MeshKit.Part(ch, MeshKit.Frustum(0.45f, 6), bark, start + dir * L * 0.5f, new Vector3(0.2f, L, 0.2f), Quaternion.FromToRotation(Vector3.up, dir).eulerAngles);
+            Vector3 end = start + dir * L;
+            int tufts = 7;
+            for (int t = 0; t < tufts; t++)
+            {
+                var rot = Quaternion.Euler(R(-60, 30), R(0, 360), R(-30, 30));
+                float sz = R(1.8f, 2.8f);
+                Vector3 at = end + new Vector3(R(-1.2f, 1.2f), R(-0.6f, 1.4f), R(-1.2f, 1.2f)) - rot * new Vector3(0, 0, sz * 0.5f);
+                MeshKit.Part(ch, card, leafCard, at, new Vector3(sz, sz, sz), rot.eulerAngles);
+            }
+        }
+        // макушка
+        for (int t = 0; t < 6; t++)
+        {
+            var rot = Quaternion.Euler(R(-80, -20), R(0, 360), 0);
+            float sz = R(2f, 3f);
+            MeshKit.Part(ch, card, leafCard, p + new Vector3(R(-1, 1), h * R(0.85f, 1f), R(-1, 1)) - rot * new Vector3(0, 0, sz * 0.4f), new Vector3(sz, sz, sz), rot.eulerAngles);
         }
         TreeCollider(p, h, 0.3f);
     }

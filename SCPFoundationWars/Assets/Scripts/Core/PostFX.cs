@@ -5,6 +5,8 @@ using UnityEngine;
 public class PostFX : MonoBehaviour
 {
     public static bool Enabled = true;
+    public static bool Bodycam = true;   // стиль нательной камеры: широкий угол, автоэкспозиция, цифровой шум
+    static RenderTexture lumA, lumB;
     static Material mat;
     static PostFX current;
     public static Camera Top => current != null && current.enabled ? current.GetComponent<Camera>() : null;
@@ -49,6 +51,24 @@ public class PostFX : MonoBehaviour
             mat.SetVector("_Dir", new Vector4(0, 1.5f + i, 0, 0)); Graphics.Blit(b, a, mat, 1);
         }
         mat.SetTexture("_Bloom", a);
+        // средняя яркость кадра → 1×1, плавная адаптация
+        var s16 = RenderTexture.GetTemporary(16, 9, 0, fmt);
+        var s4 = RenderTexture.GetTemporary(4, 2, 0, fmt);
+        var s1 = RenderTexture.GetTemporary(1, 1, 0, fmt);
+        var q = RenderTexture.GetTemporary(w, h, 0, fmt);
+        Graphics.Blit(src, q); Graphics.Blit(q, s16); Graphics.Blit(s16, s4); Graphics.Blit(s4, s1);
+        RenderTexture.ReleaseTemporary(q);
+        if (lumA == null) { lumA = new RenderTexture(1, 1, 0, RenderTextureFormat.ARGBHalf); lumB = new RenderTexture(1, 1, 0, RenderTextureFormat.ARGBHalf); }
+        mat.SetTexture("_LumPrev", lumA);
+        mat.SetFloat("_AdaptK", 1f - Mathf.Exp(-1.6f * Mathf.Max(0.001f, Time.unscaledDeltaTime)));
+        Graphics.Blit(s1, lumB, mat, 3);
+        var tmp = lumA; lumA = lumB; lumB = tmp;
+        mat.SetTexture("_Lum", lumA);
+        RenderTexture.ReleaseTemporary(s16); RenderTexture.ReleaseTemporary(s4); RenderTexture.ReleaseTemporary(s1);
+        float bc = Bodycam ? 1f : 0f;
+        mat.SetFloat("_Body", bc);
+        mat.SetFloat("_Fisheye", bc * 0.32f);
+        mat.SetFloat("_AutoExp", bc * 0.75f);
         mat.SetFloat("_BloomAmt", bloom * (MapGen.Night ? 1.4f : 1f));
         mat.SetFloat("_Exposure", exposure * (MapGen.Night ? 1.25f : 1f));
         mat.SetFloat("_Contrast", contrast);
@@ -56,8 +76,8 @@ public class PostFX : MonoBehaviour
         mat.SetFloat("_Vignette", vignette + hurt * 0.4f);
         mat.SetFloat("_Grain", grain * (MapGen.Night ? 1.6f : 1f));
         mat.SetFloat("_Hurt", hurt);
-        mat.SetFloat("_Aberr", aberration);
-        mat.SetFloat("_Sharp", sharp);
+        mat.SetFloat("_Aberr", aberration + bc * 0.0022f);
+        mat.SetFloat("_Sharp", sharp + bc * 0.45f);
         mat.SetColor("_ShadowTone", MapGen.Night ? new Color(0.92f, 0.98f, 1.06f) : shadowTone);
         mat.SetColor("_HighTone", MapGen.Night ? new Color(1f, 1f, 1f) : highTone);
         mat.SetFloat("_Time2", Time.unscaledTime % 100f);

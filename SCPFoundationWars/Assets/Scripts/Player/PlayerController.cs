@@ -147,7 +147,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // ---------------- передовая база ----------------
-    float lockT; bool wasLocked;
+    float lockT; bool wasLocked; float lastYawBC, bcRoll;
     public bool safe;   // на базе оружие на предохранителе
     public void StandAt(Vector3 p, float yawDeg)
     {
@@ -563,8 +563,22 @@ public class PlayerController : MonoBehaviour
         bobAmt = Mathf.Lerp(bobAmt, grounded ? Mathf.Clamp01(hs / 7f) : 0f, 1f - Mathf.Exp(-6f * dt));
         landKick = Mathf.MoveTowards(landKick, 0, dt * 3f);
         Vector3 bobOff = new Vector3(Mathf.Cos(bob) * 0.03f, Mathf.Abs(Mathf.Sin(bob)) * 0.05f - 0.025f, 0) * bobAmt * (1f - adsW * 0.8f);
+        // нательная камера: тяжелее раскачивается на шагах, запаздывает на поворотах, живая дрожь рук и тела
+        Quaternion bc = Quaternion.identity;
+        if (PostFX.Bodycam)
+        {
+            bobOff *= 1.7f;
+            float yv = Mathf.DeltaAngle(lastYawBC, yaw) / Mathf.Max(dt, 0.001f); lastYawBC = yaw;
+            bcRoll = Mathf.Lerp(bcRoll, Mathf.Clamp(-yv * 0.018f, -5f, 5f), 1f - Mathf.Exp(-6f * dt));
+            float tt = Time.time;
+            float still = 1f - adsW * 0.6f;
+            float bp = (Mathf.PerlinNoise(tt * 0.7f, 11f) - 0.5f) * 0.7f * still + Mathf.Sin(bob * 2f) * 0.9f * bobAmt * (1f - adsW * 0.7f);
+            float by = (Mathf.PerlinNoise(23f, tt * 0.6f) - 0.5f) * 0.7f * still + Mathf.Cos(bob) * 0.6f * bobAmt * (1f - adsW * 0.7f);
+            float br = Mathf.Sin(bob) * 1.6f * bobAmt * (1f - adsW * 0.6f) + bcRoll;
+            bc = Quaternion.Euler(bp, by, br);
+        }
         camHolder.localPosition = new Vector3(lean * 0.42f, camH - landKick * 0.12f - Mathf.Abs(lean) * 0.07f, 0) + bobOff + Fx.ShakeOffset;
-        camHolder.localRotation = CamRot(-lean * 13f + (slideT >= 0 ? 4f : 0f));
+        camHolder.localRotation = CamRot(-lean * 13f + (slideT >= 0 ? 4f : 0f)) * bc;
     }
 
     Quaternion CamRot(float roll) => Quaternion.Euler(pitch - recoilP + swayP, swayY, roll) * FreeRot;

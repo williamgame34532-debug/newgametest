@@ -446,6 +446,8 @@ public partial class Game
         y += 50;
         if (GUI.Button(new Rect(x, y, 380, 40), Intro ? "Брифинг на базе перед вылетом: ВКЛ" : "Брифинг на базе перед вылетом: ВЫКЛ", Intro ? toggleOn : toggleOff)) Intro = !Intro;
         if (GUI.Button(new Rect(x + 400, y, 380, 40), PostFX.Enabled ? "Кинематографичная картинка: ВКЛ" : "Кинематографичная картинка: ВЫКЛ", PostFX.Enabled ? toggleOn : toggleOff)) PostFX.Enabled = !PostFX.Enabled;
+        y += 50;
+        if (GUI.Button(new Rect(x, y, 780, 40), PostFX.Bodycam ? "Нательная камера (bodycam): ВКЛ — широкий угол, автоэкспозиция, запись" : "Нательная камера (bodycam): ВЫКЛ — обычный вид", PostFX.Bodycam ? toggleOn : toggleOff)) PostFX.Bodycam = !PostFX.Bodycam;
         y += 60;
         Label(new Rect(x, y, 900, 340),
             "Управление:\n" +
@@ -461,6 +463,25 @@ public partial class Game
     }
 
     // ---------------- бой ----------------
+    // Штамп записи нательной камеры: устройство, позывной, дата и время, мигающая точка записи
+    void BodycamStamp(PlayerController pc)
+    {
+        var st = new GUIStyle(small) { fontSize = 19, alignment = TextAnchor.UpperRight, fontStyle = FontStyle.Bold };
+        float x = W - 520, y = 150;
+        var now = System.DateTime.Now;
+        string unit = pc.squad != null ? pc.squad.label : "MTF";
+        string id = "X" + ((pc.squad != null ? pc.squad.id.GetHashCode() : 7) & 0xFFFFFF).ToString("X6");
+        Color c = new Color(1f, 1f, 1f, 0.85f);
+        Shadowed(new Rect(x, y, 480, 26), now.ToString("yyyy-MM-dd") + "  T" + now.ToString("HH:mm:ss") + "Z", st, c);
+        Shadowed(new Rect(x, y + 24, 480, 26), "FOUNDATION BODY 4  " + id, st, c);
+        Shadowed(new Rect(x, y + 48, 480, 26), unit, st, new Color(1f, 1f, 1f, 0.6f));
+        if (Mathf.Repeat(Time.unscaledTime, 1.2f) < 0.8f)
+        {
+            Rect(new Rect(W - 54, y - 21, 12, 12), new Color(0.95f, 0.1f, 0.08f, 0.95f));
+            Label(new Rect(W - 150, y - 28, 90, 26), "REC", new GUIStyle(st) { alignment = TextAnchor.UpperRight }, new Color(1f, 0.2f, 0.15f, 0.95f));
+        }
+    }
+
     void BattleGUI()
     {
         var b = Battle.I;
@@ -484,6 +505,7 @@ public partial class Game
         Speech.Draw(Screen.height / 1080f);
         NickLabels();
         var pc = PlayerController.I;
+        if (pc != null && !pc.dead && PostFX.Bodycam && PostFX.Enabled) BodycamStamp(pc);
         if (pc != null && !pc.dead) PlayerHUD(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
         else if (SpectatorCam.Active) SpectatorHUD();
