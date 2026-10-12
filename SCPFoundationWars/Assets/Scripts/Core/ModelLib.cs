@@ -188,12 +188,15 @@ public static class ModelLib
         return BodyMesh("legs_" + string.Join(",", slotOf), slotOf, slots, t =>
         {
             float y = 0; int arms = 0;
+            bool IsArm(int bi, float w) => w > 0.08f && bi >= HumanRig.UArmL && bi <= HumanRig.HandR;
             for (int k = 0; k < 3; k++)
             {
                 int vi = d.tris[t * 3 + k];
                 y += d.pos[vi].y;
-                int b = d.bw[vi].boneIndex0;
-                if (b >= HumanRig.UArmL && b <= HumanRig.HandR) arms++;
+                var bw = d.bw[vi];
+                // у разных моделей рука может быть привязана к нескольким костям — проверяем все веса
+                if (IsArm(bw.boneIndex0, bw.weight0) || IsArm(bw.boneIndex1, bw.weight1) || IsArm(bw.boneIndex2, bw.weight2) || IsArm(bw.boneIndex3, bw.weight3)) arms++;
+                if (Mathf.Abs(d.pos[vi].x) > 0.3f) arms++;   // опущенные вдоль тела руки — шире бёдер
             }
             return arms == 0 && d.side[t] == 0 && y / 3f < cut;   // руки не берём — у них своя модель от первого лица
         });

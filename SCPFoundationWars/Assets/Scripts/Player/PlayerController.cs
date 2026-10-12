@@ -147,6 +147,7 @@ public class PlayerController : MonoBehaviour
     }
 
     // ---------------- передовая база ----------------
+    float lockT; bool wasLocked;
     public bool safe;   // на базе оружие на предохранителе
     public void StandAt(Vector3 p, float yawDeg)
     {
@@ -435,9 +436,15 @@ public class PlayerController : MonoBehaviour
         float wkg = Current != null ? Current.def.Weight : 3f;
         float sens = Game.Sensitivity * (1f - adsW * 0.45f) * (1f - adsW * Mathf.Clamp01(wkg / 8f) * 0.25f);
         freeLook = Input.GetKey(KeyCode.LeftAlt) && !dead;
+        bool lockedNow = Cursor.lockState == CursorLockMode.Locked && Application.isFocused;
+        if (lockedNow != wasLocked) { wasLocked = lockedNow; lockT = Time.unscaledTime; }
         if (Cursor.lockState == CursorLockMode.Locked)
         {
-            float mx = Input.GetAxisRaw("Mouse X") * sens, my = Input.GetAxisRaw("Mouse Y") * sens;
+            // рывки мыши (подвисание кадра, возврат фокуса окна, захват курсора) не разворачивают камеру
+            float rx = Input.GetAxisRaw("Mouse X"), ry = Input.GetAxisRaw("Mouse Y");
+            if (Time.unscaledTime - lockT < 0.25f || Time.unscaledDeltaTime > 0.25f) { rx = 0; ry = 0; }
+            rx = Mathf.Clamp(rx, -25f, 25f); ry = Mathf.Clamp(ry, -25f, 25f);
+            float mx = rx * sens, my = ry * sens;
             if (freeLook) { freeYaw = Mathf.Clamp(freeYaw + mx, -80f, 80f); freePitch = Mathf.Clamp(freePitch - my, -45f, 50f); }
             else { yaw += mx; pitch -= my; }
         }

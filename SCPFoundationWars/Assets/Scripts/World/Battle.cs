@@ -197,6 +197,7 @@ public partial class Battle : MonoBehaviour
             bool playerHere = humans.Count > 0;
             var lz = lzF[i];
             if (pick.placed && !playerHere && !fac) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
+            if (fac && pick.placed && pick.garrison && !playerHere) { PlaceSquad(pick, Team.Foundation, Facility.Garrison(i), Vector3.back, night); continue; }
             if (fac) { var fsq = EnterOnFoot(pick, Team.Foundation, lz, Vector3.back, night, humans); if (fsq != null) playerSq = fsq; continue; }
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
             var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 4f + i * 4f + pick.delay };

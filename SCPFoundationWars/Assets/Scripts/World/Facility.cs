@@ -321,6 +321,15 @@ public static class Facility
         return i % 2 == 0 ? RoomPos("endroom", 1, false, i / 2) : RoomPos("room1archive", 1, false, i / 2 + 1);
     }
 
+    // Охрана Зоны держит КПП и коридоры между входной зоной и ЗТС
+    public static Vector3 Garrison(int i)
+    {
+        var l = new List<RoomInfo>();
+        foreach (var r in Rooms) if ((r.zone == 3 || r.zone == 0) && r.exits >= 2) l.Add(r);
+        l.Sort((a, b) => a.pos.z.CompareTo(b.pos.z));
+        return l.Count > 0 ? l[i % l.Count].pos : RoomPos("", 3, false, 0);
+    }
+
     // Объекты — в своих камерах: SCP-173 в камере ЗЛС, SCP-106 в своей камере ЗТС, остальные — в комнатах ЗТС
     public static Vector3 Chamber(ScpKind k, int i)
     {

@@ -6,7 +6,7 @@ using UnityEngine.Rendering;
 // Процедурная карта: рельеф, комплекс Зоны, укрытия, лес, освещение, навигационная сетка.
 public static partial class MapGen
 {
-    public static readonly string[] MapNames = { "Зона-19: поверхность", "Лесной КПП", "Пустынная Зона-██", "Зимний комплекс", "Зона-19: комплекс" };
+    public static readonly string[] MapNames = { "Зона-19: поверхность", "Лесной КПП", "Пустынная Зона-██", "Зимний комплекс", "Зона-19: комплекс (внутри)" };
     public const int FacilityMapIndex = 4;
     public static bool FacilityMap => mapKind == FacilityMapIndex && Root != null;
     public static readonly string[] TimeNames = { "День", "Закат", "Ночь" };
