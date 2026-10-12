@@ -79,7 +79,7 @@ public partial class Game : MonoBehaviour
         CorpseLimit = PlayerPrefs.GetInt("corpses", 90);
         Intro = PlayerPrefs.GetInt("intro", 1) == 1;
         PostFX.Enabled = PlayerPrefs.GetInt("post", 1) == 1;
-        PostFX.Bodycam = PlayerPrefs.GetInt("bodycam", 1) == 1;
+        PostFX.ViewMode = PlayerPrefs.GetInt("viewmode", 0);
         Sfx.Volume = PlayerPrefs.GetFloat("vol", 0.9f);
         mapSel = PlayerPrefs.GetInt("map", 0);
         timeSel = PlayerPrefs.GetInt("time", 0);
@@ -103,7 +103,7 @@ public partial class Game : MonoBehaviour
         PlayerPrefs.SetInt("corpses", CorpseLimit);
         PlayerPrefs.SetInt("intro", Intro ? 1 : 0);
         PlayerPrefs.SetInt("post", PostFX.Enabled ? 1 : 0);
-        PlayerPrefs.SetInt("bodycam", PostFX.Bodycam ? 1 : 0);
+        PlayerPrefs.SetInt("viewmode", PostFX.ViewMode);
         PlayerPrefs.SetFloat("vol", Sfx.Volume);
         PlayerPrefs.SetInt("map", mapSel);
         PlayerPrefs.SetInt("time", timeSel);

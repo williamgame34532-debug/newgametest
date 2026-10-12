@@ -70,7 +70,8 @@ public class PlayerController : MonoBehaviour
     // выносливость (бег, прыжки), задержка дыхания в прицеле (Shift), свободный обзор (Alt), раскачка прицела
     public float stamina = 1f, breath = 1f; public bool holdingBreath, freeLook;
     public float freeYaw, freePitch;
-    float swayP, swayY, breathT, staminaT, exhaleT = -1f;
+    float swayP, swayY, breathT, staminaT, exhaleT = -1f, breathSndT;
+    public float VisorFog;
     public Quaternion FreeRot => Quaternion.Euler(freePitch, freeYaw, 0);
     // куда смотрит оружие (при свободном обзоре — не туда, куда камера)
     public Vector3 AimForward => camHolder.rotation * Quaternion.Inverse(FreeRot) * Vector3.forward;
@@ -610,7 +611,17 @@ public class PlayerController : MonoBehaviour
         else breath = Mathf.MoveTowards(breath, 1f, dt / 4f);
         if (exhaleT >= 0) { exhaleT += dt; if (exhaleT > 2.2f) exhaleT = -1f; }
         float tired = 1f - stamina;
+        float prevB = Mathf.Sin(breathT * 1.9f);
         breathT += dt * (holdingBreath ? 0.25f : 1.1f + tired * 2f + (exhaleT >= 0 ? 1.5f : 0f));
+        // дыхание через фильтр маски: вдох — шипение клапана, выдох — стекло запотевает
+        float curB = Mathf.Sin(breathT * 1.9f);
+        if (PostFX.Visor && !holdingBreath && Time.time > breathSndT)
+        {
+            if (prevB < 0 && curB >= 0) { Sfx.Play2D("breath_in", 0.06f + tired * 0.14f, Random.Range(0.9f, 1.0f)); breathSndT = Time.time + 0.6f; }
+            else if (prevB > 0 && curB <= 0) { Sfx.Play2D("breath_out", 0.05f + tired * 0.12f, Random.Range(0.85f, 0.95f)); breathSndT = Time.time + 0.6f; }
+        }
+        float exhale = Mathf.Clamp01(-Mathf.Cos(breathT * 1.9f) * 0.5f + 0.5f);
+        VisorFog = Mathf.Lerp(VisorFog, Mathf.Clamp01((0.12f + tired * 0.6f + hurt * 0.2f) * (0.45f + 0.55f * exhale) + (MapGen.Raining ? 0.1f : 0f) + (MapGen.IsSnow ? 0.15f : 0f)), 1f - Mathf.Exp(-3f * dt));
         float amp = adsW * (0.18f + tired * 0.9f + wkg * 0.035f + (exhaleT >= 0 ? 0.8f : 0f)) * (holdingBreath ? 0.12f : 1f)
                     * (prone ? 0.35f : crouching ? 0.7f : 1f) * (1f + hurt * 1.5f);
         float t = Time.time;

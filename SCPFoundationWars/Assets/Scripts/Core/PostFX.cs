@@ -5,7 +5,11 @@ using UnityEngine;
 public class PostFX : MonoBehaviour
 {
     public static bool Enabled = true;
-    public static bool Bodycam = true;   // стиль нательной камеры: широкий угол, автоэкспозиция, цифровой шум
+    public static bool Bodycam = false;
+    public static bool Visor = true;     // вид из шлема: стекло маски, запотевание, HUD на визоре
+    // режим вида: 0 — маска шлема, 1 — нательная камера, 2 — обычный
+    public static int ViewMode { get => Bodycam ? 1 : Visor ? 0 : 2; set { Bodycam = value == 1; Visor = value == 0; } }
+    static Texture2D visorTex;   // стиль нательной камеры: широкий угол, автоэкспозиция, цифровой шум
     static RenderTexture lumA, lumB;
     static Material mat;
     static PostFX current;
@@ -65,6 +69,16 @@ public class PostFX : MonoBehaviour
         var tmp = lumA; lumA = lumB; lumB = tmp;
         mat.SetTexture("_Lum", lumA);
         RenderTexture.ReleaseTemporary(s16); RenderTexture.ReleaseTemporary(s4); RenderTexture.ReleaseTemporary(s1);
+        // стекло маски
+        if (visorTex == null) visorTex = Resources.Load<Texture2D>("Textures/visor_dirt");
+        bool vis = Visor && visorTex != null && pc != null && !pc.dead && !Cinematic.Active;
+        mat.SetFloat("_Visor", vis ? 1f : 0f);
+        if (vis)
+        {
+            mat.SetTexture("_VisorTex", visorTex);
+            mat.SetFloat("_VisorFog", pc.VisorFog);
+            mat.SetFloat("_VisorRain", MapGen.Raining && !Facility.Underground(Game.Cam.transform.position) ? 1f : 0f);
+        }
         float bc = Bodycam ? 1f : 0f;
         mat.SetFloat("_Body", bc);
         mat.SetFloat("_Fisheye", bc * 0.32f);

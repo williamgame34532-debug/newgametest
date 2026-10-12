@@ -790,44 +790,71 @@ public class Soldier : Unit
     }
 
     // Затишье: короткие разговоры рядом с товарищем
-    static readonly string[][] chats =
+    // Разговоры между делом: у МОГ — служба и протоколы, у Повстанцев — рейд и добыча. Реплики по очереди.
+    static readonly string[][] chatsMtf =
     {
-        new[] { "Тихо как-то… не нравится мне это.", "Не каркай." },
-        new[] { "Сектор чист.", "Держим. Смотри по сторонам." },
-        new[] { "Сколько ещё ждать?", "Сколько скажут." },
-        new[] { "Слышал? Там, за постройками.", "Ветер. Наверное." },
-        new[] { "После этого — отпуск.", "Ага. Мечтай." },
-        new[] { "У кого есть вода?", "Держи, только не всё." },
-        new[] { "Кто-нибудь видел объект своими глазами?", "И не хочу." },
+        new[] { "Связь с охраной так и не восстановили?", "Последний доклад — сорок минут назад. Потом тишина.", "Значит, внутри уже никого." },
+        new[] { "После операции всем — амнезиаки?", "Тем, кто видел лишнее. Нас не тронут.", "Меня в прошлый раз тронули. Я не помню." },
+        new[] { "Проверь фильтр. Индикатор жёлтый.", "Принял, меняю на следующей остановке." },
+        new[] { "Сколько в этот раз класса D?", "Списки уже не важны.", "Понял. Не спрашиваю." },
+        new[] { "Если увижу лицо 096 — стреляй в меня.", "Не смешно.", "А я и не шучу." },
+        new[] { "Командование говорит, Хаос знал о прорыве заранее.", "Утечка изнутри. Опять.", "Разберутся. Наше дело — периметр." },
+        new[] { "Держим интервал. Не толпимся.", "Принял, пять метров.", "Смотрю правый сектор." },
+        new[] { "Помнишь Зону-17?", "Не начинай.", "Я просто… надеюсь, тут будет иначе." },
+        new[] { "Гул слышишь? Это вентиляция комплекса.", "Если гул пропадёт — значит, генераторы встали.", "Тогда двери откроются сами." },
+        new[] { "Двести метров до объекта. Без лишнего шума.", "Понял. Предохранитель снят." },
+        new[] { "О5 правда сами решают, кого посылать?", "О5 не знают, как нас зовут.", "Так даже лучше." },
+        new[] { "Магазины проверил?", "Четыре полных, один початый.", "Початый — в последнюю очередь." },
+    };
+    static readonly string[][] chatsCi =
+    {
+        new[] { "Берём объект — и сразу к точке эвакуации.", "А если Фонд успеет первым?", "Тогда берём их оружие." },
+        new[] { "Я когда-то носил их эмблему.", "Все мы носили.", "Вот поэтому и знаем, где у них слабые места." },
+        new[] { "Груз в контейнере не открывать, ясно?", "Да кто его откроет…", "Прошлый тоже так говорил." },
+        new[] { "Их «лиса» уже в районе.", "Пусть приходит. Мы их ждём." },
+        new[] { "Класс D сами бегут к нам.", "Ещё бы. Мы хоть кормим." },
+        new[] { "Тише. Патруль Фонда за холмом.", "Сколько?", "Шесть. Может, больше." },
+        new[] { "Вертушка заберёт через двадцать минут.", "Если её не собьют." },
     };
     void IdleChatter()
     {
-        chatT = Time.time + Random.Range(25f, 70f);
-        if (squadRt == null || zombie || Random.value < 0.4f) return;
+        chatT = Time.time + Random.Range(22f, 60f);
+        if (squadRt == null || zombie || Random.value < 0.35f) return;
         var cam = Game.Cam;
         if (cam == null || Vector3.Distance(cam.transform.position, transform.position) > 35f) return;
         Soldier mate = null;
         foreach (var m in squadRt.members)
             if (m != null && m != this && m.alive && m.target == null && Vector3.Distance(m.transform.position, transform.position) < 9f) { mate = m; break; }
         if (mate == null) return;
-        var c = chats[Random.Range(0, chats.Length)];
-        if (squadRt.cautious) c = new[] { "Шёпотом: ты видел, что от них осталось?", "Тише. Смотри в оба." };
+        var pool = team == Team.Chaos ? chatsCi : chatsMtf;
+        var c = pool[Random.Range(0, pool.Length)];
+        if (squadRt.cautious) c = new[] { "(шёпотом) Ты видел, что от них осталось?", "Тише. Смотри в оба.", "…Понял." };
         Speech.Say(transform, CallSign, c[0], -1f, new Color(0.85f, 0.88f, 0.92f));
         anim.DoSignal(Signal.Talk);
-        mate.chatT = Time.time + 30f;
-        StartCoroutine(ChatReply(mate, c[1]));
+        mate.chatT = Time.time + 40f;
+        StartCoroutine(ChatRest(mate, c));
     }
 
-    IEnumerator ChatReply(Soldier m, string text)
+    // остальные реплики разговора — по очереди, пока никто не начал стрелять
+    IEnumerator ChatRest(Soldier m, string[] c)
     {
-        yield return new WaitForSeconds(Random.Range(2.2f, 3.2f));
-        if (m != null && m.alive && m.target == null) Speech.Say(m.transform, m.CallSign, text, -1f, new Color(0.85f, 0.88f, 0.92f));
+        for (int n = 1; n < c.Length; n++)
+        {
+            yield return new WaitForSeconds(Mathf.Clamp(1.4f + c[n - 1].Length * 0.05f, 2f, 4.5f));
+            var who = n % 2 == 1 ? m : this;
+            if (who == null || !who.alive || who.target != null || (n % 2 == 1 ? this : m) == null) yield break;
+            Speech.Say(who.transform, who.CallSign, c[n], -1f, new Color(0.85f, 0.88f, 0.92f));
+            if (n % 2 == 1) who.anim.DoSignal(Signal.Talk);
+        }
     }
 
-    static readonly string[] downLines = { "Человек ранен! Минус один!", "Потеряли бойца!", "Он готов, двухсотый!", "Бойца убили!" };
-    static readonly string[] killLines = { "Цель поражена!", "Минус один!", "Готов!", "Есть, лежит!" };
-    static readonly string[] moveLines = { "Двигаюсь!", "Перемещаюсь, прикрой!", "Пошёл!", "Меняю позицию!" };
-    public void SayMove() { if (Random.value < 0.25f) Callout(moveLines[Random.Range(0, moveLines.Length)], "move"); }
+    static readonly string[] downLines = { "Человек ранен! Минус один!", "Потеряли бойца!", "Двухсотый! У нас двухсотый!", "Бойца убили!", "Он не дышит!", "Минус один, минус один!" };
+    static readonly string[] downLinesCi = { "Нашего положили!", "Минус один, держитесь!", "Его достали!", "Твою… он готов!" };
+    static readonly string[] killLines = { "Цель поражена!", "Минус один!", "Готов!", "Есть, лежит!", "Противник нейтрализован!", "Один ноль-второй готов!" };
+    static readonly string[] killLinesCi = { "Лёг!", "Минус лиса!", "Получи!", "Одним меньше!" };
+    static readonly string[] moveLines = { "Двигаюсь!", "Перемещаюсь, прикрой!", "Пошёл!", "Меняю позицию!", "Прикрой, иду!", "Короткими, за мной!" };
+    static readonly string[] moveLinesCi = { "Иду!", "Прикрой меня!", "Меняю точку!", "Пошёл-пошёл!" };
+    public void SayMove() { if (Random.value < 0.25f) { var ml = team == Team.Chaos ? moveLinesCi : moveLines; Callout(ml[Random.Range(0, ml.Length)], "move"); } }
 
     // Смерть бойца: ближайший товарищ кричит «минус один», убийца-человек — «цель поражена»
     void DeathCallouts(DamageInfo d)
@@ -839,8 +866,8 @@ public class Soldier : Unit
                 float dd = (s2.transform.position - transform.position).sqrMagnitude;
                 if (dd < best) { best = dd; mate = s2; }
             }
-        if (mate != null) mate.Callout(downLines[Random.Range(0, downLines.Length)], "mandown", true);
-        if (d.attacker is Soldier k && k.alive && Random.value < 0.6f) k.Callout(killLines[Random.Range(0, killLines.Length)], "enemydown");
+        if (mate != null) { var dl = team == Team.Chaos ? downLinesCi : downLines; mate.Callout(dl[Random.Range(0, dl.Length)], "mandown", true); }
+        if (d.attacker is Soldier k && k.alive && Random.value < 0.6f) { var kl = k.team == Team.Chaos ? killLinesCi : killLines; k.Callout(kl[Random.Range(0, kl.Length)], "enemydown"); }
     }
 
     public string Bearing(Vector3 p)

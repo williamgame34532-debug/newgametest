@@ -8,6 +8,7 @@ public class ScpTextureImport : AssetPostprocessor
         if (!assetPath.Contains("/Resources/Textures/")) return;
         var ti = (TextureImporter)assetImporter;
         if (assetPath.EndsWith("_n.jpg") || assetPath.EndsWith("_n.png")) ti.textureType = TextureImporterType.NormalMap;
+        if (assetPath.Contains("/visor_dirt")) { ti.sRGBTexture = false; ti.textureCompression = TextureImporterCompression.Uncompressed; }
         if (assetPath.Contains("/foliage_")) { ti.alphaIsTransparency = true; ti.mipMapsPreserveCoverage = true; ti.alphaTestReferenceValue = 0.4f; }
     }
 }

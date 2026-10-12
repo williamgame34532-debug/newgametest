@@ -63,7 +63,9 @@ public static class Speech
             GUI.DrawTexture(new Rect(x - w / 2, y - 6, 3, H2), white);
             GUI.Label(new Rect(x - w / 2 + 10, y - 4, w - 20, 16), l.name.ToUpper(), nameSt);
             GUI.color = new Color(1, 1, 1, a);
-            GUI.Label(new Rect(x - w / 2 + 10, y + 13, w - 20, h), l.text, textSt);
+            // текст проявляется по мере произнесения
+            int shown = Mathf.Clamp(Mathf.CeilToInt(age * 42f), 0, l.text.Length);
+            GUI.Label(new Rect(x - w / 2 + 10, y + 13, w - 20, h), l.text.Substring(0, shown), textSt);
         }
         GUI.color = old;
     }

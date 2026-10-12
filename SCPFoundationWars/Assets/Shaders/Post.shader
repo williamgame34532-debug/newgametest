@@ -5,7 +5,8 @@ Shader "SCP/Post"
     Properties { _MainTex ("Tex", 2D) = "white" {} }
     CGINCLUDE
     #include "UnityCG.cginc"
-    sampler2D _MainTex, _Bloom, _Lum, _LumPrev;
+    sampler2D _MainTex, _Bloom, _Lum, _LumPrev, _VisorTex;
+    float _Visor, _VisorFog, _VisorRain;
     float4 _MainTex_TexelSize;
     float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2, _Sharp;
     float _Fisheye, _Body, _AdaptK, _AutoExp;
@@ -62,6 +63,35 @@ Shader "SCP/Post"
         float3 detail = col - nb;
         col = max(0, col + clamp(detail, -0.15, 0.15) * _Sharp);
         col += Safe(tex2D(_Bloom, uv).rgb) * _BloomAmt;
+        // ---- стекло маски шлема: запотевание от дыхания, капли, царапины и разводы, светящиеся в ярком свете ----
+        if (_Visor > 0.001)
+        {
+            float4 vd = tex2D(_VisorTex, i.uv);
+            // капли дождя преломляют картинку
+            float drop = vd.b * _VisorRain;
+            if (drop > 0.02)
+            {
+                float2 g = float2(ddx(vd.b), ddy(vd.b)) * 6;
+                float3 dc = Safe(tex2D(_MainTex, uv - g * 0.04 + float2(0, 0.01)).rgb);
+                col = lerp(col, dc * 1.08 + 0.01, saturate(drop * 1.6));
+            }
+            // запотевание: мутный размытый слой, гуще внизу и по краям
+            float fogK = saturate((vd.g * 1.3 + saturate(0.55 - i.uv.y) * 0.9 + r2 * 0.8) * _VisorFog);
+            if (fogK > 0.01)
+            {
+                float3 bl = 0;
+                [unroll] for (int k = 0; k < 8; k++)
+                {
+                    float a = k * 0.785398;
+                    bl += Safe(tex2D(_MainTex, uv + float2(cos(a), sin(a)) * 0.016).rgb);
+                }
+                bl /= 8;
+                col = lerp(col, bl * 0.85 + 0.035 + Safe(tex2D(_Bloom, uv).rgb) * 0.6, fogK * 0.75);
+            }
+            // грязь на стекле подсвечивается ярким светом (солнце, фонари, вспышки)
+            float3 glare = Safe(tex2D(_Bloom, uv).rgb);
+            col += (vd.r * 0.7 + vd.g * 0.35) * (glare * 1.8 + 0.015) * _Visor;
+        }
         col *= _Exposure;
         // автоэкспозиция: в тёмном помещении картинку вытягивает (с шумом), при выходе на свет — пересвет
         float avg = max(0.02, tex2D(_Lum, float2(0.5, 0.5)).r);
@@ -78,6 +108,15 @@ Shader "SCP/Post"
         col *= lerp(_ShadowTone.rgb, _HighTone.rgb, smoothstep(0.1, 0.75, l2));
         // мягкое плечо в светах и приподнятый чёрный (плёночная кривая)
         col = col * (1 - 0.06) + 0.012;
+        // край визора: тёмная резиновая рамка, у края стекло темнее
+        if (_Visor > 0.001)
+        {
+            float2 vq = abs(c0) * 2 / float2(0.985, 0.945);
+            float e = pow(vq.x, 7) + pow(vq.y, 7);
+            float lens = smoothstep(1.0, 0.86, e);
+            col *= lerp(1, lerp(0.55, 1, smoothstep(0.98, 0.45, e)), _Visor);
+            col = lerp(col, float3(0.012, 0.013, 0.014) + Hash(i.uv * 400) * 0.01, (1 - lens) * _Visor);
+        }
         // виньетка и красные края при ранении
         float v = smoothstep(0.8, 0.15, r2 * 2.2);
         col *= lerp(1, v, _Vignette);

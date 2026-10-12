@@ -447,7 +447,8 @@ public partial class Game
         if (GUI.Button(new Rect(x, y, 380, 40), Intro ? "Брифинг на базе перед вылетом: ВКЛ" : "Брифинг на базе перед вылетом: ВЫКЛ", Intro ? toggleOn : toggleOff)) Intro = !Intro;
         if (GUI.Button(new Rect(x + 400, y, 380, 40), PostFX.Enabled ? "Кинематографичная картинка: ВКЛ" : "Кинематографичная картинка: ВЫКЛ", PostFX.Enabled ? toggleOn : toggleOff)) PostFX.Enabled = !PostFX.Enabled;
         y += 50;
-        if (GUI.Button(new Rect(x, y, 780, 40), PostFX.Bodycam ? "Нательная камера (bodycam): ВКЛ — широкий угол, автоэкспозиция, запись" : "Нательная камера (bodycam): ВЫКЛ — обычный вид", PostFX.Bodycam ? toggleOn : toggleOff)) PostFX.Bodycam = !PostFX.Bodycam;
+        string[] vm = { "Вид: МАСКА ШЛЕМА — стекло визора, запотевание, HUD на стекле", "Вид: НАТЕЛЬНАЯ КАМЕРА — широкий угол, автоэкспозиция, запись", "Вид: ОБЫЧНЫЙ" };
+        if (GUI.Button(new Rect(x, y, 780, 40), vm[PostFX.ViewMode], toggleOn)) PostFX.ViewMode = (PostFX.ViewMode + 1) % 3;
         y += 60;
         Label(new Rect(x, y, 900, 340),
             "Управление:\n" +
@@ -529,7 +530,15 @@ public partial class Game
         NickLabels();
         var pc = PlayerController.I;
         if (pc != null && !pc.dead && PostFX.Bodycam && PostFX.Enabled) BodycamStamp(pc);
-        if (pc != null && !pc.dead) PlayerHUD(pc);
+        HudPalette();
+        if (pc != null && !pc.dead)
+        {
+            var baseM = GUI.matrix;
+            if (PostFX.Visor && PostFX.Enabled && Event.current.type == EventType.Repaint) HudSwayUpdate();
+            if (PostFX.Visor && PostFX.Enabled) GUI.matrix = baseM * Matrix4x4.Translate(new Vector3(hudSway.x, hudSway.y, 0));
+            PlayerHUD(pc);
+            GUI.matrix = baseM;
+        }
         if (pc != null && !pc.dead && pc.RadialOpen) RadialMenu(pc);
         else if (pc != null && pc.dead) DeathHUD(pc);
         else if (SpectatorCam.Active) SpectatorHUD();
@@ -762,7 +771,34 @@ public partial class Game
         hudSub = new GUIStyle(hudS) { fontSize = 21, alignment = TextAnchor.MiddleCenter, wordWrap = true };
     }
 
-    static readonly Color HudWhite = new Color(0.92f, 0.94f, 0.9f, 0.92f), HudDim = new Color(0.75f, 0.78f, 0.74f, 0.6f), HudAmber = new Color(1f, 0.78f, 0.3f, 0.95f), HudRed = new Color(1f, 0.3f, 0.22f, 0.95f);
+    static Color HudWhite = new Color(0.92f, 0.94f, 0.9f, 0.92f), HudDim = new Color(0.75f, 0.78f, 0.74f, 0.6f), HudAmber = new Color(1f, 0.78f, 0.3f, 0.95f), HudRed = new Color(1f, 0.3f, 0.22f, 0.95f);
+    // палитра проекции на визор: бледно-бирюзовый свет на стекле
+    static void HudPalette()
+    {
+        if (PostFX.Visor && PostFX.Enabled)
+        {
+            HudWhite = new Color(0.72f, 1f, 0.9f, 0.88f); HudDim = new Color(0.55f, 0.85f, 0.75f, 0.55f);
+            HudAmber = new Color(1f, 0.82f, 0.4f, 0.95f); HudRed = new Color(1f, 0.35f, 0.28f, 0.95f);
+        }
+        else
+        {
+            HudWhite = new Color(0.92f, 0.94f, 0.9f, 0.92f); HudDim = new Color(0.75f, 0.78f, 0.74f, 0.6f);
+            HudAmber = new Color(1f, 0.78f, 0.3f, 0.95f); HudRed = new Color(1f, 0.3f, 0.22f, 0.95f);
+        }
+    }
+    // HUD на стекле отстаёт от поворота головы и чуть покачивается с шагом
+    Vector2 hudSway; Quaternion hudPrevRot = Quaternion.identity;
+    void HudSwayUpdate()
+    {
+        if (Cam == null) return;
+        var q = Cam.transform.rotation;
+        Vector3 d = (Quaternion.Inverse(hudPrevRot) * q).eulerAngles;
+        hudPrevRot = q;
+        float dy = Mathf.DeltaAngle(0, d.y), dx = Mathf.DeltaAngle(0, d.x);
+        Vector2 want = Vector2.ClampMagnitude(new Vector2(-dy * 9f, -dx * 9f), 40f);
+        float dt = Mathf.Max(Time.unscaledDeltaTime, 0.001f);
+        hudSway = Vector2.Lerp(hudSway, want, 1f - Mathf.Exp(-6f * dt));
+    }
 
     void PlayerHUD(PlayerController pc)
     {
@@ -788,7 +824,7 @@ public partial class Game
             GUI.DrawTexture(new Rect(sb.x * W - sz / 2, sb.y * H - sz / 2 + age * 12f, sz, sz), tx);
             GUI.color = old;
         }
-        if (pc.Blinking) Rect(new Rect(0, 0, W, H), Color.black);
+        if (pc.Blinking) Rect(new Rect(-80, -80, W + 160, H + 160), Color.black);
 
         var g = pc.Current;
         bool scoped = g != null && g.def.scope && Input.GetMouseButton(1) && !g.reloading;
