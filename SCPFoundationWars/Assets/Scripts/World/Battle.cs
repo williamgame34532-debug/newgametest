@@ -406,8 +406,7 @@ public partial class Battle : MonoBehaviour
         var pc = PlayerController.I;
         if (h == playerHeli && pc != null && !pc.riding && !pc.dead)
         {
-            int seat = 0;
-            if (Cfg.humans != null) for (int j = 0; j < Cfg.humans.Count; j++) if (Cfg.humans[j].peer == Net.MyPeer) { seat = j; break; }
+            int seat = LocalHumanIndex(out _);
             pc.RideIn(h, h.seats[seat % h.seats.Count]);
             h.playerPassenger = pc;
         }

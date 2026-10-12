@@ -46,6 +46,12 @@ public partial class Game
             }
             y += 60;
             Label(new Rect(x, y, 1100, 26), "Через Steam: примите приглашение друга в Steam — игра сама войдёт в его лобби.", small, new Color(0.7f, 0.75f, 0.8f));
+            if (!SteamNet.Ready)
+            {
+                y += 40;
+                Label(new Rect(x, y, 1200, 26), "Steam: " + (SteamNet.Error ?? "проверка…"), small, new Color(1f, 0.6f, 0.45f));
+                Label(new Rect(x, y + 26, 1200, 26), SteamNet.Diag(), new GUIStyle(small) { fontSize = 13 }, new Color(0.7f, 0.7f, 0.7f));
+            }
         }
         else
         {

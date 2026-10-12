@@ -100,7 +100,9 @@ public partial class Battle
             Vector3 look = table - p;
             StandSoldier(mates[i], p, Mathf.Atan2(look.x, look.z) * Mathf.Rad2Deg + Random.Range(-10f, 10f));
         }
-        pc.StandAt(table + new Vector3(0, 0, -3.3f), 0f);
+        // живые игроки стоят рядом, а не в одной точке
+        int myIdx = LocalHumanIndex(out int humansHere);
+        pc.StandAt(table + new Vector3((myIdx - (humansHere - 1) * 0.5f) * 1.3f, 0, -3.3f), 0f);
 
         stamp = "ПЕРЕДОВАЯ БАЗА «КЕДР»   ·   " + Clock(cfg.time) + "   ·   " + (cfg.op != null ? cfg.op.place : MapGen.MapNames[cfg.map]);
         stampT = Time.time;
@@ -145,12 +147,12 @@ public partial class Battle
         // посадка: группа идёт к борту и рассаживается, игрок — вместе со всеми
         heli.rotorVolume = 1f;
         heli.LaunchNow();
-        int seat = 1;
+        int seat = Mathf.Max(1, humansHere);
         float stagger = 0.3f;
         foreach (var m in mates)
             if (m != null && m.alive) { StartCoroutine(m.Board(heli, heli.seats[seat++ % heli.seats.Count], stagger)); stagger += Random.Range(0.35f, 0.7f); }
         Message(sq.def.name + ": По машинам! Пошли, пошли!", new Color(1f, 0.85f, 0.55f), 3f);
-        yield return StartCoroutine(pc.BoardRoutine(heli, heli.seats[0]));
+        yield return StartCoroutine(pc.BoardRoutine(heli, heli.seats[myIdx % heli.seats.Count]));
         // титры — уже в салоне, на взлёте
         cardTitle = cfg.op != null ? cfg.op.code : "ОПЕРАЦИЯ ФОНДА";
         cardSub = (cfg.op != null ? cfg.op.place : MapGen.MapNames[cfg.map]) + "   ·   " + sq.def.name + " " + sq.def.nick;
@@ -238,6 +240,20 @@ public partial class Battle
         l.Add("После высадки — веером, двойками. Связь на втором канале.");
         l.Add("Раненых не бросаем. Медик — за мной. Вопросы?");
         return l;
+    }
+
+    // номер своего игрока среди живых игроков его отряда (место в строю и в вертолёте)
+    int LocalHumanIndex(out int count)
+    {
+        count = 1;
+        var hs = Cfg.humans;
+        if (hs == null) return 0;
+        NetHuman me = null; foreach (var h in hs) if (h.peer == Net.MyPeer) me = h;
+        if (me == null) return 0;
+        int idx = 0; count = 0;
+        foreach (var h in hs)
+            if (h.team == me.team && h.squad == me.squad) { if (h == me) idx = count; count++; }
+        return idx;
     }
 
     static void StandSoldier(Soldier s, Vector3 p, float yaw)

@@ -12,7 +12,7 @@ public class NetHuman { public int peer; public string nick; public Team team; p
 // кроме своего бойца, превращается в «марионеток», которых двигают снимки хоста.
 public static class Net
 {
-    public const int Version = 6;
+    public const int Version = 7;
     public static INetTransport T;
     public static bool Active => T != null;
     public static bool IsHost => T != null && T.IsHost;
@@ -606,6 +606,7 @@ public static class Net
             hw.Write(ok);
             if (!ok) continue;
             V(hw, h.transform.position); var q = h.transform.rotation; hw.Write(q.x); hw.Write(q.y); hw.Write(q.z); hw.Write(q.w);
+            V(hw, h.velocity); hw.Write(h.NetPhase);
         }
         ToAll(false);
     }
@@ -675,7 +676,8 @@ public static class Net
         {
             if (!r.ReadBoolean()) continue;
             Vector3 p = RV(r); var q = new Quaternion(r.ReadSingle(), r.ReadSingle(), r.ReadSingle(), r.ReadSingle());
-            if (i < b.helis.Count && b.helis[i] != null) b.helis[i].NetDrive(p, q);
+            Vector3 v = RV(r); byte ph = r.ReadByte();
+            if (i < b.helis.Count && b.helis[i] != null) b.helis[i].NetDrive(p, q, v, ph);
         }
     }
 

@@ -15,7 +15,8 @@ public static class SteamNet
 #if DISABLESTEAMWORKS
     public static bool Ready => false;
     public static string PersonaName => null;
-    public static string Error = "Steam недоступен на этой платформе";
+    public static string Error = "Игра собрана без Steam: в Unity выберите File → Build Settings → Windows, Mac, Linux (Standalone) и пересоберите";
+    public static string Diag() => "Steamworks не скомпилирован (платформа сборки не Standalone)";
     public static void Init() { }
     public static void RunCallbacks() { }
     public static void Shutdown() { }
@@ -87,6 +88,23 @@ public static class SteamNet
     }
 
     public static void RunCallbacks() { if (Ready) { try { SteamAPI.RunCallbacks(); } catch { } } }
+
+    // Диагностика для экрана сетевой игры: что именно мешает
+    public static string Diag()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("Steamworks: подключён. ");
+        try { sb.Append("Steam запущен: ").Append(SteamAPI.IsSteamRunning() ? "да" : "НЕТ").Append(". "); }
+        catch (System.Exception e) { sb.Append("steam_api64.dll не загрузилась: ").Append(e.GetType().Name).Append(". "); }
+        sb.Append("64 бит: ").Append(System.Environment.Is64BitProcess ? "да" : "нет").Append(". ");
+        try
+        {
+            string cwd = System.IO.Directory.GetCurrentDirectory();
+            sb.Append("Папка: ").Append(cwd).Append(" (steam_appid.txt: ").Append(System.IO.File.Exists(System.IO.Path.Combine(cwd, "steam_appid.txt")) ? "есть" : "НЕТ").Append(")");
+        }
+        catch { }
+        return sb.ToString();
+    }
     public static void Shutdown() { if (Ready) { LeaveLobby(); SteamAPI.Shutdown(); Ready = false; } }
 
     public static void LeaveLobby()

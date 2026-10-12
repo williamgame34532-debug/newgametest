@@ -303,18 +303,28 @@ public class Helicopter : MonoBehaviour
     public void LaunchNow() { startTime = Time.time; if (phase == Phase.Waiting && !onPad) phase = Phase.Inbound; Net.OnLaunch(this); }
 
     // Сетевая игра: у клиента борт идёт по снимкам хоста (логика полёта работает, но положение — хоста)
-    bool netDriven; Vector3 netPos; Quaternion netRot;
-    public void NetDrive(Vector3 p, Quaternion q)
+    bool netDriven, netUnload; Vector3 netPos, netVel; Quaternion netRot; float netT; byte netPhase;
+    public byte NetPhase => (byte)phase;
+    public void NetDrive(Vector3 p, Quaternion q, Vector3 v, byte ph)
     {
         if (!netDriven) { transform.position = p; transform.rotation = q; }
-        netDriven = true; netPos = p; netRot = q;
+        netDriven = true; netPos = p; netRot = q; netVel = v; netT = Time.time; netPhase = ph;
+    }
+    // у клиента борт целиком повторяет хоста: своё положение не считает (иначе «относит назад»)
+    void NetPhaseSync()
+    {
+        var np = (Phase)netPhase;
+        if (np == Phase.Unload && !netUnload) { netUnload = true; phase = Phase.Unload; StartCoroutine(UnloadRoutine()); }
+        else if (np != Phase.Unload && !(phase == Phase.Unload && netUnload && !Unloaded)) phase = np;
+        if (np == Phase.Waiting && onPad) transform.position = padPos + Vector3.up * 1.2f;
     }
     void LateUpdate()
     {
         if (!netDriven) return;
-        float k = 1f - Mathf.Exp(-10f * Time.deltaTime);
-        if ((transform.position - netPos).sqrMagnitude > 900f) transform.position = netPos;
-        transform.position = Vector3.Lerp(transform.position, netPos, k);
+        Vector3 target = netPos + netVel * Mathf.Min(0.25f, Time.time - netT);
+        float k = 1f - Mathf.Exp(-25f * Time.deltaTime);
+        if ((transform.position - target).sqrMagnitude > 64f) transform.position = target;
+        else transform.position = Vector3.Lerp(transform.position, target, k);
         transform.rotation = Quaternion.Slerp(transform.rotation, netRot, k);
     }
 
@@ -444,6 +454,7 @@ public class Helicopter : MonoBehaviour
             }
         }
 
+        if (netDriven) { NetPhaseSync(); return; }
         switch (phase)
         {
             case Phase.Waiting:
