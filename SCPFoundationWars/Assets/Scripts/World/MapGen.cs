@@ -255,7 +255,7 @@ public static partial class MapGen
                 tg.transform.localScale = Vector3.one * 0.25f;
                 var tm = tg.AddComponent<TextMesh>();
                 tm.font = font; tm.fontSize = 60; tm.anchor = TextAnchor.MiddleCenter;
-                tm.text = "ФОНД SCP — ЗОНА-19\nОБЕСПЕЧИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.";
+                tm.text = "ФОНД SCP — ЗОНА-19\nОБЕЗОПАСИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.";
                 tm.color = new Color(0.1f, 0.1f, 0.1f);
                 tm.alignment = TextAlignment.Center;
                 tg.GetComponent<MeshRenderer>().sharedMaterial = Helicopter.TextMat(font);

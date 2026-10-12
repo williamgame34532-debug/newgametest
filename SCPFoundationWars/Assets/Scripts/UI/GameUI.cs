@@ -145,8 +145,8 @@ public partial class Game
         if (MenuButton(new Rect(64, y, 560, 58), "Настройки", "Графика, звук, управление")) { settingsReturn = Scr.Menu; screen = Scr.Settings; }
         y += 68;
         if (MenuButton(new Rect(64, y, 560, 58), "Выход", null)) Application.Quit();
-        Label(new Rect(64, H - 70, 900, 30), "ОБЕСПЕЧИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.", new GUIStyle(small) { fontSize = 16, font = fontTitle }, new Color(0.7f, 0.7f, 0.68f, 0.8f));
-        Label(new Rect(W - 420, H - 46, 380, 24), "v3 · Unity 6", new GUIStyle(small) { alignment = TextAnchor.MiddleRight, fontSize = 13 }, new Color(1, 1, 1, 0.35f));
+        Label(new Rect(64, H - 70, 900, 30), "ОБЕЗОПАСИТЬ. УДЕРЖАТЬ. СОХРАНИТЬ.", new GUIStyle(small) { fontSize = 16, font = fontTitle }, new Color(0.7f, 0.7f, 0.68f, 0.8f));
+        Label(new Rect(W - 420, H - 46, 380, 24), "v7 · Unity 6", new GUIStyle(small) { alignment = TextAnchor.MiddleRight, fontSize = 13 }, new Color(1, 1, 1, 0.35f));
     }
 
     void DrawLogo(Vector2 c, float r)
@@ -467,12 +467,7 @@ public partial class Game
         if (b == null) return;
         if (b.loading)
         {
-            Rect(new Rect(0, 0, W, H), new Color(0.03f, 0.035f, 0.04f, 1f));
-            DrawLogo(new Vector2(W / 2, H / 2 - 120), 60);
-            Shadowed(new Rect(0, H / 2 - 20, W, 50), "ПОДГОТОВКА ОПЕРАЦИИ…", h1 == null ? msgSt : new GUIStyle(h1) { alignment = TextAnchor.MiddleCenter }, Color.white);
-            Label(new Rect(0, H / 2 + 30, W, 30), "Разведка местности, прокладка маршрутов для отрядов — " + Mathf.RoundToInt(b.loadProgress * 100) + "%", center, new Color(0.7f, 0.7f, 0.7f));
-            Rect(new Rect(W / 2 - 300, H / 2 + 72, 600, 8), new Color(0.2f, 0.2f, 0.2f));
-            Rect(new Rect(W / 2 - 300, H / 2 + 72, 600 * b.loadProgress, 8), new Color(0.85f, 0.6f, 0.1f));
+            LoadingGUI(b);
             return;
         }
         if (b.cmdF != null)

@@ -233,6 +233,7 @@ public static class Facility
                     l.intensity = Mathf.Clamp(lc.a * 1.6f, 0.5f, 1.6f);
                     l.shadows = LightShadows.None;
                     l.renderMode = i == 0 ? LightRenderMode.ForcePixel : LightRenderMode.Auto;
+                    if (rng.Next(100) < 14) lg.AddComponent<LampFlicker>();   // повреждённая проводка после прорыва
                 }
                 go.AddComponent<FacilityRoom>().Init(pos);
                 int ex = 0; for (int d = 0; d < 4; d++) if ((c.mask & (1 << d)) != 0) ex++;
@@ -501,5 +502,24 @@ public class FacilitySounds : MonoBehaviour
         // звук «откуда-то из коридоров»: в стороне и чуть приглушён
         Vector3 at = cam.transform.position + Quaternion.Euler(0, Random.Range(0f, 360f), 0) * Vector3.forward * Random.Range(8f, 20f);
         Sfx.Play(n, at, 0.75f, 1f, 60f, 0.7f);
+    }
+}
+
+// Мерцающая лампа: короткие провалы и вспышки, иногда — гаснет на секунду
+public class LampFlicker : MonoBehaviour
+{
+    Light l; float baseI, nextT, until; bool off;
+    void Start() { l = GetComponent<Light>(); if (l != null) baseI = l.intensity; nextT = Time.time + Random.Range(0.5f, 4f); }
+    void Update()
+    {
+        if (l == null || !l.enabled) return;
+        if (Time.time > nextT)
+        {
+            off = Random.value < 0.25f;
+            until = Time.time + (off ? Random.Range(0.3f, 1.4f) : Random.Range(0.08f, 0.5f));
+            nextT = until + Random.Range(1.5f, 7f);
+        }
+        if (Time.time < until) l.intensity = off ? baseI * 0.05f : baseI * (Random.value < 0.5f ? 0.15f : 1f);
+        else l.intensity = baseI;
     }
 }
