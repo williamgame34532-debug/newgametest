@@ -769,7 +769,7 @@ public partial class Game
         var g = pc.Current;
         bool scoped = g != null && g.def.scope && Input.GetMouseButton(1) && !g.reloading;
         if (scoped) ScopeOverlay();
-        else if (!pc.riding && !Input.GetMouseButton(1) && pc.fp != null && pc.fp.MagCheckW < 0.05f) Crosshair(pc);
+        else if (!PostFX.Bodycam && !pc.riding && !Input.GetMouseButton(1) && pc.fp != null && pc.fp.MagCheckW < 0.05f) Crosshair(pc);
 
         // направления урона — тусклые дуги
         foreach (var d in pc.dmgDirs)

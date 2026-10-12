@@ -795,7 +795,8 @@ public class PlayerController : MonoBehaviour
                     pitch -= r * 0.35f;
                     yaw += Random.Range(-0.35f, 0.35f) * r;
                     fp.Kick(r);
-                    Fx.shake = Mathf.Max(Fx.shake, 0.05f * r);
+                    Fx.shake = Mathf.Max(Fx.shake, 0.05f * r * (PostFX.Bodycam ? 2.2f : 1f));
+                    if (PostFX.Bodycam) { bcRoll += Random.Range(-1.6f, 1.6f) * r; yaw += Random.Range(-0.25f, 0.25f) * r; }   // камера на груди дёргается вместе с телом
                     Game.Cam.fieldOfView += r * (g.def.kind == WeaponKind.Sniper || g.def.kind == WeaponKind.Shotgun ? 1.6f : 0.6f);   // толчок выстрела
                     barrelHeat = Mathf.Min(1.5f, barrelHeat + (g.def.kind == WeaponKind.LMG ? 0.06f : 0.09f));
                     lastShotT = Time.time;
