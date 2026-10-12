@@ -176,6 +176,7 @@ public static class Mats
         if (byteTex.TryGetValue(name, out var t)) return t;
         var ta = Resources.Load<TextAsset>("Models/" + name);
         if (ta == null) ta = Resources.Load<TextAsset>("Facility/" + name);   // карты нормалей комнат комплекса
+        if (ta == null) ta = Resources.Load<TextAsset>("Props/" + name);      // карты сканированных предметов
         if (ta == null) { byteTex[name] = null; return null; }
         t = new Texture2D(2, 2, TextureFormat.RGBA32, true, linear);
         t.LoadImage(ta.bytes);

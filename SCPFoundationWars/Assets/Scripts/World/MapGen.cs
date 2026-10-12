@@ -340,8 +340,50 @@ public static partial class MapGen
         foreach (var d in doors) Solid(new Vector3(x, y + h - 0.6f, d), new Vector3(th, 1.2f, dw), concreteMat, Quaternion.identity, cs, false, p);
     }
 
+    // Группа предметов снабжения из сканов: ящики, бочки, канистры, покрышки
+    static bool PropCluster(Vector3 pos, Transform parent)
+    {
+        if (!PropKit.Has("crate_mil")) return false;
+        float yaw = R(0, 360), r = R();
+        var q = Quaternion.Euler(0, yaw, 0);
+        Vector3 G(Vector3 local) { Vector3 w = pos + q * local; return OnGround(w.x, w.z); }
+        if (r < 0.4f)
+        {
+            PropKit.Place("crate_mil", G(Vector3.zero), yaw, parent);
+            if (R() < 0.6f) PropKit.Place("crate_mil", pos + Vector3.up * 0.46f + q * new Vector3(R(-0.1f, 0.1f), 0, R(-0.05f, 0.05f)), yaw + R(-8, 8), parent);
+            if (R() < 0.5f) PropKit.Place("crate_mil", G(new Vector3(0, 0, 0.62f)), yaw + R(-6, 6), parent);
+            if (R() < 0.4f) PropKit.Place("ammo_box", G(new Vector3(R(-0.4f, 0.4f), 0, -0.55f)), yaw + R(0, 90), parent, 1.6f);
+        }
+        else if (r < 0.58f)
+        {
+            int h = rng.Next(2, 5);
+            for (int k = 0; k < h; k++) PropKit.Place("crate_old", pos + Vector3.up * (0.3f * k), yaw + R(-4, 4), parent);
+        }
+        else if (r < 0.8f)
+        {
+            int n = rng.Next(2, 6);
+            for (int k = 0; k < n; k++)
+            {
+                float a = k * 2.2f; float rr = k == 0 ? 0 : 0.58f;
+                PropKit.Place(R() < 0.5f ? "barrel_01" : "barrel_02", G(new Vector3(Mathf.Cos(a) * rr, 0, Mathf.Sin(a) * rr)), R(0, 360), parent, 1f, 1, true);
+            }
+        }
+        else if (r < 0.92f)
+        {
+            PropKit.Place("generator", G(Vector3.zero), yaw, parent, 1.15f, 1, true);
+            for (int k = 0; k < 3; k++) PropKit.Place("jerrycan", G(new Vector3(0.75f + k * 0.2f, 0, R(-0.3f, 0.3f))), yaw + R(-20, 20), parent, 1f, 1, true);
+        }
+        else
+        {
+            int n = rng.Next(2, 5);
+            for (int k = 0; k < n; k++) PropKit.Place("tyre", pos + Vector3.up * (0.08f + k * 0.16f), Quaternion.Euler(90, yaw + R(0, 40), 0), parent);
+        }
+        return true;
+    }
+
     static void Crate(Vector3 pos, Transform parent)
     {
+        if (PropCluster(pos, parent)) return;
         float s = R(0.9f, 1.4f);
         var wood = Mats.Get(new Color(0.45f, 0.33f, 0.2f), 0.1f);
         var go = Solid(pos + Vector3.up * s / 2, Vector3.one * s, wood, Quaternion.Euler(0, R(0, 90), 0), new Color(0.45f, 0.33f, 0.2f), false, parent);
@@ -416,6 +458,31 @@ public static partial class MapGen
             n++;
             Truck(OnGround(p.x, p.z), R(0, 360), root);
         }
+        // укрепления из сканов: бункеры, ангары Ниссена, противотанковые стенки, «зубы дракона», ежи
+        if (PropKit.Has("bunker"))
+        {
+            string[] big = { "bunker", "nissen", "nissen", "bunker", "tent_cmd" };
+            int placed = 0;
+            for (int i = 0; i < 80 && placed < big.Length; i++)
+            {
+                Vector3 p = new Vector3(R(-Play + 25, Play - 25), 0, R(-Play + 25, Play - 25));
+                if (Blocked(p, 13)) continue;
+                var w = OnGround(p.x, p.z);
+                PropKit.Place(big[placed], w + Vector3.down * 0.2f, R(0, 360), root, 1f, 2, false, big[placed]);
+                keepOut.Add(new Vector3(p.x, 0, p.z));
+                placed++;
+            }
+            for (int i = 0; i < 60; i++)
+            {
+                Vector3 p = new Vector3(R(-Play + 8, Play - 8), 0, R(-Play + 8, Play - 8));
+                if (Blocked(p, 4)) continue;
+                float yaw = R(0, 180); var dq = Quaternion.Euler(0, yaw, 0);
+                float k = R();
+                if (k < 0.35f) { var w = OnGround(p.x, p.z); PropKit.Place("atwall", w + Vector3.down * 0.1f, yaw, root, 1f, 2); }
+                else if (k < 0.7f) for (int j = 0; j < 4; j++) { var w = p + dq * new Vector3(j * 2.1f, 0, (j % 2) * 0.6f); w = OnGround(w.x, w.z); PropKit.Place("teeth", w + Vector3.down * 0.1f, yaw + R(-10, 10), root, 1f, 1); }
+                else for (int j = 0; j < 3; j++) { var w = p + dq * new Vector3(j * 2.4f, 0, R(-0.6f, 0.6f)); w = OnGround(w.x, w.z); PropKit.Place("hedgehog", w, R(0, 360), root, 1f, 1, true); }
+            }
+        }
         // ящики
         for (int i = 0; i < 160; i++)
         {
@@ -428,6 +495,13 @@ public static partial class MapGen
 
     static void Barrier(Vector3 p, float yaw, Transform root)
     {
+        if (PropKit.Has("barrier"))
+        {
+            // бетонные блоки «нью-джерси»: два скана на прежний пролёт
+            var dq = Quaternion.Euler(0, yaw, 0) * Vector3.right * 0.79f;
+            foreach (var o in new[] { -dq, dq }) { var w = OnGround(p.x + o.x, p.z + o.z); PropKit.Place("barrier", w + Vector3.down * 0.03f, yaw + 180f + R(-3, 3), root); }
+            return;
+        }
         var rot = Quaternion.Euler(0, yaw, 0);
         Color c = new Color(0.62f, 0.6f, 0.56f);
         var go = new GameObject("barrier"); go.transform.SetParent(root); go.transform.position = p; go.transform.rotation = rot;
@@ -445,6 +519,29 @@ public static partial class MapGen
         p = OnGround(p.x, p.z);
         go.transform.position = p;
         go.transform.rotation = Quaternion.Euler(0, face, 0);
+        if (PropKit.Has("cement_bag"))
+        {
+            // настоящие мешки внахлёст: 4 ряда по дуге
+            for (int row = 0; row < 4; row++)
+                for (int i = 0; i < 6; i++)
+                {
+                    float a = (i - 2.5f + (row % 2) * 0.5f) * 0.3f;
+                    Vector3 lp = new Vector3(Mathf.Sin(a) * 3f, row * 0.22f, Mathf.Cos(a) * 3f - 3f);
+                    var bag = PropKit.Place("cement_bag", go.transform.TransformPoint(lp), Quaternion.Euler(R(-3, 3), face + a * Mathf.Rad2Deg + 90f + R(-6, 6), R(-4, 4)), go.transform, 1.3f, 0, false, "p");
+                }
+            MeshKit.CombineParts(go.transform);
+            Color bc0 = new Color(0.55f, 0.5f, 0.4f);
+            for (int i = 0; i < 3; i++)
+            {
+                float a = (i - 1) * 0.55f;
+                var cgo = new GameObject("col"); cgo.transform.SetParent(go.transform, false);
+                cgo.transform.localPosition = new Vector3(Mathf.Sin(a) * 3f, 0.45f, Mathf.Cos(a) * 3f - 3f);
+                cgo.transform.localRotation = Quaternion.Euler(0, a * Mathf.Rad2Deg, 0);
+                var bcl = cgo.AddComponent<BoxCollider>(); bcl.size = new Vector3(1.7f, 0.9f, 0.6f);
+                cgo.AddComponent<Surface>().color = bc0;
+            }
+            return;
+        }
         Color sc = mapKind == 2 ? new Color(0.72f, 0.62f, 0.45f) : mapKind == 3 ? new Color(0.75f, 0.75f, 0.72f) : new Color(0.55f, 0.5f, 0.36f);
         var m = Mats.Get(sc, 0.05f);
         int segs = 7;
@@ -469,6 +566,12 @@ public static partial class MapGen
 
     static void Tower(Vector3 p, Transform root)
     {
+        if (PropKit.Has("watchtower"))
+        {
+            var tw = PropKit.Place("watchtower", p, R(0, 360), root, 1f, 2, false, "tower");
+            Searchlight(tw.transform, new Vector3(0, 6.6f, 2.0f));
+            return;
+        }
         var go = new GameObject("tower"); go.transform.SetParent(root); go.transform.position = p;
         var metal = Mats.Get(new Color(0.3f, 0.3f, 0.3f), 0.4f, 0.5f);
         for (int i = 0; i < 4; i++)
@@ -491,10 +594,13 @@ public static partial class MapGen
         var top = new GameObject("deck"); top.transform.SetParent(go.transform, false); top.transform.localPosition = new Vector3(0, 7.5f, 0);
         var tbc = top.AddComponent<BoxCollider>(); tbc.size = new Vector3(3.6f, 1.2f, 3.6f);
         top.AddComponent<Surface>().metal = true;
-        // прожектор
-        var lg = new GameObject("search"); lg.transform.SetParent(go.transform, false);
-        lg.transform.localPosition = new Vector3(0, 8.4f, 1.6f);
-        lg.transform.localRotation = Quaternion.Euler(35, R(-40, 40), 0);
+        Searchlight(go.transform, new Vector3(0, 8.4f, 1.6f));
+    }
+
+    static void Searchlight(Transform go, Vector3 at)
+    {
+        var lg = new GameObject("search"); lg.transform.SetParent(go, false);
+        lg.transform.localPosition = at;        lg.transform.localRotation = Quaternion.Euler(35, R(-40, 40), 0);
         MeshKit.Cyl(lg.transform, Vector3.zero, 0.5f, 0.5f, Mats.Get(new Color(0.2f, 0.2f, 0.2f)), new Vector3(90, 0, 0));
         if (Night)
         {
@@ -638,6 +744,12 @@ public static partial class MapGen
 
     static void Rock(Vector3 p, Transform root)
     {
+        if (PropKit.Has("rock_07"))
+        {
+            float sc = R(5f, 13f);
+            PropKit.Place("rock_07", p + Vector3.down * 0.03f * sc, Quaternion.Euler(R(-12, 12), R(0, 360), R(-12, 12)), root, sc, 1, false, "rock");
+            return;
+        }
         var go = new GameObject("rock"); go.transform.SetParent(root); go.transform.position = p;
         Color c = mapKind == 2 ? new Color(0.62f, 0.5f, 0.38f) : mapKind == 3 ? new Color(0.55f, 0.56f, 0.6f) : new Color(0.42f, 0.41f, 0.4f);
         float s = R(1f, 3.2f);
@@ -910,6 +1022,7 @@ public static partial class MapGen
             Vector3 p = c + q * new Vector3(i * 12f, 0, -4f);
             if (Blocked(p, 4)) continue;
             p = OnGround(p.x, p.z);
+            if (PropKit.Has("tent")) { PropKit.Place("tent", p, q.eulerAngles.y, root, 1.1f, 1); continue; }
             var go = new GameObject("tent"); go.transform.SetParent(root); go.transform.position = p; go.transform.rotation = q;
             MeshKit.Part(go.transform, MeshKit.Frustum(0.02f, 4), Mats.Get(tent, 0.05f), new Vector3(0, 1.4f, 0), new Vector3(6.5f, 2.8f, 8f), new Vector3(0, 45, 0));
             MeshKit.Box(go.transform, new Vector3(0, 0.05f, 0), new Vector3(4.6f, 0.1f, 5.6f), Mats.Get(tent * 0.7f));
@@ -931,6 +1044,12 @@ public static partial class MapGen
         if (Blocked(c, 10)) return;
         float y = Height(c.x, c.z);
         float yaw = R(0, 90);
+        if (PropKit.Has("ruin_a") && !Blocked(c, 14))
+        {
+            // разрушенный дом из сканов: стены, проломы, обломки внутри
+            PropKit.Place(R() < 0.5f ? "ruin_a" : "ruin_b", new Vector3(c.x, y - 0.25f, c.z), yaw, root, 1f, 2, false, "ruin");
+            return;
+        }
         var q = Quaternion.Euler(0, yaw, 0);
         Color cs = new Color(0.5f, 0.49f, 0.46f);
         // остатки стен разной высоты

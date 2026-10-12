@@ -1,0 +1,10 @@
+Сканированные предметы — Poly Haven (polyhaven.com), лицензия CC0:
+  Barrel_01, Barrel_02, wooden_military_crate, old_military_crate, ammo_box, concrete_road_barrier_02,
+  metal_jerrycan_green, old_tyre, cement_bag, portable_generator, rock_07.
+  Копии взяты из открытых репозиториев GitHub: EliteGamer007/6dof-drone-sim, VoxogoBrusch/the-levels,
+  shadow-kernel/Vortex-Engine-Tactical-Template.
+Постройки — проект shadow-six (github.com/jaher/shadow-six), геометрия CC0, текстуры Poly Haven / ambientCG (CC0):
+  watchtower, tent_ridge_field, tent_command, nissen_hut, bunker, dragons_teeth, at_wall_segment, czech_hedgehog,
+  house_bombed_a, house_bombed_b.
+Модели сконвертированы в формат игры (SCPX): распаковка meshopt (meshoptimizer, MIT, Arseny Kapoulkine),
+упрощение тяжёлых сеток, текстуры уменьшены до 512 px.
