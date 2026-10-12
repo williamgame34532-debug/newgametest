@@ -189,6 +189,9 @@ public static class Facility
             string key = tex + (col.a < 0.99f ? "_glass" : "");
             if (mats.TryGetValue(key, out var mm)) return mm;
             mm = mx.Mat(i, Color.white);
+            // полированные полы и металл ловят свет ламп
+            if (tex != null && tex.Contains("floor")) mm.SetFloat("_Glossiness", 0.45f);
+            else if (tex != null && tex.Contains("metal")) mm.SetFloat("_Glossiness", Mathf.Max(mm.GetFloat("_Glossiness"), 0.4f));
             mats[key] = mm;
             return mm;
         }
@@ -268,6 +271,18 @@ public static class Facility
             Links.Add(FacilityLink.Create(root, surface, inside, label));
         }
         root.gameObject.AddComponent<FacilitySounds>();
+        // отражения внутри комплекса — снимок самих коридоров, а не неба поверхности
+        var pgo = new GameObject("FacilityReflections");
+        pgo.transform.SetParent(root, false);
+        pgo.transform.localPosition = new Vector3(0, 2.2f, 0);
+        var probe = pgo.AddComponent<ReflectionProbe>();
+        probe.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime;
+        probe.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
+        probe.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
+        probe.size = new Vector3(W * Cell + 30f, 16f, Rows * Cell + 30f);
+        probe.resolution = 128; probe.importance = 10; probe.intensity = 0.6f;
+        probe.clearFlags = UnityEngine.Rendering.ReflectionProbeClearFlags.SolidColor; probe.backgroundColor = new Color(0.03f, 0.03f, 0.035f);
+        probe.RenderProbe();
         if (standalone) return;
         AddLink("gateaentrance", Surf(0f, -38f), "ВОРОТА A · ВХОДНАЯ ЗОНА");
         AddLink("room1lifts", Surf(108f, -10f), "ЛИФТ · ВХОДНАЯ ЗОНА");
