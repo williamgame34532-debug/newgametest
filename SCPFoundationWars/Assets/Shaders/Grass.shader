@@ -49,8 +49,12 @@ Shader "SCP/Grass"
                 float d = distance(wp.xyz, _WorldSpaceCameraPos);
                 o.fade = saturate((_Fade - d) / (_Fade * 0.3));
                 // освещение как у земли (нормаль вверх) + чуть темнее у корня
-                float ndl = saturate(dot(float3(0, 1, 0), normalize(_WorldSpaceLightPos0.xyz)));
-                float3 light = _LightColor0.rgb * ndl * 0.85 + ShadeSH9(float4(0, 1, 0, 1));
+                float3 L = normalize(_WorldSpaceLightPos0.xyz);
+                float ndl = saturate(dot(float3(0, 1, 0), L));
+                // против солнца травинки просвечивают, кончики светлее
+                float3 V = normalize(_WorldSpaceCameraPos - wp.xyz);
+                float back = pow(saturate(dot(V, -L)), 4) * 0.7 * h;
+                float3 light = _LightColor0.rgb * (ndl * 0.85 + back * float3(1.0, 1.15, 0.55)) + ShadeSH9(float4(0, 1, 0, 1));
                 o.col = fixed4(v.color.rgb * light * lerp(0.65, 1.0, h), 1);
                 TRANSFER_SHADOW(o);
                 UNITY_TRANSFER_FOG(o, o.pos);

@@ -177,6 +177,8 @@ public static partial class MapGen
     static Texture2D GrassTex()
     {
         if (grassTex != null) return grassTex;
+        var photo = Resources.Load<Texture2D>("Textures/foliage_grass");
+        if (photo != null) { photo.wrapMode = TextureWrapMode.Clamp; grassTex = photo; return grassTex; }
         var bases = new float[14]; var tops = new float[14]; var bend = new float[14]; var wid = new float[14]; var shade = new float[14];
         var r = new System.Random(3);
         for (int i = 0; i < bases.Length; i++)
@@ -217,12 +219,12 @@ public static partial class MapGen
         var mat = new Material(sh);
         mat.SetTexture("_MainTex", GrassTex());
         mat.SetFloat("_Cutoff", 0.45f);
-        mat.SetFloat("_Fade", 80f);
+        mat.SetFloat("_Fade", 105f);
         mat.SetFloat("_Wind", map == 2 ? 0.7f : 1f);
         var root = new GameObject("Grass").transform;
         root.SetParent(Root.transform);
         float chunk = 32f, half = Play + 30f;
-        float dens = map == 1 ? 0.85f : map == 2 ? 0.12f : 0.6f;
+        float dens = map == 1 ? 1.15f : map == 2 ? 0.14f : 0.85f;
         Color tintA = map == 2 ? new Color(0.95f, 0.8f, 0.5f) : map == 1 ? new Color(0.8f, 0.95f, 0.75f) : new Color(1f, 1f, 0.9f);
         Color tintB = map == 2 ? new Color(0.8f, 0.65f, 0.4f) : new Color(1.15f, 1.05f, 0.7f);
         for (float cx = -half; cx < half; cx += chunk)
@@ -239,7 +241,7 @@ public static partial class MapGen
                     if (R() > gw.r * gw.r) continue;
                     if (Blocked(new Vector3(x, 0, z), -10f)) continue;
                     float y = Height(x, z) - 0.03f;
-                    float h = R(0.35f, map == 1 ? 0.85f : 0.65f), w = R(0.5f, 0.9f);
+                    float h = R(0.3f, map == 1 ? 0.95f : 0.75f), w = R(0.6f, 1.1f);
                     float a = R(0, Mathf.PI);
                     Color tint = Color.Lerp(tintA, tintB, R()) * R(0.85f, 1.1f);
                     for (int q = 0; q < 2; q++)

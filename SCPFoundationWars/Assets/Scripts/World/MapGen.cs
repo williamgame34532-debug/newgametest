@@ -726,6 +726,8 @@ public static partial class MapGen
         RenderSettings.reflectionIntensity = time == 2 ? 0.2f : 0.7f;
         QualitySettings.shadowDistance = 170f;
         QualitySettings.shadowCascades = 4;
+        QualitySettings.shadowCascade4Split = new Vector3(0.04f, 0.13f, 0.38f);   // чёткие тени вблизи
+        sun.shadowNormalBias = 0.25f; sun.shadowBias = 0.03f; sun.shadowStrength = time == 2 ? 0.75f : 0.92f;
         QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
         QualitySettings.shadowProjection = ShadowProjection.StableFit;
         QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;

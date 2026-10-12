@@ -9,6 +9,20 @@ public class WorldFX : MonoBehaviour
     static Texture2D dummy;
     Camera cam;
     public float aoRadius = 0.55f, aoStrength = 0.75f, aoFar = 90f, shafts = 0.55f;
+    public static bool MotionBlur = true, Dof = true, Atmos = true;
+    Matrix4x4 prevVP; bool hasPrev; bool savedFog; bool fogHidden;
+    float focus = 50f;
+
+    // туман Unity выключаем на время кадра сцены — его заменяет воздушная перспектива в постобработке
+    void OnPreCull()
+    {
+        fogHidden = false;
+        if (!Enabled || !PostFX.Enabled || !Atmos) return;
+        savedFog = RenderSettings.fog;
+        RenderSettings.fog = false;
+        fogHidden = true;
+    }
+    void OnPostRender() { if (fogHidden) { RenderSettings.fog = savedFog; fogHidden = false; } }
 
     public static void Attach(Camera c)
     {
@@ -73,7 +87,55 @@ public class WorldFX : MonoBehaviour
             mat.SetTexture("_Shafts", Texture2D.blackTexture);
             mat.SetVector("_SunPos", Vector4.zero);
         }
+        // ---- воздушная перспектива ----
+        Vector3 camPos = cam.transform.position;
+        mat.SetVector("_CamPos", camPos);
+        mat.SetVector("_RayR", cam.transform.right * tanY * cam.aspect);
+        mat.SetVector("_RayU", cam.transform.up * tanY);
+        mat.SetVector("_RayF", cam.transform.forward);
+        bool fogOn = fogHidden ? savedFog : RenderSettings.fog;
+        bool under = Facility.Underground(camPos) || MapGen.FacilityMap;
+        float dens = 0f, fall = 0f, baseY = 0f;
+        if (Atmos && fogOn)
+        {
+            if (under) { dens = RenderSettings.fogDensity * (RenderSettings.fogMode == FogMode.ExponentialSquared ? 6f : 1f); fall = 0f; }
+            else { dens = 0.00055f * Mathf.Clamp(RenderSettings.fogDensity / 0.0021f, 0.5f, 3f); fall = 1f / 95f; baseY = MapGen.Height(0, 0); }
+        }
+        mat.SetVector("_Fog", new Vector4(dens, fall, baseY, 0.985f));
+        Color fc = RenderSettings.fogColor;
+        mat.SetVector("_FogCol", new Vector4(fc.r, fc.g, fc.b, 1));
+        mat.SetVector("_SunDirW", MapGen.SunDir);
+        Color scat = under || night ? Color.black : MapGen.SunColor * (MapGen.Dusk ? 1.3f : 0.8f);
+        mat.SetVector("_SunScat", new Vector4(scat.r, scat.g, scat.b, 1));
+
+        // ---- размытие движения (только поворот/движение камеры) ----
+        var vp = cam.projectionMatrix * cam.worldToCameraMatrix;
+        float mbk = MotionBlur && hasPrev && Time.timeScale > 0.01f ? (PostFX.Bodycam ? 0.65f : 0.45f) : 0f;
+        mat.SetMatrix("_PrevVP", hasPrev ? prevVP : vp);
+        mat.SetVector("_Motion", new Vector4(mbk, 0.035f, 0, 0));
+        prevVP = vp; hasPrev = true;
+
+        // ---- глубина резкости при прицеливании ----
+        var pc = PlayerController.I;
+        float ads = Dof && pc != null && !pc.dead ? pc.adsW : 0f;
+        RenderTexture dof = null;
+        if (ads > 0.02f)
+        {
+            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out var fh, 600f, ~(1 << Layers.ViewModel), QueryTriggerInteraction.Ignore))
+                focus = Mathf.Lerp(focus, fh.distance, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
+            else focus = Mathf.Lerp(focus, 300f, 1f - Mathf.Exp(-4f * Time.unscaledDeltaTime));
+            bool scope = pc.Current != null && pc.Current.def.scope;
+            mat.SetVector("_DofP", new Vector4(Mathf.Max(focus, 3f), ads * (scope ? 1f : 0.85f), scope ? 9f : 6f, Mathf.Min(1.2f, focus * 0.3f)));
+            var df = SystemInfo.SupportsRenderTextureFormat(RenderTextureFormat.ARGBHalf) ? RenderTextureFormat.ARGBHalf : RenderTextureFormat.Default;
+            dof = RenderTexture.GetTemporary(src.width / 2, src.height / 2, 0, df);
+            dof.filterMode = FilterMode.Bilinear;
+            Graphics.Blit(src, dof, mat, 5);
+            mat.SetTexture("_Dof", dof);
+        }
+        else { mat.SetVector("_DofP", Vector4.zero); mat.SetTexture("_Dof", Texture2D.blackTexture); }
+
         Graphics.Blit(src, dst, mat, 4);
+        if (dof != null) RenderTexture.ReleaseTemporary(dof);
         RenderTexture.ReleaseTemporary(ao);
         RenderTexture.ReleaseTemporary(ao2);
         if (s1 != null) RenderTexture.ReleaseTemporary(s1);
