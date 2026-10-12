@@ -9,8 +9,12 @@ using UnityEngine.AI;
 public static class Facility
 {
     public const float Cell = 2048f / 152f;           // 13.47 м — шаг клеток SCP:CB
-    const int W = 5, ZH = 4, GAP = 2;                // ширина, высота зоны, разрыв между зонами
-    const int Rows = ZH * 3 + GAP * 2;
+    static int W = 5, ZH = 4;                        // ширина, высота зоны
+    const int GAP = 2;                               // разрыв между зонами
+    static int Rows => ZH * 3 + GAP * 2;
+    public static bool Standalone;                   // карта «только комплекс»: без поверхности, вход по лифтам
+    public struct RoomInfo { public string name; public int zone; public Vector3 pos; public int exits; }
+    public static readonly List<RoomInfo> Rooms = new List<RoomInfo>();
     public static float BaseY;
     public static Transform RootT;
     public static readonly List<FacilityLink> Links = new List<FacilityLink>();
@@ -50,10 +54,12 @@ public static class Facility
 
     class CellInfo { public int mask; public Tpl tpl; public int rot; public int zone; public bool used; }
 
-    public static void Build(Transform parent, Vector3 origin, int seed)
+    public static void Build(Transform parent, Vector3 origin, int seed, bool standalone = false)
     {
         LoadMeta();
-        Links.Clear();
+        Links.Clear(); Rooms.Clear();
+        Standalone = standalone;
+        W = standalone ? 7 : 5; ZH = standalone ? 5 : 4;
         if (tpls == null || tpls.Count == 0) return;
         var rng = new System.Random(seed * 31 + 19);
         BaseY = origin.y;
@@ -229,6 +235,8 @@ public static class Facility
                     l.renderMode = i == 0 ? LightRenderMode.ForcePixel : LightRenderMode.Auto;
                 }
                 go.AddComponent<FacilityRoom>().Init(pos);
+                int ex = 0; for (int d = 0; d < 4; d++) if ((c.mask & (1 << d)) != 0) ex++;
+                Rooms.Add(new RoomInfo { name = c.tpl.name, zone = c.zone, pos = pos, exits = ex });
             }
         // двери на стыках клеток
         for (int x = 0; x < W; x++)
@@ -257,6 +265,8 @@ public static class Facility
             Vector3 inside = CellPos(fx, fz) + new Vector3(0, 0.1f, 0);
             Links.Add(FacilityLink.Create(root, surface, inside, label));
         }
+        root.gameObject.AddComponent<FacilitySounds>();
+        if (standalone) return;
         AddLink("gateaentrance", Surf(0f, -38f), "ВОРОТА A · ВХОДНАЯ ЗОНА");
         AddLink("room1lifts", Surf(108f, -10f), "ЛИФТ · ВХОДНАЯ ЗОНА");
         AddLink("endroom2", Surf(-62f, 82f), "СПУСК · ЗОНА ТЯЖЁЛОГО СОДЕРЖАНИЯ");
@@ -278,6 +288,50 @@ public static class Facility
     public static Vector3 CellPos(int x, int z) => RootT.position + new Vector3((x - (W - 1) * 0.5f) * Cell, 0, (z - (Rows - 1) * 0.5f) * Cell);
 
     public static bool Underground(Vector3 p) => RootT != null && p.y < BaseY + 14f;
+
+    // Зона, в которой точка: 1 — ЗЛС, 2 — ЗТС, 3 — входная (0 — вне комплекса)
+    public static int ZoneAt(Vector3 p)
+    {
+        if (!Underground(p)) return 0;
+        int best = 0; float bd = float.MaxValue;
+        foreach (var r in Rooms) { float d = (r.pos - p).sqrMagnitude; if (d < bd) { bd = d; best = r.zone; } }
+        return best;
+    }
+
+    // ---------------- карта «только комплекс» ----------------
+    static Vector3 RoomPos(string name, int zone, bool far, int skip)
+    {
+        // сначала помещение с таким именем, иначе тупик/комната зоны у её дальнего края
+        var list = new List<RoomInfo>();
+        foreach (var r in Rooms) if (r.name == name) list.Add(r);
+        if (list.Count == 0)
+        {
+            foreach (var r in Rooms) if (r.zone == zone) list.Add(r);
+            list.Sort((a, b) => far ? b.pos.z.CompareTo(a.pos.z) : a.pos.z.CompareTo(b.pos.z));
+        }
+        if (list.Count == 0) return RootT != null ? RootT.position : Vector3.zero;
+        return list[Mathf.Clamp(skip, 0, list.Count - 1)].pos;
+    }
+
+    // МОГ входит через Ворота A (входная зона), Повстанцы прорываются через ЗЛС (дальний конец)
+    public static Vector3 Entry(Team t, int i)
+    {
+        if (t == Team.Foundation) return i % 2 == 0 ? RoomPos("gateaentrance", 3, true, i / 2) : RoomPos("room1lifts", 3, true, i / 2 + 1);
+        return i % 2 == 0 ? RoomPos("endroom", 1, false, i / 2) : RoomPos("room1archive", 1, false, i / 2 + 1);
+    }
+
+    // Объекты — в своих камерах: SCP-173 в камере ЗЛС, SCP-106 в своей камере ЗТС, остальные — в комнатах ЗТС
+    public static Vector3 Chamber(ScpKind k, int i)
+    {
+        if (k == ScpKind.S173) return RoomPos("start", 1, false, 0);
+        if (k == ScpKind.S106) return RoomPos("room106", 2, true, 0);
+        if (k == ScpKind.S0492) return RoomPos("008", 2, true, 0);
+        var hcz = new List<RoomInfo>();
+        foreach (var r in Rooms) if (r.zone == 2 && r.name != "room106" && r.name != "008") hcz.Add(r);
+        if (hcz.Count == 0) return RootT.position;
+        int h = ((int)k * 7 + i * 3) % hcz.Count;
+        return hcz[h].pos;
+    }
 }
 
 // Комната: рисуется, только когда камера под землёй и недалеко
@@ -336,7 +390,7 @@ public class FacilityDoor : MonoBehaviour
             if (want != open)
             {
                 open = want;
-                if (cam != null && (cam.transform.position - p).sqrMagnitude < 900f) Sfx.Play(open ? "door_open" : "door_close", p + Vector3.up, 0.6f, Random.Range(0.95f, 1.05f), 25f);
+                if (cam != null && (cam.transform.position - p).sqrMagnitude < 900f) Sfx.Play(open ? "facdoor_open" : "facdoor_close", p + Vector3.up, 0.8f, Random.Range(0.95f, 1.05f), 25f);
             }
         }
         k = Mathf.MoveTowards(k, open ? 1f : 0f, Time.deltaTime / 0.9f);
@@ -388,7 +442,7 @@ public class FacilityLink : MonoBehaviour
         {
             useT = Time.time + 2f;
             Vector3 to = atTop ? bottom : top + Vector3.back * 2.5f;
-            Sfx.Play2D("door_open", 0.6f, 0.8f);
+            Sfx.Play2D("lift_open", 0.7f, 1f);
             // ближайшие бойцы отряда идут следом
             foreach (var u in Unit.All)
                 if (u is Soldier s && s.alive && !s.netPuppet && s.squad == pc.squad && (s.transform.position - p).sqrMagnitude < 144f)
@@ -427,4 +481,25 @@ public class FacilityAmbience : MonoBehaviour
         }
     }
     void OnDestroy() { if (under) { under = true; RenderSettings.ambientSkyColor = a1; RenderSettings.ambientEquatorColor = a2; RenderSettings.ambientGroundColor = a3; RenderSettings.fog = fogOn; var sun = RenderSettings.sun; if (sun != null && sunI >= 0) sun.intensity = sunI; } }
+}
+
+// Звуки комплекса (SCP:CB): гул зоны и далёкие звуки — скрежет, шаги, крики, лязг металла
+public class FacilitySounds : MonoBehaviour
+{
+    float nextT; AudioSource hum;
+    void Update()
+    {
+        var cam = Game.Cam;
+        bool under = cam != null && Facility.Underground(cam.transform.position);
+        if (hum == null) { hum = Sfx.Loop("scp_hum", transform, 0f, 1000f, 0.55f); if (hum != null) hum.spatialBlend = 0f; }
+        if (hum != null) hum.volume = Mathf.MoveTowards(hum.volume, under ? 0.12f * Sfx.Volume : 0f, Time.deltaTime * 0.3f);
+        if (!under || Time.time < nextT) return;
+        nextT = Time.time + Random.Range(14f, 32f);
+        int z = Facility.ZoneAt(cam.transform.position);
+        string n = z == 1 ? "amblcz" : z == 2 ? "ambhcz" : z == 3 ? "ambez" : null;
+        if (n == null) return;
+        // звук «откуда-то из коридоров»: в стороне и чуть приглушён
+        Vector3 at = cam.transform.position + Quaternion.Euler(0, Random.Range(0f, 360f), 0) * Vector3.forward * Random.Range(8f, 20f);
+        Sfx.Play(n, at, 0.75f, 1f, 60f, 0.7f);
+    }
 }

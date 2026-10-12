@@ -338,7 +338,7 @@ public class Scp173 : ScpUnit
         s.threat = 5f;
         s.BuildModel();
         s.SetupAgent(0.4f, 2f, 20f, 300f);
-        s.scrape = Sfx.Loop("scrape", go.transform, 0f, 40f);
+        s.scrape = Sfx.Loop(Sfx.Clip("drag173") != null ? "drag173" : "scrape", go.transform, 0f, 40f);
         ScpSkin.Apply(go, ScpSkin.Kind.Concrete, 0.12f);
         return s;
     }
@@ -443,6 +443,7 @@ public class Scp173 : ScpUnit
             Face(target.transform.position - transform.position, 2000f, dt);
             if (Vector3.Distance(target.transform.position, transform.position) < 1.4f && target.alive)
             {
+                Sfx.Play("snap173", target.AimPoint, 1f, 1f, 45f);
                 Slay(target, DamageType.NeckSnap, transform.forward, 80f, "Сломанная шея");
                 agent.velocity = Vector3.zero;
                 observedCheckT = 0;
@@ -601,7 +602,7 @@ public class Scp096 : HumanScp
         mode = Mode.Triggered;
         modeT = Time.time + 5f;
         if (agent != null && agent.enabled) agent.isStopped = true;
-        Sfx.Play(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform.position, 1f, 1f, 220f);
+        Sfx.Play(Sfx.Clip("trigger096") != null ? "trigger096" : "scream", transform.position, 1f, 1f, 220f);
         Battle.Message("SCP-096 В ЯРОСТИ", new Color(1f, 0.15f, 0.15f));
         if (cry != null) cry.Stop();
     }
@@ -688,7 +689,7 @@ public class Scp096 : HumanScp
                     Fx.Blood(target.AimPoint, dir, 3f);
                     Fx.Blood(target.AimPoint, -dir, 2f);
                     Sfx.Play("flesh", target.AimPoint, 1f, 0.7f, 40f);
-                    Sfx.Play("kill096", target.AimPoint, 1f, Random.Range(0.95f, 1.05f), 70f);
+                    Sfx.Play("flesh", target.AimPoint, 1f, Random.Range(0.5f, 0.6f), 70f);
                     Slay(target, DamageType.Melee, dir, 2200f, "Разорван SCP-096");
                 }
                 break;
@@ -708,7 +709,7 @@ public class Scp096 : HumanScp
         if (s == shownMode) return;
         shownMode = s;
         mode = (Mode)s;
-        if (mode == Mode.Triggered) { Sfx.Play(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform.position, 1f, 1f, 220f); if (cry != null) cry.Stop(); anim.handsOnFace = true; }
+        if (mode == Mode.Triggered) { Sfx.Play(Sfx.Clip("trigger096") != null ? "trigger096" : "scream", transform.position, 1f, 1f, 220f); if (cry != null) cry.Stop(); anim.handsOnFace = true; }
         if (mode == Mode.Rage) { anim.style = AnimStyle.ShyRage; anim.handsOnFace = false; if (rageLoop == null) rageLoop = Sfx.Loop(Sfx.Clip("scream096") != null ? "scream096" : "scream", transform, 0.85f, 160f, 1f); else rageLoop.Play(); }
         if (mode == Mode.Calm) { anim.style = AnimStyle.Shy; if (rageLoop != null) rageLoop.Stop(); if (cry != null && !cry.isPlaying) cry.Play(); }
     }
@@ -727,6 +728,7 @@ public class Scp049 : HumanScp
     bool hitDone;
     Soldier patient;
     float cureEnd;
+    Unit lastSpoken; float voiceT;   // «Я чувствую болезнь…» — голос SCP:CB
 
     public static Scp049 Create(Vector3 pos, Quaternion rot)
     {
@@ -805,6 +807,8 @@ public class Scp049 : HumanScp
         {
             thinkT = Time.time + 0.4f;
             target = Battle.NearestEnemyUnit(this, true);
+            if (target != null && target != lastSpoken && Time.time > voiceT) { lastSpoken = target; voiceT = Time.time + 6f; Sfx.Play("spot049", transform.position, 1f, 1f, 45f); }
+            else if (target == null && Time.time > voiceT) { voiceT = Time.time + Random.Range(10f, 18f); Sfx.Play("search049", transform.position, 0.9f, 1f, 40f); }
             if (target != null) GoTo(target.transform.position);
         }
         if (AgentOk) agent.speed = 3.3f;

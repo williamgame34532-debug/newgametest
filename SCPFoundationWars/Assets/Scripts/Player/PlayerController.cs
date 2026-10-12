@@ -162,6 +162,17 @@ public class PlayerController : MonoBehaviour
         velocity = Vector3.zero; vy = 0;
     }
 
+    // Появление на ногах (карта «комплекс»): без вертолёта, оружие сразу готово
+    public void SpawnAt(Vector3 p, float yawDeg)
+    {
+        transform.SetParent(null, true);
+        riding = false; rideSeat = null; scripted = false; OnRope = false; safe = false;
+        unit.inVehicle = false;
+        yaw = yawDeg; pitch = 0f;
+        transform.rotation = Quaternion.Euler(0, yaw, 0);
+        Teleport(p);
+    }
+
     public void Teleport(Vector3 p)
     {
         cc.enabled = false;

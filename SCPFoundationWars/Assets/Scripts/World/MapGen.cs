@@ -6,7 +6,9 @@ using UnityEngine.Rendering;
 // Процедурная карта: рельеф, комплекс Зоны, укрытия, лес, освещение, навигационная сетка.
 public static partial class MapGen
 {
-    public static readonly string[] MapNames = { "Зона-19: поверхность", "Лесной КПП", "Пустынная Зона-██", "Зимний комплекс" };
+    public static readonly string[] MapNames = { "Зона-19: поверхность", "Лесной КПП", "Пустынная Зона-██", "Зимний комплекс", "Зона-19: комплекс" };
+    public const int FacilityMapIndex = 4;
+    public static bool FacilityMap => mapKind == FacilityMapIndex && Root != null;
     public static readonly string[] TimeNames = { "День", "Закат", "Ночь" };
 
     public static GameObject Root;
@@ -33,6 +35,7 @@ public static partial class MapGen
 
     public static float Height(float x, float z)
     {
+        if (mapKind == FacilityMapIndex) return Facility.BaseY;
         float r = Mathf.Sqrt(x * x + z * z);
         float hills = (Mathf.PerlinNoise(x * 0.012f + 100, z * 0.012f + 50) - 0.5f) * 14f + (Mathf.PerlinNoise(x * 0.05f, z * 0.05f) - 0.5f) * 2.5f;
         float flat = (Mathf.PerlinNoise(x * 0.03f + 7, z * 0.03f + 3) - 0.5f) * 1.2f;
@@ -58,6 +61,8 @@ public static partial class MapGen
         keepOut.Clear();
         keepOut.AddRange(lzs);
         Root = new GameObject("Map");
+        if (Game.Cam != null) { Game.Cam.clearFlags = map == FacilityMapIndex ? CameraClearFlags.SolidColor : CameraClearFlags.Skybox; Game.Cam.backgroundColor = Color.black; }
+        if (map == FacilityMapIndex) { BuildFacilityMap(); return; }
 
         Color g1, g2, g3, fog;
         switch (map)
@@ -906,6 +911,36 @@ public static partial class MapGen
         var go = new GameObject("road"); go.transform.SetParent(Root.transform);
         go.AddComponent<MeshFilter>().sharedMesh = mesh;
         var mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = m; mr.shadowCastingMode = ShadowCastingMode.Off;
+    }
+
+    // ---------------- карта «Зона-19: комплекс» ----------------
+    // Только подземный комплекс (комнаты SCP:CB): ни неба, ни рельефа — свет ламп, темнота, гул
+    static void BuildFacilityMap()
+    {
+        Facility.Build(Root.transform, Vector3.zero, rng.Next(100000), true);
+        var sunGo = new GameObject("Sun");
+        sunGo.transform.SetParent(Root.transform);
+        sunGo.transform.rotation = Quaternion.Euler(70f, 30f, 0);
+        var sun = sunGo.AddComponent<Light>();
+        sun.type = LightType.Directional; sun.intensity = 0f; sun.shadows = LightShadows.None;
+        RenderSettings.sun = sun;
+        sunDir = Vector3.up; sunCol = Color.black; Dusk = false;
+        RenderSettings.skybox = null;
+        RenderSettings.ambientMode = AmbientMode.Trilight;
+        RenderSettings.ambientSkyColor = new Color(0.12f, 0.125f, 0.13f);
+        RenderSettings.ambientEquatorColor = new Color(0.09f, 0.09f, 0.095f);
+        RenderSettings.ambientGroundColor = new Color(0.05f, 0.05f, 0.05f);
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.Exponential;
+        RenderSettings.fogColor = new Color(0.02f, 0.022f, 0.025f);
+        RenderSettings.fogDensity = 0.028f;
+        fogColor = RenderSettings.fogColor;
+        RenderSettings.reflectionIntensity = 0.3f;
+        QualitySettings.shadowDistance = 60f;
+        QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+        QualitySettings.pixelLightCount = 10;
+        DynamicGI.UpdateEnvironment();
+        Physics.SyncTransforms();
     }
 
     // ---------------- навигация ----------------

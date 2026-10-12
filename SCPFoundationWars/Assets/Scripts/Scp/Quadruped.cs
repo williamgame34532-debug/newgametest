@@ -6,6 +6,8 @@ using UnityEngine.AI;
 // Четвероногие SCP (939, 682): свой скелет, процедурная походка рысью/галопом, хвост, челюсть и физическое тело.
 public class QuadScp : ScpUnit
 {
+    float lureT;
+    static string Roar => Sfx.Clip("roar682") != null ? "roar682" : "roar";
     // кости
     Transform pelvis, chest, neck, head, jaw;
     readonly Transform[] legU = new Transform[4], legL = new Transform[4], foot = new Transform[4];
@@ -193,12 +195,18 @@ public class QuadScp : ScpUnit
             thinkT = Time.time + Random.Range(0.3f, 0.6f);
             target = Battle.NearestEnemyUnit(this, true);
             if (target != null) GoTo(target.transform.position);
-            if (Random.value < 0.04f) Sfx.Play(big ? "roar" : "growl", transform.position, big ? 1f : 0.6f, big ? 0.8f : Random.Range(0.9f, 1.3f), big ? 200f : 60f);
+            if (Random.value < 0.04f) Sfx.Play(big ? Roar : "growl", transform.position, big ? 1f : 0.6f, big ? 0.8f : Random.Range(0.9f, 1.3f), big ? 200f : 60f);
+            // SCP-939 подражает голосам своих жертв — зовёт бойцов чужими словами
+            if (!big && Time.time > lureT)
+            {
+                lureT = Time.time + Random.Range(9f, 20f);
+                if (target == null || Vector3.Distance(target.transform.position, transform.position) > 8f) Sfx.Play("lure939", transform.position, 0.9f, 1f, 45f);
+            }
         }
         if (big && Time.time > roarT && target != null)
         {
             roarT = Time.time + Random.Range(12f, 20f);
-            Sfx.Play("roar", transform.position, 1f, 0.75f, 260f);
+            Sfx.Play(Roar, transform.position, 1f, 0.9f, 260f);
             Fx.AddShake(transform.position, 0.6f);
             jawOpen = 1f;
         }
@@ -214,7 +222,7 @@ public class QuadScp : ScpUnit
                 chargeDir = target.transform.position - transform.position; chargeDir.y = 0; chargeDir.Normalize();
                 trampled.Clear();
                 if (AgentOk) agent.isStopped = true;
-                Sfx.Play("roar", transform.position, 1f, 0.9f, 260f);
+                Sfx.Play(Roar, transform.position, 1f, 1f, 260f);
             }
             if (chargeT >= 0)
             {
@@ -274,7 +282,8 @@ public class QuadScp : ScpUnit
         t.TakeDamage(new DamageInfo { amount = big ? 160f : 42f, type = DamageType.Melee, attacker = this, dir = dir + Vector3.up * 0.3f, force = big ? 1500f : 500f, point = t.AimPoint, weapon = displayName });
         Fx.Blood(t.AimPoint, dir, big ? 2.5f : 1.3f);
         Sfx.Play("flesh", t.AimPoint, 0.9f, big ? 0.6f : 0.9f, 40f);
-        Sfx.Play("growl", transform.position, 0.6f, big ? 0.6f : 1.2f, 40f);
+        if (big) Sfx.Play("growl", transform.position, 0.6f, 0.6f, 40f);
+        else Sfx.Play("attack939", transform.position, 0.9f, 1f, 45f);
     }
 
     IEnumerator Lunge(Unit t)

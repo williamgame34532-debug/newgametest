@@ -232,7 +232,7 @@ public static class DB
         Scps.Add(new ScpDef { kind = ScpKind.S049, id = "049", name = "SCP-049", nick = "«Чумной доктор»", count = 1, maxCount = 3, hp = 1900, desc = "Убивает касанием и «лечит» мёртвых — они встают как SCP-049-2 и идут за ним." });
         Scps.Add(new ScpDef { kind = ScpKind.S0492, id = "0492", name = "SCP-049-2", nick = "Зомби", count = 6, maxCount = 20, hp = 170, desc = "Оживлённые трупы. Медленные, упорные, рвут руками." });
         Scps.Add(new ScpDef { kind = ScpKind.S106, id = "106", name = "SCP-106", nick = "«Старик»", count = 1, maxCount = 2, hp = 2300, desc = "Проходит сквозь стены и землю, разъедает плоть, утаскивает жертв в своё измерение." });
-        Scps.Add(new ScpDef { kind = ScpKind.S939, id = "939", name = "SCP-939", nick = "«Многоголосый»", count = 4, maxCount = 10, hp = 480, desc = "Стая слепых хищников. Быстрые, прыгают на жертву, страшная пасть." });
+        Scps.Add(new ScpDef { kind = ScpKind.S939, id = "939", name = "SCP-939", nick = "«Многоголосый»", count = 4, maxCount = 10, hp = 480, desc = "Стая слепых хищников. Охотятся на слух и зовут жертв их же голосами. Быстрые, прыгают, страшная пасть." });
         Scps.Add(new ScpDef { kind = ScpKind.S682, id = "682", name = "SCP-682", nick = "«Неуязвимая рептилия»", count = 1, maxCount = 1, hp = 12000, desc = "Огромный регенерирующий ящер. Таранит строй, раскидывая тела. Ненавидит всё живое." });
         Scps.Add(new ScpDef { kind = ScpKind.S457, id = "457", name = "SCP-457", nick = "«Горящий человек»", count = 1, maxCount = 3, hp = 1600, desc = "Живое пламя. Жжёт всё вокруг, поджигает тела. Пули ему почти не вредят." });
     }

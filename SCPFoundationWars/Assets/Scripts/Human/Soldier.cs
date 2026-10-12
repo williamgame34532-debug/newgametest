@@ -553,7 +553,11 @@ public class Soldier : Unit
         }
         if (fleeing && best != null && best.isScp) best = null;   // бегущий не стреляет по объекту — уносит ноги
         if (best != target) { aimSettle = 0; burstLeft = 0; }
-        if (best != null && target == null && Time.time - sightT > 8f) Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!", "contact");
+        if (best != null && target == null && Time.time - sightT > 8f)
+        {
+            if (best is ScpUnit su && ScpCallout(su)) { }
+            else Callout("Контакт! " + Bearing(best.transform.position) + ", " + Mathf.RoundToInt(Vector3.Distance(transform.position, best.transform.position)) + " метров!", "contact");
+        }
         if (best != null) { lastTarget = best; lastSeenPos = best.AimPoint; }
         else if (target != null && lastTarget != null && lastTarget.alive && current != null && current.def.auto && Random.value < (current.def.kind == WeaponKind.LMG ? 0.9f : 0.45f))
         {
@@ -643,6 +647,27 @@ public class Soldier : Unit
     // доклады своего отряда — ещё и строкой в ленте. Не чаще раза в несколько секунд на бойца и на отряд.
     static readonly Dictionary<SquadDef, float> calloutT = new Dictionary<SquadDef, float>();
     float myCalloutT;
+    // Опознание объекта по протоколам Фонда (голоса МОГ — SCP:CB)
+    public static readonly HashSet<ScpKind> named = new HashSet<ScpKind>();
+    bool ScpCallout(ScpUnit su)
+    {
+        string text = null, voice = null;
+        bool mtf = team == Team.Foundation;
+        switch (su.kind)
+        {
+            case ScpKind.S173: text = mtf ? "Вижу SCP-173! Глаз не сводить — моргаем по очереди, по команде!" : "Статуя! Не отводи от неё глаз!"; voice = mtf ? "mtf173" : null; break;
+            case ScpKind.S096: text = mtf ? "SCP-096! Не смотреть на лицо! Глаза в пол!" : "Это Скромник — не смотри на него!"; voice = mtf ? "mtf096" : null; break;
+            case ScpKind.S106: text = mtf ? "SCP-106 вне камеры! Держать дистанцию, не давать коснуться!" : "Старик! Не подпускай его!"; voice = mtf ? "mtf106" : null; break;
+            case ScpKind.S049: text = mtf ? "SCP-049! Не давать ему касаться — касание смертельно!" : "Чумной доктор! Не подпускай!"; voice = mtf ? "mtf049" : null; break;
+            case ScpKind.S939: text = "939-е! Не верьте голосам — это не наши!"; break;
+            case ScpKind.S682: text = mtf ? "SCP-682! Его не убить — держим огнём и ждём средства сдерживания!" : "Ящер! Огонь по нему, не стоять на пути!"; break;
+            default: return false;
+        }
+        Callout(text, voice ?? "contact", !named.Contains(su.kind));
+        named.Add(su.kind);
+        return true;
+    }
+
     public void Callout(string text, string voice = null, bool force = false)
     {
         if (!alive || zombie || squad == null) return;
@@ -654,7 +679,8 @@ public class Soldier : Unit
         calloutT[squad] = Time.time + Random.Range(2.5f, 4.5f);
         myCalloutT = Time.time + Random.Range(6f, 10f);
         Color c = team == Team.Foundation ? new Color(0.65f, 0.82f, 1f) : team == Team.Chaos ? new Color(1f, 0.55f, 0.4f) : new Color(0.9f, 0.9f, 0.9f);
-        Speech.Say(transform, CallSign, text, -1f, c, voice != null ? "vo_" + voice + (team == Team.Chaos ? "_c" : "") : null);
+        string vk = voice == null ? null : voice.StartsWith("mtf") ? voice : "vo_" + voice + (team == Team.Chaos ? "_c" : "");
+        Speech.Say(transform, CallSign, text, -1f, c, vk);
         var pc = PlayerController.I;
         if (pc != null && !pc.dead && pc.squad == squad && Vector3.Distance(pc.transform.position, transform.position) < 60f)
             Battle.Message(CallSign + ": " + text, new Color(0.75f, 0.85f, 0.95f), 3f);

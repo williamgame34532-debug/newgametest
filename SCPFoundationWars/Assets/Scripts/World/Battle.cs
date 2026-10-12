@@ -83,7 +83,7 @@ public partial class Battle : MonoBehaviour
         foreach (var u in Unit.All.ToArray()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
         // убитые и захваченные уже не в списке живых — удаляем все объекты юнитов
         foreach (var u in Compat.FindAll<Unit>()) if (u != null && !u.isPlayer) Destroy(u.gameObject);
-        Sfx.StopAll(); Speech.Clear(); Cinematic.Reset(); FacilityLink.Prompt = null; Facility.RootT = null;
+        Sfx.StopAll(); Speech.Clear(); Soldier.named.Clear(); Cinematic.Reset(); FacilityLink.Prompt = null; Facility.RootT = null;
         foreach (var c in Ragdoll.Corpses.ToArray()) if (c != null) Destroy(c.gameObject);
         Ragdoll.Corpses.Clear();
         foreach (var o in Compat.FindAll<ScpContainer>()) Destroy(o.gameObject);
@@ -143,6 +143,14 @@ public partial class Battle : MonoBehaviour
         while (nav != null && !nav.isDone) { loadProgress = nav.progress; yield return null; }
         Facility.AfterBake();
         loadProgress = 1f;
+        // карта «только комплекс»: отряды входят через лифты зон, объекты — в своих камерах
+        bool fac = MapGen.FacilityMap;
+        if (fac)
+        {
+            for (int i = 0; i < nF; i++) lzF[i] = Facility.Entry(Team.Foundation, i);
+            for (int i = 0; i < nC; i++) lzC[i] = Facility.Entry(Team.Chaos, i);
+            for (int i = 0; i < nS; i++) lzS[i] = Facility.Chamber(cfg.scps[i].def.kind, i);
+        }
         // сетевая игра: все загрузили карту — начинаем одновременно
         if (Net.InGame)
         {
@@ -161,8 +169,11 @@ public partial class Battle : MonoBehaviour
         }
         loading = false;
         Ambience.Create(cfg.time == 2, cfg.map).transform.SetParent(transform);
+        if (!fac)
         for (int i = 0; i < lzF.Count; i++) lzF[i] = new Vector3(lzF[i].x, cfg.foundation[i].placed ? MapGen.Height(lzF[i].x, lzF[i].z) : GroundHeight(lzF[i]), lzF[i].z);
+        if (!fac)
         for (int i = 0; i < lzC.Count; i++) lzC[i] = new Vector3(lzC[i].x, cfg.chaos[i].placed ? MapGen.Height(lzC[i].x, lzC[i].z) : GroundHeight(lzC[i]), lzC[i].z);
+        if (!fac)
         for (int i = 0; i < lzS.Count; i++) lzS[i] = new Vector3(lzS[i].x, cfg.scps[i].placed ? MapGen.Height(lzS[i].x, lzS[i].z) : GroundHeight(lzS[i]), lzS[i].z);
 
         bool night = cfg.time == 2;
@@ -171,11 +182,11 @@ public partial class Battle : MonoBehaviour
         float introDur = 0f;
         bool hasPlayerSquad = cfg.playerFps && cfg.foundation.Count > 0 && !cfg.foundation[Mathf.Clamp(cfg.playerSquad, 0, cfg.foundation.Count - 1)].placed;
         if (cfg.humans != null) hasPlayerSquad = HumansIn(cfg, Team.Foundation, Mathf.Clamp(cfg.playerSquad, 0, Mathf.Max(0, cfg.foundation.Count - 1))).Count > 0;
-        if (hasPlayerSquad && (cfg.humans != null ? cfg.introOn : Game.Intro)) { introLines = Script(cfg); introDur = IntroLength(introLines); }
+        if (hasPlayerSquad && !fac && (cfg.humans != null ? cfg.introOn : Game.Intro)) { introLines = Script(cfg); introDur = IntroLength(introLines); }
         playerHeli = null; SquadRt playerSq = null;
         // передовая база в южной долине: борта Фонда стоят на площадках
         fob = null;
-        foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); break; }
+        if (!fac) foreach (var f in cfg.foundation) if (!f.placed || cfg.playerFps) { fob = MapGen.BuildFob(MapGen.FobCenter(), cfg.map); break; }
         int padN = cfg.playerFps && cfg.foundation.Count > 0 ? 1 : 0;   // площадка 0 — борт игрока
 
         // ФОНД
@@ -185,7 +196,8 @@ public partial class Battle : MonoBehaviour
             var humans = HumansIn(cfg, Team.Foundation, i);
             bool playerHere = humans.Count > 0;
             var lz = lzF[i];
-            if (pick.placed && !playerHere) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
+            if (pick.placed && !playerHere && !fac) { PlaceSquad(pick, Team.Foundation, lz, Vector3.back, night); continue; }
+            if (fac) { var fsq = EnterOnFoot(pick, Team.Foundation, lz, Vector3.back, night, humans); if (fsq != null) playerSq = fsq; continue; }
             var heli = Helicopter.Create(Team.Foundation, pick.def.label, new Color(0.12f, 0.13f, 0.15f), pick.def.look.accent, Mathf.Max(pick.count, 2), false);
             var sq = new SquadRt { def = pick.def, team = Team.Foundation, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 4f + i * 4f + pick.delay };
             squads.Add(sq);
@@ -221,7 +233,8 @@ public partial class Battle : MonoBehaviour
             var pick = cfg.chaos[i];
             var lz = lzC[i];
             var humansC = HumansIn(cfg, Team.Chaos, i);
-            if (pick.placed && humansC.Count == 0) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
+            if (pick.placed && humansC.Count == 0 && !fac) { PlaceSquad(pick, Team.Chaos, lz, Vector3.forward, night); continue; }
+            if (fac) { var csq = EnterOnFoot(pick, Team.Chaos, lz, Vector3.forward, night, humansC); if (csq != null) playerSqRt = csq; continue; }
             bool rope = pick.def.fastRope;
             var heli = Helicopter.Create(Team.Chaos, pick.def.label, new Color(0.24f, 0.26f, 0.17f), pick.def.look.accent, Mathf.Max(pick.count, 2), rope);
             var sq = new SquadRt { def = pick.def, team = Team.Chaos, lz = lz, reinforce = pick.delay > 30f, arriveAt = Time.time + introDur + 6f + i * 4f + pick.delay };
@@ -248,7 +261,7 @@ public partial class Battle : MonoBehaviour
             var pick = cfg.scps[i];
             var lz = lzS[i];
             if (pick.def.kind == ScpKind.S173) has173 = true;
-            if (pick.placed)
+            if (pick.placed || fac)
             {
                 // объект уже на свободе — без контейнера
                 for (int k = 0; k < pick.count; k++)
@@ -290,12 +303,19 @@ public partial class Battle : MonoBehaviour
         if (playerSq != null || playerSqRt == null) playerSqRt = playerSq;
         netSetupDone = true;
         GiveLoreItem(cfg, playerSq);
-        if (!cfg.playerFps) SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0));
+        if (!cfg.playerFps) { if (fac) SpectatorCam.Activate(Facility.Entry(Team.Foundation, 0) + new Vector3(0, 2.2f, 0), Quaternion.Euler(10, 180, 0)); else SpectatorCam.Activate(new Vector3(0, 60, -260), Quaternion.Euler(20, 0, 0)); }
         if (cfg.op != null) Message(cfg.op.code + " — " + cfg.op.place, new Color(1f, 0.85f, 0.4f));
         if (introLines != null && playerHeli != null && PlayerController.I != null && PlayerController.I.unit.team == Team.Foundation)
         {
             playerHeli.playerPassenger = null;
             StartCoroutine(IntroRoutine(playerHeli, playerSq, PlayerController.I, introLines));
+        }
+        else if (fac)
+        {
+            Message("ЗОНА-19 · НАРУШЕНИЕ УСЛОВИЙ СОДЕРЖАНИЯ", new Color(1f, 0.3f, 0.25f), 7f);
+            Message("МОГ Эпсилон-11 «Девятихвостая лиса» входит через Ворота A", new Color(0.65f, 0.82f, 1f), 7f);
+            Sfx.Play2D("breach_alarm", 0.5f);
+            Sfx.Play2D("mtf_announce", 0.75f);
         }
         else
         {
@@ -329,6 +349,48 @@ public partial class Battle : MonoBehaviour
             s.homeDir = face;
             s.BeginCombat(p);
         }
+    }
+
+    // Карта «комплекс»: отряд выходит из лифта пешком (вместе с живыми игроками). Возвращает отряд, если в нём свой игрок.
+    SquadRt EnterOnFoot(SquadPick pick, Team team, Vector3 lz, Vector3 face, bool night, List<NetHuman> humans)
+    {
+        var sq = new SquadRt { def = pick.def, team = team, lz = lz, garrison = false, orderPos = lz, orderSet = false, hold = false, orderText = "Вход в комплекс" };
+        squads.Add(sq);
+        int total = Mathf.Max(pick.count, humans.Count);
+        bool mine = false;
+        float yaw = Quaternion.LookRotation(face).eulerAngles.y;
+        for (int k = 0; k < total; k++)
+        {
+            Vector3 p = lz + new Vector3((k % 3 - 1) * 1.4f, 0, (k / 3) * 1.4f * -Mathf.Sign(face.z == 0 ? 1f : face.z));
+            p.y = Facility.BaseY + 0.5f;
+            if (UnityEngine.AI.NavMesh.SamplePosition(p, out var nh, 2.5f, UnityEngine.AI.NavMesh.AllAreas)) p = nh.position;
+            else if (UnityEngine.AI.NavMesh.SamplePosition(lz, out var nh2, 6f, UnityEngine.AI.NavMesh.AllAreas)) p = nh2.position + new Vector3(Random.Range(-0.5f, 0.5f), 0, Random.Range(-0.5f, 0.5f));
+            if (k < humans.Count)
+            {
+                var h = humans[k];
+                if (Cfg.humans == null || h.peer == Net.MyPeer)
+                {
+                    var pc = PlayerController.Create(pick.def);
+                    Net.Assign(pc.unit);
+                    pc.SpawnAt(p + Vector3.up * 0.05f, yaw);
+                    mine = true;
+                }
+                else
+                {
+                    var rs = Soldier.Create(pick.def, p, Quaternion.Euler(0, yaw, 0), k, night);
+                    rs.remoteHuman = true; rs.netPeer = h.peer; rs.nick = h.nick; rs.displayName = h.nick;
+                    Net.Assign(rs);
+                    rs.squadRt = sq; sq.members.Add(rs);
+                }
+                continue;
+            }
+            var s = Soldier.Create(pick.def, p, Quaternion.Euler(0, yaw, 0), k, night);
+            Net.Assign(s);
+            s.squadRt = sq; sq.members.Add(s);
+            s.homeDir = face;
+            s.BeginCombat(p);
+        }
+        return mine ? sq : null;
     }
 
     // ---------------- события ----------------
@@ -415,7 +477,8 @@ public partial class Battle : MonoBehaviour
     // ---------------- запросы ----------------
     public static float GroundHeight(Vector3 p)
     {
-        if (Physics.Raycast(new Vector3(p.x, 300f, p.z), Vector3.down, out var hit, 600f, 1 << Layers.World, QueryTriggerInteraction.Ignore))
+        float top = MapGen.FacilityMap ? Facility.BaseY + 3f : 300f;   // в комплексе — из-под потолка
+        if (Physics.Raycast(new Vector3(p.x, top, p.z), Vector3.down, out var hit, 600f, 1 << Layers.World, QueryTriggerInteraction.Ignore))
             return hit.point.y;
         return MapGen.Height(p.x, p.z);
     }

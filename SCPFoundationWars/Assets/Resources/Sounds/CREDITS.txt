@@ -33,10 +33,13 @@ webdevcody/survive-the-night-fps (client/audio/samples, CREDITS.md) и jaher/sha
 К записям выстрелов добавлено небольшое уличное эхо (синтезированный отклик холмов).
 Голос SCP-096 (cry, scream), гильзы (casing) и выстрел с глушителем (suppressed) — синтезированы для игры.
 
-cry096_*.ogg, scream096_1.ogg, kill096_1.ogg — звуки SCP-096, присланные автором проекта (файлы 096_4.mp3,
-kill-sound-scp-096.mp3, scpsl-096-crying.mp3, scpsl-096-trying-not-cry.mp3). Судя по названиям, часть взята из
-SCP: Secret Laboratory (Northwood Studios) — права на них принадлежат правообладателю; перед публичным
-распространением игры их нужно заменить на свободные записи.
+Звуки из SCP - Containment Breach (Regalis11 и участники проекта, github.com/Regalis11/scpcb), лицензия
+CC BY-SA 3.0 (creativecommons.org/licenses/by-sa/3.0). Файлы переименованы, содержимое не менялось:
+  amblcz_*, ambhcz_*, ambez_* — SFX/Ambient/Zone1..3;  facdoor_*, bigdoor_*, lift_* — SFX/Door;  breach_alarm_1 — SFX/Alarm;
+  cry096_1 — SFX/Music/096.ogg;  scream096_1, trigger096_1 — SFX/SCP/096;  snap173_*, rattle173_*, drag173_1 — SFX/SCP/173;
+  laugh106_1, breath106_1, decay106_* — SFX/SCP/106;  roar682_1 — SFX/SCP/682;  lure939_*, alert939_*, attack939_* — SFX/SCP/939;
+  spot049_*, search049_* — SFX/SCP/049;  mtf_announce_1, mtf173_*, mtf096_*, mtf106_*, mtf049_* — SFX/Character/MTF.
+Прежние звуки SCP-096 сомнительного происхождения удалены.
 
 vo_*.ogg — Kenney "Voiceover Pack" 1.0 (www.kenney.nl), голоса: Jeffrey M. Smith, Giselle. Лицензия CC0 1.0.
 Изменения: полосовой фильтр и компрессия (звучание «в бою»), для Хаоса — понижение тона. Зеркало: github.com/series-ai/jam-ready-assets.
