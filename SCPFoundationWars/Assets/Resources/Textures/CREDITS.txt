@@ -6,3 +6,8 @@ metal_plate, corrugated_iron_02 (Poly Haven, авторы — Rob Tuytel, Dimitr
 Файлы взяты из открытых репозиториев GitHub, где эти CC0-сканы лежат в составе проектов:
 kandaman/dpskofduty, shadow-kernel/Vortex-Engine-Horror-Template, mikatomik/Godot-4-Overgrown-Subway-Demo,
 RobertBeckebans/RBDOOM-3-BFG_mod_unittests, JR-Bam/Perlin-Simplex-Biome-Gen-Pipeline, Libre-TrainSim/Libre-TrainSim.
+
+Обновление v8 — наборы Poly Haven (CC0) с картами нормалей (1024×1024), из репозитория GameMog/GameMog (MIT, исходники CC0):
+photo_grass(_n) — leafy_grass; photo_forest(_n) — forrest_ground_01; photo_rock(_n) — rock_face_03; photo_snow(_n) — snow_02;
+photo_sand(_n) — sand_01; photo_bark(_n) — bark_brown_02. foliage_fir(_snow).png — хвойные карточки (fir needle cards, CC0) того же
+репозитория, вырезана одна ветка; foliage_leaf.png — нарисована для игры.

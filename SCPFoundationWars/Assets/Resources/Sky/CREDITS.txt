@@ -1,0 +1,7 @@
+Небесные панорамы — Poly Haven (polyhaven.com), лицензия CC0 (общественное достояние):
+  sky_day      — kloofendal_48d_partly_cloudy_puresky (Greg Zaal, Jarod Guest)
+  sky_overcast — kloofendal_overcast_puresky (Greg Zaal, Jarod Guest)
+  sky_sunset   — qwantani_sunset_puresky (Greg Zaal, Jarod Guest)
+  sky_night    — qwantani_night_puresky (Greg Zaal, Jarod Guest)
+  sky_clear    — rustig_koppie_puresky (Greg Zaal, Jarod Guest)
+Размер 2048×1024, формат Radiance HDR. sky.txt — положение солнца и экспозиция, вычислены из снимков.

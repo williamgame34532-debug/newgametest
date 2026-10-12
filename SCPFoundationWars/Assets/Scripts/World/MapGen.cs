@@ -150,6 +150,7 @@ public static partial class MapGen
         m.vertices = verts; m.uv = uvs; m.triangles = tris;
         m.RecalculateNormals();
         m.RecalculateBounds();
+        WorldTangents(m);
         PaintGround(m);
         var go = new GameObject("Ground");
         go.transform.SetParent(Root.transform);
@@ -162,6 +163,20 @@ public static partial class MapGen
     }
 
     public static float GroundAt(float x, float z) => Height(x, z);
+
+    // Касательные вдоль мировой оси X (uv рельефа = мировые XZ) — для карт нормалей
+    static void WorldTangents(Mesh m)
+    {
+        var n = m.normals; var t = new Vector4[n.Length];
+        for (int i = 0; i < n.Length; i++)
+        {
+            Vector3 x = Vector3.right - n[i] * n[i].x;
+            if (x.sqrMagnitude < 1e-4f) x = Vector3.forward;
+            x.Normalize();
+            t[i] = new Vector4(x.x, x.y, x.z, -1f);
+        }
+        m.tangents = t;
+    }
 
     // ---------------- примитивы с коллайдерами ----------------
     static GameObject Solid(Vector3 pos, Vector3 size, Material mat, Quaternion rot, Color surf, bool metal = false, Transform parent = null)
@@ -687,6 +702,17 @@ public static partial class MapGen
             sky.SetFloat("_SunSize", 0.04f);
             sky.SetColor("_GroundColor", fog * 0.8f);
         }
+        // фотопанорама неба (Poly Haven): солнце и дымка горизонта — по снимку
+        var pano = PanoSky(map, time, out Vector3 panoSun, out Color panoHor, out Color panoZen);
+        if (pano != null)
+        {
+            sky = pano;
+            sunGo.transform.rotation = Quaternion.LookRotation(-panoSun);
+            sunDir = panoSun;
+            fog = Color.Lerp(fog, panoHor, 0.75f);
+            amb1 = Color.Lerp(amb1, panoZen * 0.75f, 0.45f);
+            amb2 = Color.Lerp(amb2, panoHor * 0.55f, 0.45f);
+        }
         RenderSettings.skybox = sky;
         RenderSettings.ambientMode = AmbientMode.Trilight;
         RenderSettings.ambientSkyColor = amb1;
@@ -706,6 +732,42 @@ public static partial class MapGen
         QualitySettings.lodBias = 2f;
         QualitySettings.pixelLightCount = time == 2 ? 10 : 4;
         DynamicGI.UpdateEnvironment();
+    }
+
+    static Material PanoSky(int map, int time, out Vector3 sunTo, out Color hor, out Color zen)
+    {
+        sunTo = Vector3.up; hor = Color.gray; zen = Color.gray;
+        var sh = Shader.Find("SCP/SkyPano");
+        var meta = Resources.Load<TextAsset>("Sky/sky");
+        if (sh == null || meta == null) return null;
+        string want = time == 1 ? "sunset" : time == 2 ? "night" : map == 2 ? "clear" : map == 3 ? "overcast" : map == 1 && R() < 0.5f ? "overcast" : "day";
+        foreach (var raw in meta.text.Split('\n'))
+        {
+            var f = raw.Trim().Split('|');
+            if (f.Length < 6 || f[0] != want) continue;
+            var tex = Resources.Load<Texture2D>("Sky/sky_" + want);
+            if (tex == null) return null;
+            var ci = System.Globalization.CultureInfo.InvariantCulture;
+            float u = float.Parse(f[1], ci), el = float.Parse(f[2], ci) * Mathf.Deg2Rad, exp = float.Parse(f[3], ci);
+            Color C(string t) { var v = t.Split(','); return new Color(float.Parse(v[0], ci), float.Parse(v[1], ci), float.Parse(v[2], ci)); }
+            hor = C(f[4]); zen = C(f[5]);
+            float rot = R(0f, 360f);
+            float phi = (u - 0.5f) * Mathf.PI * 2f;
+            Vector3 p = new Vector3(Mathf.Sin(phi) * Mathf.Cos(el), Mathf.Sin(el), Mathf.Cos(phi) * Mathf.Cos(el));
+            float a = rot * Mathf.Deg2Rad, c = Mathf.Cos(a), s = Mathf.Sin(a);
+            // шейдер поворачивает направление взгляда на rot — солнце в мире стоит на обратном повороте
+            sunTo = new Vector3(p.x * c + p.z * s, p.y, -p.x * s + p.z * c).normalized;
+            if (time == 2) sunTo = new Vector3(sunTo.x, Mathf.Max(sunTo.y, 0.5f), sunTo.z).normalized;   // луна
+            var m = new Material(sh);
+            m.SetTexture("_Pano", tex);
+            m.SetFloat("_Exposure", exp);
+            m.SetFloat("_Rotation", rot);
+            m.SetColor("_Haze", hor);
+            m.SetFloat("_HazeAmt", map == 3 ? 0.45f : 0.25f);
+            m.SetFloat("_Horizon", 0.5f);
+            return m;
+        }
+        return null;
     }
 
     static void Sky(Material m, Color zenith, Color horizon, Color haze, Color sun, Color cloudLit, Color cloudShadow, float cover, float stars)

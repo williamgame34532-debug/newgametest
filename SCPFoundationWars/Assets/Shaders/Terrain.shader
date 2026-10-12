@@ -8,6 +8,11 @@ Shader "SCP/Terrain"
         _L1 ("Layer G (dirt)", 2D) = "white" {}
         _L2 ("Layer B (rock)", 2D) = "white" {}
         _L3 ("Layer A (snow)", 2D) = "white" {}
+        _N0 ("Normal R", 2D) = "bump" {}
+        _N1 ("Normal G", 2D) = "bump" {}
+        _N2 ("Normal B", 2D) = "bump" {}
+        _N3 ("Normal A", 2D) = "bump" {}
+        _NStr ("Normal strength", Float) = 1
         _Scale ("Tiling", Float) = 0.18
         _Gloss ("Layer gloss", Vector) = (0.05, 0.08, 0.15, 0.35)
     }
@@ -18,8 +23,8 @@ Shader "SCP/Terrain"
         CGPROGRAM
         #pragma surface surf Standard fullforwardshadows vertex:vert
         #pragma target 3.0
-        sampler2D _L0, _L1, _L2, _L3;
-        float _Scale; float4 _Gloss;
+        sampler2D _L0, _L1, _L2, _L3, _N0, _N1, _N2, _N3;
+        float _Scale, _NStr; float4 _Gloss;
         struct Input { float3 worldPos; float4 vcol; };
         void vert (inout appdata_full v, out Input o)
         {
@@ -40,6 +45,11 @@ Shader "SCP/Terrain"
             float macro = tex2D(_L1, IN.worldPos.xz * 0.0031).r;
             c *= lerp(0.82, 1.12, saturate(macro * 1.6));
             o.Albedo = c;
+            // рельеф поверхности по картам нормалей слоёв (касательные меша идут вдоль мировых X/Z, как и uv)
+            float3 nrm = UnpackNormal(tex2D(_N0, uv)) * hw.x + UnpackNormal(tex2D(_N1, uv * 1.3)) * hw.y
+                       + UnpackNormal(tex2D(_N2, uv * 0.6)) * hw.z + UnpackNormal(tex2D(_N3, uv * 0.9)) * hw.w;
+            nrm.xy *= _NStr;
+            o.Normal = normalize(nrm);
             o.Smoothness = dot(hw, _Gloss);
             o.Metallic = 0;
         }

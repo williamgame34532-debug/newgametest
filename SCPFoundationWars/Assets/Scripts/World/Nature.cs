@@ -117,11 +117,15 @@ public static partial class MapGen
         string[] slots = { "_L0", "_L1", "_L2", "_L3" };
         for (int i = 0; i < 4; i++)
         {
-            var t = LayerTex(i == 3 && last >= 0 ? last : kinds[i], seed + i * 7);
+            int kind = i == 3 && last >= 0 ? last : kinds[i];
+            var t = LayerTex(kind, seed + i * 7);
             t.anisoLevel = 4;
             m.SetTexture(slots[i], t);
+            var nt = kind >= 0 && kind < LayerPhoto.Length ? Mats.Photo(LayerPhoto[kind] + "_n") : null;
+            if (nt != null) m.SetTexture("_N" + i, nt);
         }
         m.SetFloat("_Scale", Mats.Photo("grass") != null ? 0.3f : 0.17f);   // фото-скан ~3 м на тайл
+        m.SetFloat("_NStr", 1.2f);
         m.SetVector("_Gloss", map == 3 ? new Vector4(0.45f, 0.1f, 0.15f, 0.5f) : new Vector4(0.04f, 0.08f, 0.15f, 0.12f));
         return m;
     }
@@ -323,7 +327,9 @@ public static partial class MapGen
     {
         firCard = FoliageMat(snow ? "foliage_fir_snow" : "foliage_fir", snow ? new Color(0.9f, 0.95f, 0.95f) : new Color(0.85f, 0.95f, 0.85f));
         leafCard = FoliageMat("foliage_leaf", new Color(0.95f, 1f, 0.9f));
-        barkM = Mats.Get(new Color(0.24f, 0.17f, 0.11f), 0.05f);
+        if (firCard != null && !snow) firCard.SetColor("_Color", new Color(0.62f, 0.72f, 0.6f));
+        var barkTex = Mats.Photo("bark");
+        barkM = barkTex != null ? Mats.Tri(barkTex, new Color(0.85f, 0.8f, 0.75f), 1.2f, 0.05f, 0.1f) : Mats.Get(new Color(0.24f, 0.17f, 0.11f), 0.05f);
         barkBirch = Mats.Get(new Color(0.82f, 0.8f, 0.74f), 0.1f);
         for (int i = 0; i < 4; i++)
         {
@@ -363,7 +369,7 @@ public static partial class MapGen
         Quaternion lean = Quaternion.Euler(R(-2.5f, 2.5f), R(0, 360), R(-2.5f, 2.5f));
         MeshKit.Part(ch, MeshKit.Frustum(0.2f, 7), barkM, p + lean * new Vector3(0, h * 0.45f, 0), new Vector3(0.38f * scale, h * 0.9f, 0.38f * scale), lean.eulerAngles);
         int tiers = near ? Mathf.RoundToInt(R(10, 12)) : 6;
-        int per = near ? 6 : 4;
+        int per = near ? 8 : 5;
         float baseY = h * R(0.12f, 0.22f);
         for (int i = 0; i < tiers; i++)
         {
@@ -377,15 +383,15 @@ public static partial class MapGen
                 float droop = Mathf.Lerp(22f, 4f, k) + R(-6, 6);
                 var rot = lean * Quaternion.Euler(0, yaw, 0) * Quaternion.Euler(droop, 0, 0);
                 Vector3 at = p + lean * new Vector3(0, y + R(-0.15f, 0.15f), 0);
-                float w = len * 0.95f;
+                float w = len * 0.6f;
                 MeshKit.Part(ch, card, firCard, at, new Vector3(w, len, len), rot.eulerAngles);
-                if (near) MeshKit.Part(ch, card, firCard, at, new Vector3(w * 0.8f, len, len * 0.92f), (rot * Quaternion.Euler(0, 0, 90)).eulerAngles);
+                if (near) MeshKit.Part(ch, card, firCard, at, new Vector3(w * 0.9f, len, len * 0.92f), (rot * Quaternion.Euler(0, 0, 90)).eulerAngles);
             }
         }
         // верхушка — две скрещённые вертикальные карточки
         Vector3 top = p + lean * new Vector3(0, h * 0.8f, 0);
         for (int c = 0; c < 2; c++)
-            MeshKit.Part(ch, card, firCard, top, new Vector3(1.5f * scale, 1f, 2.6f * scale), (lean * Quaternion.Euler(-90f, c * 90f, 0)).eulerAngles);
+            MeshKit.Part(ch, card, firCard, top, new Vector3(1.1f * scale, 1f, 2.8f * scale), (lean * Quaternion.Euler(-90f, c * 90f, 0)).eulerAngles);
         if (near) TreeCollider(p, h, 0.3f * scale);
     }
 
@@ -601,6 +607,7 @@ public static partial class MapGen
         var m = new Mesh { name = "outer", indexFormat = IndexFormat.UInt32 };
         m.SetVertices(v); m.SetTriangles(t, 0);
         m.RecalculateNormals(); m.RecalculateBounds();
+        WorldTangents(m);
         // склоны — камень, вершины — снег (кроме пустыни)
         {
             var nv = m.normals; var cols = new Color[v.Count];
