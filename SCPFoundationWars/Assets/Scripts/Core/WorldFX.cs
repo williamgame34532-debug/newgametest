@@ -157,6 +157,10 @@ public class WorldFX : MonoBehaviour
         Color scat = under || night ? Color.black : MapGen.SunColor * (MapGen.Dusk ? 1.3f : 0.8f);
         mat.SetVector("_SunScat", new Vector4(scat.r, scat.g, scat.b, 1));
 
+        // ---- тени облаков (днём, на поверхности; сила — по облачности неба) ----
+        float cover = MapGen.CloudCover;
+        mat.SetVector("_Clouds", new Vector4(cover, under || night || MapGen.SunDir.y < 0.05f ? 0f : Mathf.Lerp(0.25f, 0.45f, cover), Time.time, 700f));
+
         // ---- размытие движения (только поворот/движение камеры) ----
         var vp = cam.projectionMatrix * cam.worldToCameraMatrix;
         float mbk = MotionBlur && hasPrev && Time.timeScale > 0.01f ? (PostFX.Bodycam ? 0.65f : 0.45f) : 0f;

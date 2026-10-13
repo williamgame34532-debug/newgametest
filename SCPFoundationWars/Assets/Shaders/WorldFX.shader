@@ -22,7 +22,25 @@ Shader "SCP/WorldFX"
     float4x4 _PrevVP;
     float4 _Motion;                        // x — сила размытия движения, y — предел длины (uv)
     float4 _DofP;
-    float4 _LampP[4], _LampC[4];           // ближайшие лампы: позиция + радиус, цвет * сила
+    float4 _LampP[4], _LampC[4];
+    float4 _Clouds;                        // x — покрытие, y — сила тени, z — время, w — высота облаков
+    float CHash (float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
+    float VNoise (float2 p)
+    {
+        float2 i = floor(p), f = frac(p);
+        float2 u = f * f * (3 - 2 * f);
+        float a = CHash(i), b = CHash(i + float2(1, 0)), c = CHash(i + float2(0, 1)), d = CHash(i + float2(1, 1));
+        return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+    }
+    // тень облаков: точка проецируется вдоль солнечного луча на слой облаков
+    float CloudShadow (float3 wp)
+    {
+        float t = (_Clouds.w - wp.y) / max(_SunDirW.y, 0.15);
+        float2 q = (wp.xz + _SunDirW.xz * t) * 0.0021 + float2(_Clouds.z * 0.006, _Clouds.z * 0.0025);
+        float n = VNoise(q) * 0.55 + VNoise(q * 2.3 + 7.1) * 0.3 + VNoise(q * 5.1 + 3.7) * 0.15;
+        float cov = smoothstep(1 - _Clouds.x, 1 - _Clouds.x + 0.22, n);
+        return 1 - cov * _Clouds.y;
+    }           // ближайшие лампы: позиция + радиус, цвет * сила
     // свечение воздуха вокруг лампы вдоль луча (аналитический интеграл 1/r² по отрезку)
     float3 LampGlow (float3 dir, float len)
     {
@@ -226,6 +244,8 @@ Shader "SCP/WorldFX"
         float ao = tex2D(_AO, uv).r;
         float ak = _Params.y;
         c *= lerp(1, ao, ak);
+        // бегущие тени облаков по земле и постройкам
+        if (!isSky && _Clouds.y > 0) c *= CloudShadow(_CamPos.xyz + ray * eye);
         // воздушная перспектива: дальнее голубеет и тонет в дымке, против солнца дымка светится
         if (!isSky && _Fog.x > 0) c = Atmosphere(c, ray, eye * length(ray));
         c += tex2D(_Shafts, uv).rgb * _SunCol.rgb * _SunPos.z;

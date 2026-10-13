@@ -133,6 +133,7 @@ public static partial class MapGen
 
     static void BigTent(Vector3 p, float yaw, Color c, Transform root)
     {
+        if (PropKit.Has("tent_cmd")) { PropKit.Place("tent_cmd", OnGround(p.x, p.z) + Vector3.down * 0.05f, yaw + 90f, root, 0.85f, 2, false, "tent"); return; }
         var go = new GameObject("tent"); go.transform.SetParent(root); go.transform.position = OnGround(p.x, p.z); go.transform.rotation = Quaternion.Euler(0, yaw, 0);
         var m = Mats.Get(c, 0.05f);
         // полуцилиндрический каркасный шатёр
@@ -172,6 +173,15 @@ public static partial class MapGen
 
     static void Generator(Vector3 p, Transform root)
     {
+        if (PropKit.Has("generator"))
+        {
+            var g = OnGround(p.x, p.z);
+            var gg = PropKit.Place("generator", g, R(0, 360), root, 1.2f, 1, true, "generator");
+            for (int k = 0; k < 4; k++) PropKit.Place("jerrycan", OnGround(p.x + 0.9f + k * 0.22f, p.z + R(-0.3f, 0.3f)), R(-20, 20), root, 1f, 1, true);
+            PropKit.Place(R() < 0.5f ? "barrel_01" : "barrel_02", OnGround(p.x - 1.0f, p.z + 0.4f), R(0, 360), root, 1f, 1, true);
+            if (gg != null) Sfx.Loop("wind", gg.transform, 0.1f, 15f, 0.42f);   // тарахтит
+            return;
+        }
         var go = new GameObject("generator"); go.transform.SetParent(root); go.transform.position = OnGround(p.x, p.z);
         var m = Mats.Get(new Color(0.3f, 0.34f, 0.26f), 0.3f, 0.2f);
         MeshKit.Box(go.transform, new Vector3(0, 0.9f, 0), new Vector3(1.6f, 1.6f, 3.2f), m);

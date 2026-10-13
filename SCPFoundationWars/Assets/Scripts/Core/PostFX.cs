@@ -9,7 +9,8 @@ public class PostFX : MonoBehaviour
     public static bool Visor = true;     // вид из шлема: стекло маски, запотевание, HUD на визоре
     // режим вида: 0 — маска шлема, 1 — нательная камера, 2 — обычный
     public static int ViewMode { get => Bodycam ? 1 : Visor ? 0 : 2; set { Bodycam = value == 1; Visor = value == 0; } }
-    static Texture2D visorTex;   // стиль нательной камеры: широкий угол, автоэкспозиция, цифровой шум
+    static Texture2D visorTex;
+    float flareVis;   // стиль нательной камеры: широкий угол, автоэкспозиция, цифровой шум
     static RenderTexture lumA, lumB;
     static Material mat;
     static PostFX current;
@@ -69,6 +70,23 @@ public class PostFX : MonoBehaviour
         var tmp = lumA; lumA = lumB; lumB = tmp;
         mat.SetTexture("_Lum", lumA);
         RenderTexture.ReleaseTemporary(s16); RenderTexture.ReleaseTemporary(s4); RenderTexture.ReleaseTemporary(s1);
+        // блик солнца: солнце перед камерой и ничем не закрыто
+        var mc = Game.Cam;
+        float sunVis = 0f; Vector3 sv = Vector3.zero;
+        if (mc != null && !MapGen.Night && MapGen.Root != null && !MapGen.FacilityMap && !Facility.Underground(mc.transform.position))
+        {
+            Vector3 sd = MapGen.SunDir;
+            sv = mc.WorldToViewportPoint(mc.transform.position + sd * 1000f);
+            if (sv.z > 0 && sv.x > -0.2f && sv.x < 1.2f && sv.y > -0.2f && sv.y < 1.2f && sd.y > 0.02f)
+            {
+                bool blocked = Physics.Raycast(mc.transform.position, sd, 1500f, ~(1 << Layers.ViewModel), QueryTriggerInteraction.Ignore);
+                sunVis = blocked ? 0f : Mathf.Clamp01(1.2f - Mathf.Max(Mathf.Abs(sv.x - 0.5f), Mathf.Abs(sv.y - 0.5f)) * 1.4f);
+            }
+        }
+        flareVis = Mathf.MoveTowards(flareVis, sunVis, Time.unscaledDeltaTime * 4f);
+        mat.SetVector("_SunScreen", new Vector4(sv.x, sv.y, flareVis * (MapGen.Dusk ? 1.4f : 1f), 0));
+        Color ft = MapGen.SunColor; ft = new Color(Mathf.Min(1.5f, ft.r), Mathf.Min(1.5f, ft.g), Mathf.Min(1.5f, ft.b));
+        mat.SetColor("_FlareTint", ft);
         // стекло маски
         if (visorTex == null) visorTex = Resources.Load<Texture2D>("Textures/visor_dirt");
         bool vis = Visor && visorTex != null && pc != null && !pc.dead && !Cinematic.Active;

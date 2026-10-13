@@ -14,7 +14,8 @@ public static partial class MapGen
     public static GameObject Root;
     public static bool SkipFacility;   // сцена главного меню — без подземного комплекса
     public static bool Night;
-    public static bool Raining;   // дождь: мокрые поверхности, лужи, струи
+    public static bool Raining;
+    public static float CloudCover = 0.45f;   // для бегущих теней облаков   // дождь: мокрые поверхности, лужи, струи
     static NavMeshDataInstance navInstance;
     static System.Random rng;
     static readonly List<Vector3> keepOut = new List<Vector3>();
@@ -868,6 +869,7 @@ public static partial class MapGen
         if (sh == null || meta == null) return null;
         string want = time == 1 ? "sunset" : time == 2 ? "night" : map == 2 ? "clear" : map == 3 ? "overcast" : (map == 1 || map == 0) && R() < 0.45f ? "overcast" : "day";
         Raining = (want == "overcast" && map != 3 && R() < 0.7f) || (want == "night" && map == 1 && R() < 0.4f);
+        CloudCover = want == "overcast" ? 0.8f : want == "clear" ? 0.12f : want == "sunset" ? 0.3f : 0.48f;
         foreach (var raw in meta.text.Split('\n'))
         {
             var f = raw.Trim().Split('|');

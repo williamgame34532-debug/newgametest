@@ -97,6 +97,16 @@ public static class ModelLib
         tex.Apply(true, true);
         tex.anisoLevel = 4;
         m = Mats.Textured(tex, Color.white, Vector2.one, 0.28f);
+        // рельеф костюма (швы, накладки) и мелкое плетение ткани — вблизи форма выглядит тканью, а не пластиком
+        Mats.AddNormal(m, Mats.BytesTex("vanguard_tex_n", true), 1f);
+        var weave = Resources.Load<Texture2D>("Textures/fabric_detail_n");
+        if (weave != null)
+        {
+            m.SetTexture("_DetailNormalMap", weave);
+            m.SetFloat("_DetailNormalMapScale", 0.6f);
+            m.SetTextureScale("_DetailAlbedoMap", new Vector2(28f, 28f));
+            m.EnableKeyword("_DETAIL_MULX2");
+        }
         vgMats[key] = m;
         return m;
     }

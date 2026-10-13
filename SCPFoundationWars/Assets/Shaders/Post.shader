@@ -7,6 +7,7 @@ Shader "SCP/Post"
     #include "UnityCG.cginc"
     sampler2D _MainTex, _Bloom, _Lum, _LumPrev, _VisorTex;
     float _Visor, _VisorFog, _VisorRain;
+    float4 _SunScreen, _FlareTint;      // солнце на экране (uv) и его видимость; цвет блика
     float4 _MainTex_TexelSize;
     float _Threshold, _BloomAmt, _Exposure, _Contrast, _Saturation, _Vignette, _Grain, _Hurt, _Aberr, _Time2, _Sharp;
     float _Fisheye, _Body, _AdaptK, _AutoExp;
@@ -63,6 +64,29 @@ Shader "SCP/Post"
         float3 detail = col - nb;
         col = max(0, col + clamp(detail, -0.15, 0.15) * _Sharp);
         col += Safe(tex2D(_Bloom, uv).rgb) * _BloomAmt;
+        // ---- блик солнца в оптике: ореол, «призраки» линз по линии через центр, кольцо ----
+        if (_SunScreen.z > 0.001)
+        {
+            float asp = _MainTex_TexelSize.z / _MainTex_TexelSize.w;
+            float2 sp = _SunScreen.xy;
+            #if UNITY_UV_STARTS_AT_TOP
+            if (_MainTex_TexelSize.y < 0) sp.y = 1 - sp.y;
+            #endif
+            float2 dir = 0.5 - sp;
+            float r0 = length((uv - sp) * float2(asp, 1));
+            float3 fl = _FlareTint.rgb * (0.0025 / (r0 * r0 + 0.0025)) * 0.35;
+            [unroll] for (int k = 0; k < 4; k++)
+            {
+                float2 gp = sp + dir * (0.55 + k * 0.42);
+                float rr = length((uv - gp) * float2(asp, 1));
+                float sz = 0.025 + 0.022 * k;
+                float3 tint = k == 0 ? float3(0.4, 0.7, 1.0) : k == 1 ? float3(1.0, 0.75, 0.4) : k == 2 ? float3(0.5, 1.0, 0.6) : float3(0.9, 0.5, 1.0);
+                fl += tint * smoothstep(sz, sz * 0.55, rr) * (0.035 - k * 0.006);
+            }
+            float rh = length((uv - (sp + dir * 2.0)) * float2(asp, 1));
+            fl += float3(0.6, 0.8, 1.0) * smoothstep(0.02, 0.0, abs(rh - 0.28)) * 0.025;
+            col += fl * _SunScreen.z;
+        }
         // ---- стекло маски шлема: запотевание от дыхания, капли, царапины и разводы, светящиеся в ярком свете ----
         if (_Visor > 0.001)
         {
