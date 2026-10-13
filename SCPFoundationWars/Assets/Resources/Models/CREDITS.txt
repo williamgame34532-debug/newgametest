@@ -46,3 +46,12 @@ gun_r_*.bytes, gunr_*.jpg/_n/_m — реалистичные модели ору
   "M24 Bounty Hunter Sniper Rifle" by Naudaff3D — https://sketchfab.com/3d-models/m24-bounty-hunter-sniper-rifle-d40e74e2259549f5b025807163f1028c
   "RPG-7" by paolinorenzo — https://sketchfab.com/3d-models/rpg-7-6c8683f0dbc04d75b610a2e656e639a8
 Steamworks.NET (Assets/Plugins/Steamworks.NET) — MIT, (c) 2013-2022 Riley Labrecque.
+
+Оружие v11 — модели Sketchfab под лицензией CC BY 4.0 (creativecommons.org/licenses/by/4.0), сконвертированы в формат игры:
+  gun_r_p90    — «SMG_90» (P90), автор TORI106: sketchfab.com/3d-models/smg-90-3b5371ff0db24407ab592997e5038ad3
+  gun_r_minimi — «LMG» (FN Minimi), автор DJMaesen (bumstrum): sketchfab.com/3d-models/lmg-8c24d7374ea64bdab1c30f49c69d5ed8
+  gun_r_pkp    — «PKP Pecheneg», автор chipmunkman: sketchfab.com/3d-models/ee7b308b1a7d45479776aa1ca57faf0f
+  gun_r_svd    — «SVD_FULL», автор binh6675: sketchfab.com/3d-models/306d7c8a716f411cb73e28dfaaa16581
+  gun_r_glock  — «GLOCK», автор h1ggs: sketchfab.com/3d-models/glock-4a92e03e98ea42b58a56a8235cee8ddd
+  Копии взяты из открытых репозиториев GitHub (cmh9208/AIacademy-django-react, birkmann/zugriff,
+  SapienzaInteractiveGraphicsCourse/final-project-rm3_team). Изменения: масштаб, оси, текстуры уменьшены до 1024 px.
