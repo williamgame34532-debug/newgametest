@@ -5,7 +5,9 @@
 --   chest,    hurts a lot without clothes (x1.6), clothes x1.35, a vest (item.protect) takes its share
 --   stomach
 --   arms      x0.55
---   legs      x0.6, but every hit counts: after 6-7 hits in the legs the character falls unconscious
+--   legs      x0.6, but every hit counts: 3 hits in the legs (nw_knockout_leghits) and the character
+--             falls unconscious
+-- Fists (nw_hands): 4 punches (nw_knockout_punches) within 20 seconds of each other knock out.
 -- A fall that does not kill (real fall damage) knocks the character out as well.
 --
 -- Unconscious: the character lies as a ragdoll (the player hidden and frozen inside it). Hits on
@@ -14,7 +16,7 @@
 -- give up (hold Space, cl_body.lua). Others: E on the body → Проверить пульс; there is a pulse →
 -- Помочь встать, Подлечить (a medical item of the helper).
 --
--- Death: the body stays (nw_corpse_time, 10 minutes), and part of what the character carried
+-- Death: the body stays (nw_corpse_time, 5 minutes), and part of what the character carried
 -- (nw_death_loss, 35% of the things in the grid and a quarter of the tokens) stays in it.
 -- Others: Проверить пульс first, then Обыскать (the storage window).
 --
@@ -31,7 +33,9 @@ local I = NW.items
 local knockTime = CreateConVar("nw_knockout_time", "40", FCVAR_ARCHIVE, "Сколько секунд без сознания")
 local selfHealth = CreateConVar("nw_knockout_selfhp", "30", FCVAR_ARCHIVE,
 	"С каким здоровьем можно встать самому после потери сознания")
-local corpseTime = CreateConVar("nw_corpse_time", "600", FCVAR_ARCHIVE, "Сколько секунд лежит тело")
+local corpseTime = CreateConVar("nw_corpse_time", "300", FCVAR_ARCHIVE, "Сколько секунд лежит тело")
+local legHits = CreateConVar("nw_knockout_leghits", "3", FCVAR_ARCHIVE, "Сколько попаданий в ноги валят с ног")
+local punchHits = CreateConVar("nw_knockout_punches", "4", FCVAR_ARCHIVE, "Сколько ударов кулаком отправляют в нокаут")
 local deathLoss = CreateConVar("nw_death_loss", "0.35", FCVAR_ARCHIVE, "Доля вещей, которые остаются в теле при смерти")
 
 local RANGE = 120
@@ -67,9 +71,8 @@ function GM:ScalePlayerDamage(client, hitgroup, damage)
 		damage:ScaleDamage(0.6)
 
 		client.nwLegHits = (client.nwLegHits or 0) + 1
-		client.nwLegLimit = client.nwLegLimit or math.random(6, 7)
 
-		if (client.nwLegHits >= client.nwLegLimit) then
+		if (client.nwLegHits >= math.max(1, legHits:GetInt())) then
 			timer.Simple(0, function()
 				if (IsValid(client) and client:Alive()) then
 					B.Knock(client)
@@ -78,6 +81,30 @@ function GM:ScalePlayerDamage(client, hitgroup, damage)
 		end
 	end
 end
+
+-- fists: every punch that lands counts; a pause of 20 seconds starts the count over
+hook.Add("PlayerThrowPunch", "nwKnockout", function(attacker, trace)
+	local target = trace.Entity
+
+	if (!IsValid(target) or !target:IsPlayer() or !target:Alive() or B.IsKnocked(target)) then
+		return
+	end
+
+	if (CurTime() - (target.nwPunchLast or 0) > 20) then
+		target.nwPunchHits = 0
+	end
+
+	target.nwPunchLast = CurTime()
+	target.nwPunchHits = (target.nwPunchHits or 0) + 1
+
+	if (target.nwPunchHits >= math.max(1, punchHits:GetInt())) then
+		timer.Simple(0, function()
+			if (IsValid(target) and target:Alive()) then
+				B.Knock(target)
+			end
+		end)
+	end
+end)
 
 -- falling: the real fall damage; a fall that does not kill knocks the character out
 function GM:GetFallDamage(client, speed)
@@ -195,7 +222,7 @@ local function Restore(client)
 	client:Freeze(false)
 	client:SetMoveType(MOVETYPE_WALK)
 	client.nwLegHits = 0
-	client.nwLegLimit = nil
+	client.nwPunchHits = 0
 end
 
 function B.Wake(client)
@@ -325,6 +352,7 @@ function B.MakeCorpse(client, ragdoll)
 	ragdoll:SetNW2Entity("nwPlayer", NULL)
 	ragdoll:SetNW2Bool("nwCorpse", true)
 	ragdoll.nwChecked = ragdoll.nwChecked or {}
+	ragdoll.nwBorn = CurTime()
 	client.nwCorpse = ragdoll
 	client:SetNW2Entity("nwBody", ragdoll)
 
@@ -388,6 +416,26 @@ hook.Add("PlayerDisconnected", "nwBody", Clear)
 
 -- ----------------------------------------------------------- the actions --
 util.AddNetworkString("nwPulse")
+
+-- rummaging through clothes and pockets while a search runs (sound/network2/use/search_1..4)
+function B.Rummage(client)
+	local id = "nwRummage" .. client:EntIndex()
+	local take = math.random(4)
+
+	local function Play()
+		if (!IsValid(client) or !client:Alive() or !client:GetAction()) then
+			timer.Remove(id)
+
+			return
+		end
+
+		client:EmitSound("network2/use/search_" .. take .. ".wav", 62, math.random(95, 105), 0.9)
+		take = take % 4 + 1
+	end
+
+	Play()
+	timer.Create(id, 1.15, 0, Play)
+end
 
 local function Near(client, body)
 	return IsValid(client) and IsValid(body) and client:Alive() and
@@ -482,7 +530,7 @@ function SO.actions.heal(client, body)
 
 	NW.SayMe(client, "перевязывает раны " .. BodyName(client, body, "лежащего"))
 
-	NW.progress.Start(client, "Лечу", 3, function()
+	local started = NW.progress.Start(client, "Лечу", 3, function()
 		local thing = inventory.grid[index]
 
 		if (!thing or thing.id != item.id or !IsValid(victim) or !B.IsKnocked(victim)) then
@@ -496,6 +544,10 @@ function SO.actions.heal(client, body)
 	end, function()
 		return Near(client, body)
 	end)
+
+	if (started and item.useSound) then
+		client:EmitSound(item.useSound, 60, math.random(96, 104), 0.8)
+	end
 end
 
 -- the dead: what stayed in the body
@@ -542,11 +594,13 @@ function SO.actions.searchbody(client, body)
 
 	NW.SayMe(client, "обыскивает тело")
 
-	NW.progress.Start(client, "Обыскиваю тело", 2.5, function()
+	if (NW.progress.Start(client, "Обыскиваю тело", 2.5, function()
 		ST.Open(client, CorpseSource(body))
 	end, function()
 		return Near(client, body)
-	end)
+	end)) then
+		B.Rummage(client)
+	end
 end
 
 -- a living one, from behind
@@ -573,10 +627,43 @@ function SO.actions.search(client, target)
 		(NW.char.Knows(client, target) and target:Nick() or "человека"))
 	Notify(target, "Вас обыскивают")
 
-	NW.progress.Start(client, "Обыскиваю", 3, function()
+	if (NW.progress.Start(client, "Обыскиваю", 3, function()
 		ST.Open(client, ST.PlayerSource(target, client))
 	end, function()
 		return IsValid(target) and target:Alive() and client:GetPos():DistToSqr(target:GetPos()) < 130 * 130 and
 			B.Behind(client, target)
-	end)
+	end)) then
+		B.Rummage(client)
+	end
 end
+
+-- ----------------------------------------------------------- the cleanup --
+-- every ragdoll (bodies, killed NPCs, spawned ones) goes away after nw_ragdoll_time (5 minutes);
+-- the body of someone unconscious stays while they lie in it, and so do the map's own ragdolls
+local ragdollTime = CreateConVar("nw_ragdoll_time", "300", FCVAR_ARCHIVE, "Через сколько секунд пропадают регдоллы")
+
+hook.Add("OnEntityCreated", "nwRagdollCleanup", function(entity)
+	if (IsValid(entity) and entity:GetClass() == "prop_ragdoll") then
+		entity.nwBorn = CurTime()
+	end
+end)
+
+timer.Create("nwRagdollCleanup", 15, 0, function()
+	local limit = ragdollTime:GetFloat()
+
+	if (limit <= 0) then
+		return
+	end
+
+	for _, entity in ipairs(ents.FindByClass("prop_ragdoll")) do
+		local owner = entity:GetNW2Entity("nwPlayer")
+
+		if (!entity:CreatedByMap()) then
+			entity.nwBorn = entity.nwBorn or CurTime()
+
+			if (!(IsValid(owner) and B.IsKnocked(owner)) and CurTime() - entity.nwBorn >= limit) then
+				entity:Remove()
+			end
+		end
+	end
+end)

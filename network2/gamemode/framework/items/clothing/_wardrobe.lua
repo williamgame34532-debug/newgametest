@@ -3,7 +3,7 @@ local WARDROBE = {
 	{slot = "head", group = "head", icon = "cap", names = {
 		[1] = "Поварской колпак", [2] = "Синяя шапка", [3] = "Зелёная шапка", [4] = "Каска", [5] = "Панама",
 		[6] = "Старое кепи", [7] = "Шляпа", [8] = "Кепка-восьмиклинка", [9] = "Рабочая кепка", [10] = "Федора"}},
-	{slot = "face", group = "face", icon = "gasmask", names = {
+	{slot = "face", group = "face", icon = "gasmask", gasmask = {[2] = true, [3] = true}, names = {
 		[2] = "Противогаз", [3] = "Противогаз M40", [4] = "Медицинская маска"}},
 	{slot = "face", group = "glasses", icon = "gasmask", names = {[1] = "Очки"}},
 	{slot = "torso", group = "torso", icon = "jacket", names = {
@@ -53,7 +53,8 @@ for _, set in ipairs(WARDROBE) do
 			category = "clothing",
 			slot = set.slot,
 			icon = set.icon,
-			wear = {group = set.group, index = index}
+			wear = {group = set.group, index = index},
+			gasmask = set.gasmask and set.gasmask[index] or nil
 		})
 
 		NW.items.wardrobe[#NW.items.wardrobe + 1] = id

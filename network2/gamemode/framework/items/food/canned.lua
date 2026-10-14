@@ -5,4 +5,4 @@ ITEM.description = "Жестяная банка рыбных консервов 
 ITEM.model = "models/props_junk/garbage_metalcan001a.mdl"
 ITEM.hunger = 25
 ITEM.leaves = "tin_empty"
-ITEM.useSound = "npc/barnacle/barnacle_crunch3.wav"
+ITEM.useSound = "network2/use/eat_canned.wav"

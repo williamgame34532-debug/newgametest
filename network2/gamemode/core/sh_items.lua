@@ -8,6 +8,7 @@
 --   weapon                 SWEP given while the item sits in its weapon slot
 --   wear                   clothing: {group = bodygroup name, index = submodel} - put on the
 --                          character while in its slot (bags: while carried anywhere)
+--   gasmask                a face item that keeps out the radiation of the zones (sh_zones.lua)
 --   bag                    extra cells this bag adds under the grid while it is in the "Сумка"
 --                          slot (only one bag works; a bag cannot lie in the bag's cells)
 --   contents               a package (ration): what is inside; hold the mouse on it to open it

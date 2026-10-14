@@ -30,6 +30,14 @@ local function Fonts()
 		surface.CreateFont(name .. "Shadow", {font = "Exo 2", size = math.max(13, math.Round(h * size)), weight = 500,
 			extended = true, antialias = true, blursize = 2})
 	end
+
+	-- /me: the same size in italics (Exo 2 Italic, resource/fonts/Exo2-Italic.ttf)
+	local size = math.max(13, math.Round(h * 0.02))
+
+	surface.CreateFont("nwChatMe", {font = "Exo 2 Italic", size = size, weight = 500, extended = true,
+		antialias = true})
+	surface.CreateFont("nwChatMeShadow", {font = "Exo 2 Italic", size = size, weight = 500, extended = true,
+		antialias = true, blursize = 2})
 end
 
 local function HintFonts()
@@ -222,7 +230,7 @@ local STYLE = {
 	[K.LOOC] = {color = Color(255, 255, 255), font = "nwChat"},
 	[K.PM] = {color = Color(186, 132, 255), font = "nwChat"},
 	[K.ROLL] = {color = Color(186, 132, 255), font = "nwChat"},
-	[K.ME] = {color = Color(150, 214, 138), font = "nwChat"},
+	[K.ME] = {color = Color(150, 214, 138), font = "nwChatMe"},
 	[K.IT] = {color = Color(150, 186, 214), font = "nwChat"},
 	[K.ADMIN] = {color = Color(240, 150, 60), font = "nwChat"}
 }

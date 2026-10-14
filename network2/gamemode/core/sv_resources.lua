@@ -16,7 +16,8 @@ for _, name in ipairs({"hover_mech", "select_mech", "press_mech", "start_mech", 
 end
 
 -- character menus: fonts, panel materials, icons, sounds
-for _, name in ipairs({"Exo2-Regular", "Exo2-SemiBold", "Exo2-Bold", "Montserrat-Medium", "Montserrat-SemiBold"}) do
+for _, name in ipairs({"Exo2-Regular", "Exo2-SemiBold", "Exo2-Bold", "Exo2-Italic", "Montserrat-Medium",
+	"Montserrat-SemiBold", "Oswald-Light"}) do
 	resource.AddFile("resource/fonts/" .. name .. ".ttf")
 end
 
@@ -76,6 +77,12 @@ for _, name in ipairs({"handle_small_leather", "handle_small_leather2", "drop_le
 end
 
 resource.AddFile("sound/network2/inv/inv_move4.mp3")
+
+-- using items (eating, drinking, healing) and searching (branding/make_use_sounds.py)
+for _, name in ipairs({"drink_water", "drink_soda", "eat_bread", "eat_canned", "eat_ration", "pills", "medkit",
+	"bandage", "search_1", "search_2", "search_3", "search_4"}) do
+	resource.AddFile("sound/network2/use/" .. name .. ".wav")
+end
 
 -- music (a separate archive, ~23 MB)
 resource.AddFile("sound/network2/music/menu/a1_intro_strider2.mp3")

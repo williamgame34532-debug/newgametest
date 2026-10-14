@@ -5,4 +5,4 @@ ITEM.description = "Спрессованная питательная масса
 ITEM.model = "models/props_junk/garbage_takeoutcarton001a.mdl"
 ITEM.icon = "ration"
 ITEM.hunger = 35
-ITEM.useSound = "npc/barnacle/barnacle_crunch2.wav"
+ITEM.useSound = "network2/use/eat_ration.wav"

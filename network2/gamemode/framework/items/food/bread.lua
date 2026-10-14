@@ -4,4 +4,4 @@ ITEM.name = "Хлеб"
 ITEM.description = "Несколько ломтей серого хлеба, завёрнутых в бумагу."
 ITEM.model = "models/props_junk/garbage_takeoutcarton001a.mdl"
 ITEM.hunger = 18
-ITEM.useSound = "npc/barnacle/barnacle_crunch2.wav"
+ITEM.useSound = "network2/use/eat_bread.wav"

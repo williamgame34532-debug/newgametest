@@ -1564,7 +1564,11 @@ local SETTINGS = {
 		Client("nw_thirdperson", "Вид от третьего лица (F3)", "toggle"),
 		Client("nw_tp_distance", "Расстояние камеры", "slider", {min = 30, max = 160, live = true}),
 		Client("nw_tp_right", "Смещение вбок", "slider", {min = -40, max = 40, live = true}),
-		Client("nw_tp_up", "Смещение вверх", "slider", {min = -10, max = 20, live = true})
+		Client("nw_tp_up", "Смещение вверх", "slider", {min = -10, max = 20, live = true}),
+		Client("nw_dyncam", "Динамичная камера", "toggle"),
+		Client("nw_dyncam_scale", "Сила динамичной камеры", "slider", {min = 0, max = 2, decimals = 1, live = true}),
+		Client("nw_legs", "Ноги от первого лица", "toggle"),
+		Client("nw_legs_vehicle", "Ноги в транспорте", "toggle")
 	}},
 	{name = "Изображение", rows = {
 		Client("nw_postfx", "Яркая и насыщенная картинка", "toggle"),
@@ -1633,11 +1637,14 @@ PAGES.authors = function(parent)
 		"Фреймворк, модели и анимации сервера Network.",
 		"",
 		{text = "Сторонние ресурсы", font = "nwInvButton", color = U.color.text},
-		"Шрифты Jura, Exo 2, Montserrat — SIL Open Font License.",
+		"Шрифты Jura, Exo 2 (и Italic), Montserrat, Oswald — SIL Open Font License.",
 		"Иконки интерфейса — Tabler Icons (MIT).",
 		"Иконки предметов — game-icons.net (Lorc, Delapouite и др.), CC BY 3.0.",
 		"Звуки инвентаря — Kenney «RPG Audio» (CC0) и звуки сервера.",
 		"Звуки интерфейса — uisfx (CC0) и звуки сервера.",
+		"Звуки еды и питья — глотки: VoxeLibre (CC0); жевание: BlockMen, мод «hunger» (CC BY 3.0).",
+		"Ноги от первого лица — плагин Legs: Valkyrie & blackops7799 (public domain).",
+		"Двери — по образцу плагина Doors из Helix (Chessnut, MIT).",
 		"Музыка — материалы сервера."
 	})
 end

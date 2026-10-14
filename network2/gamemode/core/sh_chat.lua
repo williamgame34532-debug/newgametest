@@ -9,7 +9,7 @@
 --   /me action      action         "*<name> action*" (green)               talking range
 --   /it text        surroundings   "** text" (steel blue, no name)         talking range
 --   /achat text     admin chat     "|A| <steam>: text" (orange)            admins only
--- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens) are hidden from everyone else:
+-- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens, /areaedit, /door) are hidden from everyone else:
 -- no hints, and typing them says "unknown command".
 
 NW.chatKinds = NW.chatKinds or {}
@@ -65,13 +65,19 @@ K.help = {
 	{command = "/ooc", args = "<текст>", kind = K.OOC, text = "вне роли, для всех (или //)"},
 	{command = "/pm", args = "<имя> <текст>", kind = K.PM, text = "личное сообщение игроку"},
 	{command = "/roll", args = "[максимум]", kind = K.ROLL, text = "бросить кубик, по умолчанию до 100"},
+	{command = "/doorbuy", args = "", text = "купить дверь, на которую вы смотрите"},
+	{command = "/doorsell", args = "", text = "продать свою дверь (половина цены)"},
+	{command = "/doorlock", args = "", text = "запереть или отпереть свою дверь"},
 	-- staff only (admin = true): nobody else sees them
 	{command = "/achat", args = "<текст>", kind = K.ADMIN, text = "чат администрации", admin = true},
 	{command = "/spawnadd", args = "[фракция]", text = "точка появления фракции здесь (по умолчанию — вашей)",
 		admin = true},
 	{command = "/spawnremove", args = "", text = "убрать ближайшую точку появления", admin = true},
 	{command = "/givetokens", args = "<имя> <число>", text = "выдать токены персонажу (минус — забрать)",
-		admin = true}
+		admin = true},
+	{command = "/areaedit", args = "", text = "редактор зон: две точки, название, тип (ещё раз — выйти)",
+		admin = true},
+	{command = "/door", args = "", text = "настроить дверь, на которую вы смотрите", admin = true}
 }
 
 -- may this player use / see this hint?

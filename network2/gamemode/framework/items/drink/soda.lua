@@ -6,4 +6,4 @@ ITEM.model = "models/props_junk/PopCan01a.mdl"
 ITEM.thirst = 25
 ITEM.hunger = 4
 ITEM.leaves = "can_empty"
-ITEM.useSound = "npc/barnacle/barnacle_gulp2.wav"
+ITEM.useSound = "network2/use/drink_soda.wav"

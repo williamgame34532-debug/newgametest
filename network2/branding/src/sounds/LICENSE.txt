@@ -1,0 +1,14 @@
+Recordings used by make_use_sounds.py (converted to 44.1 kHz mono WAV):
+
+mcl_potions_drinking.wav
+  VoxeLibre, mods/ITEMS/mcl_potions/sounds/mcl_potions_drinking.ogg
+  https://github.com/VoxeLibre/VoxeLibre - "Sounds: CC0" (mods/ITEMS/mcl_potions/README.txt)
+  CC0 1.0 - https://creativecommons.org/publicdomain/zero/1.0/
+
+hunger_eat.wav
+  BlockMen, "hunger" mod for Minetest, sounds/hunger_eat.ogg
+  https://github.com/BlockMen/hunger - "hunger_eat.ogg - BlockMen (CC-BY 3.0)" (README.txt)
+  CC BY 3.0 - https://creativecommons.org/licenses/by/3.0/
+
+Cloth, leather, belt and latch sounds come from content/sound/network2/inv
+(Kenney - RPG Audio, CC0).

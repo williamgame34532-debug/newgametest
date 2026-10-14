@@ -117,7 +117,8 @@ local function Prompt(entity, kind)
 	elseif (kind == "door") then
 		return "Открыть дверь"
 	elseif (kind == "body") then
-		return entity:GetNW2Bool("nwCorpse", false) and "Осмотреть тело" or "Помочь человеку"
+		-- the same for the dead and the unconscious: only the pulse tells them apart
+		return "Осмотреть человека"
 	elseif (entity:GetClass() == "nw_container") then
 		return "Открыть: " .. entity:GetTitle()
 	elseif (entity:GetClass() == "nw_npc") then
@@ -226,7 +227,7 @@ hook.Add("HUDPaint", "nwInteract", function()
 			material = U.Icon("door")
 			color = U.color.text
 		elseif (mark.kind == "body") then
-			material = U.Icon(entity:GetNW2Bool("nwCorpse", false) and "skull" or "pulse")
+			material = U.Icon("examine")
 			color = Color(214, 120, 110)
 		elseif (entity:GetClass() == "nw_container") then
 			material = U.Icon("storage")

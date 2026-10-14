@@ -1,8 +1,9 @@
 
 AddCSLuaFile()
 
--- Hands (after Helix ix_hands): punch / throw with LMB, knock on doors, push players and carry
--- props with RMB (RMB + mouse turns the carried object), R drops it. Made for Network: no Helix
+-- Hands (after Helix ix_hands): punch with LMB, knock on doors, push players and pick props up
+-- with RMB. A carried prop: RMB (or LMB, R) lets go of it right where it is - no throwing;
+-- Alt + mouse turns it. Made for Network: no Helix
 -- config or character calls - the limits are below, strength is the character's skill.
 
 if (CLIENT) then
@@ -98,7 +99,7 @@ if (CLIENT) then
 	end
 
 	hook.Add("CreateMove", "nwHandsCreateMove", function(cmd)
-		if (Holding(LocalPlayer()) and cmd:KeyDown(IN_ATTACK2)) then
+		if (Holding(LocalPlayer()) and cmd:KeyDown(IN_WALK)) then
 			cmd:ClearMovement()
 			local angle = RenderAngles()
 			angle.z = 0
@@ -201,7 +202,7 @@ function SWEP:Think()
 				local currentPlayerAngles = self:GetOwner():EyeAngles()
 				local client = self:GetOwner()
 
-				if (client:KeyDown(IN_ATTACK2)) then
+				if (client:KeyDown(IN_WALK)) then
 					local cmd = client:GetCurrentCommand()
 					self.heldObjectAngle:RotateAroundAxis(currentPlayerAngles:Forward(), cmd:GetMouseX() / 15)
 					self.heldObjectAngle:RotateAroundAxis(currentPlayerAngles:Right(), cmd:GetMouseY() / 15)
@@ -336,7 +337,11 @@ function SWEP:DropObject(bThrow)
 	physics:Wake()
 	physics:ClearGameFlag(FVPHYSICS_PLAYER_HELD)
 
-	if (bThrow) then
+	-- let go: it drops where it is, without the speed the carrying gave it
+	if (!bThrow) then
+		physics:SetVelocity(vector_origin)
+		physics:AddAngleVelocity(-physics:GetAngleVelocity())
+	else
 		timer.Simple(0, function()
 			if (IsValid(physics) and IsValid(self:GetOwner())) then
 				physics:AddGameFlag(FVPHYSICS_WAS_THROWN)
@@ -406,8 +411,14 @@ function SWEP:PrimaryAttack()
 		return
 	end
 
-	if (SERVER and self:IsHoldingObject()) then
-		self:DropObject(true)
+	if (self:GetOwner():GetNW2Bool("nwHoldingObject", false)) then
+		if (SERVER) then
+			self:DropObject()
+		end
+
+		self:SetNextPrimaryFire(CurTime() + 0.5)
+		self:SetNextSecondaryFire(CurTime() + 0.5)
+
 		return
 	end
 
@@ -470,6 +481,18 @@ end
 
 function SWEP:SecondaryAttack()
 	if (!IsFirstTimePredicted()) then
+		return
+	end
+
+	-- carrying something: RMB just lets go of it
+	if (self:GetOwner():GetNW2Bool("nwHoldingObject", false)) then
+		if (SERVER) then
+			self:DropObject()
+		end
+
+		self:SetNextPrimaryFire(CurTime() + 0.5)
+		self:SetNextSecondaryFire(CurTime() + 0.5)
+
 		return
 	end
 

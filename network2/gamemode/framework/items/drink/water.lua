@@ -5,4 +5,4 @@ ITEM.description = "Пластиковая бутылка фильтрованн
 ITEM.model = "models/props_junk/garbage_plasticbottle003a.mdl"
 ITEM.thirst = 40
 ITEM.leaves = "bottle_empty"
-ITEM.useSound = "npc/barnacle/barnacle_gulp1.wav"
+ITEM.useSound = "network2/use/drink_water.wav"

@@ -169,6 +169,11 @@ function GM:CalcView(client, origin, angles, fov, znear, zfar)
 			view.znear = 2
 		end
 	end
+	-- the dynamic camera: steps, lean, landing (cl_dyncam.lua)
+	if (NW.dyncam and view.origin and view.angles) then
+		view = NW.dyncam.Apply(client, view, Active(client))
+	end
+
 	local weight = IsValid(client) and client:Alive() and !client:InVehicle() and InventoryWeight() or 0
 
 	if (weight > 0.001) then

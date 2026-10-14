@@ -9,8 +9,11 @@
 --   wall     leaning - a wall right behind;
 --   wallsit  sitting against a wall - a wall behind, flat ground.
 -- Never higher than the player's own feet (+18), never farther than 110 units, never through a
--- wall, and only where there is a safe place to stand up next to it (A.ExitSpot). The pose
--- plays until the player moves, jumps, crouches or attacks; then the player stands up on that place.
+-- wall. The place must be free: nothing solid and nobody in the space of the pose, and right next
+-- to it a free place to stand up at (A.ExitSpot) that the player's whole body can get to - from the
+-- pose and from where the player stands now. So getting up never puts anyone behind a wall, through
+-- bars or a gap, or inside a prop. The place to stand up at is chosen when the pose starts; the pose
+-- plays until the player moves, jumps, crouches or attacks, then the player stands up there.
 -- Voice: Шёпот (150 units), Обычный (550), Крик (1100); others hear you in 3D within that range.
 
 NW.acts = NW.acts or {}
@@ -96,37 +99,88 @@ local function Floor(pos, filter)
 	end
 end
 
--- can the player stand at pos (the standing hull, nothing solid in it)?
-local function Free(client, pos)
+-- the standing hull of the player
+local function Hull(client)
 	local mins, maxs = client:GetHull()
+
+	return mins, maxs
+end
+
+-- can the player stand at pos (the standing hull, nothing solid and nobody else in it)?
+local function Free(client, pos)
+	local mins, maxs = Hull(client)
 	local trace = util.TraceHull({start = pos, endpos = pos, mins = mins, maxs = maxs, mask = MASK_PLAYERSOLID,
 		filter = client})
 
 	return !trace.StartSolid and !trace.AllSolid
 end
 
--- the nearest place to stand up at from a pose at pos: pos itself, or around it (on the floor,
--- not through a wall), or nil
-function A.ExitSpot(client, pos)
-	local lift = Vector(0, 0, 2)
+local STEP = 18
 
-	if (Free(client, pos + lift)) then
+-- could the whole body walk from a to b in a straight line (steps up to STEP allowed)?
+local function Walkable(client, a, b)
+	local mins, maxs = Hull(client)
+	local lift = Vector(0, 0, STEP)
+	local trace = util.TraceHull({start = a + lift, endpos = b + lift, mins = mins, maxs = maxs - lift,
+		mask = MASK_PLAYERSOLID, filter = client})
+
+	return !trace.StartSolid and !trace.Hit
+end
+
+-- can the body get from the pose at pos to the spot? The pose itself may be in a seat or against a
+-- wall, so a thin column starts there; the whole body must then come back from the spot right up
+-- to the pose, and nothing may stand in between at the knees or the chest.
+local function Leaves(client, pos, spot)
+	local column = util.TraceHull({start = pos + Vector(0, 0, 30), endpos = spot + Vector(0, 0, 30),
+		mins = Vector(-6, -6, 0), maxs = Vector(6, 6, 30), mask = MASK_PLAYERSOLID, filter = client})
+
+	if (column.StartSolid or column.Hit) then
+		return false
+	end
+
+	for _, h in ipairs({24, 50}) do
+		local line = util.TraceLine({start = pos + Vector(0, 0, h), endpos = spot + Vector(0, 0, h),
+			mask = MASK_PLAYERSOLID, filter = client})
+
+		if (line.Hit) then
+			return false
+		end
+	end
+
+	local mins, maxs = Hull(client)
+	local back = util.TraceHull({start = spot + Vector(0, 0, 2), endpos = pos + Vector(0, 0, 2), mins = mins,
+		maxs = maxs, mask = MASK_PLAYERSOLID, filter = client})
+	local gap = (spot - pos):Length2D()
+
+	return !back.StartSolid and (1 - back.Fraction) * gap <= 22
+end
+
+-- the nearest place to stand up at from a pose at pos: pos itself, or around it (on the floor, that
+-- the body can really get to - not through a wall, bars or a gap), or nil. With from, the place must
+-- also be reachable on foot from there (where the player stood when the pose started).
+function A.ExitSpot(client, pos, from)
+	local lift = Vector(0, 0, 2)
+	local function Good(spot)
+		return !from or spot:DistToSqr(from) < 4 or Walkable(client, from, spot)
+	end
+
+	if (Free(client, pos + lift) and Good(pos + lift)) then
 		return pos + lift
 	end
 
-	for _, radius in ipairs({12, 20, 28, 36, 48}) do
+	for _, radius in ipairs({16, 24, 32, 40}) do
 		for step = 0, 11 do
 			local angle = math.rad(step * 30)
 			local spot = pos + Vector(math.cos(angle) * radius, math.sin(angle) * radius, 0)
-			local path = util.TraceLine({start = pos + Vector(0, 0, 24), endpos = spot + Vector(0, 0, 24),
+			local down = util.TraceLine({start = spot + Vector(0, 0, 24), endpos = spot - Vector(0, 0, 32),
 				mask = MASK_PLAYERSOLID, filter = client})
 
-			if (!path.Hit) then
-				local down = util.TraceLine({start = spot + Vector(0, 0, 24), endpos = spot - Vector(0, 0, 32),
-					mask = MASK_PLAYERSOLID, filter = client})
+			if (down.Hit and !down.StartSolid and down.HitNormal.z > 0.7) then
+				spot = down.HitPos + lift
 
-				if (down.Hit and down.HitNormal.z > 0.7 and Free(client, down.HitPos + lift)) then
-					return down.HitPos + lift
+				if (math.abs(spot.z - pos.z) <= STEP and Free(client, spot) and Leaves(client, pos, spot) and
+					Good(spot)) then
+					return spot
 				end
 			end
 		end
@@ -161,21 +215,23 @@ function A.CheckSpot(client, act, pos, yaw)
 		return nil, "Место не видно"
 	end
 
-	-- room for the body
+	-- room for the body: nothing solid and nobody else in the space of the pose
 	local place = act.place or "floor"
 	local w = WIDTH[place]
 	local room = util.TraceHull({start = pos + Vector(0, 0, 2), endpos = pos + Vector(0, 0, 2),
-		mins = Vector(-w, -w, 0), maxs = Vector(w, w, HEIGHT[place]), mask = MASK_PLAYERSOLID,
-		filter = function(entity)
-			return entity != client and !entity:IsPlayer()
-		end})
+		mins = Vector(-w, -w, 0), maxs = Vector(w, w, HEIGHT[place]), mask = MASK_PLAYERSOLID, filter = client})
 
 	if (room.StartSolid) then
 		return nil, "Здесь тесно"
 	end
 
-	-- somewhere safe to stand up at afterwards
-	if (!A.ExitSpot(client, pos)) then
+	-- standing poses: the whole body fits right there (getting up does not move the player)
+	if (place == "floor" and !Free(client, pos + Vector(0, 0, 2))) then
+		return nil, "Здесь тесно"
+	end
+
+	-- somewhere free to stand up at afterwards, on this side of any wall
+	if (!A.ExitSpot(client, pos, client:GetPos())) then
 		return nil, "Отсюда будет не встать"
 	end
 
@@ -283,7 +339,8 @@ if (SERVER) then
 		net.Send(client)
 	end
 
-	-- out of the pose: on the nearest safe place to stand (never stuck in a wall or a seat)
+	-- out of the pose: on the place chosen when it started (if it is still free), else on the
+	-- nearest free place the body can get to; never in a wall, a seat or behind a wall
 	function A.Stop(client)
 		if (!client:GetAct()) then
 			return
@@ -292,12 +349,21 @@ if (SERVER) then
 		client:SetNW2String("nwAct", "")
 
 		if (client:Alive() and !client:InVehicle()) then
-			local spot = A.ExitSpot(client, client:GetPos())
+			local pos = client:GetPos()
+			local spot = client.nwActExit
 
-			if (spot and spot:DistToSqr(client:GetPos()) > 4) then
+			if (!spot or !Free(client, spot)) then
+				spot = A.ExitSpot(client, client.nwActSpot or pos, client.nwActFrom) or
+					A.ExitSpot(client, client.nwActSpot or pos) or client.nwActFrom
+			end
+
+			if (spot and spot:DistToSqr(pos) > 4) then
 				client:SetPos(spot)
+				client:SetVelocity(-client:GetVelocity())
 			end
 		end
+
+		client.nwActExit, client.nwActSpot, client.nwActFrom = nil, nil, nil
 	end
 
 	function A.Start(client, id, index, pos, yaw)
@@ -320,6 +386,13 @@ if (SERVER) then
 			return Notice(client, why or "Сюда нельзя")
 		end
 
+		local from = client:GetPos()
+		local exit = A.ExitSpot(client, spot, from)
+
+		if (!exit) then
+			return Notice(client, "Отсюда будет не встать")
+		end
+
 		-- empty hands, weapon down, into place
 		if (client:HasWeapon("nw_hands")) then
 			client:SelectWeapon("nw_hands")
@@ -333,6 +406,7 @@ if (SERVER) then
 		client:SetNW2String("nwAct", "")
 		client:SetNW2String("nwAct", list[math.Clamp(index, 1, #list)])
 		client.nwActStarted = CurTime()
+		client.nwActSpot, client.nwActExit, client.nwActFrom = spot, exit, from
 	end
 
 	net.Receive("nwAct", function(_, client)

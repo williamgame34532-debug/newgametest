@@ -1,3 +1,3 @@
 BASE.category = "medical"
 BASE.model = "models/items/healthkit.mdl"
-BASE.useSound = "items/smallmedkit1.wav"
+BASE.useSound = "network2/use/medkit.wav"
