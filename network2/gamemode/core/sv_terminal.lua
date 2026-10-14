@@ -11,8 +11,8 @@
 --     bank {deposit, amount}            on hand ↔ the account
 --     business / rent {door}            the free businesses / renting one
 --     announce_list / announce_save {id?, title, body, priority, photo} / announce_delete {id}
---   server → client   nwTerminal: action, terminal, JSON (the same names; "result" - a short message,
---                     "alert" - a call for the Alliance)
+--   server → client   nwTerminal: action, terminal, JSON (the same names; "rented" - a business is
+--                     yours, "result" - a short message, "alert" - a call for the Alliance)
 
 util.AddNetworkString("nwTerminal")
 
@@ -393,7 +393,7 @@ function ACTIONS.rent(client, terminal, input)
 	SaveData(client)
 	D.SetOwner(door, client)
 	Send(client, "profile", terminal, Profile(client))
-	Result(client, terminal, "ОФОРМЛЕНО: " .. T.Upper(door:GetNW2String("nwDoorName", "БИЗНЕС")))
+	Send(client, "rented", terminal, {name = door:GetNW2String("nwDoorName", "Бизнес")})
 	ACTIONS.business(client, terminal)
 end
 

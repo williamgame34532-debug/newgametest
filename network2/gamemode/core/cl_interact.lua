@@ -13,6 +13,8 @@ local RANGE = 160
 local USE_RANGE = 110
 
 local DOORS = {prop_door_rotating = true, func_door = true, func_door_rotating = true}
+-- entities of the engine and the base gamemode that are never something to use
+local SERVICE = {gmod_hands = true, physgun_beam = true, predicted_viewmodel = true, nw_item = true}
 local BUTTONS = {func_button = true, gmod_button = true, func_rot_button = true}
 
 surface.CreateFont("nwInteract", {font = "Montserrat SemiBold", size = math.max(13, math.Round(ScrH() * 0.019)),
@@ -68,8 +70,21 @@ local function Kind(entity)
 		return "item"
 	elseif (DOORS[class]) then
 		return "door"
-	elseif (BUTTONS[class] or (entity:IsScripted() and !entity:IsWeapon() and class != "nw_item")) then
+	elseif (BUTTONS[class]) then
 		return "entity"
+	end
+
+	-- a scripted entity of the world; not what goes with a player (the first person hands gmod_hands,
+	-- the physics gun beam: in third person a mark would follow the character), nothing hidden or
+	-- without a body
+	if (entity:IsScripted() and !entity:IsWeapon() and !SERVICE[class] and !entity:GetNoDraw() and
+		entity:GetSolid() != SOLID_NONE) then
+		local owner = entity:GetOwner()
+		local parent = entity:GetParent()
+
+		if (!(IsValid(owner) and owner:IsPlayer()) and !(IsValid(parent) and parent:IsPlayer())) then
+			return "entity"
+		end
 	end
 end
 

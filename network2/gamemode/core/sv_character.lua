@@ -531,6 +531,32 @@ NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
 		NW.models.Apply(target)
 	end
 
+	-- what the faction hands out on joining (FACTION.items: the stunstick of Civil Protection), once
+	local data = C.factions[faction]
+
+	for _, id in ipairs(data.items or {}) do
+		local inventory = NW.inventory.Get(target)
+		local has = false
+
+		for _, cell in pairs(inventory.grid) do
+			has = has or cell.id == id
+		end
+
+		for _, cell in pairs(inventory.equip) do
+			has = has or cell.id == id
+		end
+
+		if (!has) then
+			if (NW.inventory.Add(target, id)) then
+				NW.Notify(target, "Выдано: " .. (NW.items.Get(id) or {name = id}).name)
+			else
+				NW.Notify(target, "Нет места для: " .. (NW.items.Get(id) or {name = id}).name)
+			end
+		end
+	end
+
+	NW.inventory.Changed(target)
+
 	local name = C.factions[faction].name
 
 	NW.Notify(client, target:Nick() .. " → " .. name)

@@ -348,11 +348,60 @@ NW.AddChatCommand("doorlock", {run = function(client)
 	Notify(client, locked and "Заперто" or "Открыто")
 end})
 
+-- sliding and brush doors of the maps (func_door, func_door_rotating) often do not react to E at all
+-- (no "Use Opens" flag: the engine never offers them for use, so PlayerUse never runs). For the
+-- Alliance their doors open on E anyway: the key press is caught here, the door unlocked and toggled.
+local BRUSH = {func_door = true, func_door_rotating = true}
+
+hook.Add("KeyPress", "nwAllianceDoors", function(client, key)
+	if (key != IN_USE or !client:Alive() or (client.nwDoorKey or 0) > CurTime()) then
+		return
+	end
+
+	local door = D.Aimed(client, 110)
+
+	if (!door or !BRUSH[door:GetClass()] or door:GetNW2String("nwDoorKind", "") != "alliance") then
+		return
+	end
+
+	client.nwDoorKey = CurTime() + 0.6
+
+	if (!NW.zones.IsAlliance(client)) then
+		door:EmitSound("buttons/combine_button_locked.wav", 60)
+
+		return
+	end
+
+	local locked = door:GetInternalVariable("m_bLocked") == true
+
+	for _, member in ipairs(D.Group(door)) do
+		member:Input("Unlock", client, client)
+		member:Input("Toggle", client, client)
+	end
+
+	door:EmitSound("buttons/combine_button1.wav", 55)
+
+	if (locked) then
+		timer.Create("nwDoorRelock" .. door:EntIndex(), 0.3, 1, function()
+			if (IsValid(door)) then
+				for _, member in ipairs(D.Group(door)) do
+					member:Input("Lock")
+				end
+			end
+		end)
+	end
+end)
+
 -- the Alliance's doors open only for the Alliance - and for them even when locked: the lock opens for
 -- the moment of the use and closes again, so for everyone else the door stays locked
 hook.Add("PlayerUse", "nwDoors", function(client, entity)
 	if (!D.IsDoor(entity) or entity:GetNW2String("nwDoorKind", "") != "alliance") then
 		return
+	end
+
+	-- brush doors: handled on the key press above
+	if (BRUSH[entity:GetClass()]) then
+		return false
 	end
 
 	if (!NW.zones.IsAlliance(client)) then

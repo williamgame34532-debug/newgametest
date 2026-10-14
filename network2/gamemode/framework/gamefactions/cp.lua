@@ -9,3 +9,4 @@ FACTION.models = {
 	male = {"models/network/cp/networkcp.mdl"},
 	female = {"models/network/cp/networkcp.mdl"}
 }
+FACTION.items = {"stunstick"}

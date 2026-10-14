@@ -7,9 +7,10 @@ NW.anim = NW.anim or {}
 -- living idles of the build (models/network/citizens/nw_citizen_male|female.mdl, own per gender)
 NW.anim.civIdle = {"nw_civ_idle", "nw_civ_live_1", "nw_civ_live_2", "nw_civ_subtle", "nw_civ_foldarms",
 	"nw_civ_listen"}
--- HL:A motion capture of Civil Protection (models/network/cp/nw_cp_anims.mdl)
-NW.anim.cpIdle = {"nw_hla_idle_unarmed_1", "nw_hla_idle_unarmed_2", "nw_hla_idle_01", "nw_hla_idle_02",
-	"nw_hla_idle_04", "nw_hla_idle_06"}
+-- HL:A motion capture of Civil Protection (models/network/cp/nw_cp_anims.mdl):
+-- with empty hands only the unarmed idles; with the stunstick its own idles and the sprint
+NW.anim.cpIdle = {"nw_hla_idle_unarmed_1", "nw_hla_idle_unarmed_2"}
+NW.anim.cpStickIdle = {"nw_hla_idle_01", "nw_hla_idle_02", "nw_hla_idle_03", "nw_hla_idle_04"}
 
 NW.anim.citizen_male = {
 	normal = {
@@ -121,7 +122,7 @@ NW.anim.metrocop = {
 		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_SMG1_LOW},
 		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK_AIM_RIFLE},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
-		[ACT_MP_RUN] = {{"nw_hla_sprint"}, ACT_RUN},
+		[ACT_MP_RUN] = {ACT_RUN, ACT_RUN},
 		[ACT_LAND] = {ACT_RESET, ACT_RESET}
 	},
 	pistol = {
@@ -170,6 +171,18 @@ NW.anim.metrocop = {
 		[ACT_LAND] = {ACT_RESET, ACT_RESET},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},
+	-- the stunstick (nw_stunstick, NW.anim.weaponHold): HL:A idles with the baton and the sprint with
+	-- it; raised fists keep the plain melee set above
+	stunstick = {
+		[ACT_MP_STAND_IDLE] = {NW.anim.cpStickIdle, ACT_IDLE_ANGRY_MELEE},
+		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_PISTOL_LOW},
+		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK_ANGRY},
+		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
+		[ACT_MP_RUN] = {{"nw_hla_sprint"}, {"nw_hla_sprint"}},
+		[ACT_LAND] = {ACT_RESET, ACT_RESET},
+		attack = ACT_MELEE_ATTACK_SWING_GESTURE
+	},
+
 	glide = ACT_GLIDE,
 	vehicle = {
 		chair = {ACT_COVER_PISTOL_LOW, Vector(5, 0, -5)},
@@ -436,7 +449,9 @@ NW.anim.weaponHold = {
 	swep_vortigaunt_sweep = "broom",
 	swep_vortigaunt_beam = "beam",
 	swep_vortigaunt_beam_edit = "beam",
-	swep_vortigaunt_heal = "heal"
+	swep_vortigaunt_heal = "heal",
+	nw_stunstick = "stunstick",
+	weapon_stunstick = "stunstick"
 }
 
 local translations = {}

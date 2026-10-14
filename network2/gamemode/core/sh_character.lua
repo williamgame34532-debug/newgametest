@@ -26,7 +26,8 @@ C.skills = {
 -- factions: one file each in framework/gamefactions/<id>.lua (FACTION.name, description, color,
 -- logo = materials/network2/factions/<logo>.png, models = {male = {...}, female = {...}},
 -- default = true for the faction new characters get, alliance = true for the Alliance's factions,
--- model = one model every member wears; other factions are given by an admin: /setfaction)
+-- model = one model every member wears, items = item ids handed out on joining; other factions are
+-- given by an admin: /setfaction)
 C.factions = C.factions or {}
 
 local FACTIONS = (GM or GAMEMODE).FolderName .. "/gamemode/framework/gamefactions/"

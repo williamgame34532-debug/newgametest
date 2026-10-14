@@ -1,9 +1,9 @@
 -- The civic terminal (after the Helix ix_civic_terminal; the rules: gamemode/core/sh_terminal.lua,
 -- the server: sv_terminal.lua, the windows and the E key: cl_terminal.lua).
--- A Combine station with a holographic screen: the player looks at a button and presses E. The
--- screen is drawn in 3D2D on the model (models/combine/combine_terminal.mdl) over its own wallpaper
--- (materials/network2/terminal/wallpaper.png); a cursor follows the exact point of the screen the
--- player looks at (cursor.png, over a button cursor_hover.png).
+-- A Combine station with a holographic screen in the look of the Half-Life: Alyx civic stations: the
+-- player looks at a key and presses E. The screen is drawn in 3D2D on the model
+-- (models/combine/combine_terminal.mdl) over its glass (materials/network2/terminal/wallpaper.png);
+-- a small diamond cursor follows the exact point of the screen the player looks at.
 -- The point under the eyes: in a 3D2D context +x runs along the angles' Forward, +y along their
 -- Right, the plane faces along Up - the ray of the eyes is crossed with that plane (the Helix version
 -- used Up as the y axis and Right as the plane, so its cursor drifted away from the eyes).
@@ -89,77 +89,123 @@ if (SERVER) then
 	return
 end
 
+
 -- ------------------------------------------------------------------ client --
+-- The look of the Half-Life: Alyx civic stations: the whole glass glows pale cyan with dense scan
+-- streaks and a bright rim; thin upper-case letters with wide spacing and a soft glow; outlined
+-- keys that fill with light under the cursor. A menu in the middle; the services in two columns:
+-- a list (ТИП / ЦЕНА, a warning sign where it is out of reach) and the summary of the chosen line,
+-- ВАШИ КРЕДИТЫ and НАЗАД below. The header reads like "НАВИГАЦИЯ :: 80640156051 .. 278 . 4 . 9 . .",
+-- the footer "ЦИКЛ РАЦИОНА .. АКТИВЕН . ." and the time.
 local T = NW.terminal
 
-local BLUE = Color(30, 168, 196)
-local BLUE_SOFT = Color(96, 186, 206)
-local BLUE_DIM = Color(38, 100, 116)
-local WHITE = Color(168, 208, 216)
-local RED = Color(184, 62, 60)
-local RED_SOFT = Color(198, 110, 100)
-local AMBER = Color(214, 168, 72)
+local LINE = Color(160, 232, 246)
+local TEXT = Color(206, 246, 252)
+local DIM = Color(120, 192, 210)
+local FILL = Color(156, 230, 244)
+local DARK = Color(8, 40, 50)
+local RED = Color(244, 112, 100)
+local AMBER = Color(244, 186, 92)
 
 local BG = Material("network2/terminal/wallpaper.png", "smooth noclamp")
 local CURSOR = Material("network2/terminal/cursor.png", "smooth")
 local CURSOR_HOVER = Material("network2/terminal/cursor_hover.png", "smooth")
 
-local function Font(name, font, size, weight)
-	surface.CreateFont(name, {font = font, size = size, weight = weight, extended = true, antialias = true})
+local function Font(name, size, weight)
+	surface.CreateFont(name, {font = "Jura Medium", size = size, weight = weight or 500, extended = true,
+		antialias = true})
+	surface.CreateFont(name .. "Glow", {font = "Jura Medium", size = size, weight = weight or 500, extended = true,
+		antialias = true, blursize = 2})
 end
 
-Font("nwTerm3DTitle", "Oswald Medium", 22, 500)
-Font("nwTerm3DHeader", "Oswald Medium", 17, 500)
-Font("nwTerm3DTab", "Oswald Medium", 12, 500)
-Font("nwTerm3DButton", "Oswald Medium", 14, 500)
-Font("nwTerm3DText", "Oswald Light", 14, 300)
-Font("nwTerm3DSmall", "Oswald Light", 11, 300)
-Font("nwTerm3DTiny", "Oswald Light", 9, 300)
+Font("nwTermTitle", 20, 600)
+Font("nwTermHead", 14, 600)
+Font("nwTermText", 12, 500)
+Font("nwTermSmall", 10, 500)
+Font("nwTermTiny", 8, 500)
 
-local descriptions = {
-	info = "Личный кабинет гражданина. Идентификация, статус и банковский счёт.",
-	announcements = "Городские сообщения, распоряжения администрации и важные обновления сети.",
-	call = "Экстренный канал связи с патрулём Гражданской Обороны. Только при необходимости.",
-	housing = "Назначение места жительства и список апартаментов жилого блока.",
-	additional = "Метеосводка, банковские операции и аренда коммерческих помещений."
-}
+-- -------------------------------------------------------------- the text --
+local widths = {}
 
-local TOP_TABS = {
-	{action = "open_info", label = "ПРОФИЛЬ", screen = "info", description = descriptions.info},
-	{action = "open_announcements", label = "ОБЪЯВЛЕНИЯ", screen = "announcements", description = descriptions.announcements},
-	{action = "open_call", label = "ВЫЗОВ Г.О", screen = "call", description = descriptions.call},
-	{action = "open_housing", label = "ЖИЛЬЁ", screen = "housing", description = descriptions.housing},
-	{action = "open_additional", label = "СЕРВИСЫ", screen = "additional", description = descriptions.additional}
-}
+local function CharWidth(font, char)
+	local key = font .. char
+	local width = widths[key]
 
-local function Alpha(color, alpha)
-	return Color(color.r, color.g, color.b, math.Clamp(alpha or 255, 0, 255))
-end
-
-local function Text(text, font, x, y, color, alignX, alignY, glow)
-	glow = glow or 0.14
-
-	if (glow > 0.01) then
-		local halo = Alpha(color, (color.a or 255) * glow)
-
-		draw.SimpleText(text, font, x - 1, y, halo, alignX, alignY)
-		draw.SimpleText(text, font, x + 1, y, halo, alignX, alignY)
-		draw.SimpleText(text, font, x, y - 1, halo, alignX, alignY)
-		draw.SimpleText(text, font, x, y + 1, halo, alignX, alignY)
+	if (!width) then
+		surface.SetFont(font)
+		width = surface.GetTextSize(char)
+		widths[key] = width
 	end
 
-	draw.SimpleText(text, font, x, y, color, alignX, alignY)
+	return width
 end
 
-local function Wrap(text, font, maxWidth)
+local function Chars(text)
+	local out = {}
+
+	for _, code in utf8.codes(tostring(text or "")) do
+		out[#out + 1] = utf8.char(code)
+	end
+
+	return out
+end
+
+local function Measure(text, font, spacing)
+	local width, chars = 0, Chars(text)
+
+	for _, char in ipairs(chars) do
+		width = width + CharWidth(font, char) + spacing
+	end
+
+	return math.max(0, width - spacing), chars
+end
+
+-- upper case, letters set apart, a soft glow under them; align: 0 left, 1 centre, 2 right
+local function Spaced(text, font, x, y, color, align, spacing, glow)
+	spacing = spacing or 1.5
+	text = T.Upper(text)
+
+	local width, chars = Measure(text, font, spacing)
+	local cx = align == 1 and x - width / 2 or (align == 2 and x - width or x)
+	local alpha = color.a or 255
+
 	surface.SetFont(font)
 
+	local _, height = surface.GetTextSize("Я")
+	local top = y - height / 2
+
+	if (glow != false) then
+		surface.SetFont(font .. "Glow")
+		surface.SetTextColor(color.r, color.g, color.b, alpha * 0.55)
+
+		local gx = cx
+
+		for _, char in ipairs(chars) do
+			surface.SetTextPos(gx, top)
+			surface.DrawText(char)
+			gx = gx + CharWidth(font, char) + spacing
+		end
+	end
+
+	surface.SetFont(font)
+	surface.SetTextColor(color.r, color.g, color.b, alpha)
+
+	for _, char in ipairs(chars) do
+		surface.SetTextPos(cx, top)
+		surface.DrawText(char)
+		cx = cx + CharWidth(font, char) + spacing
+	end
+
+	return width
+end
+
+local function Wrap(text, font, maxWidth, spacing)
 	local lines, current = {}, ""
 
-	for _, word in ipairs(string.Explode(" ", tostring(text or ""))) do
+	for _, word in ipairs(string.Explode(" ", T.Upper(tostring(text or "")))) do
 		local candidate = current == "" and word or current .. " " .. word
 
-		if (surface.GetTextSize(candidate) > maxWidth and current != "") then
+		if (Measure(candidate, font, spacing or 1) > maxWidth and current != "") then
 			lines[#lines + 1] = current
 			current = word
 		else
@@ -174,20 +220,46 @@ local function Wrap(text, font, maxWidth)
 	return lines
 end
 
-local NAV_X, NAV_Y, NAV_W, NAV_H, NAV_GAP = 28, 46, 504, 22, 3
-local CONTENT_X, CONTENT_W = 28, 504
-
-local function Line(x, y, width, color, alpha)
-	surface.SetDrawColor(color.r, color.g, color.b, alpha or 90)
-	surface.DrawRect(math.floor(x), math.floor(y), math.floor(width), 1)
+local function Alpha(color, alpha)
+	return Color(color.r, color.g, color.b, math.Clamp(alpha, 0, 255))
 end
 
-local function Box(x, y, width, height, color, alpha)
-	surface.SetDrawColor(color.r, color.g, color.b, math.Clamp((alpha or 34) + 26, 0, 255))
-	surface.DrawOutlinedRect(math.floor(x), math.floor(y), math.floor(width), math.floor(height), 1)
+local function Outline(x, y, w, h, color, alpha)
+	surface.SetDrawColor(color.r, color.g, color.b, alpha or 200)
+	surface.DrawOutlinedRect(math.floor(x), math.floor(y), math.floor(w), math.floor(h), 1)
 end
 
--- --------------------------------------------------------------- the state --
+local function Rule(x, y, w, color, alpha)
+	surface.SetDrawColor(color.r, color.g, color.b, alpha or 120)
+	surface.DrawRect(math.floor(x), math.floor(y), math.floor(w), 1)
+end
+
+-- the warning sign of an item out of reach
+local function Warning(x, y, size, color)
+	draw.NoTexture()
+	surface.SetDrawColor(color.r, color.g, color.b, 230)
+	surface.DrawPoly({{x = x, y = y - size}, {x = x + size * 0.95, y = y + size * 0.7},
+		{x = x - size * 0.95, y = y + size * 0.7}})
+	surface.SetDrawColor(DARK.r, DARK.g, DARK.b, 255)
+	surface.DrawRect(x - 1, y - size * 0.35, 2, size * 0.6)
+	surface.DrawRect(x - 1, y + size * 0.38, 2, 2)
+end
+
+-- the Alliance mark in the corner (a ring with a notch)
+local function Emblem(x, y, color)
+	surface.DrawCircle(x, y, 6, color.r, color.g, color.b, 230)
+	surface.DrawCircle(x, y, 5, color.r, color.g, color.b, 120)
+	surface.SetDrawColor(color.r, color.g, color.b, 255)
+	surface.DrawRect(x - 1, y - 3, 3, 3)
+	surface.DrawRect(x + 4, y - 7, 4, 2)
+end
+
+local X0, X1 = 26, 534
+local LIST_X, LIST_W = 28, 236
+local SUM_X, SUM_W = 296, 236
+local W_, H_ = 560, 320
+
+-- ------------------------------------------------------------- the state --
 function ENT:ResetSession()
 	self.registered = false
 	self.registrationStage = "idle"
@@ -197,24 +269,24 @@ function ENT:ResetSession()
 	self.announcements = {}
 	self.apartments = {}
 	self.businesses = {}
-	self.selectedAnnouncement = nil
-	self.announcementPage = 1
+	self.selected = {}
+	self.page = {}
 	self.callDraft = ""
 	self.housingMessage = ""
-	self.housingChosen = ""
 	self.housingSequence = nil
 	self.housingRouletteStart = 0
 	self.housingTicks = 0
+	self.assigned = nil
 	self.actionMessage = ""
 	self.actionMessageUntil = 0
 	self.buttons = {}
+	self.fade = 0
 end
 
 function ENT:Initialize()
 	self:ResetSession()
 	self.nextFlicker = 0
 	self.flicker = 1
-	self.lastNear = 0
 	self.previewModelPath = ""
 	self.previewRenderTarget = GetRenderTarget("nw_term_profile_" .. self:EntIndex(), 256, 256)
 	self.previewMaterial = CreateMaterial("nw_term_profile_mat_" .. self:EntIndex(), "UnlitGeneric", {
@@ -236,8 +308,12 @@ function ENT:OnRemove()
 	end
 end
 
+function ENT:IsAlarm()
+	return self:GetNW2Float("nwTermAlarm", 0) > CurTime()
+end
+
 function ENT:GetAccent()
-	return self:GetNW2Float("nwTermAlarm", 0) > CurTime() and RED or BLUE
+	return self:IsAlarm() and RED or LINE
 end
 
 function ENT:Request(action, data)
@@ -250,6 +326,19 @@ end
 
 function ENT:PlaySelectSound()
 	self:EmitSound("network2/terminal/select" .. math.random(1, 2) .. ".wav", 62, math.random(97, 103), 0.75)
+end
+
+function ENT:Go(screen)
+	self.screen = screen
+	self.fade = CurTime()
+end
+
+-- the code in the header: the same for this terminal and this screen
+function ENT:Code(screen)
+	local seed = util.CRC(screen .. self:GetNW2Int("nwTermNumber", self:EntIndex()))
+	local n = tonumber(seed) or 1
+
+	return string.format("%d .. %d . %d . %d . .", 100000 + n % 9000000, 100 + n % 900, 1 + n % 9, 1 + n % 7)
 end
 
 -- -------------------------------------------------------- where one looks --
@@ -289,15 +378,15 @@ function ENT:GetHoveredButton(client)
 	for index = #self.buttons, 1, -1 do
 		local button = self.buttons[index]
 
-		if (x >= button.x and x <= button.x + button.w and y >= button.y and y <= button.y + button.h) then
+		if (!button.disabled and x >= button.x and x <= button.x + button.w and y >= button.y and
+			y <= button.y + button.h) then
 			return button
 		end
 	end
 end
 
-function ENT:AddButton(action, label, x, y, width, height, data, description)
-	local button = {action = action, label = label, x = x, y = y, w = width, h = height, data = data,
-		description = description}
+function ENT:AddButton(action, label, x, y, width, height, data)
+	local button = {action = action, label = label, x = x, y = y, w = width, h = height, data = data}
 
 	button.key = action .. "#" .. tostring(#self.buttons + 1)
 	self.buttons[#self.buttons + 1] = button
@@ -305,653 +394,580 @@ function ENT:AddButton(action, label, x, y, width, height, data, description)
 	return button
 end
 
--- ----------------------------------------------------------------- drawing --
-function ENT:DrawButton(button, accent, alpha, alignLeft)
-	alpha = alpha or 1
-	self.buttonAnimations = self.buttonAnimations or {}
+-- ----------------------------------------------------------------- keys --
+-- an outlined key: under the cursor it fills with light and the letters go dark
+function ENT:Key(action, label, x, y, w, h, data, options)
+	options = options or {}
+
+	local button = self:AddButton(action, label, x, y, w, h, data)
+	local accent = options.color or self:GetAccent()
+
+	button.disabled = options.disabled
+
+	self.keyFill = self.keyFill or {}
 
 	local hovered = self.hoveredKey == button.key
-	local target = button.active and 1 or (hovered and 0.4 or 0)
-	local value = Lerp(math.min(FrameTime() * 15, 1), self.buttonAnimations[button.key] or 0, target)
+	local target = (options.active or hovered) and 1 or 0
+	local value = Lerp(math.min(FrameTime() * 14, 1), self.keyFill[button.key] or 0, target)
 
-	self.buttonAnimations[button.key] = value
+	self.keyFill[button.key] = value
 
-	local x, y, w, h = math.floor(button.x), math.floor(button.y), math.floor(button.w), math.floor(button.h)
+	local alpha = options.disabled and 0.35 or 1
+
+	surface.SetDrawColor(accent.r, accent.g, accent.b, 16 * alpha)
+	surface.DrawRect(x, y, w, h)
 
 	if (value > 0.01) then
-		surface.SetDrawColor(accent.r, accent.g, accent.b, 196 * value * alpha)
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 225 * value)
 		surface.DrawRect(x, y, w, h)
 	end
 
-	surface.SetDrawColor(accent.r, accent.g, accent.b, (150 - value * 58) * alpha)
-	surface.DrawOutlinedRect(x, y, w, h, 1)
+	Outline(x, y, w, h, accent, 210 * alpha)
 
-	-- a small corner tick on the left: a holographic key
-	surface.SetDrawColor(accent.r, accent.g, accent.b, (200 - value * 120) * alpha)
-	surface.DrawRect(x, y, 3, 1)
-	surface.DrawRect(x, y, 1, 3)
+	local color = Color(Lerp(value, TEXT.r, DARK.r), Lerp(value, TEXT.g, DARK.g), Lerp(value, TEXT.b, DARK.b),
+		235 * alpha)
 
-	local color = Color(Lerp(value, BLUE_SOFT.r, 3), Lerp(value, BLUE_SOFT.g, 27), Lerp(value, BLUE_SOFT.b, 34))
+	Spaced(label, options.font or "nwTermText", options.left and x + 10 or x + w / 2, y + h / 2, color,
+		options.left and 0 or 1, 1.6, value < 0.5)
 
-	Text(button.label, button.font or "nwTerm3DButton", alignLeft and x + 13 or x + w * 0.5, y + h * 0.5,
-		Alpha(color, 228 * alpha), alignLeft and TEXT_ALIGN_LEFT or TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER,
-		0.16 * (1 - value))
+	return button
 end
 
-function ENT:DrawHeader(width, height, accent, alpha)
-	Text("CIVIC NETWORK // ACCESS TERMINAL", "nwTerm3DTiny", 28, 25, Alpha(BLUE_DIM, 205 * alpha), TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text("СТАНЦИЯ АЛЬЯНСА 08 0 " .. string.format("%03d", self:GetNW2Int("nwTermNumber", self:EntIndex())),
-		"nwTerm3DSmall", width - 57, 27, Alpha(accent, 218 * alpha), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	Line(28, 42, width - 56, accent, 58 * alpha)
+-- a line of a list: name on the left, the cost on the right, a warning sign when out of reach
+function ENT:Row(index, name, cost, y, selected, warning)
+	local button = self:AddButton("select", "", LIST_X, y, LIST_W, 22, index)
+	local hovered = self.hoveredKey == button.key
+	local accent = self:GetAccent()
 
-	local ix, iy = width - 38, 28
-
-	surface.DrawCircle(ix, iy, 10, Alpha(accent, 200 * alpha))
-	surface.DrawCircle(ix, iy, 9, Alpha(accent, 90 * alpha))
-	surface.DrawCircle(ix, iy, 4, Alpha(accent, 170 * alpha))
-	surface.SetDrawColor(accent.r, accent.g, accent.b, 215 * alpha)
-	surface.DrawRect(ix - 1, iy - 10, 2, 5)
-	surface.DrawRect(ix - 1, iy + 5, 2, 5)
-end
-
-function ENT:DrawFooter(width, height, accent)
-	Line(28, height - 31, width - 56, accent, 26)
-	Text("||:07·17·04::  18·4·2::  C17//ACTIVE", "nwTerm3DTiny", 28, height - 18, Alpha(accent, 155), TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text("::7·04::", "nwTerm3DTiny", 132, height - 18, Alpha(RED, 165), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text("//" .. os.date("%H:%M"), "nwTerm3DSmall", width - 28, height - 18, Alpha(BLUE_SOFT, 210), TEXT_ALIGN_RIGHT,
-		TEXT_ALIGN_CENTER)
-end
-
-function ENT:GetActiveTopTab()
-	local screen = self.screen
-
-	if (screen == "announcement_detail") then
-		return "announcements"
-	elseif (screen == "housing_list" or screen == "housing_roulette") then
-		return "housing"
-	elseif (screen == "weather" or screen == "bank" or screen == "business") then
-		return "additional"
+	if (selected) then
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 150)
+		surface.DrawRect(LIST_X, y, LIST_W, 22)
+	elseif (hovered) then
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 50)
+		surface.DrawRect(LIST_X, y, LIST_W, 22)
 	end
 
-	return screen
+	Outline(LIST_X, y, LIST_W, 22, accent, selected and 230 or 110)
+
+	local color = warning and Alpha(TEXT, 110) or TEXT
+
+	Spaced(name, "nwTermSmall", LIST_X + 8, y + 11, color, 0, 1.4)
+
+	if (warning) then
+		Warning(LIST_X + LIST_W - 46, y + 11, 6, AMBER)
+	end
+
+	Spaced(cost, "nwTermSmall", LIST_X + LIST_W - 8, y + 11, color, 2, 1.2)
 end
 
-function ENT:DrawNavigation(accent)
-	local active = self:GetActiveTopTab()
-	local tabWidth = (NAV_W - NAV_GAP * (#TOP_TABS - 1)) / #TOP_TABS
+-- ------------------------------------------------------------- the frame --
+function ENT:DrawHeader(title)
+	local accent = self:GetAccent()
 
-	for index, tab in ipairs(TOP_TABS) do
-		local button = self:AddButton(tab.action, tab.label, NAV_X + (index - 1) * (tabWidth + NAV_GAP), NAV_Y, tabWidth,
-			NAV_H, nil, tab.description)
+	Spaced(title .. "  ::  " .. self:Code(title), "nwTermSmall", X0, 20, Alpha(TEXT, 230), 0, 1.6)
+	Spaced("ГРАЖД. СТАНЦИЯ 5.3.3.5X2", "nwTermTiny", X1 - 18, 20, Alpha(DIM, 230), 2, 1.2)
+	Emblem(X1 - 6, 20, accent)
+	Rule(X0, 32, X1 - X0, accent, 150)
+end
 
-		button.font = "nwTerm3DTab"
-		button.active = active == tab.screen
-		self:DrawButton(button, accent, 1, false)
+function ENT:DrawFooter(credits)
+	local accent = self:GetAccent()
+
+	Rule(X0, H_ - 30, X1 - X0, accent, 110)
+	Spaced(self:IsAlarm() and "ТРЕВОГА .. КАНАЛ ГО . ." or "ЦИКЛ РАЦИОНА .. АКТИВЕН . .", "nwTermTiny", X0, H_ - 17,
+		self:IsAlarm() and RED or Alpha(DIM, 230), 0, 1.6)
+	Spaced(os.date("%H:%M"), "nwTermText", X1, H_ - 17, Alpha(TEXT, 235), 2, 1.4)
+
+	if (credits) then
+		local w = Spaced(tostring(self.profile and self.profile.bank or 0), "nwTermHead", X1, H_ - 44, TEXT, 2, 1.4)
+
+		Spaced("ВАШИ КРЕДИТЫ", "nwTermTiny", X1 - w - 8, H_ - 43, Alpha(DIM, 230), 2, 1.4)
 	end
 end
 
-function ENT:DrawWorkspaceHeader(accent)
-	local description = self.hoveredDescription
-	local active = self:GetActiveTopTab()
+function ENT:DrawColumns(left, right, summary)
+	local accent = self:GetAccent()
 
-	if (!description) then
-		for _, tab in ipairs(TOP_TABS) do
-			if (tab.screen == active) then
-				description = tab.description
-			end
-		end
-	end
-
-	description = description or "Выберите вкладку для доступа к городским службам."
-
-	local lines = Wrap(description, "nwTerm3DSmall", CONTENT_W - 4)
-
-	Text(lines[1] or description, "nwTerm3DSmall", CONTENT_X, 77, Alpha(BLUE_SOFT, 205), TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Line(CONTENT_X, 86, CONTENT_W, accent, 42)
+	Spaced(left, "nwTermTiny", LIST_X, 46, Alpha(DIM, 220), 0, 1.4)
+	Spaced(right, "nwTermTiny", LIST_X + LIST_W - 8, 46, Alpha(DIM, 220), 2, 1.4)
+	Spaced(summary or "СВОДКА", "nwTermTiny", SUM_X, 46, Alpha(DIM, 220), 0, 1.4)
+	Rule(LIST_X, 54, LIST_W, accent, 90)
+	Rule(SUM_X, 54, SUM_W, accent, 90)
 end
 
-function ENT:DrawBackButton()
-	local button = self:AddButton("back", "НАЗАД", CONTENT_X + CONTENT_W - 64, 266, 64, 17)
+function ENT:DrawSummary(title, lines, color)
+	Spaced(title, "nwTermHead", SUM_X, 70, color or TEXT, 0, 1.6)
 
-	button.font = "nwTerm3DTiny"
-	self:DrawButton(button, self:GetAccent(), 1, false)
-end
-
-function ENT:DrawRegister(width, height, accent)
-	Text("ГРАЖДАНСКИЙ", "nwTerm3DTitle", 48, 91, Alpha(BLUE_SOFT, 236), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	Text("ТЕРМИНАЛ", "nwTerm3DTitle", 48, 114, Alpha(BLUE_SOFT, 236), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	Line(48, 143, 172, accent, 90)
-	Text("ЕДИНАЯ СЕТЬ ГОРОДСКИХ СЛУЖБ", "nwTerm3DTiny", 48, 155, Alpha(BLUE_DIM, 185), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-
-	local stage = self.registrationStage
-
-	if (stage == "idle") then
-		self:DrawButton(self:AddButton("register", "АВТОРИЗОВАТЬСЯ", 48, 186, 172, 38), accent, 1, true)
-	elseif (stage == "shrinking") then
-		local progress = math.Clamp((CurTime() - self.registrationStarted) / 0.45, 0, 1)
-		local width_ = 172 * (1 - math.ease.InOutCubic(progress))
-
-		if (width_ > 2) then
-			self:DrawButton({key = "register_anim", x = 48 + (172 - width_) * 0.5, y = 186, w = width_, h = 38,
-				label = "АВТОРИЗОВАТЬСЯ"}, accent, 1 - progress, false)
-		end
-	elseif (stage == "loading") then
-		local elapsed = CurTime() - self.registrationStarted
-
-		-- a scan line runs over the box, the dots pulse
-		local scan = (elapsed * 0.9) % 1
-
-		surface.SetDrawColor(accent.r, accent.g, accent.b, 120)
-		surface.DrawRect(48, 180 + scan * 46, 172, 1)
-
-		for index = 1, 3 do
-			local pulse = (math.sin(elapsed * 6 - index * 1.1) + 1) * 0.5
-
-			surface.SetDrawColor(accent.r, accent.g, accent.b, 90 + pulse * 160)
-			surface.DrawRect(78 + index * 28, 201 - pulse * 4, 7, 7)
-		end
-
-		Text("ИДЕНТИФИКАЦИЯ...", "nwTerm3DTiny", 134, 236, Alpha(BLUE_DIM, 200), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	else
-		local profile = self.profile or {name = "НЕИЗВЕСТНЫЙ", cid = "00000"}
-		local elapsed = CurTime() - self.registrationStarted
-		local alpha = math.Clamp(elapsed / 0.35, 0, 1)
-		local progress = stage == "flying" and math.ease.InOutCubic(math.Clamp(elapsed / 0.65, 0, 1)) or 0
-		local color = profile.color or accent
-
-		Text(T.Upper(profile.name), "nwTerm3DHeader", Lerp(progress, 134, 48), Lerp(progress, 192, 186),
-			Alpha(color, 255 * alpha), progress > 0.5 and TEXT_ALIGN_LEFT or TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-		Text("ID: #" .. tostring(profile.cid or "00000"), "nwTerm3DSmall", Lerp(progress, 134, 48),
-			Lerp(progress, 215, 210), Alpha(BLUE_SOFT, 220 * alpha), progress > 0.5 and TEXT_ALIGN_LEFT or TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER)
-	end
-
-	local px, pw = 278, 254
-
-	Box(px, 82, pw, 152, accent, 34)
-	Text("ОПИСАНИЕ", "nwTerm3DHeader", px + 16, 102, BLUE_SOFT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Line(px + 16, 119, pw - 32, accent, 45)
-
-	for index, line in ipairs({"Для продолжения требуется", "идентификация гражданина.", "Сохраняйте прямой зрительный",
-		"контакт с экраном терминала."}) do
-		Text(line, "nwTerm3DText", px + 16, 134 + (index - 1) * 18, index == 2 and WHITE or BLUE_SOFT, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_TOP)
-	end
-end
-
-function ENT:DrawMain(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-
-	local profile = self.profile or {name = "ГРАЖДАНИН", cid = "00000", faction = "НЕ ОПРЕДЕЛЕНО", bank = 0}
-
-	Box(CONTENT_X, 99, CONTENT_W, 137, accent, 30)
-	Text("СИСТЕМНЫЙ ДОСТУП", "nwTerm3DTiny", CONTENT_X + 16, 119, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text("РАЗРЕШЁН", "nwTerm3DTitle", CONTENT_X + 16, 147, WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text("ВЫБЕРИТЕ ВКЛАДКУ В ВЕРХНЕЙ ПАНЕЛИ", "nwTerm3DSmall", CONTENT_X + 16, 177, BLUE_SOFT, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-
-	if (#(self.announcements or {}) > 0) then
-		Text("НОВЫХ СООБЩЕНИЙ СЕТИ: " .. #self.announcements, "nwTerm3DTiny", CONTENT_X + 16, 210, AMBER, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-	end
-
-	surface.SetDrawColor(accent.r, accent.g, accent.b, 48)
-	surface.DrawRect(CONTENT_X + 252, 112, 1, 110)
-	Text("ПРОФИЛЬ ГРАЖДАНИНА", "nwTerm3DTiny", CONTENT_X + 270, 119, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text(T.Upper(profile.name), "nwTerm3DHeader", CONTENT_X + 270, 145, profile.color or accent, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text("ID: #" .. tostring(profile.cid), "nwTerm3DSmall", CONTENT_X + 270, 166, BLUE_SOFT, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text(T.Upper(tostring(profile.faction)), "nwTerm3DSmall", CONTENT_X + 270, 187, WHITE, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text("СЧЁТ: " .. tostring(profile.bank or 0) .. " ТК", "nwTerm3DSmall", CONTENT_X + 270, 208, BLUE_DIM,
-		TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-end
-
-function ENT:DrawInfo(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-
-	local profile = self.profile or {name = "—", cid = "—", faction = "—", bank = 0}
-	local rows = {
-		{"ГРАЖДАНИН", T.Upper(profile.name), profile.color or accent},
-		{"ИДЕНТИФИКАТОР", "#" .. tostring(profile.cid), WHITE},
-		{"СТАТУС", T.Upper(tostring(profile.faction)), BLUE_SOFT},
-		{"МЕСТО ЖИТЕЛЬСТВА", profile.home != "" and T.Upper(profile.home or "") or "НЕ НАЗНАЧЕНО", WHITE}
-	}
-
-	for index, row in ipairs(rows) do
-		local y = 92 + (index - 1) * 41
-
-		Text(row[1], "nwTerm3DTiny", CONTENT_X, y, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-		Text(row[2], "nwTerm3DText", CONTENT_X, y + 13, row[3], TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-		Line(CONTENT_X, y + 33, CONTENT_W - 120, accent, 28)
-	end
-
-	-- the silhouette of the character
-	local sx, sy, size = CONTENT_X + CONTENT_W - 108, 94, 108
-
-	Box(sx, sy, size, size + 50, accent, 26)
-
-	if (self.previewMaterial) then
-		surface.SetDrawColor(90, 218, 236, 70)
-		surface.SetMaterial(self.previewMaterial)
-		surface.DrawTexturedRect(sx, sy + 6, size, size + 40)
-	end
-
-	Text("БИОМЕТРИЯ", "nwTerm3DTiny", sx + size / 2, sy + size + 44, BLUE_DIM, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-end
-
-function ENT:DrawAnnouncements(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-
-	local page = math.max(1, self.announcementPage or 1)
-	local first = (page - 1) * 4 + 1
-
-	if (#self.announcements == 0) then
-		Text("СООБЩЕНИЯ ОТСУТСТВУЮТ", "nwTerm3DText", CONTENT_X + CONTENT_W * 0.5, 165, BLUE_DIM, TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER)
-
-		return
-	end
-
-	for slot = 1, 4 do
-		local announcement = self.announcements[first + slot - 1]
-
-		if (!announcement) then
+	for index, line in ipairs(Wrap(lines, "nwTermText", SUM_W, 1)) do
+		if (index > 8) then
 			break
 		end
 
-		local y = 92 + (slot - 1) * 41
-		local priority = T.priorities[announcement.priority] or T.priorities.normal
-		local button = self:AddButton("announcement", "", CONTENT_X, y, CONTENT_W, 35, announcement)
-		local hovered = self.hoveredKey == button.key
-
-		surface.SetDrawColor(0, 17, 22, 86)
-		surface.DrawRect(button.x, button.y, button.w, button.h)
-		surface.SetDrawColor(accent.r, accent.g, accent.b, hovered and 215 or 60)
-		surface.DrawOutlinedRect(button.x, button.y, button.w, button.h, 1)
-		surface.SetDrawColor(priority.color.r, priority.color.g, priority.color.b, 210)
-		surface.DrawRect(button.x, button.y, 3, button.h)
-		Text(T.Upper(announcement.title), "nwTerm3DSmall", button.x + 11, button.y + 11, hovered and WHITE or BLUE_SOFT,
-			TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		Text(announcement.gameTime .. "  ·  " .. T.Upper(priority.name), "nwTerm3DTiny", button.x + 11, button.y + 25,
-			BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	end
-
-	local maximum = math.max(1, math.ceil(#self.announcements / 4))
-
-	if (maximum > 1) then
-		local previous = self:AddButton("ann_prev", "<", CONTENT_X, 261, 34, 17)
-		local nextButton = self:AddButton("ann_next", ">", CONTENT_X + CONTENT_W - 34, 261, 34, 17)
-
-		previous.font, nextButton.font = "nwTerm3DTiny", "nwTerm3DTiny"
-		self:DrawButton(previous, accent, 1, false)
-		self:DrawButton(nextButton, accent, 1, false)
-		Text(page .. " / " .. maximum, "nwTerm3DTiny", CONTENT_X + CONTENT_W * 0.5, 269, BLUE_SOFT, TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER)
+		Spaced(line, "nwTermText", SUM_X, 92 + (index - 1) * 15, Alpha(TEXT, 210), 0, 1)
 	end
 end
 
-function ENT:DrawAnnouncementDetail(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	self:DrawBackButton()
-
-	local announcement = self.selectedAnnouncement
-
-	if (!announcement) then
-		self.screen = "announcements"
-
-		return
-	end
-
-	local priority = T.priorities[announcement.priority] or T.priorities.normal
-
-	Text(T.Upper(announcement.title), "nwTerm3DHeader", CONTENT_X, 91, accent, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	Text(announcement.gameTime .. "  ·  " .. T.Upper(announcement.author or ""), "nwTerm3DTiny", CONTENT_X, 113,
-		BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	surface.SetDrawColor(priority.color.r, priority.color.g, priority.color.b, 220)
-	surface.DrawRect(CONTENT_X + CONTENT_W - 4, 86, 4, 32)
-	Line(CONTENT_X, 127, CONTENT_W, accent, 38)
-
-	local lines = Wrap(announcement.body, "nwTerm3DText", CONTENT_W)
-
-	for index = 1, math.min(#lines, 7) do
-		Text(lines[index], "nwTerm3DText", CONTENT_X, 141 + (index - 1) * 17, index == 1 and WHITE or BLUE_SOFT,
-			TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	end
-
-	if ((announcement.photo or "") != "") then
-		local button = self:AddButton("announcement_photo", "ОТКРЫТЬ ФОТОМАТЕРИАЛ", CONTENT_X, 262, CONTENT_W - 76, 21)
-
-		button.font = "nwTerm3DTiny"
-		self:DrawButton(button, accent, 1, false)
-	end
+function ENT:DrawReturn(x)
+	self:Key("back", "НАЗАД", x or 230, 254, 92, 22)
 end
 
-function ENT:DrawCall(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
+-- a list with pages (5 lines): returns the first index shown
+function ENT:Pages(name, count)
+	local page = math.Clamp(self.page[name] or 1, 1, math.max(1, math.ceil(count / 5)))
 
-	local alarmUntil = self:GetNW2Float("nwTermAlarm", 0)
-	local locked = alarmUntil > CurTime()
+	self.page[name] = page
 
-	Text("ОПИШИТЕ ПРИЧИНУ ОБРАЩЕНИЯ", "nwTerm3DTiny", CONTENT_X, 92, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-	Box(CONTENT_X, 108, CONTENT_W, 84, locked and RED or accent, 42)
+	if (count > 5) then
+		self:Key("page_prev", "<", LIST_X, 222, 26, 20, name, {font = "nwTermSmall"})
+		self:Key("page_next", ">", LIST_X + LIST_W - 26, 222, 26, 20, name, {font = "nwTermSmall"})
+		Spaced(page .. " / " .. math.ceil(count / 5), "nwTermTiny", LIST_X + LIST_W / 2, 232, DIM, 1, 1.4)
+	end
 
-	if (self.callDraft == "") then
-		if (!locked) then
-			self:DrawButton(self:AddButton("call_input", "ВВЕСТИ СООБЩЕНИЕ", CONTENT_X + 16, 131, CONTENT_W - 32, 34),
-				accent, 1, false)
+	return (page - 1) * 5 + 1
+end
+
+-- ---------------------------------------------------------------- screens --
+local MENU = {
+	{"go_housing", "Назначение жилья"},
+	{"go_business", "Аренда помещений"},
+	{"go_bank", "Кредитный баланс"},
+	{"go_announcements", "Объявления города"},
+	{"go_call", "Вызов Гражданской Обороны"},
+	{"go_info", "Личное дело"},
+	{"exit", "Завершить сеанс"}
+}
+
+function ENT:DrawRegister()
+	self:DrawHeader("Авторизация")
+
+	local stage = self.registrationStage
+	local elapsed = CurTime() - self.registrationStarted
+
+	if (stage == "idle") then
+		local pulse = 0.75 + 0.25 * math.sin(CurTime() * 2.4)
+
+		self:Key("register", "Идентификация гражданина", W_ / 2 - 130, 136, 260, 32, nil,
+			{color = Alpha(LINE, 255 * pulse)})
+		Spaced("Смотрите на экран и нажмите  [ E ]", "nwTermTiny", W_ / 2, 186, Alpha(DIM, 220), 1, 1.6)
+	elseif (stage == "shrinking" or stage == "loading") then
+		-- the scan: a bright line runs down the glass
+		local scan = (elapsed * 0.8) % 1
+		local y = 40 + scan * (H_ - 80)
+
+		for i = 0, 8 do
+			surface.SetDrawColor(FILL.r, FILL.g, FILL.b, (9 - i) * 14)
+			surface.DrawRect(X0, y - i * 2, X1 - X0, 1)
 		end
+
+		Outline(W_ / 2 - 130, 136, 260, 32, LINE, 120 + 100 * math.abs(math.sin(CurTime() * 5)))
+		Spaced("Сканирование" .. string.rep(" .", math.floor(CurTime() * 3) % 4), "nwTermText", W_ / 2, 152, TEXT, 1, 1.8)
 	else
-		local lines = Wrap(self.callDraft, "nwTerm3DText", CONTENT_W - 24)
+		-- the citizen as the station sees them: a lit key with the name and the number
+		local profile = self.profile or {name = "Неизвестный", cid = "00000"}
+		local appear = math.Clamp(elapsed / 0.3, 0, 1)
+		local leave = stage == "flying" and math.Clamp(elapsed / 0.6, 0, 1) or 0
+		local alpha = appear * (1 - leave)
 
-		for index = 1, math.min(#lines, 4) do
-			Text(lines[index], "nwTerm3DText", CONTENT_X + 12, 118 + (index - 1) * 17, WHITE, TEXT_ALIGN_LEFT,
-				TEXT_ALIGN_TOP)
-		end
-	end
-
-	if (locked) then
-		local blink = math.sin(CurTime() * 6) > 0
-
-		Text("СИГНАЛ ПЕРЕДАН", "nwTerm3DHeader", CONTENT_X, 215, blink and RED or RED_SOFT, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-		Text("КАНАЛ ЗАБЛОКИРОВАН: " .. math.max(0, math.ceil(alarmUntil - CurTime())) .. " СЕК.", "nwTerm3DSmall",
-			CONTENT_X, 237, RED_SOFT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	elseif (self.callDraft != "") then
-		local half = (CONTENT_W - 16) * 0.5
-
-		self:DrawButton(self:AddButton("call_input", "ИЗМЕНИТЬ", CONTENT_X, 206, half, 29), accent, 1, false)
-		self:DrawButton(self:AddButton("call_confirm", "ОТПРАВИТЬ", CONTENT_X + half + 16, 206, half, 29), RED_SOFT, 1,
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 225 * alpha)
+		surface.DrawRect(W_ / 2 - 130, 136, 260, 32)
+		Outline(W_ / 2 - 130, 136, 260, 32, LINE, 255 * alpha)
+		Spaced(profile.name .. "  #" .. tostring(profile.cid), "nwTermText", W_ / 2, 152, Alpha(DARK, 255 * alpha), 1, 1.8,
 			false)
-		Text("ЛОЖНЫЙ ВЫЗОВ ЯВЛЯЕТСЯ НАРУШЕНИЕМ", "nwTerm3DTiny", CONTENT_X, 253, RED_SOFT, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
 	end
+
+	self:DrawFooter()
 end
 
-function ENT:DrawHousing(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	Text("УПРАВЛЕНИЕ ГРАЖДАНСКИМ ЗАСЕЛЕНИЕМ", "nwTerm3DTiny", CONTENT_X, 93, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+function ENT:DrawMain()
+	self:DrawHeader("Навигация")
 
-	self:DrawButton(self:AddButton("housing_request", "ПОЛУЧИТЬ АПАРТАМЕНТЫ", CONTENT_X, 113, CONTENT_W, 38), accent, 1,
-		true)
-	self:DrawButton(self:AddButton("housing_list", "СПИСОК АПАРТАМЕНТОВ", CONTENT_X, 163, CONTENT_W, 38), accent, 1, true)
+	local y = 46
 
+	for _, entry in ipairs(MENU) do
+		self:Key(entry[1], entry[2], W_ / 2 - 120, y, 240, 25)
+		y = y + 31
+	end
+
+	self:DrawFooter()
+end
+
+function ENT:DrawHousing()
+	self:DrawHeader("Назначение жилья")
+	self:DrawColumns("Жилой блок", "Мест")
+
+	local list = self.apartments
+	local selected = self.selected.housing or 1
+	local first = self:Pages("housing", #list)
+
+	if (#list == 0) then
+		Spaced("Данные загружаются . . .", "nwTermSmall", LIST_X, 74, DIM, 0, 1.4)
+	end
+
+	for index = first, math.min(#list, first + 4) do
+		local entry = list[index]
+		local full = entry.current >= entry.maximum
+
+		self:Row(index, entry.name, entry.current .. "/" .. entry.maximum, 62 + (index - first) * 31,
+			index == selected, full)
+	end
+
+	local entry = list[selected]
 	local home = self.profile and self.profile.home or ""
 
-	if (home != "") then
-		Text("ВАШЕ МЕСТО ЖИТЕЛЬСТВА: " .. T.Upper(home), "nwTerm3DSmall", CONTENT_X, 216, WHITE, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_TOP)
-	end
-
 	if (self.housingMessage != "") then
-		local lines = Wrap(self.housingMessage, "nwTerm3DSmall", CONTENT_W)
+		self:DrawSummary("Отказ", self.housingMessage, AMBER)
+	elseif (entry) then
+		local full = entry.current >= entry.maximum
 
-		for index = 1, math.min(#lines, 2) do
-			Text(lines[index], "nwTerm3DSmall", CONTENT_X, 236 + (index - 1) * 15, AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-		end
+		self:DrawSummary(entry.name, (full and "Мест нет. " or "Есть свободные места. ") .. "Заселено " ..
+			entry.current .. " из " .. entry.maximum .. ". Назначение проводит система распределения: " ..
+			"жильё выбирается из блоков со свободными местами.", full and AMBER or TEXT)
 	end
+
+	if (home != "") then
+		Spaced("Ваше жильё: " .. home, "nwTermTiny", SUM_X, 236, Alpha(TEXT, 220), 0, 1.4)
+	else
+		self:Key("housing_request", "Получить назначение", SUM_X, 254, 150, 22)
+	end
+
+	self:DrawReturn(SUM_X + 158)
+	self:DrawFooter(true)
 end
 
-function ENT:DrawHousingRoulette(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
+function ENT:DrawRoulette()
+	self:DrawHeader("Назначение жилья")
 
 	local progress = math.Clamp((CurTime() - self.housingRouletteStart) / 4, 0, 1)
 	local eased = 1 - (1 - progress) ^ 4
-	local cardH = 28
-	local count = #(self.housingSequence or {})
-	local offset = (count - 1) * (cardH + 5) * eased
-
-	Box(CONTENT_X, 91, CONTENT_W, 137, accent, 34)
-
-	-- a tick each time a card crosses the line
-	local passed = math.floor(offset / (cardH + 5))
+	local cardH = 26
+	local offset = (#self.housingSequence - 1) * (cardH + 4) * eased
+	local passed = math.floor(offset / (cardH + 4))
 
 	if (passed > self.housingTicks and progress < 1) then
 		self.housingTicks = passed
 		self:EmitSound("network2/terminal/select1.wav", 55, 120 + passed, 0.35)
 	end
 
-	for index, name in ipairs(self.housingSequence or {}) do
-		local y = 159 + (index - 1) * (cardH + 5) - offset
+	Outline(W_ / 2 - 150, 44, 300, 222, self:GetAccent(), 120)
 
-		if (y > 93 and y < 225) then
-			local near = 1 - math.min(math.abs(y + cardH / 2 - 159) / 70, 1)
+	for index, name in ipairs(self.housingSequence) do
+		local y = 142 + (index - 1) * (cardH + 4) - offset
 
-			surface.SetDrawColor(accent.r, accent.g, accent.b, 40 + near * 120)
-			surface.DrawOutlinedRect(CONTENT_X + 15, y, CONTENT_W - 30, cardH, 1)
-			Text(T.Upper(name), "nwTerm3DSmall", CONTENT_X + CONTENT_W * 0.5, y + cardH * 0.5, Alpha(WHITE, 120 + near * 135),
-				TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		if (y > 46 and y + cardH < 264) then
+			local near = 1 - math.min(math.abs(y + cardH / 2 - 155) / 90, 1)
+
+			if (near > 0.85) then
+				surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 200 * near)
+				surface.DrawRect(W_ / 2 - 140, y, 280, cardH)
+			end
+
+			Outline(W_ / 2 - 140, y, 280, cardH, LINE, 60 + near * 150)
+			Spaced(name, "nwTermText", W_ / 2, y + cardH / 2, near > 0.85 and DARK or Alpha(TEXT, 90 + near * 165), 1,
+				1.6, near <= 0.85)
 		end
 	end
-
-	surface.SetDrawColor(WHITE.r, WHITE.g, WHITE.b, 220)
-	surface.DrawRect(CONTENT_X + 7, 172, CONTENT_W - 14, 1)
 
 	if (progress >= 1) then
-		if (!self.housingAnnounced) then
-			self.housingAnnounced = true
-			self:EmitSound("network2/terminal/boot.wav", 60, 115, 0.6)
-		end
-
-		Text("НАЗНАЧЕНО: " .. T.Upper(self.housingChosen), "nwTerm3DHeader", CONTENT_X, 251, WHITE, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-		self:DrawBackButton()
-	end
-end
-
-function ENT:DrawHousingList(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	self:DrawBackButton()
-
-	if (#self.apartments == 0) then
-		Text("ДОСТУПНЫЕ ПОМЕЩЕНИЯ НЕ НАЙДЕНЫ", "nwTerm3DSmall", CONTENT_X, 132, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-		return
+		self.assigned = {title = "Жильё назначено", name = self.housingChosen, back = "housing"}
+		self:Go("assigned")
+		self:EmitSound("network2/terminal/boot.wav", 60, 115, 0.6)
 	end
 
-	for index = 1, math.min(#self.apartments, 5) do
-		local apartment = self.apartments[index]
-		local y = 92 + (index - 1) * 33
-		local full = apartment.current >= apartment.maximum
-
-		Box(CONTENT_X, y, CONTENT_W, 27, accent, 28)
-		Text(T.Upper(apartment.name), "nwTerm3DSmall", CONTENT_X + 10, y + 14, WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-		-- the fill as a bar
-		local bw = 80
-		local bx = CONTENT_X + CONTENT_W - 50 - bw
-
-		surface.SetDrawColor(accent.r, accent.g, accent.b, 50)
-		surface.DrawRect(bx, y + 12, bw, 3)
-		surface.SetDrawColor(full and RED.r or accent.r, full and RED.g or accent.g, full and RED.b or accent.b, 220)
-		surface.DrawRect(bx, y + 12, bw * apartment.current / math.max(apartment.maximum, 1), 3)
-		Text(apartment.current .. "/" .. apartment.maximum, "nwTerm3DSmall", CONTENT_X + CONTENT_W - 9, y + 14,
-			full and RED or BLUE_SOFT, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	end
+	self:DrawFooter()
 end
 
-function ENT:DrawAdditional(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	Text("ВСПОМОГАТЕЛЬНЫЕ МОДУЛИ ГОРОДСКОЙ СЕТИ", "nwTerm3DTiny", CONTENT_X, 93, BLUE_DIM, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_TOP)
+-- the result: a lit panel on the left (as STOREFRONT ASSIGNED), the summary on the right
+function ENT:DrawAssigned()
+	local assigned = self.assigned or {title = "", name = ""}
 
-	self:DrawButton(self:AddButton("open_weather", "МЕТЕОСВОДКА", CONTENT_X, 110, CONTENT_W, 34), accent, 1, true)
-	self:DrawButton(self:AddButton("open_bank", "УПРАВЛЕНИЕ СРЕДСТВАМИ", CONTENT_X, 152, CONTENT_W, 34), accent, 1, true)
-	self:DrawButton(self:AddButton("open_business", "АРЕНДА КОММЕРЧЕСКИХ ПОМЕЩЕНИЙ", CONTENT_X, 194, CONTENT_W, 34),
-		accent, 1, true)
+	self:DrawHeader(assigned.back == "business" and "Распределение помещений" or "Назначение жилья")
+	self:DrawColumns("", "", "Сводка")
+
+	surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 70)
+	surface.DrawRect(LIST_X, 62, LIST_W, 170)
+	surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 230)
+	surface.DrawRect(LIST_X, 62, LIST_W, 2)
+	Outline(LIST_X, 62, LIST_W, 170, LINE, 160)
+	Spaced(assigned.title, "nwTermSmall", LIST_X + LIST_W / 2, 132, TEXT, 1, 1.8)
+	Spaced(assigned.name, "nwTermHead", LIST_X + LIST_W / 2, 154, TEXT, 1, 1.8)
+
+	self:DrawSummary(assigned.name, assigned.back == "business" and
+		"Помещение закреплено за вами. Аренда списана с кредитного счёта. Дверь отзывается на /doorlock." or
+		"Вы зарегистрированы по этому адресу. Дверь отзывается на /doorlock. Нарушение режима проживания " ..
+		"будет зафиксировано.")
+	self:DrawReturn(SUM_X)
+	self:DrawFooter(true)
 end
 
-function ENT:DrawWeather(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	self:DrawBackButton()
+function ENT:DrawBusiness()
+	self:DrawHeader("Распределение помещений")
+	self:DrawColumns("Помещение", "Цена")
 
-	local weather = T.Weather()
+	local list = self.businesses
+	local selected = self.selected.business
+	local bank = self.profile and self.profile.bank or 0
+	local first = self:Pages("business", #list)
 
-	Box(CONTENT_X, 93, CONTENT_W, 160, accent, 32)
-	Text("СОСТОЯНИЕ НА " .. os.date("%H:%M"), "nwTerm3DTiny", CONTENT_X + 15, 110, BLUE_DIM, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text((weather.temperature > 0 and "+" or "") .. weather.temperature .. "°", "nwTerm3DTitle", CONTENT_X + 15, 140,
-		WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text(weather.sky, "nwTerm3DHeader", CONTENT_X + 80, 140, BLUE_SOFT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Line(CONTENT_X + 15, 162, CONTENT_W - 30, accent, 38)
-
-	local rows = {{"ВЕТЕР", weather.wind .. " М/С"}, {"ВЛАЖНОСТЬ", weather.humidity .. "%"},
-		{"ЧИСТОТА ВОЗДУХА", weather.air}}
-
-	for index, row in ipairs(rows) do
-		local x = CONTENT_X + 15 + (index - 1) * 160
-
-		Text(row[1], "nwTerm3DTiny", x, 182, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		Text(row[2], "nwTerm3DText", x, 200, row[2] == "ПОВЫШЕННЫЙ ФОН" and AMBER or WHITE, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
+	if (#list == 0) then
+		Spaced("Свободных помещений нет", "nwTermSmall", LIST_X, 74, DIM, 0, 1.4)
 	end
 
-	Text("ДАННЫЕ ПЕРЕДАНЫ ГОРОДСКОЙ МЕТЕОСЛУЖБОЙ", "nwTerm3DTiny", CONTENT_X + 15, 236, BLUE_DIM, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
+	for index = first, math.min(#list, first + 4) do
+		local entry = list[index]
+
+		self:Row(index, entry.name, entry.price, 62 + (index - first) * 31, index == selected, bank < entry.price)
+	end
+
+	local entry = selected and list[selected]
+
+	if (entry) then
+		local enough = bank >= entry.price
+
+		self:DrawSummary(entry.name, "Коммерческое помещение городского блока. Стоимость аренды " .. entry.price ..
+			" кредитов списывается со счёта. " .. (enough and "Средств достаточно." or "Недостаточно средств на счёте."),
+			enough and TEXT or AMBER)
+		self:Key("rent", "Оформить", SUM_X, 254, 120, 22, entry, {disabled = !enough})
+	else
+		self:DrawSummary("Выберите помещение", "Наведите на строку слева и нажмите E, чтобы увидеть условия аренды.")
+	end
+
+	self:DrawReturn(SUM_X + 128)
+	self:DrawFooter(true)
 end
 
-function ENT:DrawBank(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	self:DrawBackButton()
+function ENT:DrawBank()
+	self:DrawHeader("Кредитный баланс")
+	self:DrawColumns("Счёт", "", "Операции")
 
 	local profile = self.profile or {bank = 0, tokens = 0, logs = {}}
 
-	Text("ТЕКУЩИЙ БАЛАНС", "nwTerm3DTiny", CONTENT_X, 95, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	Text(tostring(profile.bank or 0) .. " ТОКЕНОВ", "nwTerm3DTitle", CONTENT_X, 116, WHITE, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_CENTER)
-	Text("НА РУКАХ: " .. tostring(profile.tokens or 0) .. " ТК", "nwTerm3DSmall", CONTENT_X + CONTENT_W - 72, 116,
-		BLUE_SOFT, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	Line(CONTENT_X, 132, CONTENT_W, accent, 48)
+	Spaced("На счёте", "nwTermTiny", LIST_X, 74, DIM, 0, 1.4)
+	Spaced(tostring(profile.bank or 0) .. " кр.", "nwTermTitle", LIST_X, 98, TEXT, 0, 1.8)
+	Rule(LIST_X, 116, LIST_W, self:GetAccent(), 80)
+	Spaced("На руках", "nwTermTiny", LIST_X, 132, DIM, 0, 1.4)
+	Spaced(tostring(profile.tokens or 0) .. " ток.", "nwTermHead", LIST_X, 152, TEXT, 0, 1.6)
 
 	local logs = profile.logs or {}
 
 	if (#logs == 0) then
-		Text("ОПЕРАЦИЙ НЕ БЫЛО", "nwTerm3DTiny", CONTENT_X, 150, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		Spaced("Операций не было", "nwTermSmall", SUM_X, 74, DIM, 0, 1.4)
 	end
 
-	for index = 1, math.min(#logs, 3) do
+	for index = 1, math.min(#logs, 7) do
 		local log = logs[index]
-		local y = 150 + (index - 1) * 18
+		local y = 74 + (index - 1) * 20
 
-		Text(log.time, "nwTerm3DTiny", CONTENT_X, y, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		Text(log.text, "nwTerm3DSmall", CONTENT_X + 42, y, log.positive and BLUE_SOFT or WHITE, TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
+		Spaced(log.time, "nwTermTiny", SUM_X, y, DIM, 0, 1.2)
+		Spaced(log.text, "nwTermSmall", SUM_X + 40, y, log.positive and TEXT or Alpha(TEXT, 180), 0, 1.2)
 	end
 
-	local half = (CONTENT_W - 80) * 0.5
-
-	self:DrawButton(self:AddButton("bank_withdraw", "СНЯТЬ СО СЧЁТА", CONTENT_X, 216, half, 31), accent, 1, false)
-	self:DrawButton(self:AddButton("bank_deposit", "ВНЕСТИ НА СЧЁТ", CONTENT_X + half + 8, 216, half, 31), accent, 1,
-		false)
+	self:Key("bank_deposit", "Внести", LIST_X, 254, 110, 22)
+	self:Key("bank_withdraw", "Снять", LIST_X + 118, 254, 110, 22)
+	self:DrawReturn(SUM_X)
+	self:DrawFooter()
 end
 
-function ENT:DrawBusiness(width, height, accent)
-	self:DrawNavigation(accent)
-	self:DrawWorkspaceHeader(accent)
-	self:DrawBackButton()
-	Text("СВОБОДНЫЕ ПОМЕЩЕНИЯ · ОПЛАТА СО СЧЁТА", "nwTerm3DTiny", CONTENT_X, 93, BLUE_DIM, TEXT_ALIGN_LEFT,
-		TEXT_ALIGN_TOP)
+function ENT:DrawAnnouncements()
+	self:DrawHeader("Объявления города")
+	self:DrawColumns("Сообщение", "Дата")
 
-	if (#self.businesses == 0) then
-		Text("СВОБОДНЫХ ПОМЕЩЕНИЙ НЕТ", "nwTerm3DSmall", CONTENT_X, 132, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	local list = self.announcements
+	local selected = self.selected.announcements or 1
+	local first = self:Pages("announcements", #list)
 
-		return
+	if (#list == 0) then
+		Spaced("Сообщения отсутствуют", "nwTermSmall", LIST_X, 74, DIM, 0, 1.4)
 	end
 
-	for index = 1, math.min(#self.businesses, 4) do
-		local business = self.businesses[index]
-		local y = 108 + (index - 1) * 36
+	for index = first, math.min(#list, first + 4) do
+		local entry = list[index]
 
-		Box(CONTENT_X, y, CONTENT_W, 30, accent, 28)
-		Text(T.Upper(business.name), "nwTerm3DSmall", CONTENT_X + 10, y + 15, WHITE, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-
-		local button = self:AddButton("rent", business.price .. " ТК · ОФОРМИТЬ", CONTENT_X + CONTENT_W - 138, y + 4, 132,
-			22, business)
-
-		button.font = "nwTerm3DTiny"
-		self:DrawButton(button, accent, 1, false)
+		self:Row(index, entry.title, string.match(entry.gameTime or "", "^%S+") or "", 62 + (index - first) * 31,
+			index == selected, entry.priority == "critical")
 	end
+
+	local entry = list[selected]
+
+	if (entry) then
+		local priority = T.priorities[entry.priority] or T.priorities.normal
+
+		self:DrawSummary(entry.title, entry.body, entry.priority == "normal" and TEXT or priority.color)
+		Spaced((entry.author or "") .. "  ·  " .. (entry.gameTime or ""), "nwTermTiny", SUM_X, 236, DIM, 0, 1.4)
+
+		if ((entry.photo or "") != "") then
+			self:Key("photo", "Фото", SUM_X + 148, 254, 80, 22, entry)
+		end
+	end
+
+	self:DrawReturn(SUM_X)
+	self:DrawFooter()
 end
 
-function ENT:DrawAimCursor(width, height, accent)
+function ENT:DrawCall()
+	self:DrawHeader("Запрос Гражданской Обороны")
+	self:DrawColumns("Причина обращения", "", "Сводка")
+
+	local locked = self:IsAlarm()
+
+	Outline(LIST_X, 62, LIST_W, 150, locked and RED or self:GetAccent(), 160)
+
+	if (locked) then
+		local blink = math.sin(CurTime() * 6) > 0
+
+		Spaced("Сигнал передан", "nwTermHead", LIST_X + LIST_W / 2, 122, blink and RED or Alpha(RED, 160), 1, 1.8)
+		Spaced("Канал закрыт: " .. math.ceil(self:GetNW2Float("nwTermAlarm", 0) - CurTime()) .. " сек.", "nwTermSmall",
+			LIST_X + LIST_W / 2, 146, Alpha(RED, 220), 1, 1.4)
+	elseif (self.callDraft == "") then
+		Spaced("Причина не указана", "nwTermSmall", LIST_X + LIST_W / 2, 137, DIM, 1, 1.4)
+	else
+		for index, line in ipairs(Wrap(self.callDraft, "nwTermText", LIST_W - 20, 1)) do
+			if (index > 8) then
+				break
+			end
+
+			Spaced(line, "nwTermText", LIST_X + 10, 76 + (index - 1) * 16, TEXT, 0, 1)
+		end
+	end
+
+	self:DrawSummary("Патруль ГО", "Сообщение будет передано всем подразделениям Гражданской Обороны вместе с " ..
+		"вашим именем и номером. Ложный вызов является нарушением.", locked and RED or TEXT)
+
+	if (!locked) then
+		self:Key("call_input", self.callDraft == "" and "Указать причину" or "Изменить", LIST_X, 222, 140, 22)
+
+		if (self.callDraft != "") then
+			self:Key("call_confirm", "Отправить", SUM_X, 254, 120, 22, nil, {color = RED})
+		end
+	end
+
+	self:DrawReturn(SUM_X + 128)
+	self:DrawFooter()
+end
+
+function ENT:DrawInfo()
+	self:DrawHeader("Личное дело")
+	self:DrawColumns("Данные гражданина", "", "Биометрия")
+
+	local profile = self.profile or {name = "—", cid = "—", faction = "—", bank = 0, home = ""}
+	local rows = {
+		{"Гражданин", profile.name},
+		{"Идентификатор", "#" .. tostring(profile.cid)},
+		{"Статус", tostring(profile.faction)},
+		{"Место жительства", (profile.home or "") != "" and profile.home or "Не назначено"}
+	}
+
+	for index, row in ipairs(rows) do
+		local y = 70 + (index - 1) * 38
+
+		Spaced(row[1], "nwTermTiny", LIST_X, y, DIM, 0, 1.4)
+		Spaced(row[2], "nwTermText", LIST_X, y + 15, index == 1 and (profile.color or TEXT) or TEXT, 0, 1.4)
+		Rule(LIST_X, y + 26, LIST_W, self:GetAccent(), 60)
+	end
+
+	-- the silhouette, and the weather under it
+	Outline(SUM_X, 62, 96, 150, self:GetAccent(), 120)
+
+	if (self.previewMaterial) then
+		surface.SetDrawColor(156, 230, 244, 120)
+		surface.SetMaterial(self.previewMaterial)
+		surface.DrawTexturedRect(SUM_X, 64, 96, 146)
+	end
+
+	local weather = T.Weather()
+
+	Spaced("Метеосводка", "nwTermTiny", SUM_X + 108, 70, DIM, 0, 1.4)
+	Spaced((weather.temperature > 0 and "+" or "") .. weather.temperature .. "°", "nwTermTitle", SUM_X + 108, 94, TEXT,
+		0, 1.6)
+
+	for index, line in ipairs(Wrap(weather.sky, "nwTermSmall", 120, 1.2)) do
+		Spaced(line, "nwTermSmall", SUM_X + 108, 116 + (index - 1) * 13, TEXT, 0, 1.2)
+	end
+
+	Spaced("Ветер " .. weather.wind .. " м/с", "nwTermTiny", SUM_X + 108, 156, DIM, 0, 1.2)
+	Spaced("Влажность " .. weather.humidity .. "%", "nwTermTiny", SUM_X + 108, 170, DIM, 0, 1.2)
+	Spaced("Воздух: " .. weather.air, "nwTermTiny", SUM_X + 108, 184,
+		weather.air == "В НОРМЕ" and DIM or AMBER, 0, 1.2)
+
+	self:DrawReturn(SUM_X)
+	self:DrawFooter(true)
+end
+
+function ENT:DrawAimCursor()
 	if (!self.aimX or CurTime() - (self.aimTime or 0) > 0.15) then
 		return
 	end
 
-	local x, y = math.Clamp(self.aimX, 0, width), math.Clamp(self.aimY, 0, height)
-	local hover = self.hoveredKey != nil
-	local size = hover and 22 or 20
+	local x, y = math.Clamp(self.aimX, 0, W_), math.Clamp(self.aimY, 0, H_)
+	local size = self.hoveredKey and 20 or 16
 
-	surface.SetMaterial(hover and CURSOR_HOVER or CURSOR)
-	surface.SetDrawColor(255, 255, 255, 235)
+	surface.SetMaterial(self.hoveredKey and CURSOR_HOVER or CURSOR)
+	surface.SetDrawColor(255, 255, 255, 240)
 	-- the hotspot of both cursors is the middle of the image
 	surface.DrawTexturedRect(x - size / 2, y - size / 2, size, size)
 end
 
 local SCREENS = {
-	main = "DrawMain", info = "DrawInfo", announcements = "DrawAnnouncements",
-	announcement_detail = "DrawAnnouncementDetail", call = "DrawCall", housing = "DrawHousing",
-	housing_roulette = "DrawHousingRoulette", housing_list = "DrawHousingList", additional = "DrawAdditional",
-	weather = "DrawWeather", bank = "DrawBank", business = "DrawBusiness"
+	main = "DrawMain", housing = "DrawHousing", roulette = "DrawRoulette", assigned = "DrawAssigned",
+	business = "DrawBusiness", bank = "DrawBank", announcements = "DrawAnnouncements", call = "DrawCall",
+	info = "DrawInfo"
 }
 
 function ENT:DrawScreen(width, height)
 	self.buttons = {}
 
 	local accent = self:GetAccent()
-	local alpha = (0.86 + math.sin(CurTime() * 1.4) * 0.02) * (self.flicker or 1)
+	local alpha = (0.92 + math.sin(CurTime() * 1.3) * 0.03) * (self.flicker or 1)
 
-	-- the wallpaper, a dark glass over it, the tint of the accent
-	surface.SetDrawColor(255, 255, 255, 120 * alpha)
+	-- the glass: the wallpaper, a light veil of the accent, a slow sweep of light
+	surface.SetDrawColor(255, 255, 255, 200 * alpha)
 	surface.SetMaterial(BG)
 	surface.DrawTexturedRect(0, 0, width, height)
-	surface.SetDrawColor(0, 11, 16, 150 * alpha)
-	surface.DrawRect(0, 0, width, height)
-	surface.SetDrawColor(accent.r, accent.g, accent.b, 11 * alpha)
+	surface.SetDrawColor(4, 26, 34, 95)
 	surface.DrawRect(0, 0, width, height)
 
-	-- a slow sweep of light down the screen
-	local sweepY = math.fmod(CurTime() * 26, height + 60) - 30
-
-	for index = 0, 6 do
-		surface.SetDrawColor(accent.r, accent.g, accent.b, (6 - index) * alpha)
-		surface.DrawRect(0, sweepY + index * 2, width, 1)
+	if (self:IsAlarm()) then
+		surface.SetDrawColor(RED.r, RED.g, RED.b, 18 + 12 * math.abs(math.sin(CurTime() * 3)))
+		surface.DrawRect(0, 0, width, height)
 	end
 
-	self:DrawHeader(width, height, accent, alpha)
+	local sweep = math.fmod(CurTime() * 30, height + 80) - 40
+
+	for i = 0, 10 do
+		surface.SetDrawColor(accent.r, accent.g, accent.b, (11 - i) * 2.2)
+		surface.DrawRect(0, sweep + i * 2, width, 2)
+	end
+
+	-- the bright rim of the glass
+	for i = 0, 9 do
+		local a = (10 - i) ^ 2 * 1.2
+
+		surface.SetDrawColor(accent.r, accent.g, accent.b, a)
+		surface.DrawRect(i, 0, 1, height)
+		surface.DrawRect(width - 1 - i, 0, 1, height)
+		surface.DrawRect(0, i, width, 1)
+		surface.DrawRect(0, height - 1 - i, width, 1)
+	end
+
+	-- a short fade between screens
+	local fade = math.Clamp((CurTime() - (self.fade or 0)) / 0.18, 0, 1)
+
+	surface.SetAlphaMultiplier(fade * alpha)
 
 	if (!self.registered) then
-		self:DrawRegister(width, height, accent)
+		self:DrawRegister()
 	else
-		self[SCREENS[self.screen] or "DrawMain"](self, width, height, accent)
+		self[SCREENS[self.screen] or "DrawMain"](self)
 	end
+
+	surface.SetAlphaMultiplier(1)
 
 	if (self.actionMessage != "" and CurTime() < self.actionMessageUntil) then
-		surface.SetDrawColor(0, 12, 16, 220)
-		surface.DrawRect(CONTENT_X, height - 50, CONTENT_W, 18)
-		surface.SetDrawColor(accent.r, accent.g, accent.b, 120)
-		surface.DrawOutlinedRect(CONTENT_X, height - 50, CONTENT_W, 18, 1)
-		Text(self.actionMessage, "nwTerm3DSmall", CONTENT_X + CONTENT_W * 0.5, height - 41, accent, TEXT_ALIGN_CENTER,
-			TEXT_ALIGN_CENTER)
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 225)
+		surface.DrawRect(X0, H_ - 62, X1 - X0, 18)
+		Spaced(self.actionMessage, "nwTermSmall", W_ / 2, H_ - 53, DARK, 1, 1.6, false)
 	end
 
-	self:DrawFooter(width, height, accent)
-	self:DrawAimCursor(width, height, accent)
+	self:DrawAimCursor()
 end
 
 -- ------------------------------------------------------------------- think --
@@ -959,7 +975,7 @@ function ENT:Think()
 	local client = LocalPlayer()
 
 	if (CurTime() > self.nextFlicker) then
-		self.flicker = math.Rand(0.97, 1)
+		self.flicker = math.Rand(0.96, 1)
 		self.nextFlicker = CurTime() + math.Rand(0.08, 0.2)
 	end
 
@@ -967,8 +983,6 @@ function ENT:Think()
 		local distance = client:GetPos():Distance(self:GetPos())
 
 		if (distance <= 850) then
-			self.lastNear = CurTime()
-
 			if (!self.loopSound) then
 				self.loopSound = CreateSound(self, "network2/terminal/loop.wav")
 
@@ -989,30 +1003,28 @@ function ENT:Think()
 		local hovered = self:GetHoveredButton(client)
 		local key = hovered and hovered.key or nil
 
-		-- a soft tick when the cursor comes onto another button
-		if (key and key != self.hoveredKey and self.registered) then
+		-- a soft tick when the cursor comes onto another key
+		if (key and key != self.hoveredKey) then
 			self:EmitSound("network2/terminal/select1.wav", 50, 150, 0.15)
 		end
 
 		self.hoveredButton = hovered
 		self.hoveredKey = key
-		self.hoveredDescription = hovered and hovered.description or nil
 	end
 
 	local stage, elapsed = self.registrationStage, CurTime() - self.registrationStarted
 
-	if (stage == "shrinking" and elapsed >= 0.45) then
+	if (stage == "shrinking" and elapsed >= 0.3) then
 		self.registrationStage, self.registrationStarted = "loading", CurTime()
 		self:EmitSound("network2/terminal/boot.wav", 60, 100, 0.6)
-	elseif (stage == "loading" and elapsed >= 2 and self.profile) then
+	elseif (stage == "loading" and elapsed >= 1.6 and self.profile) then
 		self.registrationStage, self.registrationStarted = "identity", CurTime()
-	elseif (stage == "identity" and elapsed >= 1.6) then
+	elseif (stage == "identity" and elapsed >= 1.4) then
 		self.registrationStage, self.registrationStarted = "flying", CurTime()
-	elseif (stage == "flying" and elapsed >= 0.65) then
+	elseif (stage == "flying" and elapsed >= 0.6) then
 		self.registrationStage = "ready"
 		self.registered = true
-		self.screen = "main"
-		self:Request("announcements")
+		self:Go("main")
 	end
 
 	self:SetNextClientThink(CurTime())
@@ -1027,14 +1039,17 @@ function ENT:Receive(action, data)
 
 		local c = data.factionColor or {}
 
-		self.profile.color = Color(c[1] or 96, c[2] or 186, c[3] or 206)
+		self.profile.color = Color(c[1] or 156, c[2] or 230, c[3] or 244)
 	elseif (action == "announcements") then
 		self.announcements = data.list or {}
-		self.announcementPage = 1
+	elseif (action == "housinglist") then
+		self.apartments = data.list or {}
+	elseif (action == "business") then
+		self.businesses = data.list or {}
+		self.selected.business = nil
 	elseif (action == "housing") then
 		if (!data.success) then
 			self.housingMessage = data.message or ""
-			self.screen = "housing"
 			self:EmitSound("network2/terminal/deny.wav", 60)
 
 			return
@@ -1047,22 +1062,21 @@ function ENT:Receive(action, data)
 		self.housingSequence = {}
 		self.housingRouletteStart = CurTime()
 		self.housingTicks = 0
-		self.housingAnnounced = false
-		self.screen = "housing_roulette"
 
 		for index = 1, 28 do
 			self.housingSequence[index] = names[math.random(#names)]
 		end
 
 		self.housingSequence[28] = data.chosen
+		self:Go("roulette")
 		self:Request("profile")
-	elseif (action == "housinglist") then
-		self.apartments = data.list or {}
-		self.screen = "housing_list"
-	elseif (action == "business") then
-		self.businesses = data.list or {}
+		self:Request("housinglist")
+	elseif (action == "rented") then
+		self.assigned = {title = "Помещение назначено", name = data.name or "", back = "business"}
+		self:Go("assigned")
+		self:EmitSound("network2/terminal/boot.wav", 60, 115, 0.6)
 	elseif (action == "call") then
-		self.actionMessage = data.success and "СИГНАЛ ПЕРЕДАН" or "ОШИБКА ПЕРЕДАЧИ"
+		self.actionMessage = data.success and "Сигнал передан" or "Ошибка передачи"
 		self.actionMessageUntil = CurTime() + 3
 
 		if (!data.success) then
@@ -1128,6 +1142,8 @@ function ENT:RenderPreview()
 end
 
 -- --------------------------------------------------------------- pressing E --
+local SELECT = {housing = "housing", business = "business", announcements = "announcements"}
+
 function ENT:HandleUse(client)
 	if (!T.IsNear(client, self)) then
 		return false
@@ -1160,39 +1176,50 @@ function ENT:HandleUse(client)
 	self:PlaySelectSound()
 
 	if (action == "back") then
-		if (self.screen == "announcement_detail") then
-			self.screen = "announcements"
-		elseif (self.screen == "weather" or self.screen == "bank" or self.screen == "business") then
-			self.screen = "additional"
-		elseif (self.screen == "housing_list" or self.screen == "housing_roulette") then
-			self.screen = "housing"
-		else
-			self.screen = "main"
-		end
-	elseif (action == "open_info") then
-		self.screen = "info"
-		self:Request("profile")
-	elseif (action == "open_announcements") then
-		self.screen = "announcements"
-		self:Request("announcements")
-	elseif (action == "open_call") then
-		self.screen = "call"
-	elseif (action == "open_housing") then
-		self.screen = "housing"
 		self.housingMessage = ""
-	elseif (action == "open_additional") then
-		self.screen = "additional"
-	elseif (action == "announcement") then
-		self.selectedAnnouncement = button.data
-		self.screen = "announcement_detail"
-	elseif (action == "announcement_photo") then
-		if (self.selectedAnnouncement and (self.selectedAnnouncement.photo or "") != "") then
-			T.OpenPhoto(self.selectedAnnouncement.photo, self.selectedAnnouncement.title)
+		self:Go(self.screen == "assigned" and (self.assigned and self.assigned.back or "main") or "main")
+
+		if (self.screen == "business") then
+			self:Request("business")
 		end
-	elseif (action == "ann_prev") then
-		self.announcementPage = math.max(1, self.announcementPage - 1)
-	elseif (action == "ann_next") then
-		self.announcementPage = math.min(math.max(1, math.ceil(#self.announcements / 4)), self.announcementPage + 1)
+	elseif (action == "exit") then
+		self:ResetSession()
+	elseif (action == "go_housing") then
+		self.housingMessage = ""
+		self.apartments = {}
+		self:Go("housing")
+		self:Request("housinglist")
+		self:Request("profile")
+	elseif (action == "go_business") then
+		self.businesses = {}
+		self:Go("business")
+		self:Request("business")
+		self:Request("profile")
+	elseif (action == "go_bank") then
+		self:Go("bank")
+		self:Request("profile")
+	elseif (action == "go_announcements") then
+		self:Go("announcements")
+		self:Request("announcements")
+	elseif (action == "go_call") then
+		self:Go("call")
+	elseif (action == "go_info") then
+		self:Go("info")
+		self:Request("profile")
+	elseif (action == "select") then
+		local list = SELECT[self.screen]
+
+		if (list) then
+			self.selected[list] = button.data
+		end
+	elseif (action == "page_prev" or action == "page_next") then
+		local name = button.data
+
+		self.page[name] = (self.page[name] or 1) + (action == "page_next" and 1 or -1)
+	elseif (action == "photo") then
+		if ((button.data.photo or "") != "") then
+			T.OpenPhoto(button.data.photo, button.data.title)
+		end
 	elseif (action == "call_input") then
 		T.OpenTextPrompt("Причина вызова Г.О", self.callDraft, function(value)
 			if (IsValid(self)) then
@@ -1205,19 +1232,8 @@ function ENT:HandleUse(client)
 			self.callDraft = ""
 		end
 	elseif (action == "housing_request") then
-		self.housingMessage = "ПОИСК ДОСТУПНЫХ АПАРТАМЕНТОВ..."
+		self.housingMessage = ""
 		self:Request("housing")
-	elseif (action == "housing_list") then
-		self:Request("housinglist")
-	elseif (action == "open_weather") then
-		self.screen = "weather"
-	elseif (action == "open_bank") then
-		self.screen = "bank"
-		self:Request("profile")
-	elseif (action == "open_business") then
-		self.screen = "business"
-		self.businesses = {}
-		self:Request("business")
 	elseif (action == "rent") then
 		self:Request("rent", {door = button.data.door})
 	elseif (action == "bank_withdraw" or action == "bank_deposit") then
@@ -1251,11 +1267,11 @@ function ENT:DrawTranslucent()
 	local light = DynamicLight(self:EntIndex())
 
 	if (light) then
-		light.pos = position + self:GetForward() * 4
+		light.pos = position + self:GetForward() * 6
 		light.r, light.g, light.b = accent.r, accent.g, accent.b
-		light.brightness = 0.08 * (0.9 + math.sin(CurTime() * 2) * 0.08) * (self.flicker or 1)
-		light.decay = 700
-		light.size = 30
+		light.brightness = 0.35 * (self.flicker or 1)
+		light.decay = 900
+		light.size = 90
 		light.dietime = CurTime() + 0.1
 	end
 
@@ -1279,8 +1295,12 @@ function ENT:DrawTranslucent()
 		surface.DisableClipping(false)
 	cam.End3D2D()
 
-	if (!success and CurTime() >= (self.nextRenderError or 0)) then
-		self.nextRenderError = CurTime() + 1
-		ErrorNoHalt("[Network terminal] " .. tostring(problem) .. "\n")
+	if (!success) then
+		surface.SetAlphaMultiplier(1)
+
+		if (CurTime() >= (self.nextRenderError or 0)) then
+			self.nextRenderError = CurTime() + 1
+			ErrorNoHalt("[Network terminal] " .. tostring(problem) .. "\n")
+		end
 	end
 end

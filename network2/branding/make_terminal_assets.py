@@ -1,11 +1,10 @@
 """The civic terminal (entities/entities/nw_terminal.lua): its screen wallpaper, cursors and sounds.
-    materials/network2/terminal/wallpaper.png     1024x512 - the screen under the interface, in the
-        spirit of the Combine terminal background (cmb_terminal_bg): deep sea-green dark, fine
-        horizontal scan rows with brighter dashes of data running along them, a soft diagonal band
-        of light, a faint Alliance ring emblem and a grid, rare red / amber cells of a busy system
-    materials/network2/terminal/cursor.png        64x64 - the pointer: a sharp arrow with a glow
-    materials/network2/terminal/cursor_hover.png  64x64 - over a button: four corner brackets
-                                                  around a dot (the hotspot is the centre)
+    materials/network2/terminal/wallpaper.png     1024x512 - the holographic glass of a civic station
+        (the Half-Life: Alyx / cmb_terminal_bg look): a pale cyan haze, dense soft scan streaks of
+        uneven brightness, a faint perspective floor plane below, a brighter rim
+    materials/network2/terminal/cursor.png        64x64 - a small glowing diamond with a dot
+    materials/network2/terminal/cursor_hover.png  64x64 - over a button: the diamond filled, four
+                                                  ticks around (the hotspot is the centre)
     sound/network2/terminal/select1.wav, select2.wav   a short glassy blip of a touch screen
     sound/network2/terminal/boot.wav     the identification: a scan sweep and a rising chord
     sound/network2/terminal/deny.wav     refused: two low buzzes
@@ -26,6 +25,9 @@ os.makedirs(SND, exist_ok=True)
 
 
 # ------------------------------------------------------------------ wallpaper --
+# The holographic glass of a Combine civic station (Half-Life: Alyx look): a pale cyan haze, dense
+# soft scan streaks of uneven brightness, a faint perspective "floor" plane in the lower half, the
+# light gathering in the middle and at the rim. The interface is drawn over it in thin cyan lines.
 def smooth_noise(w, h, cell, seed):
     r = np.random.default_rng(seed)
     gw, gh = w // cell + 2, h // cell + 2
@@ -36,65 +38,48 @@ def smooth_noise(w, h, cell, seed):
 
 W, H = 1024, 512
 y, x = np.mgrid[0:H, 0:W].astype(float)
+cyan = np.array([120, 214, 232])
 
-# the base: dark sea-green, a little lighter in the middle
-base = np.zeros((H, W, 3))
-base[..., 0], base[..., 1], base[..., 2] = 9, 33, 42
-centre = np.exp(-(((x - W * 0.5) / (W * 0.55)) ** 2 + ((y - H * 0.45) / (H * 0.7)) ** 2))
-base += centre[..., None] * np.array([4, 14, 18])
+# the haze: brighter in the middle, a slow wave of light across
+haze = 0.34 + 0.22 * np.exp(-(((x - W * 0.5) / (W * 0.62)) ** 2 + ((y - H * 0.48) / (H * 0.75)) ** 2))
+haze *= 0.85 + 0.3 * smooth_noise(W, H, 128, 5)
 
-# a soft diagonal band of light, like the brighter swath of the Combine screen
-band = np.exp(-(((x - W * 0.46) + (y - H * 0.5) * 0.35) / (W * 0.13)) ** 2)
-band *= 0.6 + 0.4 * smooth_noise(W, H, 64, 3)
-
-# scan rows: every 8 px a thin line; along it the brightness wanders and data dashes run
-rows = np.zeros((H, W))
-for row in range(3, H, 8):
-    level = 0.18 + 0.5 * band[row] + 0.25 * smooth_noise(W, 1, 48, row)[0]
+# scan streaks: every 6 px a soft line two pixels thick; its brightness drifts along it and
+# between lines, with long brighter runs (the streaks of the Alyx screens)
+streaks = np.zeros((H, W))
+for row in range(2, H, 6):
+    level = 0.25 + 0.55 * smooth_noise(W, 1, 96, row)[0] ** 1.6
     line = level.copy()
-    # dashes of data
     pos = 0
     while pos < W:
-        length = int(rng.integers(6, 70))
-        if rng.random() < 0.28:
-            line[pos:pos + length] += rng.uniform(0.25, 0.9) * (0.4 + band[row, pos:pos + length])
-        pos += length + int(rng.integers(4, 60))
-    rows[row] = line
-    rows[row + 1] = line * 0.35
-rows = np.clip(rows, 0, 1.6)
+        length = int(rng.integers(30, 240))
+        if rng.random() < 0.35:
+            line[pos:pos + length] *= rng.uniform(1.3, 1.9)
+        pos += length + int(rng.integers(10, 120))
+    streaks[row] = line
+    streaks[row + 1] = line * 0.7
+    streaks[row - 1] += line * 0.18
+streaks = np.asarray(Image.fromarray(np.clip(streaks * 255, 0, 255).astype(np.uint8)).filter(
+    ImageFilter.GaussianBlur(0.8)), dtype=float) / 255
 
-cyan = np.array([38, 150, 178])
-img = base + rows[..., None] * cyan * 0.55 + band[..., None] * np.array([6, 28, 34])
+# the perspective floor: a lighter trapezoid going away, with a few depth lines
+floor = Image.new("L", (W, H), 0)
+d = ImageDraw.Draw(floor)
+d.polygon([(int(W * 0.05), H), (int(W * 0.95), H), (int(W * 0.78), int(H * 0.56)), (int(W * 0.22), int(H * 0.56))],
+          fill=70)
+for k in range(1, 6):
+    yy = int(H * 0.56 + (H * 0.44) * (k / 6) ** 1.7)
+    d.line([(0, yy), (W, yy)], fill=110, width=1)
+floor = np.asarray(floor.filter(ImageFilter.GaussianBlur(6)), dtype=float) / 255
 
-# a faint grid and the Alliance ring emblem on the right
-grid = ((x % 64 < 1) | (y % 64 < 1)).astype(float) * 0.05
-img += grid[..., None] * cyan
-emblem = Image.new("L", (W, H), 0)
-d = ImageDraw.Draw(emblem)
-cx, cy = int(W * 0.79), int(H * 0.52)
-for radius, width in ((150, 3), (118, 2), (84, 6), (40, 2)):
-    d.ellipse((cx - radius, cy - radius, cx + radius, cy + radius), outline=255, width=width)
-for angle in range(0, 360, 30):
-    a = math.radians(angle)
-    d.line((cx + math.cos(a) * 92, cy + math.sin(a) * 92, cx + math.cos(a) * 112, cy + math.sin(a) * 112),
-           fill=255, width=3)
-d.polygon([(cx, cy - 64), (cx + 20, cy - 12), (cx, cy + 6), (cx - 20, cy - 12)], outline=255)
-emblem = np.asarray(emblem.filter(ImageFilter.GaussianBlur(1.2)), dtype=float) / 255
-img += emblem[..., None] * cyan * 0.13
+light = haze * 0.55 + streaks * 0.5 + floor * 0.35
+img = np.zeros((H, W, 3)) + np.array([10, 34, 42])
+img += light[..., None] * cyan
 
-# rare busy cells: a few red and amber points on the rows (as on the original screen)
-for _ in range(14):
-    row = int(rng.integers(1, H // 8)) * 8 + 3
-    col = int(rng.integers(40, W - 40))
-    colour = np.array([200, 70, 60]) if rng.random() < 0.5 else np.array([214, 160, 64])
-    img[row:row + 2, col:col + int(rng.integers(3, 9))] = colour * rng.uniform(0.5, 0.9)
-
-# grain, a soft blur of the light, the dark edges
-img += rng.normal(0, 2.2, (H, W, 1))
-glow = Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))
-img = img * 0.82 + np.asarray(glow, dtype=float) * 0.3
-edge = np.clip(1 - (np.abs(x - W / 2) / (W / 2)) ** 6 * 0.55 - (np.abs(y - H / 2) / (H / 2)) ** 6 * 0.45, 0, 1)
-img *= edge[..., None]
+# grain, then the edges a little brighter (the rim of the glass)
+img += rng.normal(0, 2.0, (H, W, 1))
+rim = np.clip(1 - np.minimum(np.minimum(x, W - 1 - x) / 40, np.minimum(y, H - 1 - y) / 28), 0, 1) ** 2
+img += rim[..., None] * cyan * 0.35
 Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(os.path.join(MAT, "wallpaper.png"), optimize=True)
 
 
@@ -105,39 +90,35 @@ def cursor(draw_shape, name):
     shape = Image.new("L", (size, size), 0)
     draw_shape(ImageDraw.Draw(shape), S)
     shape = shape.resize((64, 64), Image.LANCZOS)
-    glow = shape.filter(ImageFilter.GaussianBlur(3.5))
+    glow = shape.filter(ImageFilter.GaussianBlur(3))
     core = np.asarray(shape, dtype=float) / 255
     halo = np.asarray(glow, dtype=float) / 255
     rgba = np.zeros((64, 64, 4))
-    rgba[..., :3] = np.array([150, 236, 252]) * core[..., None] + np.array([40, 200, 240]) * (1 - core[..., None])
-    rgba[..., :3] = np.where(core[..., None] > 0.5, np.array([226, 250, 255]), rgba[..., :3])
-    rgba[..., 3] = np.clip(core * 255 + halo * 150, 0, 255)
+    rgba[..., :3] = np.array([236, 252, 255]) * core[..., None] + np.array([110, 220, 240]) * (1 - core[..., None])
+    rgba[..., 3] = np.clip(core * 255 + halo * 170, 0, 255)
     Image.fromarray(rgba.astype(np.uint8), "RGBA").save(os.path.join(MAT, name), optimize=True)
 
 
-def arrow(d, S):
-    # the tip at the centre (32, 32): the hotspot is the middle of the image
-    tip = (32 * S, 32 * S)
-    points = [tip, (32 * S, 56 * S), (38 * S, 50 * S), (43 * S, 60 * S), (47 * S, 58 * S), (42 * S, 48 * S),
-              (50 * S, 48 * S)]
-    d.polygon(points, fill=255)
-    inner = [(33.6 * S, 36 * S), (33.6 * S, 52 * S), (38.4 * S, 47 * S), (43.6 * S, 57.2 * S), (45 * S, 56.5 * S),
-             (39.8 * S, 46.6 * S), (46.2 * S, 46.6 * S)]
-    d.polygon(inner, fill=150)
+# the cursor of the Alyx stations: a small diamond with a dot (the hotspot is the centre)
+def diamond(d, S):
+    c, r, w = 32 * S, 9 * S, int(2 * S)
+    d.polygon([(c, c - r), (c + r, c), (c, c + r), (c - r, c)], outline=255)
+    for k in range(w):
+        rr = r - k
+        d.polygon([(c, c - rr), (c + rr, c), (c, c + rr), (c - rr, c)], outline=255)
+    d.ellipse((c - 2.2 * S, c - 2.2 * S, c + 2.2 * S, c + 2.2 * S), fill=255)
 
 
-def brackets(d, S):
-    c, r, l, w = 32 * S, 15 * S, 7 * S, int(2.4 * S)
-    for sx in (-1, 1):
-        for sy in (-1, 1):
-            corner = (c + sx * r, c + sy * r)
-            d.line([corner, (corner[0] - sx * l, corner[1])], fill=255, width=w)
-            d.line([corner, (corner[0], corner[1] - sy * l)], fill=255, width=w)
-    d.ellipse((c - 2.6 * S, c - 2.6 * S, c + 2.6 * S, c + 2.6 * S), fill=255)
+# over a button: the diamond filled, with four short ticks around
+def diamond_hover(d, S):
+    c, r = 32 * S, 7 * S
+    d.polygon([(c, c - r), (c + r, c), (c, c + r), (c - r, c)], fill=255)
+    for dx, dy in ((0, -1), (1, 0), (0, 1), (-1, 0)):
+        d.line([(c + dx * 12 * S, c + dy * 12 * S), (c + dx * 17 * S, c + dy * 17 * S)], fill=255, width=int(2 * S))
 
 
-cursor(arrow, "cursor.png")
-cursor(brackets, "cursor_hover.png")
+cursor(diamond, "cursor.png")
+cursor(diamond_hover, "cursor_hover.png")
 
 # ---------------------------------------------------------------------- sounds --
 SR = 44100
