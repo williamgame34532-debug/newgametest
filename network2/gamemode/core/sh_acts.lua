@@ -1,0 +1,404 @@
+-- Poses (the G wheel → Анимации) and the voice range (the G wheel → Голос).
+-- A pose is a looping sequence of the citizen models (the WN "willard" ones and ours). It is not
+-- started on the spot: the wheel opens a placement with a see-through preview of the character
+-- in that pose, and the place must suit it (A.CheckSpot):
+--   floor    standing poses - firm, flat ground with room to stand;
+--   ground   sitting or kneeling on the ground - flat ground, room above;
+--   lie      lying - flat ground with room for the body;
+--   seat     sitting - something to sit on behind (12..28 units high), the feet on the ground;
+--   wall     leaning - a wall right behind;
+--   wallsit  sitting against a wall - a wall behind, flat ground.
+-- Never higher than the player's own feet (+18), never farther than 110 units, never through a
+-- wall, and only where there is a safe place to stand up next to it (A.ExitSpot). The pose
+-- plays until the player moves, jumps, crouches or attacks; then the player stands up on that place.
+-- Voice: Шёпот (150 units), Обычный (550), Крик (1100); others hear you in 3D within that range.
+
+NW.acts = NW.acts or {}
+
+local A = NW.acts
+local meta = FindMetaTable("Player")
+
+-- id, name, icon, place, variants (sequence name endings, or "=" full names)
+A.list = {
+	{id = "sit", name = "Сесть", icon = "act_sit", place = "seat", variants = {"sit01", "sit02", "sit03", "sit04",
+		"sit05", "sit06", "sit07"}},
+	{id = "ground", name = "Сесть на землю", icon = "act_ground", place = "ground", variants = {"sit_ground"}},
+	{id = "wall", name = "Сесть у стены", icon = "act_wall", place = "wallsit", variants = {"sitwall"}},
+	{id = "lie", name = "Лечь", icon = "act_lie", place = "lie", variants = {"down01", "down02", "down03"}},
+	{id = "injured", name = "Раненый", icon = "act_injured", place = "ground", variants = {"injured"}},
+	{id = "handsup", name = "Руки вверх", icon = "act_handsup", place = "floor", variants = {"handsup"}},
+	{id = "arrest", name = "Арест", icon = "act_arrest", place = "floor", variants = {"arrest", "arrest_sit01"}},
+	{id = "lean", name = "Опереться", icon = "act_lean", place = "wall", variants = {"lean01", "lean02",
+		"=nw_civ_lean"}},
+	{id = "stand", name = "Стоять", icon = "act_stand", place = "floor", variants = {"stand01", "stand02", "stand03",
+		"stand04", "stand05"}},
+	{id = "check", name = "Осмотреться", icon = "act_check", place = "floor", variants = {"check"}},
+	{id = "kneel", name = "На колено", icon = "act_kneel", place = "floor", variants = {"=nw_civ_kneel"}},
+	{id = "shiver", name = "Дрожать", icon = "act_shiver", place = "floor", variants = {"=nw_civ_shiver"}}
+}
+
+A.byID = {}
+
+for _, act in ipairs(A.list) do
+	A.byID[act.id] = act
+end
+
+A.voice = {
+	{id = 1, name = "Шёпот", icon = "voice_whisper", range = 150},
+	{id = 2, name = "Обычный", icon = "voice_normal", range = 550},
+	{id = 3, name = "Крик", icon = "voice_yell", range = 1100}
+}
+
+A.reach = 110
+
+local PREFIXES = {"willard_male_male_", "willard_female_"}
+
+-- the sequence of a variant on this entity (or nil)
+function A.Resolve(entity, variant)
+	if (string.sub(variant, 1, 1) == "=") then
+		local name = string.sub(variant, 2)
+
+		return entity:LookupSequence(name) > 0 and name or nil
+	end
+
+	for _, prefix in ipairs(PREFIXES) do
+		if (entity:LookupSequence(prefix .. variant) > 0) then
+			return prefix .. variant
+		end
+	end
+end
+
+-- the variants of a pose this model really has
+function A.Available(entity, act)
+	local out = {}
+
+	for _, variant in ipairs(act.variants) do
+		local name = A.Resolve(entity, variant)
+
+		if (name) then
+			out[#out + 1] = name
+		end
+	end
+
+	return out
+end
+
+-- ------------------------------------------------------------------ places --
+local HEIGHT = {floor = 70, ground = 44, lie = 20, seat = 50, wall = 70, wallsit = 44}
+local WIDTH = {floor = 12, ground = 14, lie = 24, seat = 12, wall = 12, wallsit = 14}
+
+local function Floor(pos, filter)
+	local trace = util.TraceLine({start = pos + Vector(0, 0, 10), endpos = pos - Vector(0, 0, 16),
+		mask = MASK_PLAYERSOLID, filter = filter})
+
+	if (trace.Hit and trace.HitNormal.z > 0.7) then
+		return trace.HitPos
+	end
+end
+
+-- can the player stand at pos (the standing hull, nothing solid in it)?
+local function Free(client, pos)
+	local mins, maxs = client:GetHull()
+	local trace = util.TraceHull({start = pos, endpos = pos, mins = mins, maxs = maxs, mask = MASK_PLAYERSOLID,
+		filter = client})
+
+	return !trace.StartSolid and !trace.AllSolid
+end
+
+-- the nearest place to stand up at from a pose at pos: pos itself, or around it (on the floor,
+-- not through a wall), or nil
+function A.ExitSpot(client, pos)
+	local lift = Vector(0, 0, 2)
+
+	if (Free(client, pos + lift)) then
+		return pos + lift
+	end
+
+	for _, radius in ipairs({12, 20, 28, 36, 48}) do
+		for step = 0, 11 do
+			local angle = math.rad(step * 30)
+			local spot = pos + Vector(math.cos(angle) * radius, math.sin(angle) * radius, 0)
+			local path = util.TraceLine({start = pos + Vector(0, 0, 24), endpos = spot + Vector(0, 0, 24),
+				mask = MASK_PLAYERSOLID, filter = client})
+
+			if (!path.Hit) then
+				local down = util.TraceLine({start = spot + Vector(0, 0, 24), endpos = spot - Vector(0, 0, 32),
+					mask = MASK_PLAYERSOLID, filter = client})
+
+				if (down.Hit and down.HitNormal.z > 0.7 and Free(client, down.HitPos + lift)) then
+					return down.HitPos + lift
+				end
+			end
+		end
+	end
+end
+
+-- is the place right for this pose? returns the corrected position or nil and why
+function A.CheckSpot(client, act, pos, yaw)
+	local origin = client:GetPos()
+
+	if (pos.z > origin.z + 18) then
+		return nil, "Нельзя выше себя"
+	end
+
+	if (pos.z < origin.z - 72 or (pos - origin):Length2D() > A.reach) then
+		return nil, "Слишком далеко"
+	end
+
+	local floor = Floor(pos, client)
+
+	if (!floor) then
+		return nil, "Нужна ровная земля"
+	end
+
+	pos = floor
+
+	-- seen from the eyes (not through walls)
+	local sight = util.TraceLine({start = client:EyePos(), endpos = pos + Vector(0, 0, 16),
+		mask = MASK_SOLID_BRUSHONLY, filter = client})
+
+	if (sight.Hit and sight.HitPos:DistToSqr(pos + Vector(0, 0, 16)) > 16 * 16) then
+		return nil, "Место не видно"
+	end
+
+	-- room for the body
+	local place = act.place or "floor"
+	local w = WIDTH[place]
+	local room = util.TraceHull({start = pos + Vector(0, 0, 2), endpos = pos + Vector(0, 0, 2),
+		mins = Vector(-w, -w, 0), maxs = Vector(w, w, HEIGHT[place]), mask = MASK_PLAYERSOLID,
+		filter = function(entity)
+			return entity != client and !entity:IsPlayer()
+		end})
+
+	if (room.StartSolid) then
+		return nil, "Здесь тесно"
+	end
+
+	-- somewhere safe to stand up at afterwards
+	if (!A.ExitSpot(client, pos)) then
+		return nil, "Отсюда будет не встать"
+	end
+
+	local back = -Angle(0, yaw, 0):Forward()
+
+	if (place == "seat") then
+		-- something to sit on right behind
+		local probe = pos + back * 14
+		local seat = util.TraceLine({start = probe + Vector(0, 0, 32), endpos = probe + Vector(0, 0, 6),
+			mask = MASK_PLAYERSOLID, filter = client})
+		local height = seat.HitPos.z - pos.z
+
+		if (!seat.Hit or seat.StartSolid or height < 12 or height > 28 or seat.HitNormal.z < 0.6) then
+			return nil, "Сесть можно только на что-то: стул, скамью, ящик"
+		end
+	elseif (place == "wall" or place == "wallsit") then
+		-- a wall right behind
+		local h = place == "wall" and 40 or 24
+		local wall = util.TraceLine({start = pos + Vector(0, 0, h), endpos = pos + Vector(0, 0, h) + back * 24,
+			mask = MASK_PLAYERSOLID, filter = client})
+
+		if (!wall.Hit or math.abs(wall.HitNormal.z) > 0.35) then
+			return nil, "Нужна стена за спиной"
+		end
+	end
+
+	return pos
+end
+
+-- where the pose goes for what the player aims at (client preview; the server checks again)
+function A.FindSpot(client, act, trace, turn)
+	local place = act.place or "floor"
+	local toPlayer = client:GetPos() - trace.HitPos
+
+	toPlayer.z = 0
+	toPlayer:Normalize()
+
+	local pos, yaw
+
+	if ((place == "wall" or place == "wallsit") and math.abs(trace.HitNormal.z) < 0.35) then
+		-- aiming at a wall: in front of it, the back to it
+		pos = trace.HitPos + trace.HitNormal * (place == "wall" and 14 or 16)
+		yaw = trace.HitNormal:Angle().y
+	elseif (place == "seat" and trace.HitNormal.z > 0.6) then
+		-- aiming at a seat: in front of it, facing the player
+		pos = trace.HitPos + toPlayer * 14
+		yaw = toPlayer:Angle().y
+	else
+		pos = trace.HitPos
+		yaw = toPlayer:Angle().y
+	end
+
+	yaw = yaw + (turn or 0)
+
+	-- down to the floor
+	local down = util.TraceLine({start = pos + Vector(0, 0, 8), endpos = pos - Vector(0, 0, 64),
+		mask = MASK_PLAYERSOLID, filter = client})
+
+	pos = down.HitPos
+
+	local checked, why = A.CheckSpot(client, act, pos, yaw)
+
+	return checked or pos, yaw, checked != nil, why
+end
+
+-- ----------------------------------------------------------------- players --
+function meta:GetAct()
+	local name = self:GetNW2String("nwAct", "")
+
+	return name != "" and name or nil
+end
+
+function meta:GetVoiceMode()
+	return math.Clamp(self:GetNW2Int("nwVoiceMode", 2), 1, 3)
+end
+
+-- the animation engine (sh_animhooks.lua) plays this sequence instead of the normal ones
+function meta:GetForcedSequence()
+	local name = self:GetAct()
+
+	if (!name) then
+		self.nwActCache = nil
+
+		return
+	end
+
+	if (!self.nwActCache or self.nwActCache.name != name or self.nwActCache.model != self:GetModel()) then
+		local sequence = self:LookupSequence(name)
+
+		self.nwActCache = {name = name, model = self:GetModel(), sequence = sequence > 0 and sequence or nil}
+		self.nwSeqBlendStart = CurTime()
+		self:SetCycle(0)
+	end
+
+	return self.nwActCache.sequence
+end
+
+if (SERVER) then
+	util.AddNetworkString("nwAct")
+	util.AddNetworkString("nwVoice")
+
+	local function Notice(client, text)
+		net.Start("nwChatNotice")
+			net.WriteString(text)
+		net.Send(client)
+	end
+
+	-- out of the pose: on the nearest safe place to stand (never stuck in a wall or a seat)
+	function A.Stop(client)
+		if (!client:GetAct()) then
+			return
+		end
+
+		client:SetNW2String("nwAct", "")
+
+		if (client:Alive() and !client:InVehicle()) then
+			local spot = A.ExitSpot(client, client:GetPos())
+
+			if (spot and spot:DistToSqr(client:GetPos()) > 4) then
+				client:SetPos(spot)
+			end
+		end
+	end
+
+	function A.Start(client, id, index, pos, yaw)
+		local act = A.byID[id or ""]
+
+		if (!act or !client:Alive() or client:GetCharacterID() == 0 or client:InVehicle() or !client:OnGround() or
+			client:GetMoveType() != MOVETYPE_WALK) then
+			return
+		end
+
+		local list = A.Available(client, act)
+
+		if (#list == 0) then
+			return Notice(client, "Эта модель не умеет: " .. act.name)
+		end
+
+		local spot, why = A.CheckSpot(client, act, pos, yaw)
+
+		if (!spot) then
+			return Notice(client, why or "Сюда нельзя")
+		end
+
+		-- empty hands, weapon down, into place
+		if (client:HasWeapon("nw_hands")) then
+			client:SelectWeapon("nw_hands")
+		end
+
+		client:SetNW2Bool("nwRaised", false)
+		client:SetPos(spot)
+		client:SetEyeAngles(Angle(0, yaw, 0))
+		client:SetVelocity(-client:GetVelocity())
+		client:SetNW2Float("nwActYaw", yaw)
+		client:SetNW2String("nwAct", "")
+		client:SetNW2String("nwAct", list[math.Clamp(index, 1, #list)])
+		client.nwActStarted = CurTime()
+	end
+
+	net.Receive("nwAct", function(_, client)
+		local id = net.ReadString()
+
+		if ((client.nwActNext or 0) > CurTime()) then
+			return
+		end
+
+		client.nwActNext = CurTime() + 0.4
+
+		if (id == "") then
+			A.Stop(client)
+
+			return
+		end
+
+		local index = net.ReadUInt(4)
+		local pos = net.ReadVector()
+		local yaw = math.NormalizeAngle(net.ReadFloat())
+
+		A.Start(client, id, index, pos, yaw)
+	end)
+
+	net.Receive("nwVoice", function(_, client)
+		client:SetNW2Int("nwVoiceMode", math.Clamp(net.ReadUInt(2), 1, 3))
+	end)
+
+	-- any movement drops the pose
+	local STOP = {[IN_FORWARD] = true, [IN_BACK] = true, [IN_MOVELEFT] = true, [IN_MOVERIGHT] = true,
+		[IN_JUMP] = true, [IN_DUCK] = true, [IN_ATTACK] = true, [IN_ATTACK2] = true}
+
+	hook.Add("KeyPress", "nwActs", function(client, key)
+		if (client:GetAct() and STOP[key] and CurTime() - (client.nwActStarted or 0) > 0.3) then
+			A.Stop(client)
+		end
+	end)
+
+	hook.Add("Think", "nwActs", function()
+		for _, client in ipairs(player.GetAll()) do
+			if (client:GetAct() and (!client:Alive() or client:InVehicle() or
+				(CurTime() - (client.nwActStarted or 0) > 0.5 and (!client:OnGround() or
+				client:GetVelocity():Length2DSqr() > 400)))) then
+				A.Stop(client)
+			end
+		end
+	end)
+
+	hook.Add("PlayerSpawn", "nwActs", function(client)
+		client:SetNW2String("nwAct", "")
+	end)
+
+	hook.Add("PlayerSwitchWeapon", "nwActs", function(client, old, new)
+		if (client:GetAct() and IsValid(new) and new:GetClass() != "nw_hands") then
+			A.Stop(client)
+		end
+	end)
+
+	-- the voice: heard in 3D within the speaker's range
+	hook.Add("PlayerCanHearPlayersVoice", "nwVoice", function(listener, talker)
+		if (talker:GetNW2Bool("nwInMenu", false) or listener:GetNW2Bool("nwInMenu", false)) then
+			return false
+		end
+
+		local mode = A.voice[talker:GetVoiceMode()] or A.voice[2]
+
+		return listener:GetPos():DistToSqr(talker:GetPos()) <= mode.range * mode.range, true
+	end)
+end

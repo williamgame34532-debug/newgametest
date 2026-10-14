@@ -1,0 +1,11 @@
+hover.wav (hls_ui_scroll_click), click.wav (hls_ui_toggle), confirm.mp3 (hls_loading_enter) -
+supplied by the server owner.
+
+alt/*.wav - from the uisfx sound library (Yuki Capital, npm package "uisfx" 0.4.0), dedicated to the
+public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/):
+  hover_mech = mechanical/hover, select_mech = mechanical/select, press_mech = mechanical/press,
+  start_mech = mechanical/start, open_mech = mechanical/open, hover_cine = cinematic/hover,
+  select_cine = cinematic/select, start_cine = cinematic/start, success_cine = cinematic/success,
+  open_cine = cinematic/open
+
+chat_receive.wav = uisfx sounds/minimal/receive.ogg; ../weapon_equip.wav = uisfx sounds/mechanical/unlock.ogg (CC0).

@@ -1,0 +1,2 @@
+Icons: Tabler Icons (https://tabler.io/icons), MIT License, Copyright (c) 2020-2026 Pawel Kuna.
+Rendered to white 128 px PNG by branding/make_ui_assets.py.

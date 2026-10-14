@@ -1,0 +1,2 @@
+Exo 2 (Exo2-Regular.ttf, Exo2-SemiBold.ttf, Exo2-Bold.ttf) - Copyright The Exo 2 Project Authors.
+Licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).

@@ -1,0 +1,8 @@
+"network2"
+{
+	"base"		"sandbox"
+	"title"		"Network"
+	"category"	"rp"
+	"menusystem"	"1"
+	"maps"		""
+}

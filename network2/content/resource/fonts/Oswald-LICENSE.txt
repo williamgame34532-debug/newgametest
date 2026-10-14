@@ -1,0 +1,2 @@
+Oswald (Oswald-Medium.ttf, Oswald-SemiBold.ttf) - Copyright The Oswald Project Authors.
+Licensed under the SIL Open Font License 1.1 (https://openfontlicense.org).
