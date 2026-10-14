@@ -15,6 +15,8 @@ net.Receive("nwTerminal", function()
 
 	if (action == "alert") then
 		return T.Alert(terminal, data)
+	elseif (action == "alert_clear") then
+		return T.ClearAlert(data.terminal, data.by)
 	elseif (action == "announce_list") then
 		return T.OpenEditor(data.list or {})
 	end
@@ -280,13 +282,35 @@ function T.Alert(terminal, data)
 		return
 	end
 
-	table.insert(T.alerts, {pos = pos, number = data.number or 0, reason = data.reason or "",
+	-- a new call from the same terminal replaces the old mark
+	T.ClearAlert(data.terminal)
+
+	table.insert(T.alerts, {pos = pos, terminal = data.terminal, number = data.number or 0, reason = data.reason or "",
 		name = data.name or "?", cid = data.cid or "?", until_ = RealTime() + (data.until_ or 90)})
 
 	NW.notify.Add("ВЫЗОВ Г.О · терминал " .. string.format("%03d", data.number or 0) .. " · " .. (data.name or "?") ..
 		" (#" .. (data.cid or "?") .. "): " .. (data.reason or ""))
 	surface.PlaySound("network2/terminal/alarm.wav")
 end
+
+-- the call is closed (someone of the Alliance pressed E on the terminal)
+function T.ClearAlert(terminal, by)
+	local removed = false
+
+	for index = #T.alerts, 1, -1 do
+		if (terminal and T.alerts[index].terminal == terminal) then
+			removed = true
+			table.remove(T.alerts, index)
+		end
+	end
+
+	if (removed and by) then
+		NW.notify.Add("Вызов закрыт: " .. by)
+	end
+end
+
+-- reaching the mark: within this many units it goes away (for the one who came)
+local REACHED = 110
 
 surface.CreateFont("nwTermAlert", {font = "Oswald Medium", size = math.max(14, math.Round(ScrH() * 0.019)), weight = 500,
 	extended = true, antialias = true})
@@ -302,6 +326,10 @@ hook.Add("HUDPaint", "nwTerminalAlerts", function()
 
 		if (now > alert.until_) then
 			table.remove(T.alerts, index)
+		elseif (IsValid(LocalPlayer()) and LocalPlayer():GetPos():DistToSqr(alert.pos) < REACHED * REACHED) then
+			-- the patrol is there: the mark has done its job
+			table.remove(T.alerts, index)
+			surface.PlaySound("network2/terminal/select2.wav")
 		else
 			local screen = (alert.pos + Vector(0, 0, 40)):ToScreen()
 			local x = math.Clamp(screen.x, 40, ScrW() - 40)

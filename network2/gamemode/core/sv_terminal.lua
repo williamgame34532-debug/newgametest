@@ -259,6 +259,7 @@ function ACTIONS.call(client, terminal, input)
 	terminal:EmitSound("network2/terminal/alarm.wav", 70)
 
 	local alert = {pos = {terminal:GetPos().x, terminal:GetPos().y, terminal:GetPos().z},
+		terminal = terminal:EntIndex(),
 		number = terminal:GetNW2Int("nwTermNumber", terminal:EntIndex()), name = client:Nick(),
 		cid = (Data(client) or {}).cid or "?", reason = text, until_ = T.callCooldown}
 
@@ -270,6 +271,33 @@ function ACTIONS.call(client, terminal, input)
 
 	Send(client, "call", terminal, {success = true, text = text})
 	MsgN(string.format("[Terminal] %s (%s) вызывает ГО: %s", client:Nick(), client:SteamName(), text))
+end
+
+-- the Alliance came to the call: E on the terminal (its screen or its body) ends the alarm - the
+-- terminal is blue again, its channel open, and every member of the Alliance loses the mark
+function T.Resolve(terminal, client)
+	if (!IsValid(terminal) or terminal:GetNW2Float("nwTermAlarm", 0) <= CurTime() or
+		!NW.zones.IsAlliance(client)) then
+		return false
+	end
+
+	terminal:SetNW2Float("nwTermAlarm", 0)
+	terminal:EmitSound("network2/terminal/boot.wav", 62, 120, 0.7)
+
+	for _, member in ipairs(player.GetAll()) do
+		if (member:GetCharacterID() != 0 and NW.zones.IsAlliance(member)) then
+			Send(member, "alert_clear", terminal, {terminal = terminal:EntIndex(), by = client:Nick()})
+		end
+	end
+
+	MsgN(string.format("[Terminal] %s (%s) закрыл вызов на терминале %03d", client:Nick(), client:SteamName(),
+		terminal:GetNW2Int("nwTermNumber", terminal:EntIndex())))
+
+	return true
+end
+
+function ACTIONS.resolve(client, terminal)
+	T.Resolve(terminal, client)
 end
 
 function ACTIONS.housing(client, terminal)

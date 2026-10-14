@@ -80,6 +80,13 @@ if (SERVER) then
 		NW.terminal.Changed()
 	end
 
+	-- E on the body of the terminal (not on a key of the screen): the Alliance ends an alarm
+	function ENT:Use(activator)
+		if (IsValid(activator) and activator:IsPlayer() and NW.terminal.IsNear(activator, self)) then
+			NW.terminal.Resolve(self, activator)
+		end
+	end
+
 	function ENT:OnRemove()
 		if (NW.terminal.Changed) then
 			NW.terminal.Changed()
@@ -1147,6 +1154,14 @@ local SELECT = {housing = "housing", business = "business", announcements = "ann
 function ENT:HandleUse(client)
 	if (!T.IsNear(client, self)) then
 		return false
+	end
+
+	-- the Alliance at an alarmed terminal: E (anywhere on the screen) closes the call
+	if (self:IsAlarm() and NW.zones.IsAlliance(client)) then
+		self:Request("resolve")
+		self:PlaySelectSound()
+
+		return true
 	end
 
 	local button = self:GetHoveredButton(client)
