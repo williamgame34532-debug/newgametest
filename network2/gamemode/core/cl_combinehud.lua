@@ -9,8 +9,9 @@
 --                  Социо-статус :: by the health (Зелёный, Жёлтый, Оранжевый, Красный)
 --   top centre     the Combine: a compass with the sides of the world in Russian and the degrees
 --   teammates      the other members of the Alliance close by are outlined, their name over them
--- Everything sits on a curved visor: the lines bend and tilt towards the edges of the screen and the
--- whole HUD sways with the turns of the head and the steps (it lags behind and springs back).
+-- Everything sits on the inside of a curved visor: the middle goes away, the sides come closer (they
+-- bend up, tilt and grow a little), and the whole HUD sways with the turns of the head and the steps
+-- (it lags behind and springs back). The text is JetBrains Mono, the system lines the Combine font.
 -- Civil Protection is drawn in blue, the Combine in red. nw_hud_alliance 0 - off.
 
 local Z = NW.zones
@@ -49,9 +50,10 @@ local function Fonts()
 			extended = true, antialias = true, blursize = 4})
 	end
 
-	F("nwCmbHead", "Jura", 0.024, 700)
-	F("nwCmbText", "Jura", 0.019, 700)
-	F("nwCmbSmall", "Jura", 0.015, 700)
+	-- JetBrains Mono (OFL, resource/fonts): a clean monospace of a terminal, Cyrillic included
+	F("nwCmbHead", "JetBrains Mono ExtraBold", 0.022, 800)
+	F("nwCmbText", "JetBrains Mono ExtraBold", 0.0175, 800)
+	F("nwCmbSmall", "JetBrains Mono Medium", 0.0145, 500)
 	F("nwCmbCombine", combineFont:GetString(), 0.018, 500)
 end
 
@@ -96,7 +98,7 @@ hook.Add("RenderScreenspaceEffects", "nwCombineOverlay", function()
 
 	render.UpdateScreenEffectTexture()
 	render.UpdateRefractTexture()
-	material:SetFloat("$alpha", 0.5)
+	material:SetFloat("$alpha", 0.35)
 	render.SetMaterial(material)
 	render.DrawScreenQuad()
 end)
@@ -145,9 +147,9 @@ hook.Add("Think", "nwCombineHudSway", function()
 end)
 
 -- ------------------------------------------------------------- the curve --
--- where a point of the flat HUD lies on the curved visor: the sides bend down and turn, and shrink
--- a little (they are farther away)
-local BEND = 0.045
+-- where a point of the flat HUD lies on the curved visor: the inside of a mask - the middle goes away
+-- from the eyes, the sides come closer (they bend up, turn and grow a little)
+local BEND = -0.035
 
 local function Curve(x, y)
 	local sw, sh = ScrW(), ScrH()
@@ -157,27 +159,37 @@ local function Curve(x, y)
 	local dy = BEND * sh * nx * nx * top
 	local slope = 2 * BEND * sh * nx * top / cx
 
-	return x + sway.x, y + dy + sway.y, math.deg(math.atan(slope)), 1 - 0.07 * nx * nx
+	return x + sway.x, y + dy + sway.y, math.deg(math.atan(slope)), 1 + 0.08 * nx * nx
 end
 
--- text on the visor: placed at (x, y) of the flat HUD, bent and tilted by the curve
+-- text on the visor: placed at (x, y) of the flat HUD, bent and tilted by the curve. The text is
+-- always drawn from (0, 0) to the right in its own space - the alignment moves the matrix instead:
+-- the 2D clipping of the engine cuts off what lies at negative coordinates before the matrix turns it
 local function Text(text, font, x, y, color, align, glow)
 	local px, py, angle, scale = Curve(x, y)
 	local matrix = Matrix()
 
+	surface.SetFont(font)
+
+	local width = surface.GetTextSize(text)
+	local shift = align == TEXT_ALIGN_RIGHT and -width or (align == TEXT_ALIGN_CENTER and -width / 2 or 0)
+
 	matrix:Translate(Vector(px, py, 0))
 	matrix:Rotate(Angle(0, angle, 0))
 	matrix:Scale(Vector(scale, scale, 1))
+	matrix:Translate(Vector(shift, 0, 0))
 
+	surface.DisableClipping(true)
 	cam.PushModelMatrix(matrix, true)
 		if (glow != false) then
-			draw.SimpleText(text, font .. "Glow", 0, 0, ColorAlpha(color, (color.a or 255) * 0.55), align,
+			draw.SimpleText(text, font .. "Glow", 0, 0, ColorAlpha(color, (color.a or 255) * 0.55), TEXT_ALIGN_LEFT,
 				TEXT_ALIGN_TOP)
 		end
 
-		draw.SimpleText(text, font, 1, 1, Color(0, 0, 0, (color.a or 255) * 0.6), align, TEXT_ALIGN_TOP)
-		draw.SimpleText(text, font, 0, 0, color, align, TEXT_ALIGN_TOP)
+		draw.SimpleText(text, font, 2, 2, Color(0, 0, 0, (color.a or 255) * 0.75), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+		draw.SimpleText(text, font, 0, 0, color, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 	cam.PopModelMatrix()
+	surface.DisableClipping(false)
 end
 
 -- a straight bar on the visor (drawn tilted where it sits)
@@ -188,11 +200,14 @@ local function Bar(x, y, w, h, color)
 	matrix:Translate(Vector(px, py, 0))
 	matrix:Rotate(Angle(0, angle, 0))
 	matrix:Scale(Vector(scale, scale, 1))
+	matrix:Translate(Vector(-w / 2, 0, 0))
 
+	surface.DisableClipping(true)
 	cam.PushModelMatrix(matrix, true)
 		surface.SetDrawColor(color)
-		surface.DrawRect(-w / 2, 0, w, h)
+		surface.DrawRect(0, 0, w, h)
 	cam.PopModelMatrix()
+	surface.DisableClipping(false)
 end
 
 -- ------------------------------------------------------------ the lines --
@@ -345,7 +360,7 @@ hook.Add("HUDPaint", "nwCombineHud", function()
 	render.PushFilterMin(TEXFILTER.ANISOTROPIC)
 
 	-- top left: the information
-	local x, y = sw * 0.03, sh * 0.045
+	local x, y = sw * 0.035, sh * 0.07
 
 	Text("ИНФОРМАЦИЯ :", "nwCmbHead", x, y, color, TEXT_ALIGN_LEFT)
 	y = y + sh * 0.034
@@ -386,7 +401,7 @@ hook.Add("HUDPaint", "nwCombineHud", function()
 	end
 
 	-- top right: who, where, how
-	local rx, ry = sw * 0.97, sh * 0.045
+	local rx, ry = sw * 0.965, sh * 0.07
 	local zone = Z.At(Z.Point(client))
 	local status, statusColor = SocioStatus(client)
 

@@ -17,7 +17,8 @@ end
 
 -- character menus: fonts, panel materials, icons, sounds
 for _, name in ipairs({"Exo2-Regular", "Exo2-SemiBold", "Exo2-Bold", "Exo2-Italic", "Montserrat-Medium",
-	"Montserrat-SemiBold", "Oswald-Light", "Oswald-Medium", "Oswald-SemiBold"}) do
+	"Montserrat-SemiBold", "Oswald-Light", "Oswald-Medium", "Oswald-SemiBold", "JetBrainsMono-Medium",
+	"JetBrainsMono-ExtraBold"}) do
 	resource.AddFile("resource/fonts/" .. name .. ".ttf")
 end
 
