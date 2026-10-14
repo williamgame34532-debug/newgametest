@@ -289,6 +289,47 @@ local function Build()
 		frame.cellsAll[#frame.cellsAll + 1] = cell
 	end
 
+	-- the round button between the grids: LMB - everything from the storage into the inventory (or,
+	-- when the storage is empty, the whole inventory into it), RMB - the whole inventory into it
+	local swapR = math.Round(sh * 0.042)
+	local swapY = top + math.max(mine:GetTall(), theirs:GetTall()) / 2
+	local swap = frame:Add("DButton")
+
+	swap:SetText("")
+	swap:SetSize(swapR * 2, swapR * 2)
+	swap:SetPos(sw / 2 - swapR, swapY - swapR)
+	swap.Paint = nil
+	swap.hover = 0
+
+	local function StorageEmpty()
+		return next(SU.data.cells or {}) == nil
+	end
+
+	local function All(put)
+		net.Start("nwStorageAll")
+			net.WriteBool(put)
+		net.SendToServer()
+		surface.PlaySound("network2/ui/click.wav")
+		swap.pressed = RealTime()
+	end
+
+	swap.DoClick = function()
+		All(StorageEmpty())
+	end
+	swap.DoRightClick = function()
+		All(true)
+	end
+	swap.OnCursorEntered = function()
+		surface.PlaySound("network2/ui/hover.wav")
+	end
+	swap.Think = function(self)
+		self.hover = math.Approach(self.hover, self:IsHovered() and 1 or 0, FrameTime() * 8)
+	end
+	frame.swap = swap
+	frame.swapHint = function()
+		return StorageEmpty() and "ЛКМ — всё из инвентаря сюда" or "ЛКМ — забрать всё  ·  ПКМ — сложить всё сюда"
+	end
+
 	-- the tokens
 	local myTokensY = top + mine:GetTall() + sh * 0.045
 
@@ -364,12 +405,23 @@ local function Build()
 		surface.SetDrawColor(255, 255, 255, 14 * e)
 		surface.DrawRect(w / 2, sh * 0.09, 1, h)
 
-		local r = math.Round(sh * 0.042)
-		local cy = top + math.max(mine:GetTall(), theirs:GetTall()) / 2
+		local r = swapR
+		local cy = swapY
+		local hover = IsValid(self.swap) and self.swap.hover or 0
+		local press = IsValid(self.swap) and self.swap.pressed and math.Clamp(1 - (RealTime() - self.swap.pressed) / 0.25, 0, 1) or 0
+		local grow = r * (1 + hover * 0.08 - press * 0.06)
 
-		draw.RoundedBox(r, w / 2 - r, cy - r, r * 2, r * 2, Color(16, 18, 22, 240 * e))
-		draw.RoundedBox(r, w / 2 - r, cy - r, r * 2, r * 2, Color(255, 255, 255, 10 * e))
-		U.DrawIcon("swap", w / 2 - r * 0.55, cy - r * 0.55, r * 1.1, Color(230, 232, 236), e)
+		draw.RoundedBox(grow, w / 2 - grow, cy - grow, grow * 2, grow * 2, Color(16, 18, 22, 240 * e))
+		draw.RoundedBox(grow, w / 2 - grow, cy - grow, grow * 2, grow * 2,
+			Color(ACCENT.r, ACCENT.g, ACCENT.b, (10 + hover * 40 + press * 80) * e))
+		surface.DrawCircle(w / 2, cy, grow, ACCENT.r, ACCENT.g, ACCENT.b, (40 + hover * 180) * e)
+		U.DrawIcon("swap", w / 2 - grow * 0.55, cy - grow * 0.55, grow * 1.1,
+			hover > 0.5 and ACCENT or Color(230, 232, 236), e)
+
+		if (hover > 0.01) then
+			draw.SimpleText(self.swapHint(), "nwStoreSmall", w / 2, cy + grow + sh * 0.018,
+				Color(236, 238, 242, 255 * e * hover), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP)
+		end
 
 		-- the captions over the grids
 		local function Caption(x, icon, text, right)
@@ -420,7 +472,8 @@ local function Build()
 			Tokens(tx, theirTokensY, tostring(data.tokens), "ТОКЕНОВ ВНУТРИ")
 		end
 
-		draw.SimpleText("Перетаскивайте вещи между сетками  ·  двойной клик или ПКМ — на другую сторону  ·  ESC — закрыть",
+		draw.SimpleText("Перетаскивайте вещи между сетками  ·  двойной клик или ПКМ — на другую сторону  ·  " ..
+			"кнопка в центре — всё сразу  ·  ESC — закрыть",
 			"nwStoreSmall", w / 2, h - sh * 0.04, Color(MUTED.r, MUTED.g, MUTED.b, 255 * e), TEXT_ALIGN_CENTER,
 			TEXT_ALIGN_CENTER)
 

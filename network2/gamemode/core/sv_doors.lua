@@ -14,7 +14,8 @@ local sellRatio = CreateConVar("nw_door_sell", "0.5", FCVAR_ARCHIVE, "Какая
 
 local VARS = {
 	{"nwDoorName", "String", ""}, {"nwDoorKind", "String", ""}, {"nwDoorMode", "String", ""},
-	{"nwDoorPrice", "Int", 0}, {"nwDoorOwner", "Int", 0}, {"nwDoorOwnerName", "String", ""}
+	{"nwDoorPrice", "Int", 0}, {"nwDoorOwner", "Int", 0}, {"nwDoorOwnerName", "String", ""},
+	{"nwDoorCapacity", "Int", 1}, {"nwDoorTenants", "String", ""}
 }
 
 local function Notify(client, text)
@@ -113,6 +114,7 @@ function D.SetOwner(door, client)
 
 	data.nwDoorOwner = IsValid(client) and client:GetCharacterID() or 0
 	data.nwDoorOwnerName = IsValid(client) and client:Nick() or ""
+	data.nwDoorTenants = data.nwDoorOwner != 0 and tostring(data.nwDoorOwner) or ""
 
 	if (data.nwDoorOwner == 0) then
 		for _, member in ipairs(D.Group(door)) do
@@ -123,12 +125,61 @@ function D.SetOwner(door, client)
 	Apply(door, data)
 end
 
--- how many doors this character owns (a double door counts once)
-local function Owned(client)
-	local id, seen, count = client:GetCharacterID(), {}, 0
+-- a tenant moves in (the terminal): the first one becomes the owner
+function D.AddTenant(door, client)
+	local tenants = D.Tenants(door)
+
+	tenants[#tenants + 1] = client:GetCharacterID()
+
+	local data = Read(door)
+
+	if (data.nwDoorOwner == 0) then
+		data.nwDoorOwner = client:GetCharacterID()
+		data.nwDoorOwnerName = client:Nick()
+	end
+
+	data.nwDoorTenants = table.concat(tenants, ",")
+	Apply(door, data)
+end
+
+-- a tenant moves out; the next one becomes the owner, the last one frees the door
+function D.RemoveTenant(door, client)
+	local id = client:GetCharacterID()
+	local left = {}
+
+	for _, tenant in ipairs(D.Tenants(door)) do
+		if (tenant != id) then
+			left[#left + 1] = tenant
+		end
+	end
+
+	if (#left == 0) then
+		return D.SetOwner(door, nil)
+	end
+
+	local data = Read(door)
+
+	if (data.nwDoorOwner == id) then
+		data.nwDoorOwner = left[1]
+		data.nwDoorOwnerName = ""
+
+		for _, other in ipairs(player.GetAll()) do
+			if (other:GetCharacterID() == left[1]) then
+				data.nwDoorOwnerName = other:Nick()
+			end
+		end
+	end
+
+	data.nwDoorTenants = table.concat(left, ",")
+	Apply(door, data)
+end
+
+-- how many doors this character lives in or owns (a double door counts once)
+function D.Owned(client)
+	local seen, count = {}, 0
 
 	for _, door in ipairs(ents.GetAll()) do
-		if (D.IsDoor(door) and !seen[door] and D.Owner(door) == id) then
+		if (D.IsDoor(door) and !seen[door] and D.IsOwner(client, door)) then
 			count = count + 1
 
 			for _, member in ipairs(D.Group(door)) do
@@ -204,7 +255,12 @@ net.Receive("nwDoorSave", function(_, client)
 	data.nwDoorKind = kind
 	data.nwDoorMode = kind == "apartment" and (input.mode == "terminal" and "terminal" or "buy") or
 		(kind == "business" and "terminal" or "")
-	data.nwDoorPrice = data.nwDoorMode == "buy" and math.Clamp(math.floor(tonumber(input.price) or 0), 0, D.maxPrice) or 0
+	-- a price: an apartment for sale, a business (paid at the terminal)
+	data.nwDoorPrice = (data.nwDoorMode == "buy" or kind == "business") and
+		math.Clamp(math.floor(tonumber(input.price) or 0), 0, D.maxPrice) or 0
+	-- how many may live there: an apartment given by the terminal
+	data.nwDoorCapacity = (kind == "apartment" and data.nwDoorMode == "terminal") and
+		math.Clamp(math.floor(tonumber(input.capacity) or 1), 1, 8) or 1
 
 	-- the Alliance's doors have no owner
 	if (kind == "alliance") then
@@ -235,7 +291,7 @@ NW.AddChatCommand("doorbuy", {run = function(client)
 		return Notify(client, D.IsOwner(client, door) and "Это уже ваша дверь" or "Эта дверь уже занята")
 	end
 
-	if (Owned(client) >= limit:GetInt()) then
+	if (D.Owned(client) >= limit:GetInt()) then
 		return Notify(client, "Больше дверей купить нельзя: " .. limit:GetInt())
 	end
 
@@ -259,10 +315,10 @@ NW.AddChatCommand("doorsell", {run = function(client)
 		return Notify(client, "Посмотрите на свою дверь")
 	end
 
-	-- given by the terminal: it is not sold back
+	-- given by the terminal: it is not sold back; a tenant just moves out
 	local refund = D.Mode(door) == "buy" and math.floor(door:GetNW2Int("nwDoorPrice", 0) * sellRatio:GetFloat()) or 0
 
-	D.SetOwner(door, nil)
+	D.RemoveTenant(door, client)
 	SO.SetTokens(client, SO.GetTokens(client) + refund)
 	Notify(client, refund > 0 and ("Дверь продана: +" .. refund .. " ток.") or "Вы отказались от двери")
 end})
@@ -292,14 +348,38 @@ NW.AddChatCommand("doorlock", {run = function(client)
 	Notify(client, locked and "Заперто" or "Открыто")
 end})
 
--- the Alliance's doors open only for the Alliance
+-- the Alliance's doors open only for the Alliance - and for them even when locked: the lock opens for
+-- the moment of the use and closes again, so for everyone else the door stays locked
 hook.Add("PlayerUse", "nwDoors", function(client, entity)
-	if (D.IsDoor(entity) and entity:GetNW2String("nwDoorKind", "") == "alliance" and !NW.zones.IsAlliance(client)) then
+	if (!D.IsDoor(entity) or entity:GetNW2String("nwDoorKind", "") != "alliance") then
+		return
+	end
+
+	if (!NW.zones.IsAlliance(client)) then
 		if ((client.nwDoorDenied or 0) < CurTime()) then
 			client.nwDoorDenied = CurTime() + 1
 			entity:EmitSound("buttons/combine_button_locked.wav", 60)
 		end
 
 		return false
+	end
+
+	if (entity:GetInternalVariable("m_bLocked") == true) then
+		for _, member in ipairs(D.Group(entity)) do
+			member:Input("Unlock", client, client)
+		end
+
+		if ((client.nwDoorGranted or 0) < CurTime()) then
+			client.nwDoorGranted = CurTime() + 1
+			entity:EmitSound("buttons/combine_button1.wav", 55)
+		end
+
+		timer.Create("nwDoorRelock" .. entity:EntIndex(), 0.3, 1, function()
+			if (IsValid(entity)) then
+				for _, member in ipairs(D.Group(entity)) do
+					member:Input("Lock")
+				end
+			end
+		end)
 	end
 end)

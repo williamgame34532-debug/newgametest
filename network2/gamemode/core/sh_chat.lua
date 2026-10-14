@@ -9,7 +9,7 @@
 --   /me action      action         "*<name> action*" (green)               talking range
 --   /it text        surroundings   "** text" (steel blue, no name)         talking range
 --   /achat text     admin chat     "|A| <steam>: text" (orange)            admins only
--- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens, /areaedit, /door) are hidden from everyone else:
+-- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens, /areaedit, /door, /setfaction, /announce) are hidden from everyone else:
 -- no hints, and typing them says "unknown command".
 
 NW.chatKinds = NW.chatKinds or {}
@@ -77,7 +77,10 @@ K.help = {
 		admin = true},
 	{command = "/areaedit", args = "", text = "редактор зон: две точки, название, тип (ещё раз — выйти)",
 		admin = true},
-	{command = "/door", args = "", text = "настроить дверь, на которую вы смотрите", admin = true}
+	{command = "/door", args = "", text = "настроить дверь, на которую вы смотрите", admin = true},
+	{command = "/setfaction", args = "<имя> <фракция>", text = "перевести персонажа во фракцию (ГО, Комбайны...)",
+		admin = true},
+	{command = "/announce", args = "", text = "новое объявление для гражданских терминалов", admin = true}
 }
 
 -- may this player use / see this hint?

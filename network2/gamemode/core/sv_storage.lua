@@ -17,6 +17,7 @@ util.AddNetworkString("nwStorageSync")
 util.AddNetworkString("nwStorageMove")
 util.AddNetworkString("nwStorageTokens")
 util.AddNetworkString("nwStorageClose")
+util.AddNetworkString("nwStorageAll")
 
 NW.storage = NW.storage or {}
 
@@ -111,7 +112,7 @@ local function Parse(ref)
 	return side, tonumber(index)
 end
 
-local function Move(client, source, fromRef, toRef)
+local function Move(client, source, fromRef, toRef, bQuiet)
 	local inventory = INV.Get(client)
 	local fromSide, from = Parse(fromRef)
 	local toSide, to = Parse(toRef)
@@ -174,7 +175,9 @@ local function Move(client, source, fromRef, toRef)
 		end
 
 		if (!to or to == 0) then
-			NW.Notify(client, "Нет места")
+			if (!bQuiet) then
+				NW.Notify(client, "Нет места")
+			end
 
 			return false
 		end
@@ -219,6 +222,61 @@ net.Receive("nwStorageMove", function(_, client)
 		INV.Sync(client)
 		ST.Refresh(source)
 	end
+end)
+
+-- everything at once (the round button between the grids): true - the whole grid of the inventory
+-- into the storage, false - everything in the storage into the inventory; what does not fit stays
+net.Receive("nwStorageAll", function(_, client)
+	local put = net.ReadBool()
+	local source = client.nwStorage
+
+	if (!source or (client.nwStorageNext or 0) > CurTime()) then
+		return
+	end
+
+	client.nwStorageNext = CurTime() + 0.5
+
+	if (!source.Valid(client)) then
+		return ST.Close(client)
+	end
+
+	local inventory = INV.Get(client)
+	local moved, left = 0, 0
+
+	if (put) then
+		for index = 1, I.Capacity(inventory.equip) do
+			if (inventory.grid[index]) then
+				if (Move(client, source, "g" .. index, "s0", true)) then
+					moved = moved + 1
+				else
+					left = left + 1
+				end
+			end
+		end
+	else
+		for index = 1, source.cols * source.rows do
+			if (source.Get(index)) then
+				if (Move(client, source, "s" .. index, "g0", true)) then
+					moved = moved + 1
+				else
+					left = left + 1
+				end
+			end
+		end
+	end
+
+	if (moved > 0) then
+		client:EmitSound("network2/inv/inv_move4.mp3", 55, math.random(96, 104), 0.7)
+		INV.Changed(client)
+		source.Changed()
+	end
+
+	if (left > 0) then
+		NW.Notify(client, "Не поместилось: " .. left)
+	end
+
+	INV.Sync(client)
+	ST.Refresh(source)
 end)
 
 -- tokens: true - put into the storage, false - take out

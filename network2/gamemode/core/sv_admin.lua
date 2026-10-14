@@ -40,3 +40,4 @@ concommand.Add("nw_admin", function(client, _, arguments)
 	action(client, target)
 	MsgN(string.format("[nw_admin] %s: %s -> %s", client:SteamName(), arguments[1], target:SteamName()))
 end)
+

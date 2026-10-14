@@ -2,13 +2,14 @@
 -- with the name of the door and its kind:
 --   apartment   Квартира - bought for tokens (/doorbuy) or given through the Alliance terminal
 --   business    Бизнес   - only through the Alliance terminal
---   alliance    Альянс   - only the Alliance opens it
+--   alliance    Альянс   - only the Alliance opens it, even locked; no panel on the door
 -- A panel with the name and what the door is shows on the door (cl_doors.lua). The owner locks
 -- and unlocks it (/doorlock) and can sell it back (/doorsell, half the price). Doors with the same
 -- map name next to each other (double doors) share the settings. Kept per map in
 -- data/network2/doors/<map>.json (sv_doors.lua); the terminal will call NW.doors.SetOwner.
 -- On the door (networked): nwDoorName, nwDoorKind, nwDoorMode ("buy" / "terminal"), nwDoorPrice,
--- nwDoorOwner (character id, 0 - free), nwDoorOwnerName.
+-- nwDoorOwner (character id, 0 - free), nwDoorOwnerName, nwDoorCapacity (how many may live there: an
+-- apartment given by the terminal can have several tenants), nwDoorTenants ("id,id,...").
 
 NW.doors = NW.doors or {}
 
@@ -58,10 +59,39 @@ function D.Owner(door)
 	return door:GetNW2Int("nwDoorOwner", 0)
 end
 
+-- the character ids living there (the owner first)
+function D.Tenants(door)
+	local out = {}
+
+	for id in string.gmatch(door:GetNW2String("nwDoorTenants", ""), "%d+") do
+		out[#out + 1] = tonumber(id)
+	end
+
+	if (#out == 0 and D.Owner(door) != 0) then
+		out[1] = D.Owner(door)
+	end
+
+	return out
+end
+
+function D.Capacity(door)
+	return math.max(1, door:GetNW2Int("nwDoorCapacity", 1))
+end
+
 function D.IsOwner(client, door)
 	local id = client:GetCharacterID()
 
-	return id != 0 and D.Owner(door) == id
+	if (id == 0) then
+		return false
+	end
+
+	for _, tenant in ipairs(D.Tenants(door)) do
+		if (tenant == id) then
+			return true
+		end
+	end
+
+	return false
 end
 
 -- the door the player looks at (within reach)

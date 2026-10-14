@@ -154,7 +154,9 @@ local function Apply(client)
 	local character = client.nwCharacter
 
 	if (character) then
-		local model = M.Resolve(character.model)
+		-- a faction with its own model (Civil Protection, Combine) dresses everyone in it
+		local faction = NW.char.factions[character.faction or ""]
+		local model = M.Resolve(faction and faction.model or character.model)
 
 		client:SetModel(util.IsValidModel(model) and model or DEFAULT)
 		client:SetSkin(math.Clamp(character.skin or 0, 0, math.max(client:SkinCount() - 1, 0)))

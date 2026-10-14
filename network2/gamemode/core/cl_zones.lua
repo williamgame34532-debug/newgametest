@@ -1,7 +1,8 @@
 -- Zones, client side (sh_zones.lua, sv_zones.lua):
 --   the name     walking into a zone shows its name on the left, in the middle of the screen
---                height: a thin line grows, the letters come in one by one, it stays 7 seconds and
---                goes; no background
+--                height: a thin line grows, the letters come in one by one with a key click each
+--                (sound/network2/ui/char/textline_5-8, textline_end after the last), it stays
+--                7 seconds and goes; no background
 --   radiation    green smoke inside the zone, a Geiger counter while in it, a green tint when the
 --                body is not protected
 --   the editor   /areaedit (admins): LMB - the first corner, LMB - the second corner, then the
@@ -49,7 +50,7 @@ local function Show(zone)
 		letters[#letters + 1] = utf8.char(code)
 	end
 
-	title = {letters = letters, caption = U.Upper(kind.caption), start = RealTime(),
+	title = {letters = letters, caption = U.Upper(kind.caption), start = RealTime(), typed = 0,
 		color = zone.type == "radiation" and Color(150, 220, 110) or U.color.text}
 end
 
@@ -142,8 +143,27 @@ hook.Add("HUDPaint", "nwZoneName", function()
 	surface.SetDrawColor(ColorAlpha(title.color, 200 * alpha))
 	surface.DrawRect(x, y - math.Round(sh * 0.006), line, math.max(1, math.Round(sh * 0.0016)))
 
-	-- the letters, one by one: they fade in and slide up into place
+	-- the letters, one by one: they fade in and slide up into place, each with a key click
+	-- (textline_5-8), and a closing click after the last one (textline_end)
 	local lx = x
+	local due = math.min(count, math.floor((t - 0.3) / 0.045) + 1)
+
+	while (title.typed < due) do
+		title.typed = title.typed + 1
+
+		if (string.Trim(title.letters[title.typed]) != "") then
+			surface.PlaySound("network2/ui/char/textline_" .. math.random(5, 8) .. ".wav")
+		end
+
+		if (title.typed == count) then
+			title.closeAt = RealTime() + 0.12
+		end
+	end
+
+	if (title.closeAt and RealTime() >= title.closeAt) then
+		title.closeAt = nil
+		surface.PlaySound("network2/ui/char/textline_end.wav")
+	end
 
 	for i, char in ipairs(title.letters) do
 		local k = Ease((t - 0.3 - (i - 1) * 0.045) / 0.35)
@@ -676,23 +696,46 @@ hook.Add("PlayerBindPress", "nwZoneEditor", function(_, bind, bPressed)
 	end
 end)
 
--- the zones in the world while editing: boxes and names
+-- the zones in the world: boxes and names (the editor, the noclip view - cl_noclip.lua)
 local FILL = {plain = Color(120, 170, 230), radiation = Color(120, 220, 90), items = Color(232, 196, 72),
 	npcs = Color(230, 110, 90)}
+
+Z.colors = FILL
+
+function Z.DrawBoxes()
+	render.SetColorMaterial()
+
+	for _, zone in pairs(Z.list) do
+		local mins, maxs = Z.Bounds(zone)
+		local color = FILL[zone.type] or FILL.plain
+
+		render.DrawBox(vector_origin, angle_zero, mins, maxs, ColorAlpha(color, 18))
+		render.DrawWireframeBox(vector_origin, angle_zero, mins, maxs, ColorAlpha(color, 230), true)
+	end
+end
+
+function Z.DrawLabels()
+	for _, zone in pairs(Z.list) do
+		local mins, maxs = Z.Bounds(zone)
+		local screen = ((mins + maxs) / 2):ToScreen()
+
+		if (screen.visible) then
+			local kind = Z.typeByID[zone.type] or Z.typeByID.plain
+
+			draw.SimpleTextOutlined(zone.name, "nwZoneEditor", screen.x, screen.y, FILL[zone.type] or FILL.plain,
+				TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, Color(0, 0, 0, 200))
+			draw.SimpleTextOutlined(kind.name, "nwZoneEditor", screen.x, screen.y, U.color.dim, TEXT_ALIGN_CENTER,
+				TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 200))
+		end
+	end
+end
 
 hook.Add("PostDrawTranslucentRenderables", "nwZoneEditor", function(bDepth, bSkybox)
 	if (!ED.active or bSkybox) then
 		return
 	end
 
-	for _, zone in pairs(Z.list) do
-		local mins, maxs = Z.Bounds(zone)
-		local color = FILL[zone.type] or FILL.plain
-
-		render.SetColorMaterial()
-		render.DrawBox(vector_origin, angle_zero, mins, maxs, ColorAlpha(color, 18))
-		render.DrawWireframeBox(vector_origin, angle_zero, mins, maxs, ColorAlpha(color, 230), true)
-	end
+	Z.DrawBoxes()
 
 	if (ED.a) then
 		local mins, maxs = Box(ED.a, ED.b or Aim())
@@ -712,19 +755,7 @@ hook.Add("HUDPaint", "nwZoneEditor", function()
 	end
 
 	-- names over the zones
-	for _, zone in pairs(Z.list) do
-		local mins, maxs = Z.Bounds(zone)
-		local screen = ((mins + maxs) / 2):ToScreen()
-
-		if (screen.visible) then
-			local kind = Z.typeByID[zone.type] or Z.typeByID.plain
-
-			draw.SimpleTextOutlined(zone.name, "nwZoneEditor", screen.x, screen.y, FILL[zone.type] or FILL.plain,
-				TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, Color(0, 0, 0, 200))
-			draw.SimpleTextOutlined(kind.name, "nwZoneEditor", screen.x, screen.y, U.color.dim, TEXT_ALIGN_CENTER,
-				TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 200))
-		end
-	end
+	Z.DrawLabels()
 
 	-- what to do
 	local text = ED.a and "ЛКМ — вторая точка   ·   ПКМ — сбросить" or

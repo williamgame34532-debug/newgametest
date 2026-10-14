@@ -24,6 +24,19 @@ local function Status(door)
 		return "Только для Альянса", Color(214, 120, 110)
 	end
 
+	-- an apartment of the terminal: how many live there
+	if (kind == "apartment" and mode == "terminal") then
+		local count, capacity = #D.Tenants(door), D.Capacity(door)
+		local mine = D.IsOwner(LocalPlayer(), door)
+
+		if (mine) then
+			return "Ваша · жильцов " .. count .. "/" .. capacity .. " · /doorlock", Color(150, 214, 138)
+		end
+
+		return (count >= capacity and "Заселена" or "Через терминал Альянса") .. " · жильцов " .. count .. "/" ..
+			capacity, U.color.dim
+	end
+
 	if (owner != 0) then
 		if (D.IsOwner(LocalPlayer(), door)) then
 			return "Ваша · /doorlock — замок", Color(150, 214, 138)
@@ -33,7 +46,9 @@ local function Status(door)
 	end
 
 	if (mode == "terminal") then
-		return "Свободна · через терминал Альянса", U.color.dim
+		local price = door:GetNW2Int("nwDoorPrice", 0)
+
+		return "Свободна · аренда через терминал" .. (price > 0 and (" · " .. price .. " ток.") or ""), U.color.dim
 	end
 
 	local price = door:GetNW2Int("nwDoorPrice", 0)
@@ -126,7 +141,10 @@ hook.Add("PostDrawTranslucentRenderables", "nwDoors", function(bDepth, bSkybox)
 	local eye = EyePos()
 
 	for _, door in ipairs(ents.FindInSphere(eye, RANGE)) do
-		if (D.IsDoor(door) and door:GetNW2String("nwDoorKind", "") != "" and !door:GetNoDraw()) then
+		local kind = D.IsDoor(door) and door:GetNW2String("nwDoorKind", "") or ""
+
+		-- the Alliance's doors carry no panel
+		if (kind != "" and kind != "alliance" and !door:GetNoDraw()) then
 			local alpha = math.Clamp(1 - (eye:Distance(door:WorldSpaceCenter()) - RANGE * 0.55) / (RANGE * 0.45), 0, 1)
 
 			if (alpha > 0.01) then
@@ -202,17 +220,17 @@ local function Open(door)
 	settings:SetPos(pad, y)
 	settings:SetSize(inner, math.Round(sh * 0.15))
 
-	local mode, price
+	local mode, price, capacity
 
 	local function Build()
 		settings:Clear()
-		mode, price = nil, nil
+		mode, price, capacity = nil, nil, nil
 
 		local which = kind:GetSelectedValue() or "apartment"
 
 		if (which == "apartment") then
 			W.Label(settings, "Как получить", 0, 0)
-			W.Label(settings, "Цена, токены", inner * 0.62, 0)
+			W.Label(settings, "Цена / мест", inner * 0.62, 0)
 
 			local modes = {}
 
@@ -228,15 +246,26 @@ local function Open(door)
 			price:SetPos(inner * 0.62, math.Round(sh * 0.02))
 			price:SetSize(inner * 0.38, fieldH)
 
+			-- through the terminal: how many may live there instead of the price
+			capacity = W.Number(settings, D.Capacity(door), 1, 8)
+			capacity:SetPos(inner * 0.62, math.Round(sh * 0.02))
+			capacity:SetSize(inner * 0.38, fieldH)
+
 			local function Toggle()
-				price:SetEnabled(mode:GetSelectedValue() == "buy")
-				price:SetAlpha(mode:GetSelectedValue() == "buy" and 255 or 60)
+				local buy = mode:GetSelectedValue() == "buy"
+
+				price:SetVisible(buy)
+				capacity:SetVisible(!buy)
 			end
 
 			mode.OnSelect = Toggle
 			Toggle()
 		elseif (which == "business") then
-			W.Label(settings, "Бизнес выдаётся только через терминал Альянса", 0, 0)
+			W.Label(settings, "Аренда на терминале Альянса, цена в токенах", 0, 0)
+
+			price = W.Number(settings, door:GetNW2Int("nwDoorPrice", 100), 0, D.maxPrice)
+			price:SetPos(0, math.Round(sh * 0.02))
+			price:SetSize(inner * 0.38, fieldH)
 		else
 			W.Label(settings, "Открывают только Альянс и ГО; /doorlock — замок", 0, 0)
 		end
@@ -261,7 +290,8 @@ local function Open(door)
 			name = name:GetValue(),
 			kind = kind:GetSelectedValue(),
 			mode = mode and mode:GetSelectedValue() or nil,
-			price = price and price:GetNumber() or 0
+			price = price and price:GetNumber() or 0,
+			capacity = capacity and capacity:GetNumber() or 1
 		})
 		frame:Remove()
 	end, true)

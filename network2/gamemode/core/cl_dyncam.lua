@@ -52,7 +52,10 @@ hook.Add("Think", "nwDynCam", function()
 	if (state.lastYaw) then
 		local rate = math.AngleDifference(eyeYaw, state.lastYaw) / math.max(frame, 0.001)
 
-		state.turn = Approach(state.turn, math.Clamp(-rate / 400, -1, 1) * 1.4, 7, frame)
+		-- a frame of a few microseconds or a teleport of the view gives a nonsense rate: skip it
+		if (frame > 0.002 and math.abs(rate) < 3000) then
+			state.turn = Approach(state.turn, math.Clamp(-rate / 400, -1, 1) * 1.4, 7, frame)
+		end
 	end
 
 	state.lastYaw = eyeYaw
@@ -62,9 +65,11 @@ hook.Add("Think", "nwDynCam", function()
 
 	state.fov = Approach(state.fov, sprinting and 4 or 0, 3, frame)
 
-	-- landing: a dip by the speed of the fall, then a spring back
+	-- landing: a dip by the speed of the fall, then a spring back (stairs and slopes do not count: only
+	-- after a real moment in the air)
 	if (!onGround) then
-		state.fall = math.max(state.fall, -velocity.z)
+		state.air = (state.air or 0) + frame
+		state.fall = state.air > 0.2 and math.max(state.fall, -velocity.z) or 0
 	elseif (!state.ground and onGround) then
 		local hit = math.Clamp((state.fall - 120) / 520, 0, 1)
 
@@ -74,6 +79,10 @@ hook.Add("Think", "nwDynCam", function()
 		end
 
 		state.fall = 0
+	end
+
+	if (onGround) then
+		state.air = 0
 	end
 
 	state.ground = onGround
@@ -124,8 +133,12 @@ function DC.Apply(client, view, bThirdPerson)
 		+ angles:Right() * (bobSide * 0.75 * amp * away)
 
 	angles = Angle(angles.p, angles.y, angles.r)
-	angles.p = angles.p + bobUp * 0.35 * amp + state.kick * k + math.sin(t * 0.8) * 0.12 * breath
-	angles.y = angles.y + bobSide * 0.25 * amp + math.cos(t * 0.6) * 0.1 * breath
+	-- third person: the view keeps looking exactly at the aim point (cl_thirdperson.lua), only a roll
+	if (!bThirdPerson) then
+		angles.p = angles.p + bobUp * 0.35 * amp + state.kick * k + math.sin(t * 0.8) * 0.12 * breath
+		angles.y = angles.y + bobSide * 0.25 * amp + math.cos(t * 0.6) * 0.1 * breath
+	end
+
 	angles.r = angles.r + (state.roll + state.turn) * k + bobSide * 0.45 * amp
 
 	view.origin = origin

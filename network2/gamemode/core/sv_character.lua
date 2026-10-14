@@ -477,3 +477,68 @@ hook.Add("NWEnterMenu", "nwCharacter", function(client)
 	client:SetNW2String("nwCharDesc", "")
 	client:SetModelScale(1, 0)
 end)
+
+-- ------------------------------------------------------------- factions --
+-- /setfaction <игрок> <фракция> (admins): the character joins the faction (by id or part of the
+-- name: «гражданин», «оборона», «комбайн»); a faction with its own model dresses them in it at once
+local function FindFaction(query)
+	query = string.lower(string.Trim(query or ""))
+
+	if (C.factions[query]) then
+		return query
+	end
+
+	for id, faction in pairs(C.factions) do
+		if (string.find(string.lower(faction.name or id), query, 1, true)) then
+			return id
+		end
+	end
+end
+
+-- (sv_chat.lua loads later: the command goes straight into its table)
+NW.chatCommands = NW.chatCommands or {}
+NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
+	local who, which = string.match(rest or "", "^(%S+)%s+(.+)$")
+	local target = NW.FindPlayer(who)
+	local faction = FindFaction(which)
+
+	if (!target or !target.nwCharacter or target:GetCharacterID() == 0) then
+		return NW.Notify(client, "Игрок не найден. /setfaction <имя> <фракция>")
+	end
+
+	if (!faction) then
+		local names = {}
+
+		for _, data in pairs(C.factions) do
+			names[#names + 1] = data.name
+		end
+
+		table.sort(names)
+
+		return NW.Notify(client, "Фракция не найдена. Есть: " .. table.concat(names, ", "))
+	end
+
+	local character = target.nwCharacter
+
+	character.faction = faction
+	target:SetNW2String("nwCharFaction", faction)
+
+	if (!character.test) then
+		sql.Query("UPDATE nw_characters SET faction = " .. Q(faction) .. " WHERE id = " .. target:GetCharacterID())
+	end
+
+	if (target:Alive()) then
+		NW.models.Apply(target)
+	end
+
+	local name = C.factions[faction].name
+
+	NW.Notify(client, target:Nick() .. " → " .. name)
+
+	if (target != client) then
+		NW.Notify(target, "Ваша фракция: " .. name)
+	end
+
+	Log(string.format("%s: персонаж %d «%s» переведён во фракцию %s", client:SteamName(), target:GetCharacterID(),
+		character.name, faction))
+end}

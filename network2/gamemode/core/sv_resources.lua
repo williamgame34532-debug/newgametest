@@ -17,7 +17,7 @@ end
 
 -- character menus: fonts, panel materials, icons, sounds
 for _, name in ipairs({"Exo2-Regular", "Exo2-SemiBold", "Exo2-Bold", "Exo2-Italic", "Montserrat-Medium",
-	"Montserrat-SemiBold", "Oswald-Light"}) do
+	"Montserrat-SemiBold", "Oswald-Light", "Oswald-Medium", "Oswald-SemiBold"}) do
 	resource.AddFile("resource/fonts/" .. name .. ".ttf")
 end
 
@@ -32,7 +32,7 @@ for _, name in ipairs({"male", "female", "strength", "endurance", "medicine", "e
 end
 
 for _, name in ipairs({"hls_ui_appear", "hls_ui_affirm", "textline_1", "textline_2", "textline_3", "textline_4",
-	"textline_5"}) do
+	"textline_5", "textline_6", "textline_7", "textline_8", "textline_end"}) do
 	resource.AddFile("sound/network2/ui/char/" .. name .. ".wav")
 end
 
@@ -117,4 +117,13 @@ resource.AddFile("materials/network2/ui/knock_bg.png")
 
 for _, name in ipairs({"panel", "answer", "answer_hover", "card", "plate", "shade"}) do
 	resource.AddFile("materials/network2/ui/npc/" .. name .. ".png")
+end
+
+-- the civic terminal: wallpaper, cursors, sounds (branding/make_terminal_assets.py)
+for _, name in ipairs({"wallpaper", "cursor", "cursor_hover"}) do
+	resource.AddFile("materials/network2/terminal/" .. name .. ".png")
+end
+
+for _, name in ipairs({"select1", "select2", "boot", "deny", "alarm", "loop"}) do
+	resource.AddFile("sound/network2/terminal/" .. name .. ".wav")
 end

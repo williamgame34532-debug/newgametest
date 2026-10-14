@@ -1645,6 +1645,7 @@ PAGES.authors = function(parent)
 		"Звуки еды и питья — глотки: VoxeLibre (CC0); жевание: BlockMen, мод «hunger» (CC BY 3.0).",
 		"Ноги от первого лица — плагин Legs: Valkyrie & blackops7799 (public domain).",
 		"Двери — по образцу плагина Doors из Helix (Chessnut, MIT).",
+		"Гражданский терминал — по образцу ix_civic_terminal (Helix).",
 		"Музыка — материалы сервера."
 	})
 end
@@ -2029,9 +2030,14 @@ local function Build()
 	INV.ShowPage(INV.page)
 end
 
+-- a storage window is open (a container, a body, a search): no Q menu over it
+local function StorageOpen()
+	return NW.storageUI and NW.storageUI.IsOpen and NW.storageUI.IsOpen()
+end
+
 function INV.Open()
 	-- unconscious: nothing to open (cl_body.lua)
-	if (LocalPlayer():GetNW2Bool("nwKnocked", false)) then
+	if (LocalPlayer():GetNW2Bool("nwKnocked", false) or StorageOpen()) then
 		return
 	end
 
@@ -2123,6 +2129,10 @@ hook.Add("NWKey", "nwInventory", function(id)
 end)
 
 function GM:OnSpawnMenuOpen()
+	if (StorageOpen()) then
+		return
+	end
+
 	-- another key opens the inventory: Q is the spawn menu (admins only)
 	if (!SameKey()) then
 		if (LocalPlayer():IsAdmin()) then

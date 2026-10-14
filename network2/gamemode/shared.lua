@@ -36,6 +36,8 @@ local FILES = {
 	"sh_npc.lua",
 	"sh_zones.lua",
 	"sh_doors.lua",
+	"sh_noclip.lua",
+	"sh_terminal.lua",
 	"sv_character.lua",
 	"sv_menu.lua",
 	"sv_resources.lua",
@@ -53,6 +55,7 @@ local FILES = {
 	"sv_spawns.lua",
 	"sv_zones.lua",
 	"sv_doors.lua",
+	"sv_terminal.lua",
 	"sv_music.lua",
 	"sv_config.lua",
 	"cl_hud.lua",
@@ -90,7 +93,9 @@ local FILES = {
 	"cl_storage.lua",
 	"cl_npc.lua",
 	"cl_zones.lua",
-	"cl_doors.lua"
+	"cl_doors.lua",
+	"cl_noclip.lua",
+	"cl_terminal.lua"
 }
 
 for _, name in ipairs(FILES) do

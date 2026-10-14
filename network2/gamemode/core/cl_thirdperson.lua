@@ -23,15 +23,36 @@ local function Active(client)
 		client:GetViewEntity() == client and client:GetObserverMode() == OBS_MODE_NONE
 end
 
+-- the point the player aims at. The camera sits off to the side and looks at it, so a point that
+-- jumps close (someone walking past, a carried prop, a thin pole) would swing the whole view for a
+-- moment: what is carried and other players do not catch the ray, the distance never goes under
+-- 80 units and follows changes smoothly (a quick approach, a gentler step back).
+local AIM_MIN = 80
+
 local function AimPoint(client, origin, angles)
+	local held = client:GetNW2Entity("nwHeldEntity")
 	local trace = util.TraceLine({
 		start = origin,
 		endpos = origin + angles:Forward() * 8192,
-		filter = client,
+		filter = function(entity)
+			return entity != client and entity != held and !entity:IsPlayer() and entity:GetClass() != "prop_ragdoll"
+		end,
 		mask = MASK_SHOT
 	})
+	local want = math.max(trace.Fraction * 8192, AIM_MIN)
+	local frame = math.min(FrameTime(), 0.1)
 
-	return trace.HitPos
+	if (!state.aim) then
+		state.aim = want
+	else
+		-- in log space: from 100 to 3000 units as smoothly as from 100 to 200
+		local now, goal = math.log(state.aim), math.log(want)
+		local rate = goal < now and 10 or 5
+
+		state.aim = math.exp(Lerp(math.Clamp(frame * rate, 0, 1), now, goal))
+	end
+
+	return origin + angles:Forward() * state.aim
 end
 
 -- the inventory pose: in front of the character, the character on the right of the screen
