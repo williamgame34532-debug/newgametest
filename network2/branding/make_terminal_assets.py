@@ -10,7 +10,9 @@
     sound/network2/terminal/deny.wav     refused: two low buzzes
     sound/network2/terminal/alarm.wav    the call to Civil Protection: a two-tone signal
     sound/network2/terminal/loop.wav     the hum of the terminal (seamless loop, 4 s)
-Synthesised here (own work).
+Synthesised here (own work). The terminal now plays the real civic station sounds
+(content/sound/network2/terminal/civic); the synthesised ones are kept as spares - the script writes
+them, they are not shipped.
 Usage: python make_terminal_assets.py <network2 folder>"""
 import math, os, sys, wave
 import numpy as np
@@ -18,7 +20,7 @@ from PIL import Image, ImageDraw, ImageFilter
 
 ROOT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(os.path.dirname(__file__), "..")
 MAT = os.path.join(ROOT, "content", "materials", "network2", "terminal")
-SND = os.path.join(ROOT, "content", "sound", "network2", "terminal")
+SND = os.path.join(ROOT, "branding", "out", "terminal_sounds")  # spares, not shipped
 rng = np.random.default_rng(1704)
 os.makedirs(MAT, exist_ok=True)
 os.makedirs(SND, exist_ok=True)

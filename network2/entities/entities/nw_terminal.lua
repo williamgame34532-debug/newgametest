@@ -118,18 +118,21 @@ local BG = Material("network2/terminal/wallpaper.png", "smooth noclamp")
 local CURSOR = Material("network2/terminal/cursor.png", "smooth")
 local CURSOR_HOVER = Material("network2/terminal/cursor_hover.png", "smooth")
 
-local function Font(name, size, weight)
-	surface.CreateFont(name, {font = "Jura Medium", size = size, weight = weight or 500, extended = true,
+local function Font(name, size, bold)
+	local face = bold and "Jura" or "Jura Medium"
+
+	surface.CreateFont(name, {font = face, size = size, weight = bold and 700 or 500, extended = true,
 		antialias = true})
-	surface.CreateFont(name .. "Glow", {font = "Jura Medium", size = size, weight = weight or 500, extended = true,
-		antialias = true, blursize = 2})
+	surface.CreateFont(name .. "Glow", {font = face, size = size, weight = bold and 700 or 500, extended = true,
+		antialias = true, blursize = 3})
 end
 
-Font("nwTermTitle", 20, 600)
-Font("nwTermHead", 14, 600)
-Font("nwTermText", 12, 500)
-Font("nwTermSmall", 10, 500)
-Font("nwTermTiny", 8, 500)
+Font("nwTermTitle", 22, true)
+Font("nwTermHead", 15, true)
+Font("nwTermText", 13, true)
+Font("nwTermSmall", 11, true)
+Font("nwTermTiny", 9, false)
+Font("nwTermNotice", 16, true)
 
 -- -------------------------------------------------------------- the text --
 local widths = {}
@@ -182,8 +185,9 @@ local function Spaced(text, font, x, y, color, align, spacing, glow)
 	local top = y - height / 2
 
 	if (glow != false) then
+		-- a dark halo: the letters stand out on the light streaks of the glass
 		surface.SetFont(font .. "Glow")
-		surface.SetTextColor(color.r, color.g, color.b, alpha * 0.55)
+		surface.SetTextColor(DARK.r, DARK.g, DARK.b, alpha * 0.9)
 
 		local gx = cx
 
@@ -204,6 +208,25 @@ local function Spaced(text, font, x, y, color, align, spacing, glow)
 	end
 
 	return width
+end
+
+-- a line that must fit a width: first the letters close up, then the end is cut with "…"
+local function Fit(text, font, maxWidth, spacing)
+	text = T.Upper(tostring(text or ""))
+
+	for _, gap in ipairs({spacing, spacing * 0.6, 0.4}) do
+		if (Measure(text, font, gap) <= maxWidth) then
+			return text, gap
+		end
+	end
+
+	local chars = Chars(text)
+
+	while (#chars > 1 and Measure(table.concat(chars) .. "…", font, 0.4) > maxWidth) do
+		table.remove(chars)
+	end
+
+	return table.concat(chars) .. "…", 0.4
 end
 
 local function Wrap(text, font, maxWidth, spacing)
@@ -290,6 +313,15 @@ function ENT:ResetSession()
 	self.fade = 0
 end
 
+-- the session ends (walked away, Завершить сеанс): the menu folds away with its sound
+function ENT:EndSession()
+	if (self.registrationStage != "idle") then
+		self:EmitSound("network2/terminal/civic/station_menu_disappear.wav", 60, 100, 0.7)
+	end
+
+	self:ResetSession()
+end
+
 function ENT:Initialize()
 	self:ResetSession()
 	self.nextFlicker = 0
@@ -332,7 +364,7 @@ function ENT:Request(action, data)
 end
 
 function ENT:PlaySelectSound()
-	self:EmitSound("network2/terminal/select" .. math.random(1, 2) .. ".wav", 62, math.random(97, 103), 0.75)
+	self:EmitSound("network2/terminal/civic/station_menu_select.wav", 62, math.random(97, 103), 0.75)
 end
 
 function ENT:Go(screen)
@@ -434,8 +466,10 @@ function ENT:Key(action, label, x, y, w, h, data, options)
 	local color = Color(Lerp(value, TEXT.r, DARK.r), Lerp(value, TEXT.g, DARK.g), Lerp(value, TEXT.b, DARK.b),
 		235 * alpha)
 
-	Spaced(label, options.font or "nwTermText", options.left and x + 10 or x + w / 2, y + h / 2, color,
-		options.left and 0 or 1, 1.6, value < 0.5)
+	local text, gap = Fit(label, options.font or "nwTermText", w - 16, 1.6)
+
+	Spaced(text, options.font or "nwTermText", options.left and x + 10 or x + w / 2, y + h / 2, color,
+		options.left and 0 or 1, gap, value < 0.5)
 
 	return button
 end
@@ -458,7 +492,10 @@ function ENT:Row(index, name, cost, y, selected, warning)
 
 	local color = warning and Alpha(TEXT, 110) or TEXT
 
-	Spaced(name, "nwTermSmall", LIST_X + 8, y + 11, color, 0, 1.4)
+	local costW = Measure(tostring(cost), "nwTermSmall", 1.2) + (warning and 24 or 0) + 22
+	local text, gap = Fit(name, "nwTermSmall", LIST_W - costW, 1.4)
+
+	Spaced(text, "nwTermSmall", LIST_X + 8, y + 11, color, 0, gap)
 
 	if (warning) then
 		Warning(LIST_X + LIST_W - 46, y + 11, 6, AMBER)
@@ -503,7 +540,9 @@ function ENT:DrawColumns(left, right, summary)
 end
 
 function ENT:DrawSummary(title, lines, color)
-	Spaced(title, "nwTermHead", SUM_X, 70, color or TEXT, 0, 1.6)
+	local text, gap = Fit(title, "nwTermHead", SUM_W, 1.6)
+
+	Spaced(text, "nwTermHead", SUM_X, 70, color or TEXT, 0, gap)
 
 	for index, line in ipairs(Wrap(lines, "nwTermText", SUM_W, 1)) do
 		if (index > 8) then
@@ -591,7 +630,7 @@ function ENT:DrawMain()
 	local y = 46
 
 	for _, entry in ipairs(MENU) do
-		self:Key(entry[1], entry[2], W_ / 2 - 120, y, 240, 25)
+		self:Key(entry[1], entry[2], W_ / 2 - 140, y, 280, 25)
 		y = y + 31
 	end
 
@@ -652,7 +691,7 @@ function ENT:DrawRoulette()
 
 	if (passed > self.housingTicks and progress < 1) then
 		self.housingTicks = passed
-		self:EmitSound("network2/terminal/select1.wav", 55, 120 + passed, 0.35)
+		self:EmitSound("network2/terminal/civic/station_menu_hover.wav", 55, 110 + passed * 2, 0.4)
 	end
 
 	Outline(W_ / 2 - 150, 44, 300, 222, self:GetAccent(), 120)
@@ -677,7 +716,7 @@ function ENT:DrawRoulette()
 	if (progress >= 1) then
 		self.assigned = {title = "Жильё назначено", name = self.housingChosen, back = "housing"}
 		self:Go("assigned")
-		self:EmitSound("network2/terminal/boot.wav", 60, 115, 0.6)
+		self:EmitSound("network2/terminal/civic/station_menu_appear.wav", 62, 100, 0.75)
 	end
 
 	self:DrawFooter()
@@ -926,10 +965,10 @@ function ENT:DrawScreen(width, height)
 	local alpha = (0.92 + math.sin(CurTime() * 1.3) * 0.03) * (self.flicker or 1)
 
 	-- the glass: the wallpaper, a light veil of the accent, a slow sweep of light
-	surface.SetDrawColor(255, 255, 255, 200 * alpha)
+	surface.SetDrawColor(255, 255, 255, 170 * alpha)
 	surface.SetMaterial(BG)
 	surface.DrawTexturedRect(0, 0, width, height)
-	surface.SetDrawColor(4, 26, 34, 95)
+	surface.SetDrawColor(2, 18, 24, 150)
 	surface.DrawRect(0, 0, width, height)
 
 	if (self:IsAlarm()) then
@@ -968,10 +1007,29 @@ function ENT:DrawScreen(width, height)
 
 	surface.SetAlphaMultiplier(1)
 
+	-- a notice of the station: a lit plate across the middle of the glass, it slides open and fades
 	if (self.actionMessage != "" and CurTime() < self.actionMessageUntil) then
-		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 225)
-		surface.DrawRect(X0, H_ - 62, X1 - X0, 18)
-		Spaced(self.actionMessage, "nwTermSmall", W_ / 2, H_ - 53, DARK, 1, 1.6, false)
+		local left = self.actionMessageUntil - CurTime()
+		local open = math.Clamp((3 - left) / 0.15, 0, 1) * math.Clamp(left / 0.3, 0, 1)
+		local pw = (X1 - X0 - 60) * open
+		local py = H_ / 2 - 26
+
+		surface.SetDrawColor(2, 18, 24, 200 * open)
+		surface.DrawRect(0, 0, width, height)
+		surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 240 * open)
+		surface.DrawRect(W_ / 2 - pw / 2, py, pw, 52)
+		Outline(W_ / 2 - pw / 2 - 3, py - 3, pw + 6, 58, LINE, 220 * open)
+
+		if (open > 0.6) then
+			local lines = Wrap(self.actionMessage, "nwTermNotice", X1 - X0 - 90, 1.6)
+			local count = math.min(#lines, 2)
+			local first = py + 26 - (count - 1) * 9
+
+			for index = 1, count do
+				Spaced(lines[index], "nwTermNotice", W_ / 2, first + (index - 1) * 18, Alpha(DARK, 255 * open), 1, 1.6,
+					false)
+			end
+		end
 	end
 
 	self:DrawAimCursor()
@@ -991,7 +1049,7 @@ function ENT:Think()
 
 		if (distance <= 850) then
 			if (!self.loopSound) then
-				self.loopSound = CreateSound(self, "network2/terminal/loop.wav")
+				self.loopSound = CreateSound(self, "network2/terminal/civic/station_hum_loop.wav")
 
 				if (self.loopSound) then
 					self.loopSound:PlayEx(0.17, 100)
@@ -1004,7 +1062,7 @@ function ENT:Think()
 
 		-- walked away: the session ends
 		if (self.registrationStage != "idle" and distance > 220) then
-			self:ResetSession()
+			self:EndSession()
 		end
 
 		local hovered = self:GetHoveredButton(client)
@@ -1012,7 +1070,7 @@ function ENT:Think()
 
 		-- a soft tick when the cursor comes onto another key
 		if (key and key != self.hoveredKey) then
-			self:EmitSound("network2/terminal/select1.wav", 50, 150, 0.15)
+			self:EmitSound("network2/terminal/civic/station_menu_hover.wav", 55, 100, 0.35)
 		end
 
 		self.hoveredButton = hovered
@@ -1023,7 +1081,7 @@ function ENT:Think()
 
 	if (stage == "shrinking" and elapsed >= 0.3) then
 		self.registrationStage, self.registrationStarted = "loading", CurTime()
-		self:EmitSound("network2/terminal/boot.wav", 60, 100, 0.6)
+		self:EmitSound("network2/terminal/civic/station_slide_open.wav", 62, 100, 0.7)
 	elseif (stage == "loading" and elapsed >= 1.6 and self.profile) then
 		self.registrationStage, self.registrationStarted = "identity", CurTime()
 	elseif (stage == "identity" and elapsed >= 1.4) then
@@ -1057,7 +1115,7 @@ function ENT:Receive(action, data)
 	elseif (action == "housing") then
 		if (!data.success) then
 			self.housingMessage = data.message or ""
-			self:EmitSound("network2/terminal/deny.wav", 60)
+			self:EmitSound("network2/terminal/civic/station_menu_select_denied.wav", 62)
 
 			return
 		end
@@ -1081,13 +1139,13 @@ function ENT:Receive(action, data)
 	elseif (action == "rented") then
 		self.assigned = {title = "Помещение назначено", name = data.name or "", back = "business"}
 		self:Go("assigned")
-		self:EmitSound("network2/terminal/boot.wav", 60, 115, 0.6)
+		self:EmitSound("network2/terminal/civic/station_menu_appear.wav", 62, 100, 0.75)
 	elseif (action == "call") then
 		self.actionMessage = data.success and "Сигнал передан" or "Ошибка передачи"
 		self.actionMessageUntil = CurTime() + 3
 
 		if (!data.success) then
-			self:EmitSound("network2/terminal/deny.wav", 60)
+			self:EmitSound("network2/terminal/civic/station_menu_select_denied.wav", 62)
 		end
 	elseif (action == "result") then
 		self.actionMessage = data.message or ""
@@ -1198,7 +1256,7 @@ function ENT:HandleUse(client)
 			self:Request("business")
 		end
 	elseif (action == "exit") then
-		self:ResetSession()
+		self:EndSession()
 	elseif (action == "go_housing") then
 		self.housingMessage = ""
 		self.apartments = {}

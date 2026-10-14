@@ -124,6 +124,31 @@ for _, name in ipairs({"wallpaper", "cursor", "cursor_hover"}) do
 	resource.AddFile("materials/network2/terminal/" .. name .. ".png")
 end
 
-for _, name in ipairs({"select1", "select2", "boot", "deny", "alarm", "loop"}) do
-	resource.AddFile("sound/network2/terminal/" .. name .. ".wav")
+
+for _, name in ipairs({"station_hum_loop", "station_menu_alarm", "station_menu_appear", "station_menu_disappear",
+	"station_menu_hover", "station_menu_select", "station_menu_select_denied", "station_slide_open",
+	"station_slide_closed"}) do
+	resource.AddFile("sound/network2/terminal/civic/" .. name .. ".wav")
+end
+
+-- Civil Protection gear on the run (sv_foley.lua)
+for i = 1, 6 do
+	resource.AddFile("sound/network2/metrocop/metrocop_foley_step_" .. i .. ".wav")
+end
+
+-- the visor of the Alliance (cl_combinehud.lua)
+for _, name in ipairs({"cmb_overlay", "soldier_overlay", "elite_overlay"}) do
+	resource.AddSingleFile("materials/network2/overlay/" .. name .. ".vmt")
+end
+
+for _, name in ipairs({"combine_overlay", "combine_overlay_normal", "soldier_overlay", "elite_overlay"}) do
+	resource.AddSingleFile("materials/network2/overlay/" .. name .. ".vtf")
+end
+
+-- the Combine font of the Alliance HUD: put Combine_Alphabet.ttf into resource/fonts of the content
+-- addon (the name of the font for the HUD: nw_hud_combine_font)
+for _, name in ipairs({"Combine_Alphabet.ttf", "combine_alphabet.ttf", "Combine_Alphabet.otf"}) do
+	if (file.Exists("resource/fonts/" .. name, "GAME")) then
+		resource.AddSingleFile("resource/fonts/" .. name)
+	end
 end

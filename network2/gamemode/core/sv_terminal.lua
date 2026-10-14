@@ -256,7 +256,7 @@ function ACTIONS.call(client, terminal, input)
 	local until_ = CurTime() + T.callCooldown
 
 	terminal:SetNW2Float("nwTermAlarm", until_)
-	terminal:EmitSound("network2/terminal/alarm.wav", 70)
+	terminal:EmitSound("network2/terminal/civic/station_menu_alarm.wav", 72)
 
 	local alert = {pos = {terminal:GetPos().x, terminal:GetPos().y, terminal:GetPos().z},
 		terminal = terminal:EntIndex(),
@@ -282,7 +282,7 @@ function T.Resolve(terminal, client)
 	end
 
 	terminal:SetNW2Float("nwTermAlarm", 0)
-	terminal:EmitSound("network2/terminal/boot.wav", 62, 120, 0.7)
+	terminal:EmitSound("network2/terminal/civic/station_menu_appear.wav", 62, 100, 0.8)
 
 	for _, member in ipairs(player.GetAll()) do
 		if (member:GetCharacterID() != 0 and NW.zones.IsAlliance(member)) then
@@ -389,7 +389,7 @@ function ACTIONS.bank(client, terminal, input)
 	SaveData(client)
 	Send(client, "profile", terminal, Profile(client))
 	Result(client, terminal, "ОПЕРАЦИЯ ВЫПОЛНЕНА")
-	terminal:EmitSound("network2/terminal/select2.wav", 60)
+	terminal:EmitSound("network2/terminal/civic/station_menu_select.wav", 60)
 end
 
 function ACTIONS.business(client, terminal)

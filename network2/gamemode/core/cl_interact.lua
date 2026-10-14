@@ -14,7 +14,9 @@ local USE_RANGE = 110
 
 local DOORS = {prop_door_rotating = true, func_door = true, func_door_rotating = true}
 -- entities of the engine and the base gamemode that are never something to use
-local SERVICE = {gmod_hands = true, physgun_beam = true, predicted_viewmodel = true, nw_item = true}
+-- (the civic terminal is used through its screen: no mark, no prompt over it)
+local SERVICE = {gmod_hands = true, physgun_beam = true, predicted_viewmodel = true, nw_item = true,
+	nw_terminal = true}
 local BUTTONS = {func_button = true, gmod_button = true, func_rot_button = true}
 
 surface.CreateFont("nwInteract", {font = "Montserrat SemiBold", size = math.max(13, math.Round(ScrH() * 0.019)),

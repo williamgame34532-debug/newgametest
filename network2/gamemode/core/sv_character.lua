@@ -490,6 +490,11 @@ function C.SetFaction(target, faction)
 		return false
 	end
 
+	-- a real change: the clothes and the weapons of the old faction come off (sv_inventory.lua)
+	if (character.faction != faction and NW.inventory.StripEquipment) then
+		NW.inventory.StripEquipment(target)
+	end
+
 	character.faction = faction
 	target:SetNW2String("nwCharFaction", faction)
 

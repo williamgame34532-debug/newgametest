@@ -144,7 +144,13 @@ local function MakeRagdoll(client)
 	ragdoll:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 	ragdoll:SetModelScale(client:GetModelScale(), 0)
 
+	-- the bones where the body is right now, moving with it; the body is heavy (damping: it does not
+	-- jitter or float, it settles)
+	client:SetupBones()
+
 	local velocity = client:GetVelocity()
+	local hit = client.nwLastHit and CurTime() - client.nwLastHit.time < 0.6 and client.nwLastHit
+	local nearest, nearestDistance, pelvis
 
 	for i = 0, ragdoll:GetPhysicsObjectCount() - 1 do
 		local physics = ragdoll:GetPhysicsObjectNum(i)
@@ -155,7 +161,43 @@ local function MakeRagdoll(client)
 			physics:SetPos(pos)
 			physics:SetAngles(ang)
 			physics:SetVelocity(velocity)
+			physics:SetDamping(0.02, 1.2)
+			physics:Wake()
+
+			if (ragdoll:GetBoneName(bone) == "ValveBiped.Bip01_Pelvis") then
+				pelvis = physics
+			end
+
+			if (hit) then
+				local distance = pos:DistToSqr(hit.pos)
+
+				if (!nearestDistance or distance < nearestDistance) then
+					nearest, nearestDistance = physics, distance
+				end
+			end
 		end
+	end
+
+	if (hit and nearest) then
+		-- the blow that brought them down: most of it into the bone it hit, the rest into the hips,
+		-- so a shot in the shoulder turns the body and a hit in the legs takes them from under it
+		local force = hit.force
+
+		if (force:Length() > 18000) then
+			force = force:GetNormalized() * 18000
+		end
+
+		nearest:ApplyForceOffset(force * 0.65, hit.pos)
+
+		if (IsValid(pelvis) and pelvis != nearest) then
+			pelvis:ApplyForceCenter(force * 0.35)
+		end
+	elseif (IsValid(pelvis)) then
+		-- no blow (a faint, a fall): the knees give way and the body goes over with its momentum
+		local forward = Angle(0, client:EyeAngles().y, 0):Forward()
+
+		pelvis:ApplyForceCenter(forward * math.Rand(-1, 1) * 1200 + Vector(0, 0, -800))
+		pelvis:AddAngleVelocity(VectorRand() * 60)
 	end
 
 	ragdoll:SetNW2String("nwName", client:Nick())
@@ -164,6 +206,29 @@ local function MakeRagdoll(client)
 
 	return ragdoll
 end
+
+-- the last blow to each player (where and how hard): the ragdoll made right after takes it
+hook.Add("EntityTakeDamage", "nwBodyLastHit", function(target, damage)
+	if (IsValid(target) and target:IsPlayer()) then
+		local force = damage:GetDamageForce()
+
+		if (force:LengthSqr() < 1) then
+			local attacker = damage:GetAttacker()
+
+			if (IsValid(attacker) and attacker != target) then
+				force = (target:WorldSpaceCenter() - attacker:WorldSpaceCenter()):GetNormalized() * damage:GetDamage() * 300
+			end
+		end
+
+		local pos = damage:GetDamagePosition()
+
+		if (pos == vector_origin) then
+			pos = target:WorldSpaceCenter()
+		end
+
+		target.nwLastHit = {force = force, pos = pos, time = CurTime()}
+	end
+end)
 
 function SO.IsBody(entity)
 	return IsValid(entity) and entity:GetClass() == "prop_ragdoll" and

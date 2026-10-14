@@ -17,6 +17,8 @@ NW.chatKinds = NW.chatKinds or {}
 local K = NW.chatKinds
 
 K.IC, K.WHISPER, K.YELL, K.OOC, K.LOOC, K.PM, K.ROLL, K.ME, K.IT, K.ADMIN = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
+-- the radios of the Alliance: /t - Civil Protection, /tr - with the Combine, /r - the squad (to come)
+K.RADIO, K.RADIO_ALL, K.SQUAD = 11, 12, 13
 
 K.range = {
 	[K.IC] = 300,
@@ -38,7 +40,10 @@ K.commands = {
 	roll = K.ROLL,
 	me = K.ME,
 	it = K.IT,
-	achat = K.ADMIN
+	achat = K.ADMIN,
+	t = K.RADIO,
+	tr = K.RADIO_ALL,
+	r = K.SQUAD
 }
 
 -- what the input shows above itself while typing (the kind of message being written)
@@ -52,7 +57,10 @@ K.names = {
 	[K.ROLL] = "Бросок кубика",
 	[K.ME] = "Действие",
 	[K.IT] = "Окружение",
-	[K.ADMIN] = "Админ-чат"
+	[K.ADMIN] = "Админ-чат",
+	[K.RADIO] = "Рация ГО",
+	[K.RADIO_ALL] = "Общая рация Альянса",
+	[K.SQUAD] = "Рация отряда"
 }
 
 -- the command hints (typing "/" in the chat)
@@ -69,6 +77,10 @@ K.help = {
 	{command = "/doorsell", args = "", text = "продать свою дверь (половина цены)"},
 	{command = "/doorlock", args = "", text = "запереть или отпереть свою дверь"},
 	{command = "/whitelists", args = "", text = "какие фракции вам открыты"},
+	-- the Alliance only (alliance = true)
+	{command = "/t", args = "<текст>", kind = K.RADIO, text = "рация Гражданской Обороны", alliance = true},
+	{command = "/tr", args = "<текст>", kind = K.RADIO_ALL, text = "общая рация с комбайнами", alliance = true},
+	{command = "/r", args = "<текст>", kind = K.SQUAD, text = "рация отряда", alliance = true},
 	-- staff only (admin = true): nobody else sees them
 	{command = "/achat", args = "<текст>", kind = K.ADMIN, text = "чат администрации", admin = true},
 	{command = "/spawnadd", args = "[фракция]", text = "точка появления фракции здесь (по умолчанию — вашей)",
@@ -88,7 +100,22 @@ K.help = {
 
 -- may this player use / see this hint?
 function K.Allowed(entry, client)
+	if (entry.alliance and !(IsValid(client) and NW.zones and NW.zones.IsAlliance(client))) then
+		return false
+	end
+
 	return !entry.admin or (IsValid(client) and client:IsAdmin())
+end
+
+-- the radio side of a member of the Alliance: "cp" (blue) or "ota" (red)
+function K.RadioSide(client)
+	local class = NW.anim and NW.anim.GetModelClass and NW.anim.GetModelClass(string.lower(client:GetModel() or ""))
+
+	if (client:GetFaction() == "combine" or class == "overwatch" or class == "combine_heavy") then
+		return "ota"
+	end
+
+	return "cp"
 end
 
 -- a known command word (by name or alias) this player may use: its hint entry

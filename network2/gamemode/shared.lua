@@ -57,6 +57,8 @@ local FILES = {
 	"sv_zones.lua",
 	"sv_doors.lua",
 	"sv_terminal.lua",
+	"sv_foley.lua",
+	"sv_combinehud.lua",
 	"sv_music.lua",
 	"sv_config.lua",
 	"cl_hud.lua",
@@ -96,7 +98,8 @@ local FILES = {
 	"cl_zones.lua",
 	"cl_doors.lua",
 	"cl_noclip.lua",
-	"cl_terminal.lua"
+	"cl_terminal.lua",
+	"cl_combinehud.lua"
 }
 
 for _, name in ipairs(FILES) do

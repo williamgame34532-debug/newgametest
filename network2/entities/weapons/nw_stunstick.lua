@@ -5,7 +5,8 @@ AddCSLuaFile()
 --   "stunstick"); hold R to raise it
 --   LMB              a blow (7.5); switched on - a stun blow (5): four stuns within 10 seconds knock the
 --                    target out (NW.body.Knock)
---   Alt + LMB        switch the stun on / off (only raised)
+--   Alt + LMB        switch the stun on / off (only raised): the model plays activatebaton /
+--                    deactivatebaton
 --   RMB              knock on a door, push a player (stronger with Strength) or shove a prop
 -- Every member of Civil Protection gets one as an item when joining the faction (FACTION.items).
 
@@ -51,6 +52,32 @@ SWEP.UseHands = true
 
 local STUNS_TO_KNOCK = 4
 
+-- switching the stun plays the baton gesture of the Civil Protection model (activatebaton /
+-- deactivatebaton) for everyone around
+if (SERVER) then
+	util.AddNetworkString("nwBatonGesture")
+else
+	net.Receive("nwBatonGesture", function()
+		local client = net.ReadEntity()
+		local name = net.ReadBool() and "activatebaton" or "deactivatebaton"
+
+		if (IsValid(client)) then
+			local sequence = client:LookupSequence(name)
+
+			if (sequence and sequence > 0) then
+				client:AddVCDSequenceToGestureSlot(GESTURE_SLOT_CUSTOM, sequence, 0, true)
+			end
+		end
+	end)
+end
+
+local function Gesture(owner, bOn)
+	net.Start("nwBatonGesture")
+		net.WriteEntity(owner)
+		net.WriteBool(bOn)
+	net.SendPVS(owner:GetPos())
+end
+
 function SWEP:SetupDataTables()
 	self:NetworkVar("Bool", 0, "Activated")
 end
@@ -74,6 +101,7 @@ function SWEP:Think()
 	if (SERVER and self:GetActivated() and IsValid(self:GetOwner()) and !self:GetOwner():IsWeaponRaised()) then
 		self:SetActivated(false)
 		self:GetOwner():EmitSound("Weapon_StunStick.Deactivate")
+		Gesture(self:GetOwner(), false)
 	end
 end
 
@@ -159,6 +187,7 @@ function SWEP:PrimaryAttack()
 		if (SERVER) then
 			self:SetActivated(!self:GetActivated())
 			owner:EmitSound(self:GetActivated() and "Weapon_StunStick.Activate" or "Weapon_StunStick.Deactivate")
+			Gesture(owner, self:GetActivated())
 		end
 
 		return

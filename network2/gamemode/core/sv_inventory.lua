@@ -244,6 +244,96 @@ local function Unequip(client, slot, cell, bQuiet)
 	hook.Run("NWItemUnequipped", client, slot, cell, item)
 end
 
+-- things put down on the floor around the player (no room for them anywhere)
+local function DropAround(client, cells)
+	local base = client:GetPos()
+
+	for index, cell in ipairs(cells) do
+		local item = I.Get(cell.id)
+		local entity = item and ents.Create("nw_item")
+
+		if (IsValid(entity)) then
+			local angle = math.rad(index * 360 / math.max(#cells, 1))
+			local spot = base + Vector(math.cos(angle) * 28, math.sin(angle) * 28, 24)
+			local trace = util.TraceLine({start = base + Vector(0, 0, 24), endpos = spot, filter = client})
+
+			entity:SetItem(cell.id, cell.data)
+			entity:SetPos(trace.HitPos - (spot - base):GetNormalized() * 6)
+			entity:SetAngles(Angle(0, math.random(0, 359), 0))
+			entity:Spawn()
+		end
+	end
+end
+
+-- a change of faction (NW.char.SetFaction): every piece of clothing and every weapon comes off into
+-- free cells; what does not fit is put down next to the player - now, or, when dead, on the next spawn
+function INV.StripEquipment(client)
+	local inventory = INV.Get(client)
+	local left = {}
+
+	for _, slot in ipairs(I.slots) do
+		local cell = inventory.equip[slot.id]
+
+		if (cell and (slot.group == "clothing" or slot.group == "weapon")) then
+			inventory.equip[slot.id] = nil
+			Unequip(client, slot, cell, true)
+
+			local index = INV.FreeFor(inventory, cell)
+
+			if (index) then
+				inventory.grid[index] = cell
+			else
+				left[#left + 1] = cell
+			end
+		end
+	end
+
+	INV.Dress(client)
+	INV.Changed(client)
+
+	if (#left == 0) then
+		return
+	end
+
+	if (client:Alive()) then
+		DropAround(client, left)
+		Notice(client, "Не поместилось в инвентарь — лежит рядом: " .. #left)
+	else
+		local character = client.nwCharacter
+
+		if (character) then
+			character.data = character.data or {}
+			character.data.pendingDrop = character.data.pendingDrop or {}
+
+			for _, cell in ipairs(left) do
+				table.insert(character.data.pendingDrop, cell)
+			end
+
+			NW.char.SaveData(client)
+		end
+	end
+end
+
+-- what waited for the spawn falls out next to the player
+hook.Add("PlayerSpawn", "nwPendingDrop", function(client)
+	local character = client.nwCharacter
+	local pending = character and character.data and character.data.pendingDrop
+
+	if (!istable(pending) or #pending == 0) then
+		return
+	end
+
+	character.data.pendingDrop = nil
+
+	timer.Simple(0.5, function()
+		if (IsValid(client) and client:Alive()) then
+			DropAround(client, pending)
+			Notice(client, "Ваши вещи лежат рядом: " .. #pending)
+			NW.char.SaveData(client)
+		end
+	end)
+end)
+
 -- equipped weapons come back on every spawn
 hook.Add("NWPlayerLoadout", "nwInventory", function(client)
 	for _, slot in ipairs(I.slots) do

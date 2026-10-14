@@ -290,7 +290,7 @@ function T.Alert(terminal, data)
 
 	NW.notify.Add("ВЫЗОВ Г.О · терминал " .. string.format("%03d", data.number or 0) .. " · " .. (data.name or "?") ..
 		" (#" .. (data.cid or "?") .. "): " .. (data.reason or ""))
-	surface.PlaySound("network2/terminal/alarm.wav")
+	surface.PlaySound("network2/terminal/civic/station_menu_alarm.wav")
 end
 
 -- the call is closed (someone of the Alliance pressed E on the terminal)
@@ -329,7 +329,7 @@ hook.Add("HUDPaint", "nwTerminalAlerts", function()
 		elseif (IsValid(LocalPlayer()) and LocalPlayer():GetPos():DistToSqr(alert.pos) < REACHED * REACHED) then
 			-- the patrol is there: the mark has done its job
 			table.remove(T.alerts, index)
-			surface.PlaySound("network2/terminal/select2.wav")
+			surface.PlaySound("network2/terminal/civic/station_menu_hover.wav")
 		else
 			local screen = (alert.pos + Vector(0, 0, 40)):ToScreen()
 			local x = math.Clamp(screen.x, 40, ScrW() - 40)

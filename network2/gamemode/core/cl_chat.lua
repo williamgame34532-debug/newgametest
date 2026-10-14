@@ -221,6 +221,8 @@ end
 local K = NW.chatKinds
 -- the character's name: a soft green
 local NAME = Color(176, 222, 160)
+local RADIO_BLUE = Color(96, 200, 255)
+local RADIO_RED = Color(240, 92, 80)
 local VERB = Color(170, 176, 184)
 local STYLE = {
 	[K.IC] = {color = Color(232, 214, 176), font = "nwChat"},
@@ -232,7 +234,10 @@ local STYLE = {
 	[K.ROLL] = {color = Color(186, 132, 255), font = "nwChat"},
 	[K.ME] = {color = Color(150, 214, 138), font = "nwChatMe"},
 	[K.IT] = {color = Color(150, 186, 214), font = "nwChat"},
-	[K.ADMIN] = {color = Color(240, 150, 60), font = "nwChat"}
+	[K.ADMIN] = {color = Color(240, 150, 60), font = "nwChat"},
+	[K.RADIO] = {color = Color(96, 200, 255), font = "nwChat"},
+	[K.RADIO_ALL] = {color = Color(96, 200, 255), font = "nwChat"},
+	[K.SQUAD] = {color = Color(96, 200, 255), font = "nwChat"}
 }
 
 net.Receive("nwChatTyped", function()
@@ -248,6 +253,13 @@ net.Receive("nwChatTyped", function()
 	local style = STYLE[kind] or STYLE[K.IC]
 	local c = style.color
 	local name = speaker:Nick()
+
+	-- the name in the colour of the side: Civil Protection blue, the Combine red, the rest as usual
+	local NAME = NAME
+
+	if (NW.zones and NW.zones.IsAlliance(speaker)) then
+		NAME = K.RadioSide(speaker) == "ota" and RADIO_RED or RADIO_BLUE
+	end
 
 	-- in character a stranger has no name (NW.char.Knows, "Познакомиться")
 	if ((kind == K.IC or kind == K.WHISPER or kind == K.YELL or kind == K.ME or kind == K.ROLL) and
@@ -280,6 +292,13 @@ net.Receive("nwChatTyped", function()
 		CH.AddStyled(style.font, c, "** " .. text)
 	elseif (kind == K.ADMIN) then
 		CH.AddStyled(style.font, c, "|A| ", NAME, steam, c, ": " .. text)
+	elseif (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
+		-- like the visor log: <name> по рации: "<:: text ::>" - blue for Civil Protection, red for the Combine
+		local radio = extra == "ota" and RADIO_RED or RADIO_BLUE
+		local channel = kind == K.RADIO_ALL and "[ОБЩ] " or ""
+
+		CH.AddStyled(style.font, radio, channel, NAME, name, radio, " по рации: \"<:: " .. text .. " ::>\"")
+		c = radio
 	end
 
 	MsgN(name .. ": " .. text)

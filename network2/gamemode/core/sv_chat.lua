@@ -111,6 +111,13 @@ net.Receive("nwChatSay", function(_, client)
 		kind, body = nil, "achat"
 	end
 
+	-- the radios: only the Alliance has them (for everyone else the words are unknown)
+	local radioWord = {[K.RADIO] = "t", [K.RADIO_ALL] = "tr", [K.SQUAD] = "r"}
+
+	if (radioWord[kind] and !NW.zones.IsAlliance(client)) then
+		kind, body = nil, radioWord[kind]
+	end
+
 	if (!kind) then
 		local command = NW.chatCommands[string.lower(body)]
 
@@ -160,6 +167,47 @@ net.Receive("nwChatSay", function(_, client)
 
 		Send(kind, client, message, target:SteamName(), {client, target})
 		MsgN(string.format("[PM] %s -> %s: %s", client:SteamName(), target:SteamName(), message))
+
+		return
+	end
+
+	-- the radios: Civil Protection (/t) or the whole Alliance (/tr); the side ("cp" / "ota") paints
+	-- the line; who stands next to the speaker and is not on the channel hears it as speech
+	if (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
+		if (body == "") then
+			return
+		end
+
+		if (kind == K.SQUAD) then
+			return Notice(client, "Рация отряда пока не настроена: /t или /tr")
+		end
+
+		local listeners, onChannel = {}, {}
+
+		for _, target in ipairs(player.GetAll()) do
+			if (target == client or (target:GetCharacterID() != 0 and NW.zones.IsAlliance(target) and
+				(kind == K.RADIO_ALL or K.RadioSide(target) == "cp"))) then
+				listeners[#listeners + 1] = target
+				onChannel[target] = true
+			end
+		end
+
+		Send(kind, client, body, K.RadioSide(client), listeners)
+
+		local around = {}
+
+		for _, target in ipairs(InRange(client, K.range[K.IC])) do
+			if (!onChannel[target]) then
+				around[#around + 1] = target
+			end
+		end
+
+		if (#around > 0) then
+			Send(K.IC, client, body, "", around)
+		end
+
+		client:EmitSound("npc/metropolice/vo/on" .. math.random(1, 2) .. ".wav", 55, 100, 0.5)
+		MsgN(string.format("[RADIO %d] %s (%s): %s", kind, client:Nick(), client:SteamName(), body))
 
 		return
 	end
