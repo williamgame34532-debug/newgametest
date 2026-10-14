@@ -5,7 +5,10 @@
 --   trade      Купить / Продать: cards with the model of the thing, its price (tokens and/or
 --              another item), what is left; what you cannot afford is dimmed
 --   quest      what to bring (how many you have), the reward, Принять / Сдать / Отказаться
---   editor     admins: Редактировать (top right) → Общее, Диалог, Торговля, Задания
+--   professions  cards of the factions the NPC hires into: the logo, the description, what it
+--              takes (free, a whitelist, tokens, an item) and Вступить; then where to appear -
+--              the faction's spawn points (by their zone) or Остаться здесь
+--   editor     admins: Редактировать (top right) → Общее, Диалог, Торговля, Задания, Профессии
 -- ESC: back from trade / quest to the talk, from the talk out.
 
 NW.npcUI = NW.npcUI or {}
@@ -141,6 +144,9 @@ local function Choose(answer)
 		NP.view = "quest"
 		NP.questID = answer.target
 		Rebuild()
+	elseif (answer.action == "profession") then
+		NP.view = "professions"
+		Rebuild()
 	else
 		NP.Close()
 	end
@@ -212,6 +218,8 @@ local function BuildDialog(frame, sw, sh)
 			end
 		elseif (answer.action == "trade") then
 			label = label .. "  [торговля]"
+		elseif (answer.action == "profession") then
+			label = label .. "  [профессии]"
 		end
 
 		row:SetPos(pad, ay)
@@ -450,6 +458,180 @@ local function BuildTrade(frame, sw, sh)
 	back:SetSize(sh * 0.16, sh * 0.042)
 end
 
+-- ------------------------------------------------------------ professions --
+local function Whitelisted(faction)
+	return NP.whitelist and NP.whitelist[faction] == true
+end
+
+-- what a profession takes, a line for the card, and whether the player has it now
+local function Access(entry)
+	if (entry.access == "whitelist") then
+		local ok = Whitelisted(entry.faction)
+
+		return ok and "Вайтлист: есть" or "Нужен вайтлист", ok
+	elseif (entry.access == "tokens") then
+		return entry.price .. " ток.", Tokens() >= entry.price
+	elseif (entry.access == "item") then
+		local item = I.Get(entry.item)
+		local have = Have(entry.item)
+
+		return (item and item.name or entry.item) .. " ×" .. entry.count .. " (у вас " .. have .. ")" ..
+			(entry.consume and "" or " — показать"), have >= entry.count
+	end
+
+	return "Бесплатно", true
+end
+
+local function BuildProfessions(frame, sw, sh)
+	local W = NW.widgets
+	local w, h = math.Round(math.min(sw * 0.7, sh * 1.36)), math.Round(sh * 0.74)
+	local box = Box(frame, sw, sh, NP.config.name .. " — профессии", w, h)
+	local pad = math.Round(sh * 0.025)
+	local scroll = W.Scroll(box)
+
+	scroll:SetPos(pad, sh * 0.075)
+	scroll:SetSize(w - pad * 2, h - sh * 0.075 - sh * 0.085)
+
+	local cardH = math.Round(sh * 0.13)
+	local list = NP.config.professions or {}
+
+	if (#list == 0) then
+		local empty = scroll:Add("DLabel")
+
+		empty:Dock(TOP)
+		empty:SetTall(sh * 0.05)
+		empty:SetFont("nwNpcAnswer")
+		empty:SetTextColor(MUTED)
+		empty:SetText("Здесь сейчас никого не нанимают.")
+	end
+
+	for index, entry in ipairs(list) do
+		local faction = NW.char.factions[entry.faction]
+
+		if (!faction) then
+			continue
+		end
+
+		local title = entry.title != "" and entry.title or faction.name
+		local description = entry.description != "" and entry.description or faction.description or ""
+		local current = NP.faction == entry.faction
+		local card = scroll:Add("EditablePanel")
+
+		card:Dock(TOP)
+		card:DockMargin(0, 0, 8, 10)
+		card:SetTall(cardH)
+		card.Paint = function(_, cw, ch)
+			Plate("card", 0, 0, cw, ch, 10)
+
+			local color = faction.color or U.color.text
+			local logo = U.Material("network2/factions/" .. (faction.logo or "citizen_logo") .. ".png")
+			local ls = ch - 24
+
+			surface.SetDrawColor(color.r, color.g, color.b, 40)
+			surface.DrawRect(12, 12, ls, ls)
+			surface.SetMaterial(logo)
+			surface.SetDrawColor(color)
+			surface.DrawTexturedRect(12 + ls * 0.12, 12 + ls * 0.12, ls * 0.76, ls * 0.76)
+			surface.SetDrawColor(color)
+			surface.DrawRect(ch, ch - 16, cw * 0.1, 2)
+
+			draw.SimpleText(title, "nwNpcCardName", ch, ch * 0.1, U.color.text)
+
+			local lines = INV.WrapText(description, "nwNpcSmall", cw - ch - cw * 0.3)
+
+			for i = 1, math.min(#lines, 3) do
+				draw.SimpleText(lines[i], "nwNpcSmall", ch, ch * 0.32 + (i - 1) * sh * 0.018, Color(196, 200, 206))
+			end
+
+			local text, ok = Access(entry)
+
+			if (current) then
+				text, ok = "Вы уже в этой фракции", true
+			end
+
+			draw.SimpleText(text, "nwNpcAnswer", cw - 14, ch * 0.2, ok and GOOD or BAD, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		end
+
+		local button = W.Button(card, current and "Текущая" or "Вступить", function()
+			Action("profession", index)
+		end, !current)
+
+		button:SetSize(w * 0.17, cardH * 0.3)
+		button:SetPos(w - pad * 2 - 8 - w * 0.17 - 12, cardH - cardH * 0.3 - 12)
+		button.Think = function(self)
+			local _, ok = Access(entry)
+
+			self:SetEnabled(ok and NP.faction != entry.faction)
+		end
+	end
+
+	local back = W.Button(box, "Назад", function()
+		GoNode(NP.node and NP.node.id or NP.config.start)
+	end)
+
+	back:SetPos(pad, h - sh * 0.065)
+	back:SetSize(sh * 0.16, sh * 0.042)
+end
+
+-- after joining: where to appear (the faction's points; the choice stays for respawns)
+local function BuildSpawns(frame, sw, sh)
+	local W = NW.widgets
+	local data = NP.spawnChoice or {points = {}}
+	local rowH = math.Round(sh * 0.05)
+	local w = math.Round(sh * 0.62)
+	local h = math.Round(sh * 0.2 + math.max(1, math.min(#data.points, 7)) * (rowH + 8) + sh * 0.06)
+	local box = Box(frame, sw, sh, (data.title or "Профессия") .. " — где появиться", w, h)
+	local pad = math.Round(sh * 0.025)
+	local y = sh * 0.075
+
+	local hint = box:Add("DLabel")
+
+	hint:SetPos(pad, y)
+	hint:SetSize(w - pad * 2, sh * 0.03)
+	hint:SetFont("nwNpcSmall")
+	hint:SetTextColor(MUTED)
+	hint:SetText(#data.points > 0 and "Выберите точку: вы перейдёте туда и будете появляться там после смерти." or
+		"У этой фракции ещё нет точек появления (/spawnadd).")
+	y = y + sh * 0.04
+
+	local scroll = W.Scroll(box)
+
+	scroll:SetPos(pad, y)
+	scroll:SetSize(w - pad * 2, h - y - sh * 0.08)
+
+	for _, point in ipairs(data.points) do
+		local button = W.Button(scroll, point.name, function()
+			Action("spawnat", point.index)
+			NP.Close()
+		end, false, "door")
+
+		button:Dock(TOP)
+		button:DockMargin(0, 0, 8, 8)
+		button:SetTall(rowH)
+	end
+
+	local stay = W.Button(box, "Остаться здесь", function()
+		NP.spawnChoice = nil
+		GoNode(NP.node and NP.node.id or NP.config.start)
+	end)
+
+	stay:SetPos(pad, h - sh * 0.065)
+	stay:SetSize(sh * 0.2, sh * 0.042)
+end
+
+net.Receive("nwNpcSpawns", function()
+	local entity = net.ReadEntity()
+	local data = util.JSONToTable(net.ReadString() or "") or {}
+
+	if (entity == NP.entity and IsValid(NP.frame)) then
+		NP.spawnChoice = data
+		NP.faction = data.faction
+		NP.view = "spawns"
+		surface.PlaySound("network2/ui/char/hls_ui_affirm.wav")
+		Rebuild()
+	end
+end)
+
 -- ----------------------------------------------------------------- quest --
 local function BuildQuest(frame, sw, sh)
 	local W = NW.widgets
@@ -578,6 +760,10 @@ Rebuild = function()
 		BuildTrade(frame, sw, sh)
 	elseif (NP.view == "quest") then
 		BuildQuest(frame, sw, sh)
+	elseif (NP.view == "professions") then
+		BuildProfessions(frame, sw, sh)
+	elseif (NP.view == "spawns") then
+		BuildSpawns(frame, sw, sh)
 	else
 		BuildDialog(frame, sw, sh)
 	end
@@ -673,6 +859,8 @@ net.Receive("nwNpcOpen", function()
 	NP.config = config
 	NP.quests = state.quests or {}
 	NP.stock = state.stock or {}
+	NP.whitelist = state.whitelist or {}
+	NP.faction = state.faction
 	NP.admin = admin
 	NP.view = "dialog"
 
@@ -690,9 +878,13 @@ net.Receive("nwNpcState", function()
 	if (entity == NP.entity) then
 		NP.quests = state.quests or {}
 		NP.stock = state.stock or {}
+		NP.whitelist = state.whitelist or {}
+		NP.faction = state.faction
 
-		-- the quest view may change its buttons, the stock its numbers
-		timer.Simple(0.1, Rebuild)
+		-- the quest view may change its buttons, the stock its numbers (not the choice of a spawn)
+		if (NP.view != "spawns") then
+			timer.Simple(0.1, Rebuild)
+		end
 	end
 end)
 
@@ -754,6 +946,7 @@ function NP.Editor(entity, cfg)
 	cfg.nodes = cfg.nodes or {}
 	cfg.shop = cfg.shop or {}
 	cfg.quests = cfg.quests or {}
+	cfg.professions = cfg.professions or {}
 
 	local tabs = {}
 	local Show
@@ -1150,7 +1343,131 @@ function NP.Editor(entity, cfg)
 		ItemRows(quest.rewardItems, "Награда: предметы", "reward")
 	end
 
-	local VIEWS = {general = General, dialog = Dialog, trade = Trade, quests = Quests}
+	-- professions: the factions this NPC hires into and what each takes
+	local selectedProfession = 1
+
+	local function Professions()
+		local aw, ah = area:GetWide(), area:GetTall()
+		local listW = math.Round(aw * 0.26)
+		local scroll = W.Scroll(area)
+
+		scroll:SetPos(0, 0)
+		scroll:SetSize(listW, ah - fh - 8)
+
+		for index, entry in ipairs(cfg.professions) do
+			local faction = NW.char.factions[entry.faction or ""]
+			local label = (entry.title or "") != "" and entry.title or (faction and faction.name or "?")
+			local button = W.Button(scroll, label, function()
+				selectedProfession = index
+				Show("professions")
+			end, index == selectedProfession)
+
+			button:Dock(TOP)
+			button:DockMargin(0, 0, 8, 6)
+			button:SetTall(fh)
+		end
+
+		local add = W.Button(area, "+ Профессия", function()
+			local first
+
+			for id in SortedPairs(NW.char.factions) do
+				first = first or id
+			end
+
+			cfg.professions[#cfg.professions + 1] = {faction = first, title = "", description = "", access = "free",
+				price = 0, item = "", count = 1, consume = true}
+			selectedProfession = #cfg.professions
+			Show("professions")
+		end)
+
+		add:SetPos(0, ah - fh)
+		add:SetSize(listW - 8, fh)
+
+		local entry = cfg.professions[selectedProfession]
+
+		if (!entry) then
+			local note = W.Label(area, "Добавьте профессию и дайте реплике ответ с действием «Профессии»", listW + pad, 0)
+
+			note:SetTextColor(MUTED)
+
+			return
+		end
+
+		local x = listW + pad
+		local fw = aw - x
+		local y = 0
+		local factions = {}
+
+		for id, faction in SortedPairsByMemberValue(NW.char.factions, "name") do
+			factions[#factions + 1] = {id, faction.name .. "  (" .. id .. ")"}
+		end
+
+		ComboField(area, "Фракция", x, y, fw * 0.44, factions, entry.faction, function(v)
+			entry.faction = v
+			Show("professions")
+		end)
+		Field(area, "Название (пусто — как у фракции)", x + fw * 0.46, y, fw * 0.3, entry.title or "",
+			function(v) entry.title = v end)
+
+		local remove = W.Button(area, "Удалить", function()
+			table.remove(cfg.professions, selectedProfession)
+			selectedProfession = 1
+			Show("professions")
+		end)
+
+		remove:SetPos(x + fw * 0.78, y + sh * 0.018)
+		remove:SetSize(fw * 0.22, fh)
+
+		y = y + sh * 0.065
+		Field(area, "Описание (пусто — описание фракции)", x, y, fw, entry.description or "",
+			function(v) entry.description = v end, true, sh * 0.08)
+		y = y + sh * 0.115
+
+		ComboField(area, "Как получить", x, y, fw * 0.44, NPC.ACCESS, entry.access or "free", function(v)
+			entry.access = v
+			Show("professions")
+		end)
+		y = y + sh * 0.065
+
+		if (entry.access == "tokens") then
+			NumberField(area, "Цена, токены", x, y, fw * 0.2, entry.price or 0, 0, 1000000, function(v)
+				entry.price = v
+			end)
+		elseif (entry.access == "item") then
+			ComboField(area, "Предмет", x, y, fw * 0.5, W.ItemChoices(), entry.item, function(v)
+				entry.item = v
+			end)
+			NumberField(area, "Сколько", x + fw * 0.52, y, fw * 0.14, entry.count or 1, 1, 50, function(v)
+				entry.count = v
+			end)
+
+			local consume = W.Check(area, "Забирать предмет", entry.consume != false)
+
+			consume:SetPos(x + fw * 0.68, y + sh * 0.018)
+			consume:SetSize(fw * 0.32, fh)
+			consume.Think = function(self)
+				entry.consume = self.value
+			end
+		elseif (entry.access == "whitelist") then
+			local note = W.Label(area, "Вайтлист выдаётся командой /whitelist <имя> <фракция>", x, y)
+
+			note:SetTextColor(MUTED)
+		else
+			local note = W.Label(area, "Профессия бесплатная — ничего не нужно", x, y)
+
+			note:SetTextColor(MUTED)
+		end
+
+		y = y + sh * 0.08
+
+		local faction = NW.char.factions[entry.faction or ""]
+		local note = W.Label(area, "После вступления игрок выбирает точку появления фракции" ..
+			(faction and (" «" .. faction.name .. "»") or "") .. " (точки: /spawnadd)", x, y)
+
+		note:SetTextColor(MUTED)
+	end
+
+	local VIEWS = {general = General, dialog = Dialog, trade = Trade, quests = Quests, professions = Professions}
 
 	Show = function(id)
 		for _, child in ipairs(area:GetChildren()) do
@@ -1166,7 +1483,7 @@ function NP.Editor(entity, cfg)
 	end
 
 	for index, tab in ipairs({{"general", "Общее"}, {"dialog", "Диалог"}, {"trade", "Торговля"},
-		{"quests", "Задания"}}) do
+		{"quests", "Задания"}, {"professions", "Профессии"}}) do
 		local button = W.Button(box, tab[2], function()
 			Show(tab[1])
 		end)

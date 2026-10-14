@@ -218,3 +218,22 @@ function C.Knows(client, target)
 
 	return result == true
 end
+
+-- a faction by its id or (part of) its name ("оборона", "комбайн", "гражданин")
+function C.FindFaction(query)
+	query = string.lower(string.Trim(query or ""))
+
+	if (query == "") then
+		return
+	end
+
+	if (C.factions[query]) then
+		return query
+	end
+
+	for id, faction in pairs(C.factions) do
+		if (string.find(string.lower(faction.name or id), query, 1, true)) then
+			return id
+		end
+	end
+end

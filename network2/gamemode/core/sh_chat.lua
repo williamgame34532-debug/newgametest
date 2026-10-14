@@ -9,7 +9,7 @@
 --   /me action      action         "*<name> action*" (green)               talking range
 --   /it text        surroundings   "** text" (steel blue, no name)         talking range
 --   /achat text     admin chat     "|A| <steam>: text" (orange)            admins only
--- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens, /areaedit, /door, /setfaction, /announce) are hidden from everyone else:
+-- Staff commands (/achat, /spawnadd, /spawnremove, /givetokens, /areaedit, /door, /setfaction, /announce, /whitelist, /unwhitelist) are hidden from everyone else:
 -- no hints, and typing them says "unknown command".
 
 NW.chatKinds = NW.chatKinds or {}
@@ -68,6 +68,7 @@ K.help = {
 	{command = "/doorbuy", args = "", text = "купить дверь, на которую вы смотрите"},
 	{command = "/doorsell", args = "", text = "продать свою дверь (половина цены)"},
 	{command = "/doorlock", args = "", text = "запереть или отпереть свою дверь"},
+	{command = "/whitelists", args = "", text = "какие фракции вам открыты"},
 	-- staff only (admin = true): nobody else sees them
 	{command = "/achat", args = "<текст>", kind = K.ADMIN, text = "чат администрации", admin = true},
 	{command = "/spawnadd", args = "[фракция]", text = "точка появления фракции здесь (по умолчанию — вашей)",
@@ -80,7 +81,9 @@ K.help = {
 	{command = "/door", args = "", text = "настроить дверь, на которую вы смотрите", admin = true},
 	{command = "/setfaction", args = "<имя> <фракция>", text = "перевести персонажа во фракцию (ГО, Комбайны...)",
 		admin = true},
-	{command = "/announce", args = "", text = "новое объявление для гражданских терминалов", admin = true}
+	{command = "/announce", args = "", text = "новое объявление для гражданских терминалов", admin = true},
+	{command = "/whitelist", args = "<имя> <фракция>", text = "открыть игроку фракцию с вайтлистом", admin = true},
+	{command = "/unwhitelist", args = "<имя> <фракция>", text = "закрыть игроку фракцию", admin = true}
 }
 
 -- may this player use / see this hint?

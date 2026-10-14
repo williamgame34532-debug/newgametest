@@ -1019,6 +1019,13 @@ function CH.PaintTyping(L, a)
 	draw.SimpleText(label, "nwChatMode", right, L.inputY + L.inputH / 2, ColorAlpha(color, 230 * a), TEXT_ALIGN_RIGHT,
 		TEXT_ALIGN_CENTER)
 
+	-- the command is typed (a space after it): the list goes away, only the label above stays
+	if (string.match(text, "^%s*[/!][^%s]+%s")) then
+		CH.hints, CH.hintsExact = nil, nil
+
+		return
+	end
+
 	-- commands: a solid box at the bottom of the history (nothing shows through it)
 	local list, exact, word = Matches(text)
 

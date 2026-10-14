@@ -6,6 +6,8 @@
 --   selling    one such thing from the grid → the NPC's price in tokens
 --   quests     the state per character (data.quests["<npc uid>:<quest id>"] = "active" / "done");
 --              handing in takes the needed things and gives the reward
+--   professions  joining a faction the NPC hires into (free, whitelist, tokens, an item); then the
+--              player picks one of the faction's spawn points (or stays) - kept for later respawns
 --   editing    admins send a whole new config (checked by NW.npc.Sanitize)
 -- Every NPC on the map is saved to data/network2/npcs/<map>.json and comes back after a restart.
 
@@ -13,6 +15,7 @@ util.AddNetworkString("nwNpcOpen")
 util.AddNetworkString("nwNpcState")
 util.AddNetworkString("nwNpcAction")
 util.AddNetworkString("nwNpcSave")
+util.AddNetworkString("nwNpcSpawns")
 
 NW.npcs = NW.npcs or {}
 
@@ -63,10 +66,16 @@ local function Stock(entity)
 	return out
 end
 
+-- what the windows need to know about the player: quests, stock, whitelists, the faction
+local function State(client, entity)
+	return {quests = States(client, entity), stock = Stock(entity),
+		whitelist = NW.whitelist and NW.whitelist.List(client) or {}, faction = client:GetFaction()}
+end
+
 local function SendState(client, entity)
 	net.Start("nwNpcState")
 		net.WriteEntity(entity)
-		net.WriteString(util.TableToJSON({quests = States(client, entity), stock = Stock(entity)}))
+		net.WriteString(util.TableToJSON(State(client, entity)))
 	net.Send(client)
 end
 
@@ -77,7 +86,7 @@ function NS.Talk(client, entity)
 		net.WriteEntity(entity)
 		net.WriteUInt(#data, 32)
 		net.WriteData(data, #data)
-		net.WriteString(util.TableToJSON({quests = States(client, entity), stock = Stock(entity)}))
+		net.WriteString(util.TableToJSON(State(client, entity)))
 		net.WriteBool(client:IsAdmin())
 	net.Send(client)
 end
@@ -286,6 +295,106 @@ function ACTIONS.turnin(client, entity, arg)
 	INV.Changed(client)
 	NW.char.SaveData(client)
 	Notify(client, "Задание выполнено: " .. quest.name)
+
+	return true
+end
+
+-- --------------------------------------------------------- professions --
+-- the spawn points of a faction as the player sees them: the zone they are in, or a number
+local function SpawnList(faction)
+	local out = {}
+
+	for index, point in ipairs(NW.spawns and NW.spawns.list[faction] or {}) do
+		local pos = Vector(point[1], point[2], point[3])
+		local zone = NW.zones and NW.zones.At(pos + Vector(0, 0, 36))
+
+		out[#out + 1] = {index = index, name = zone and zone.name or ("Точка " .. index)}
+	end
+
+	return out
+end
+
+function ACTIONS.profession(client, entity, arg)
+	local entry = entity.nwConfig.professions and entity.nwConfig.professions[tonumber(arg) or 0]
+	local faction = entry and NW.char.factions[entry.faction]
+
+	if (!faction) then
+		return
+	end
+
+	local title = entry.title != "" and entry.title or faction.name
+
+	if (client:GetFaction() == entry.faction) then
+		return Notify(client, "Вы уже: " .. title)
+	end
+
+	local inventory = INV.Get(client)
+
+	if (entry.access == "whitelist" and !NW.whitelist.Has(client, entry.faction)) then
+		return Notify(client, "Нужен вайтлист фракции «" .. faction.name .. "»")
+	elseif (entry.access == "tokens" and NW.social.GetTokens(client) < entry.price) then
+		return Notify(client, "Не хватает токенов: нужно " .. entry.price)
+	elseif (entry.access == "item" and NPC.Count(inventory.grid, entry.item) < entry.count) then
+		local item = I.Get(entry.item)
+
+		return Notify(client, "Нужно: " .. (item and item.name or entry.item) .. " ×" .. entry.count)
+	end
+
+	-- the price
+	if (entry.access == "tokens" and entry.price > 0) then
+		NW.social.SetTokens(client, NW.social.GetTokens(client) - entry.price)
+	elseif (entry.access == "item" and entry.consume) then
+		Take(inventory, entry.item, entry.count)
+		INV.Changed(client)
+	end
+
+	NW.char.SetFaction(client, entry.faction)
+	Notify(client, "Новая профессия: " .. title)
+	MsgN(string.format("[NPC] %s (%s) → %s", client:Nick(), client:SteamName(), entry.faction))
+
+	-- where to appear: the faction's points
+	client.nwProfessionSpawn = {faction = entry.faction, until_ = CurTime() + 180}
+
+	net.Start("nwNpcSpawns")
+		net.WriteEntity(entity)
+		net.WriteString(util.TableToJSON({title = title, faction = entry.faction, points = SpawnList(entry.faction)}))
+	net.Send(client)
+
+	return true
+end
+
+-- the chosen point: the player goes there now and appears there after deaths ("0" - stay here)
+function ACTIONS.spawnat(client, entity, arg)
+	local pending = client.nwProfessionSpawn
+
+	if (!pending or pending.until_ < CurTime() or client:GetFaction() != pending.faction) then
+		return
+	end
+
+	client.nwProfessionSpawn = nil
+
+	local index = tonumber(arg) or 0
+	local point = NW.spawns.list[pending.faction] and NW.spawns.list[pending.faction][index]
+	local character = client.nwCharacter
+
+	if (!point or !character) then
+		return
+	end
+
+	character.data = character.data or {}
+	character.data.spawnPoint = {faction = pending.faction, index = index}
+	NW.char.SaveData(client)
+
+	local pos = Vector(point[1], point[2], point[3])
+
+	if (NW.acts and NW.acts.Stop) then
+		NW.acts.Stop(client)
+	end
+
+	NW.storage.Close(client)
+	client:SetPos(pos)
+	client:SetEyeAngles(Angle(0, point[4] or 0, 0))
+	client:SetVelocity(-client:GetVelocity())
 
 	return true
 end

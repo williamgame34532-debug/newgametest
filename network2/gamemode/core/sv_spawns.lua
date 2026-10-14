@@ -3,8 +3,9 @@
 --                         looking where you look
 --   /spawnremove          removes the nearest point (within 128 units)
 -- Points are kept per map in data/network2/spawns/<map>.json. A character comes into the world on
--- one of its faction's points (a random free one) when it has no saved place: a new character, and
--- every time after death. Without points of its faction the map's own spawns are used.
+-- one of its faction's points when it has no saved place: a new character, and every time after
+-- death - the point chosen at the profession NPC if it is free, else a random free one. Without
+-- points of its faction the map's own spawns are used.
 
 local S = {}
 local DIR = "network2/spawns"
@@ -117,6 +118,31 @@ function S.Pick(client, faction)
 	return Vector(point[1], point[2], point[3]), Angle(0, point[4] or 0, 0)
 end
 
+-- the point the character chose at the profession NPC (sv_npc.lua), when it is of their faction,
+-- still there and free
+function S.Preferred(client)
+	local chosen = client.nwCharacter and client.nwCharacter.data and client.nwCharacter.data.spawnPoint
+
+	if (!istable(chosen) or chosen.faction != client:GetFaction()) then
+		return
+	end
+
+	local point = S.list[chosen.faction] and S.list[chosen.faction][tonumber(chosen.index) or 0]
+
+	if (!point) then
+		return
+	end
+
+	local pos = Vector(point[1], point[2], point[3])
+	local mins, maxs = client:GetHull()
+	local trace = util.TraceHull({start = pos, endpos = pos, mins = mins, maxs = maxs, mask = MASK_PLAYERSOLID,
+		filter = client})
+
+	if (!trace.StartSolid) then
+		return pos, Angle(0, point[4] or 0, 0)
+	end
+end
+
 -- no saved place: onto a point of the faction (sv_character.lua puts it on the saved place instead)
 hook.Add("PlayerSpawn", "nwSpawns", function(client)
 	if (!client.nwCharacter or NW.IsInMenu(client)) then
@@ -129,7 +155,11 @@ hook.Add("PlayerSpawn", "nwSpawns", function(client)
 		return
 	end
 
-	local pos, ang = S.Pick(client, client:GetFaction())
+	local pos, ang = S.Preferred(client)
+
+	if (!pos) then
+		pos, ang = S.Pick(client, client:GetFaction())
+	end
 
 	if (!pos) then
 		return

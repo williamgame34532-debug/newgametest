@@ -278,7 +278,10 @@ NW.anim.groundSpeed = {
 	nw_ota_pistol_walk_b = 45, nw_ota_pistol_walk_aim_b = 45,
 	nw_ota_pistol_walk_l = 33.5, nw_ota_pistol_walk_aim_l = 33.5,
 	nw_ota_pistol_walk_r = 34.5, nw_ota_pistol_walk_aim_r = 34.5,
-	nw_ota_pistol_run = 82.5, nw_ota_pistol_run_aim = 82.5
+	nw_ota_pistol_run = 82.5, nw_ota_pistol_run_aim = 82.5,
+	-- the CP sprint with the stunstick (HL:A capture, no root motion): one cycle per 240 units, so at
+	-- the run speed (200) it plays a little slower than its own pace instead of the engine's 2x
+	nw_hla_sprint = 240
 }
 NW.anim.overwatch.grenade = NW.anim.overwatch.normal
 NW.anim.overwatch.melee = NW.anim.overwatch.normal

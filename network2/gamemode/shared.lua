@@ -51,6 +51,7 @@ local FILES = {
 	"sv_storage.lua",
 	"sv_body.lua",
 	"sv_containers.lua",
+	"sv_whitelist.lua",
 	"sv_npc.lua",
 	"sv_spawns.lua",
 	"sv_zones.lua",

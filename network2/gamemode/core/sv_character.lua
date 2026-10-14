@@ -479,28 +479,60 @@ hook.Add("NWEnterMenu", "nwCharacter", function(client)
 end)
 
 -- ------------------------------------------------------------- factions --
--- /setfaction <игрок> <фракция> (admins): the character joins the faction (by id or part of the
--- name: «гражданин», «оборона», «комбайн»); a faction with its own model dresses them in it at once
-local function FindFaction(query)
-	query = string.lower(string.Trim(query or ""))
+-- the character joins a faction: saved at once, a faction with its own model dresses them in it,
+-- what the faction hands out on joining (FACTION.items: the stunstick of Civil Protection) is given
+-- once. Used by /setfaction and the profession NPCs (sv_npc.lua).
+function C.SetFaction(target, faction)
+	local character = target.nwCharacter
+	local data = C.factions[faction]
 
-	if (C.factions[query]) then
-		return query
+	if (!character or !data) then
+		return false
 	end
 
-	for id, faction in pairs(C.factions) do
-		if (string.find(string.lower(faction.name or id), query, 1, true)) then
-			return id
+	character.faction = faction
+	target:SetNW2String("nwCharFaction", faction)
+
+	if (!character.test) then
+		sql.Query("UPDATE nw_characters SET faction = " .. Q(faction) .. " WHERE id = " .. target:GetCharacterID())
+	end
+
+	if (target:Alive()) then
+		NW.models.Apply(target)
+	end
+
+	for _, id in ipairs(data.items or {}) do
+		local inventory = NW.inventory.Get(target)
+		local has = false
+
+		for _, cell in pairs(inventory.grid) do
+			has = has or cell.id == id
+		end
+
+		for _, cell in pairs(inventory.equip) do
+			has = has or cell.id == id
+		end
+
+		if (!has) then
+			local item = NW.items.Get(id) or {name = id}
+
+			NW.Notify(target, NW.inventory.Add(target, id) and ("Выдано: " .. item.name) or ("Нет места для: " .. item.name))
 		end
 	end
+
+	NW.inventory.Changed(target)
+	hook.Run("NWFactionChanged", target, faction)
+
+	return true
 end
 
--- (sv_chat.lua loads later: the command goes straight into its table)
+-- /setfaction <игрок> <фракция> (admins); sv_chat.lua loads later: the command goes straight into
+-- its table
 NW.chatCommands = NW.chatCommands or {}
 NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
 	local who, which = string.match(rest or "", "^(%S+)%s+(.+)$")
 	local target = NW.FindPlayer(who)
-	local faction = FindFaction(which)
+	local faction = C.FindFaction(which)
 
 	if (!target or !target.nwCharacter or target:GetCharacterID() == 0) then
 		return NW.Notify(client, "Игрок не найден. /setfaction <имя> <фракция>")
@@ -518,44 +550,7 @@ NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
 		return NW.Notify(client, "Фракция не найдена. Есть: " .. table.concat(names, ", "))
 	end
 
-	local character = target.nwCharacter
-
-	character.faction = faction
-	target:SetNW2String("nwCharFaction", faction)
-
-	if (!character.test) then
-		sql.Query("UPDATE nw_characters SET faction = " .. Q(faction) .. " WHERE id = " .. target:GetCharacterID())
-	end
-
-	if (target:Alive()) then
-		NW.models.Apply(target)
-	end
-
-	-- what the faction hands out on joining (FACTION.items: the stunstick of Civil Protection), once
-	local data = C.factions[faction]
-
-	for _, id in ipairs(data.items or {}) do
-		local inventory = NW.inventory.Get(target)
-		local has = false
-
-		for _, cell in pairs(inventory.grid) do
-			has = has or cell.id == id
-		end
-
-		for _, cell in pairs(inventory.equip) do
-			has = has or cell.id == id
-		end
-
-		if (!has) then
-			if (NW.inventory.Add(target, id)) then
-				NW.Notify(target, "Выдано: " .. (NW.items.Get(id) or {name = id}).name)
-			else
-				NW.Notify(target, "Нет места для: " .. (NW.items.Get(id) or {name = id}).name)
-			end
-		end
-	end
-
-	NW.inventory.Changed(target)
+	C.SetFaction(target, faction)
 
 	local name = C.factions[faction].name
 
@@ -566,5 +561,5 @@ NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
 	end
 
 	Log(string.format("%s: персонаж %d «%s» переведён во фракцию %s", client:SteamName(), target:GetCharacterID(),
-		character.name, faction))
+		target.nwCharacter.name, faction))
 end}

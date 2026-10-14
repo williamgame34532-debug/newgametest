@@ -7,12 +7,17 @@
 --                    action "goto"  → the line `target`
 --                           "trade" → the trade window
 --                           "quest" → the quest `target` (take it / hand it in)
+--                           "profession" → the professions window
 --                           "close" → end the talk
 --   shop           what is sold: {item, price (tokens), priceItem, priceCount (another item as the
 --                  price, or with tokens), stock (-1 = endless), sell (tokens the NPC pays for one;
 --                  0 = does not buy it)}
 --   quests         {id, name, description, need = {{item, count}}, rewardTokens,
 --                  rewardItems = {{item, count}}, repeatable}
+--   professions    what this NPC hires into: {faction, title (empty = the faction's name),
+--                  description, access = "free" / "whitelist" (/whitelist) / "tokens" (price) /
+--                  "item" (item, count; consume - taken away or only shown)}. Joining asks where to
+--                  appear: the faction's spawn points (/spawnadd); the choice is kept for respawns.
 -- NW.npc.Sanitize makes any table (from the editor, from a file) a valid config.
 
 NW.npc = NW.npc or {}
@@ -24,8 +29,23 @@ NPC.ACTIONS = {
 	{"goto", "Перейти к реплике"},
 	{"trade", "Открыть торговлю"},
 	{"quest", "Задание"},
+	{"profession", "Профессии"},
 	{"close", "Закончить разговор"}
 }
+
+-- how a profession is taken
+NPC.ACCESS = {
+	{"free", "Бесплатно"},
+	{"whitelist", "Только по вайтлисту"},
+	{"tokens", "За токены"},
+	{"item", "За предмет"}
+}
+
+NPC.accessByID = {}
+
+for _, entry in ipairs(NPC.ACCESS) do
+	NPC.accessByID[entry[1]] = entry[2]
+end
 
 function NPC.Default()
 	return {
@@ -102,7 +122,8 @@ function NPC.Sanitize(config)
 		sequence = Text(config.sequence, 64),
 		nodes = {},
 		shop = {},
-		quests = {}
+		quests = {},
+		professions = {}
 	}
 
 	local seen = {}
@@ -120,7 +141,8 @@ function NPC.Sanitize(config)
 					if (#answers < 9 and istable(answer)) then
 						local action = answer.action
 
-						if (action != "goto" and action != "trade" and action != "quest" and action != "close") then
+						if (action != "goto" and action != "trade" and action != "quest" and action != "profession" and
+							action != "close") then
 							action = "close"
 						end
 
@@ -173,6 +195,30 @@ function NPC.Sanitize(config)
 					repeatable = quest.repeatable == true
 				}
 			end
+		end
+	end
+
+	for _, entry in ipairs(istable(config.professions) and config.professions or {}) do
+		local factions = NW.char and NW.char.factions or {}
+
+		if (#out.professions < 16 and istable(entry) and factions[entry.faction or ""]) then
+			local access = NPC.accessByID[entry.access or ""] and entry.access or "free"
+			local item = I.Get(entry.item) and entry.item or ""
+
+			if (access == "item" and item == "") then
+				access = "free"
+			end
+
+			out.professions[#out.professions + 1] = {
+				faction = entry.faction,
+				title = Text(entry.title, 48),
+				description = Text(entry.description, 400),
+				access = access,
+				price = access == "tokens" and Int(entry.price, 0, 1000000, 0) or 0,
+				item = access == "item" and item or "",
+				count = access == "item" and Int(entry.count, 1, 50, 1) or 0,
+				consume = access == "item" and entry.consume == true
+			}
 		end
 	end
 
