@@ -299,6 +299,18 @@ net.Receive("nwChatTyped", function()
 
 		CH.AddStyled(style.font, radio, channel, NAME, name, radio, " по рации: \"<:: " .. text .. " ::>\"")
 		c = radio
+
+		-- the set: the one who said it hears the key go up; everyone in the Alliance who gets the
+		-- message hears the channel open and close
+		if (speaker == LocalPlayer()) then
+			CH.RadioSound("off")
+		else
+			CH.RadioSound("on")
+
+			timer.Simple(math.Clamp(0.3 + (utf8.len(text) or #text) * 0.012, 0.3, 1), function()
+				CH.RadioSound("off")
+			end)
+		end
 	end
 
 	MsgN(name .. ": " .. text)
@@ -318,6 +330,25 @@ hook.Add("ChatText", "nwChat", function(index, name, text, kind)
 	end
 end)
 
+-- the radio of the Alliance (sound/network2/radio, combine_tech): the key goes down when a radio
+-- command is typed, up when it is sent; the others hear the channel open and close
+local RADIO_SOUNDS = {on = 5, off = 6}
+
+function CH.RadioSound(kind)
+	surface.PlaySound(string.format("network2/radio/combine_radio_%s_%02d.wav", kind, math.random(RADIO_SOUNDS[kind])))
+end
+
+local function RadioTyping(text)
+	local typing = NW.zones and NW.zones.IsAlliance(LocalPlayer()) and
+		(string.find(text, "^/[tT][rR]?%s") or string.find(text, "^/[rR]%s")) != nil
+
+	if (typing and !CH.radioKeyed) then
+		CH.RadioSound("on")
+	end
+
+	CH.radioKeyed = typing
+end
+
 -- ------------------------------------------------------------------ panels --
 local function Close()
 	if (!IsValid(CH.frame)) then
@@ -325,6 +356,7 @@ local function Close()
 	end
 
 	CH.open = false
+	CH.radioKeyed = nil
 	CH.drag = nil
 	CH.sel = nil
 	CH.entry:SetText("")
@@ -571,6 +603,7 @@ local function Build()
 		end
 	end
 	entry.OnChange = function(self)
+		RadioTyping(self:GetValue())
 		hook.Run("ChatTextChanged", self:GetValue())
 	end
 	-- Up / Down: what you sent before (Up first gives the last message)
@@ -598,6 +631,11 @@ local function Build()
 end
 
 function CH.Open(bTeam)
+	-- dead or unconscious: no chat (sh_incapable.lua)
+	if (NW.Incapable and NW.Incapable(LocalPlayer())) then
+		return
+	end
+
 	if (!IsValid(CH.frame)) then
 		Build()
 	end

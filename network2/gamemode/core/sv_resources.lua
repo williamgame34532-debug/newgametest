@@ -137,6 +137,15 @@ for i = 1, 6 do
 	resource.AddFile("sound/network2/metrocop/metrocop_foley_step_" .. i .. ".wav")
 end
 
+-- the radio of the Alliance (cl_chat.lua; combine_tech)
+for i = 1, 5 do
+	resource.AddFile(string.format("sound/network2/radio/combine_radio_on_%02d.wav", i))
+end
+
+for i = 1, 6 do
+	resource.AddFile(string.format("sound/network2/radio/combine_radio_off_%02d.wav", i))
+end
+
 -- the visor of the Alliance (cl_combinehud.lua)
 for _, name in ipairs({"cmb_overlay", "soldier_overlay", "elite_overlay"}) do
 	resource.AddSingleFile("materials/network2/overlay/" .. name .. ".vmt")

@@ -345,7 +345,10 @@ function ACTIONS.housing(client, terminal)
 
 	chosen = chosen or free[#free]
 	D.AddTenant(chosen.door, client)
-	Send(client, "housing", terminal, {success = true, chosen = chosen.name, names = names})
+	-- where it is: the client puts a mark on the door once the roulette stops (cl_terminal.lua)
+	local pos = chosen.door:WorldSpaceCenter()
+
+	Send(client, "housing", terminal, {success = true, chosen = chosen.name, names = names, pos = {pos.x, pos.y, pos.z}})
 	MsgN(string.format("[Terminal] %s заселён: %s", client:Nick(), chosen.name))
 end
 

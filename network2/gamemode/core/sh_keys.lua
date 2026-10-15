@@ -47,7 +47,8 @@ end
 
 if (CLIENT) then
 	hook.Add("PlayerButtonDown", "nwKeys", function(client, button)
-		if (!IsFirstTimePredicted() or client != LocalPlayer() or vgui.GetKeyboardFocus() or gui.IsGameUIVisible()) then
+		if (!IsFirstTimePredicted() or client != LocalPlayer() or vgui.GetKeyboardFocus() or gui.IsGameUIVisible() or
+			(NW.Incapable and NW.Incapable(client))) then
 			return
 		end
 

@@ -14,6 +14,7 @@
 util.AddNetworkString("nwNpcOpen")
 util.AddNetworkString("nwNpcState")
 util.AddNetworkString("nwNpcAction")
+util.AddNetworkString("nwProfessionShift")
 util.AddNetworkString("nwNpcSave")
 util.AddNetworkString("nwNpcSpawns")
 
@@ -348,17 +349,32 @@ function ACTIONS.profession(client, entity, arg)
 		INV.Changed(client)
 	end
 
-	NW.char.SetFaction(client, entry.faction)
-	Notify(client, "Новая профессия: " .. title)
-	MsgN(string.format("[NPC] %s (%s) → %s", client:Nick(), client:SteamName(), entry.faction))
+	-- the transition (cl_npc.lua): the screen goes dark, the faction is changed in the dark (the model,
+	-- the clothes), then the title of the new profession and the choice of where to appear
+	local character = client.nwCharacter
 
-	-- where to appear: the faction's points
-	client.nwProfessionSpawn = {faction = entry.faction, until_ = CurTime() + 180}
-
-	net.Start("nwNpcSpawns")
-		net.WriteEntity(entity)
-		net.WriteString(util.TableToJSON({title = title, faction = entry.faction, points = SpawnList(entry.faction)}))
+	net.Start("nwProfessionShift")
+		net.WriteString(title)
+		net.WriteColor(faction.color or color_white, false)
 	net.Send(client)
+
+	timer.Simple(0.8, function()
+		if (!IsValid(client) or client.nwCharacter != character) then
+			return
+		end
+
+		NW.char.SetFaction(client, entry.faction)
+		Notify(client, "Новая профессия: " .. title)
+		MsgN(string.format("[NPC] %s (%s) → %s", client:Nick(), client:SteamName(), entry.faction))
+
+		-- where to appear: the faction's points
+		client.nwProfessionSpawn = {faction = entry.faction, until_ = CurTime() + 180}
+
+		net.Start("nwNpcSpawns")
+			net.WriteEntity(entity)
+			net.WriteString(util.TableToJSON({title = title, faction = entry.faction, points = SpawnList(entry.faction)}))
+		net.Send(client)
+	end)
 
 	return true
 end

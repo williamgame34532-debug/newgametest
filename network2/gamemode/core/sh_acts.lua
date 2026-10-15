@@ -471,6 +471,11 @@ if (SERVER) then
 			return false
 		end
 
+		-- the dead and the unconscious say nothing
+		if (!talker:Alive() or talker:GetNW2Bool("nwKnocked", false)) then
+			return false
+		end
+
 		local mode = A.voice[talker:GetVoiceMode()] or A.voice[2]
 
 		return listener:GetPos():DistToSqr(talker:GetPos()) <= mode.range * mode.range, true

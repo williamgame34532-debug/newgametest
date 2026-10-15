@@ -234,12 +234,18 @@ hook.Add("DoPlayerDeath", "nwCharSave", function(client)
 	C.Save(client, "смерть")
 end)
 
--- back after a while (the death screen counts it down: cl_death.lua), with Space / a click
+-- back after a while (the death screen counts it down: cl_body.lua), with Space / a click
 local respawnTime = CreateConVar("nw_respawn_time", "10", FCVAR_ARCHIVE, "Через сколько секунд после смерти можно очнуться")
 
 hook.Add("PlayerDeath", "nwRespawnTime", function(client)
-	client.NextSpawnTime = CurTime() + respawnTime:GetFloat()
-	client:SetNW2Float("nwRespawnAt", client.NextSpawnTime)
+	client:SetNW2Float("nwRespawnAt", CurTime() + respawnTime:GetFloat())
+end)
+
+-- the base GM:PlayerDeath sets its own NextSpawnTime (2 s) after the hooks: the wait is held here
+hook.Add("PlayerDeathThink", "nwRespawnTime", function(client)
+	if (CurTime() < client:GetNW2Float("nwRespawnAt", 0)) then
+		return false
+	end
 end)
 
 -- a saved spot is used only on the same map and only when the player fits there (a little

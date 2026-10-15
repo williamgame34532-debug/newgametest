@@ -144,13 +144,16 @@ local function MakeRagdoll(client)
 	ragdoll:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 	ragdoll:SetModelScale(client:GetModelScale(), 0)
 
-	-- the bones where the body is right now, moving with it; the body is heavy (damping: it does not
-	-- jitter or float, it settles)
-	client:SetupBones()
-
+	-- the bones where the body is right now (the server sets the player's bones up itself), moving
+	-- with it; the body is heavy (damping: it does not jitter or float, it settles)
 	local velocity = client:GetVelocity()
+
+	if (velocity:Length() > 500) then
+		velocity = velocity:GetNormalized() * 500
+	end
+
 	local hit = client.nwLastHit and CurTime() - client.nwLastHit.time < 0.6 and client.nwLastHit
-	local nearest, nearestDistance, pelvis
+	local nearest, nearestDistance, pelvis, spine
 
 	for i = 0, ragdoll:GetPhysicsObjectCount() - 1 do
 		local physics = ragdoll:GetPhysicsObjectNum(i)
@@ -161,11 +164,15 @@ local function MakeRagdoll(client)
 			physics:SetPos(pos)
 			physics:SetAngles(ang)
 			physics:SetVelocity(velocity)
-			physics:SetDamping(0.02, 1.2)
+			physics:SetDamping(0.08, 2.5)
 			physics:Wake()
 
-			if (ragdoll:GetBoneName(bone) == "ValveBiped.Bip01_Pelvis") then
+			local name = ragdoll:GetBoneName(bone)
+
+			if (name == "ValveBiped.Bip01_Pelvis") then
 				pelvis = physics
+			elseif (name == "ValveBiped.Bip01_Spine2") then
+				spine = physics
 			end
 
 			if (hit) then
@@ -178,26 +185,35 @@ local function MakeRagdoll(client)
 		end
 	end
 
+	-- the impulses are changes of speed, not raw forces: a light bone and a heavy one move alike and
+	-- nothing is thrown across the room; every fall is a little different (the direction wanders)
 	if (hit and nearest) then
-		-- the blow that brought them down: most of it into the bone it hit, the rest into the hips,
-		-- so a shot in the shoulder turns the body and a hit in the legs takes them from under it
-		local force = hit.force
+		-- the blow that brought them down: the bone it hit gives way, the hips follow a little, so a
+		-- shot in the shoulder turns the body and a hit in the legs takes them from under it
+		local strength = math.Clamp(hit.force:Length() / 90, 35, 170)
+		local direction = hit.force:GetNormalized()
 
-		if (force:Length() > 18000) then
-			force = force:GetNormalized() * 18000
-		end
+		direction = (direction + VectorRand() * 0.25):GetNormalized()
+		direction.z = math.Clamp(direction.z, -0.6, 0.25)
 
-		nearest:ApplyForceOffset(force * 0.65, hit.pos)
+		nearest:AddVelocity(direction * strength)
+		nearest:AddAngleVelocity(VectorRand() * strength * 0.6)
 
 		if (IsValid(pelvis) and pelvis != nearest) then
-			pelvis:ApplyForceCenter(force * 0.35)
+			pelvis:AddVelocity(direction * strength * 0.3)
 		end
 	elseif (IsValid(pelvis)) then
-		-- no blow (a faint, a fall): the knees give way and the body goes over with its momentum
-		local forward = Angle(0, client:EyeAngles().y, 0):Forward()
+		-- no blow (a faint, a fall): the knees give way and the body slumps to any side, the upper
+		-- body leaning the way it goes
+		local side = Angle(0, math.Rand(0, 360), 0):Forward()
 
-		pelvis:ApplyForceCenter(forward * math.Rand(-1, 1) * 1200 + Vector(0, 0, -800))
-		pelvis:AddAngleVelocity(VectorRand() * 60)
+		pelvis:AddVelocity(side * math.Rand(15, 45) + Vector(0, 0, -30))
+
+		if (IsValid(spine)) then
+			spine:AddVelocity(side * math.Rand(40, 90))
+		end
+
+		pelvis:AddAngleVelocity(VectorRand() * 25)
 	end
 
 	ragdoll:SetNW2String("nwName", client:Nick())
@@ -701,6 +717,35 @@ function SO.actions.search(client, target)
 		B.Rummage(client)
 	end
 end
+
+-- ------------------------------------------------------- NPCs and zombies --
+-- killed NPCs (zombies too) leave a real body on the server: it can be checked and searched like
+-- the body of a player and goes away with the cleanup below
+hook.Add("Initialize", "nwServerRagdolls", function()
+	RunConsoleCommand("ai_serverragdolls", "1")
+end)
+
+hook.Add("CreateEntityRagdoll", "nwNpcCorpse", function(owner, ragdoll)
+	if (!IsValid(ragdoll) or !IsValid(owner) or owner:IsPlayer()) then
+		return
+	end
+
+	ragdoll:SetCollisionGroup(COLLISION_GROUP_WEAPON)
+	ragdoll:SetNW2Bool("nwCorpse", true)
+	ragdoll:SetNW2String("nwName", "")
+	ragdoll:SetNW2Int("nwCharID", 0)
+	ragdoll.nwChecked = {}
+	ragdoll.nwBorn = CurTime()
+	ragdoll.nwStore = {grid = {}, tokens = 0, size = 12}
+
+	for i = 0, ragdoll:GetPhysicsObjectCount() - 1 do
+		local physics = ragdoll:GetPhysicsObjectNum(i)
+
+		if (IsValid(physics)) then
+			physics:SetDamping(0.08, 2.5)
+		end
+	end
+end)
 
 -- ----------------------------------------------------------- the cleanup --
 -- every ragdoll (bodies, killed NPCs, spawned ones) goes away after nw_ragdoll_time (5 minutes);

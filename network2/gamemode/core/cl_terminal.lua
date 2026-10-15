@@ -19,6 +19,13 @@ net.Receive("nwTerminal", function()
 		return T.ClearAlert(data.terminal, data.by)
 	elseif (action == "announce_list") then
 		return T.OpenEditor(data.list or {})
+	elseif (action == "housing" and data.success and istable(data.pos)) then
+		-- the roulette of the terminal turns for 4 seconds; then the way home
+		local pos = Vector(data.pos[1], data.pos[2], data.pos[3])
+
+		timer.Simple(4.3, function()
+			T.SetHome(pos, data.chosen or "")
+		end)
 	end
 
 	if (IsValid(terminal) and terminal.Receive) then
@@ -353,4 +360,148 @@ hook.Add("HUDPaint", "nwTerminalAlerts", function()
 				Color(236, 238, 242, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 200))
 		end
 	end
+end)
+
+-- ------------------------------------------------------- the way home --
+-- After the terminal gives an apartment: a mark on its door. A ring that breathes around a diamond
+-- with the door inside, "ВАШЕ ЖИЛЬЁ", the name of the block and the distance; off the screen it
+-- waits at the edge with an arrow pointing the way. Close to the door it fades out and is gone.
+local HOME_REACHED = 140
+local HOME_TIME = 600
+local HOME_COLOR = Color(124, 214, 236)
+
+function T.SetHome(pos, name)
+	T.home = {pos = pos, name = name or "", start = RealTime(), gone = nil}
+	surface.PlaySound("network2/terminal/civic/station_menu_appear.wav")
+end
+
+surface.CreateFont("nwHomeTitle", {font = "Jura", size = math.max(14, math.Round(ScrH() * 0.02)), weight = 700,
+	extended = true, antialias = true})
+surface.CreateFont("nwHomeSmall", {font = "Exo 2", size = math.max(11, math.Round(ScrH() * 0.015)), weight = 500,
+	extended = true, antialias = true})
+
+local function Diamond(x, y, r, thickness, color)
+	surface.SetDrawColor(color)
+
+	for k = 0, thickness - 1 do
+		local rr = r - k
+
+		surface.DrawLine(x, y - rr, x + rr, y)
+		surface.DrawLine(x + rr, y, x, y + rr)
+		surface.DrawLine(x, y + rr, x - rr, y)
+		surface.DrawLine(x - rr, y, x, y - rr)
+	end
+end
+
+local function Ring(x, y, r, color)
+	surface.SetDrawColor(color)
+
+	local steps = 40
+	local last
+
+	for i = 0, steps do
+		local a = i / steps * math.pi * 2
+		local point = {x + math.cos(a) * r, y + math.sin(a) * r}
+
+		if (last) then
+			surface.DrawLine(last[1], last[2], point[1], point[2])
+		end
+
+		last = point
+	end
+end
+
+hook.Add("HUDPaint", "nwTerminalHome", function()
+	local home = T.home
+	local client = LocalPlayer()
+
+	if (!home or !IsValid(client)) then
+		return
+	end
+
+	local now = RealTime()
+
+	-- there: it fades out
+	if (!home.gone and (client:GetPos():DistToSqr(home.pos) < HOME_REACHED * HOME_REACHED or
+		now - home.start > HOME_TIME)) then
+		home.gone = now
+		surface.PlaySound("network2/terminal/civic/station_menu_disappear.wav")
+	end
+
+	local alpha = math.Clamp((now - home.start) / 0.6, 0, 1)
+
+	if (home.gone) then
+		alpha = alpha * (1 - math.Clamp((now - home.gone) / 0.8, 0, 1))
+
+		if (alpha <= 0) then
+			T.home = nil
+
+			return
+		end
+	end
+
+	local sw, sh = ScrW(), ScrH()
+	local screen = (home.pos + Vector(0, 0, 20)):ToScreen()
+	local margin = sh * 0.08
+	local x, y = screen.x, screen.y
+	local onScreen = screen.visible and x > margin and x < sw - margin and y > margin and y < sh - margin
+
+	-- behind or aside: on the edge, towards it
+	if (!onScreen) then
+		local dx, dy = x - sw / 2, y - sh / 2
+
+		if (!screen.visible) then
+			dx, dy = -dx, -dy
+		end
+
+		local length = math.sqrt(dx * dx + dy * dy)
+
+		if (length < 1) then
+			dx, dy, length = 0, 1, 1
+		end
+
+		local scale = math.min((sw / 2 - margin) / math.abs(dx + 0.001), (sh / 2 - margin) / math.abs(dy + 0.001))
+
+		x, y = sw / 2 + dx * scale, sh / 2 + dy * scale
+		home.arrow = math.atan2(dy, dx)
+	else
+		home.arrow = nil
+	end
+
+	local r = sh * 0.016
+	local breath = (now * 0.7) % 1
+	local color = ColorAlpha(HOME_COLOR, 255 * alpha)
+
+	-- the breathing ring
+	Ring(x, y, r * (1.2 + breath * 1.3), ColorAlpha(HOME_COLOR, 150 * alpha * (1 - breath)))
+
+	-- the diamond with the door inside
+	draw.NoTexture()
+	Diamond(x, y, r, 2, color)
+	surface.SetDrawColor(HOME_COLOR.r, HOME_COLOR.g, HOME_COLOR.b, 40 * alpha)
+	surface.DrawRect(x - r * 0.5, y - r * 0.5, r, r)
+	U.DrawIcon("door", x - r * 0.55, y - r * 0.55, r * 1.1, color)
+
+	-- the arrow at the edge
+	if (home.arrow) then
+		local a = home.arrow
+		local tip = {x + math.cos(a) * r * 2.1, y + math.sin(a) * r * 2.1}
+		local left = {x + math.cos(a + 0.45) * r * 1.5, y + math.sin(a + 0.45) * r * 1.5}
+		local right = {x + math.cos(a - 0.45) * r * 1.5, y + math.sin(a - 0.45) * r * 1.5}
+
+		surface.SetDrawColor(color)
+		surface.DrawLine(left[1], left[2], tip[1], tip[2])
+		surface.DrawLine(right[1], right[2], tip[1], tip[2])
+	end
+
+	local distance = math.Round(EyePos():Distance(home.pos) / 52.5)
+	local shadow = Color(0, 0, 0, 190 * alpha)
+
+	draw.SimpleTextOutlined("ВАШЕ ЖИЛЬЁ", "nwHomeTitle", x, y - r * 1.9, color, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1,
+		shadow)
+
+	local line = (home.name != "" and (home.name .. " · ") or "") .. distance .. " м"
+
+	draw.SimpleTextOutlined(line, "nwHomeSmall", x, y + r * 1.9, Color(232, 238, 242, 220 * alpha), TEXT_ALIGN_CENTER,
+		TEXT_ALIGN_TOP, 1, shadow)
 end)

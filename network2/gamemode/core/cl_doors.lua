@@ -24,7 +24,21 @@ local function Status(door)
 		return "Только для Альянса", Color(214, 120, 110)
 	end
 
-	-- an apartment of the terminal: how many live there
+	-- an apartment for several (the terminal, or bought by several): how many live there
+	if (kind == "apartment" and mode == "buy" and D.Capacity(door) > 1) then
+		local count, capacity = #D.Tenants(door), D.Capacity(door)
+		local price = door:GetNW2Int("nwDoorPrice", 0)
+
+		if (D.IsOwner(LocalPlayer(), door)) then
+			return "Ваша · жильцов " .. count .. "/" .. capacity .. " · /doorlock", Color(150, 214, 138)
+		elseif (count >= capacity) then
+			return "Занята · жильцов " .. count .. "/" .. capacity, U.color.dim
+		end
+
+		return "Мест " .. (capacity - count) .. "/" .. capacity .. " · " .. (price > 0 and (price .. " ток.") or
+			"бесплатно") .. " · /doorbuy", U.color.hint
+	end
+
 	if (kind == "apartment" and mode == "terminal") then
 		local count, capacity = #D.Tenants(door), D.Capacity(door)
 		local mine = D.IsOwner(LocalPlayer(), door)
@@ -218,7 +232,7 @@ local function Open(door)
 	local settings = box:Add("EditablePanel")
 
 	settings:SetPos(pad, y)
-	settings:SetSize(inner, math.Round(sh * 0.15))
+	settings:SetSize(inner, math.Round(sh * 0.02) * 2 + fieldH * 2 + math.Round(sh * 0.012))
 
 	local mode, price, capacity
 
@@ -230,7 +244,6 @@ local function Open(door)
 
 		if (which == "apartment") then
 			W.Label(settings, "Как получить", 0, 0)
-			W.Label(settings, "Цена / мест", inner * 0.62, 0)
 
 			local modes = {}
 
@@ -240,22 +253,28 @@ local function Open(door)
 
 			mode = W.Combo(settings, modes, door:GetNW2String("nwDoorMode", "buy") == "terminal" and "terminal" or "buy")
 			mode:SetPos(0, math.Round(sh * 0.02))
-			mode:SetSize(inner * 0.58, fieldH)
+			mode:SetSize(inner, fieldH)
+
+			-- the price (for sale: each who buys in pays it) and how many may live there, together
+			local row = math.Round(sh * 0.02) + fieldH + math.Round(sh * 0.012)
+			local priceLabel = W.Label(settings, "Цена, ток. (с жильца)", 0, row)
+
+			W.Label(settings, "Мест (игроков)", inner * 0.52, row)
 
 			price = W.Number(settings, door:GetNW2Int("nwDoorPrice", 100), 0, D.maxPrice)
-			price:SetPos(inner * 0.62, math.Round(sh * 0.02))
-			price:SetSize(inner * 0.38, fieldH)
+			price:SetPos(0, row + math.Round(sh * 0.02))
+			price:SetSize(inner * 0.48, fieldH)
 
-			-- through the terminal: how many may live there instead of the price
 			capacity = W.Number(settings, D.Capacity(door), 1, 8)
-			capacity:SetPos(inner * 0.62, math.Round(sh * 0.02))
-			capacity:SetSize(inner * 0.38, fieldH)
+			capacity:SetPos(inner * 0.52, row + math.Round(sh * 0.02))
+			capacity:SetSize(inner * 0.48, fieldH)
 
+			-- through the terminal there is no price here
 			local function Toggle()
 				local buy = mode:GetSelectedValue() == "buy"
 
 				price:SetVisible(buy)
-				capacity:SetVisible(!buy)
+				priceLabel:SetVisible(buy)
 			end
 
 			mode.OnSelect = Toggle

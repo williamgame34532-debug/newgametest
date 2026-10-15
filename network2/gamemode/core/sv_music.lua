@@ -1,10 +1,13 @@
--- Combat for the music (cl_music.lua): a player is "in combat" when hurt by someone, when he
--- hurts someone, or when bullets fly within 1200 units of him. The client gets nwCombat (at most
--- once a second) and keeps the combat music for a while after the last one.
+-- Combat for the music (cl_music.lua): a player is "in combat" when hurt by someone, when they
+-- hurt someone, or when bullets fly past them (within NEAR units of the line of fire, or where the
+-- bullets land). Shooting into the air or at a wall does not start the music for anyone, the
+-- shooter included. The client gets nwCombat (at most once a second) and keeps the combat music for
+-- a while after the last one.
 
 util.AddNetworkString("nwCombat")
 
-local RANGE = 1200
+local NEAR = 180
+local REACH = 4000
 
 local function Mark(client)
 	if (!IsValid(client) or !client:IsPlayer() or client:IsBot() or (client.nwCombatSent or 0) > CurTime()) then
@@ -33,16 +36,37 @@ hook.Add("EntityTakeDamage", "nwCombatMusic", function(target, damage)
 	end
 end)
 
-hook.Add("EntityFireBullets", "nwCombatMusic", function(shooter)
-	if (!IsValid(shooter)) then
+-- the bullets: only the ones they fly past (or land next to) hear them
+hook.Add("EntityFireBullets", "nwCombatMusic", function(shooter, data)
+	if (!IsValid(shooter) or !data or !data.Src or !data.Dir) then
 		return
 	end
 
-	local pos = shooter:GetPos()
+	local from = data.Src
+	local direction = data.Dir:GetNormalized()
+	local length = math.min(data.Distance or REACH, REACH)
+	local trace = util.TraceLine({start = from, endpos = from + direction * length, filter = shooter,
+		mask = MASK_SHOT})
+	local land = trace.HitPos
+	local reach = from:Distance(land)
+	local target = trace.Entity
+	local aimed = IsValid(target) and (target:IsPlayer() or target:IsNPC() or target:IsNextBot())
 
 	for _, client in ipairs(player.GetAll()) do
-		if (client:GetPos():DistToSqr(pos) < RANGE * RANGE) then
-			Mark(client)
+		if (client != shooter and client:Alive()) then
+			local center = client:WorldSpaceCenter()
+			local along = math.Clamp((center - from):Dot(direction), 0, reach)
+			local closest = from + direction * along
+
+			if (center:DistToSqr(closest) < NEAR * NEAR or center:DistToSqr(land) < NEAR * NEAR) then
+				Mark(client)
+				aimed = true
+			end
 		end
+	end
+
+	-- the shooter is in the fight only when someone is shot at
+	if (aimed and shooter:IsPlayer()) then
+		Mark(shooter)
 	end
 end)

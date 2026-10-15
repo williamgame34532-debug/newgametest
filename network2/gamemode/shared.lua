@@ -99,7 +99,8 @@ local FILES = {
 	"cl_doors.lua",
 	"cl_noclip.lua",
 	"cl_terminal.lua",
-	"cl_combinehud.lua"
+	"cl_combinehud.lua",
+	"sh_incapable.lua"
 }
 
 for _, name in ipairs(FILES) do

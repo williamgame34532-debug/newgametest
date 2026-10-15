@@ -298,6 +298,41 @@ local function PingBars(x, y, size, ping)
 	return 4 * bw + 3 * gap
 end
 
+-- the staff: a plate on the line of everyone with rights, seen by all (known or not)
+local STAFF = {
+	superadmin = {"СУПЕРАДМИН", Color(222, 86, 74)},
+	admin = {"АДМИН", Color(232, 176, 64)}
+}
+
+local function Staff(client)
+	local group = client:GetUserGroup()
+
+	if (STAFF[group]) then
+		return STAFF[group]
+	end
+
+	if (client:IsAdmin()) then
+		return {string.upper(group), Color(232, 176, 64)}
+	end
+end
+
+-- the plate ending at right, its width
+local function DrawStaff(staff, right, y, h)
+	surface.SetFont("nwBoardIndex")
+
+	local tw, th = surface.GetTextSize(staff[1])
+	local padX = math.Round(h * 0.12)
+	local bw, bh = tw + padX * 2, th + math.Round(h * 0.06)
+	local x = right - bw
+
+	draw.RoundedBox(3, x, y - bh / 2, bw, bh, ColorAlpha(staff[2], 38))
+	surface.SetDrawColor(staff[2])
+	surface.DrawRect(x, y - bh / 2, 2, bh)
+	draw.SimpleText(staff[1], "nwBoardIndex", x + padX + 1, y, staff[2], TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+	return bw
+end
+
 local function Row(parent, client, height, index)
 	local row = parent:Add("DButton")
 
@@ -333,6 +368,11 @@ local function Row(parent, client, height, index)
 		-- the text ends before the ping column (and the mute mark), never past it
 		local room = math.max(10, w - size - h * 0.3 - h * 0.55 - nameX)
 		local sx, sy = self:LocalToScreen(0, 0)
+		local staff = Staff(self.client)
+
+		if (staff) then
+			room = math.max(10, room - DrawStaff(staff, nameX + room, h * 0.36, h) - h * 0.15)
+		end
 
 		render.SetScissorRect(sx + nameX, sy, sx + nameX + room, sy + h, true)
 

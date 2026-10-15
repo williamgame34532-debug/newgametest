@@ -2037,7 +2037,7 @@ end
 
 function INV.Open()
 	-- unconscious: nothing to open (cl_body.lua)
-	if (LocalPlayer():GetNW2Bool("nwKnocked", false) or StorageOpen()) then
+	if ((NW.Incapable and NW.Incapable(LocalPlayer())) or StorageOpen()) then
 		return
 	end
 

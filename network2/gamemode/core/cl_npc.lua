@@ -632,6 +632,107 @@ net.Receive("nwNpcSpawns", function()
 	end
 end)
 
+-- ------------------------------------------------------ the new profession --
+-- The screen goes dark (the faction changes on the server in the dark: the model, the clothes),
+-- "НОВАЯ ПРОФЕССИЯ" and the title in the colour of the faction come up letter by letter over a
+-- line that grows from the middle, then the dark lifts. Drawn over everything (the NPC window too).
+local shift
+local SHIFT_IN, SHIFT_HOLD, SHIFT_OUT = 0.7, 1.5, 0.9
+
+local function ShiftFonts()
+	local h = ScrH()
+
+	surface.CreateFont("nwShiftTitle", {font = "Jura", size = math.max(26, math.Round(h * 0.052)), weight = 700,
+		extended = true, antialias = true})
+	surface.CreateFont("nwShiftSmall", {font = "Exo 2", size = math.max(13, math.Round(h * 0.019)), weight = 500,
+		extended = true, antialias = true})
+end
+
+ShiftFonts()
+hook.Add("OnScreenSizeChanged", "nwShiftFonts", ShiftFonts)
+
+net.Receive("nwProfessionShift", function()
+	shift = {title = net.ReadString(), color = net.ReadColor(false), start = RealTime(), shown = 0}
+	surface.PlaySound("network2/ui/char/hls_ui_appear.wav")
+end)
+
+-- letters of text up to n (UTF-8)
+local function Letters(text, n)
+	local out = {}
+
+	for _, code in utf8.codes(text) do
+		if (#out >= n) then
+			break
+		end
+
+		out[#out + 1] = utf8.char(code)
+	end
+
+	return table.concat(out), #out
+end
+
+hook.Add("DrawOverlay", "nwProfessionShift", function()
+	if (!shift) then
+		return
+	end
+
+	local t = RealTime() - shift.start
+	local total = SHIFT_IN + SHIFT_HOLD + SHIFT_OUT
+
+	if (t >= total) then
+		shift = nil
+
+		return
+	end
+
+	local sw, sh = ScrW(), ScrH()
+	local dark
+
+	if (t < SHIFT_IN) then
+		dark = Ease(t / SHIFT_IN)
+	elseif (t < SHIFT_IN + SHIFT_HOLD) then
+		dark = 1
+	else
+		dark = 1 - Ease((t - SHIFT_IN - SHIFT_HOLD) / SHIFT_OUT)
+	end
+
+	surface.SetDrawColor(4, 5, 6, 255 * dark)
+	surface.DrawRect(0, 0, sw, sh)
+
+	local into = t - SHIFT_IN * 0.8
+
+	if (into <= 0) then
+		return
+	end
+
+	local cy = sh * 0.47
+	local color = shift.color
+	local line = Ease(math.Clamp(into / 0.6, 0, 1)) * sh * 0.32
+
+	surface.SetDrawColor(color.r, color.g, color.b, 200 * dark)
+	surface.DrawRect(sw / 2 - line / 2, cy + sh * 0.042, line, 2)
+
+	draw.SimpleText("НОВАЯ ПРОФЕССИЯ", "nwShiftSmall", sw / 2, cy - sh * 0.05, ColorAlpha(MUTED, 255 * dark *
+		math.Clamp(into / 0.3, 0, 1)), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+
+	local n = math.floor(math.max(0, into - 0.15) * 28)
+	local text, count = Letters(shift.title, n)
+
+	if (count > shift.shown) then
+		surface.PlaySound("network2/ui/char/textline_" .. math.random(1, 8) .. ".wav")
+	end
+
+	shift.shown = count
+
+	-- the whole title is measured once: the letters appear in place, nothing shifts
+	surface.SetFont("nwShiftTitle")
+
+	local tw = surface.GetTextSize(shift.title)
+
+	draw.SimpleText(text, "nwShiftTitle", sw / 2 - tw / 2, cy, ColorAlpha(color, 255 * dark), TEXT_ALIGN_LEFT,
+		TEXT_ALIGN_CENTER)
+end)
+
 -- ----------------------------------------------------------------- quest --
 local function BuildQuest(frame, sw, sh)
 	local W = NW.widgets

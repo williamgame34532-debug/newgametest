@@ -203,7 +203,7 @@ local function TokenRow(parent, x, y, w, h, put)
 	entry:SetText("")
 	entry.placeholder = "Сколько токенов"
 
-	local button = NW.widgets.Button(row, put and "▶" or "◀", function()
+	local function Transfer()
 		local amount = entry:GetNumber()
 
 		if (amount > 0) then
@@ -214,7 +214,38 @@ local function TokenRow(parent, x, y, w, h, put)
 			entry:SetText("")
 			surface.PlaySound("network2/ui/char/hls_ui_affirm.wav")
 		end
-	end, true)
+	end
+
+	-- the window takes no keyboard (the movement and the inventory key still close it): a click into
+	-- the field gives it the keyboard until the field loses focus or Enter is pressed
+	local function Keyboard(bOn)
+		if (IsValid(parent) and !parent.closing) then
+			parent:SetKeyboardInputEnabled(bOn)
+		end
+	end
+
+	entry.OnMousePressed = function(self)
+		Keyboard(true)
+		self:RequestFocus()
+	end
+
+	entry.OnLoseFocus = function(self)
+		Keyboard(false)
+		DTextEntry.OnLoseFocus(self)
+	end
+
+	entry.OnEnter = function(self)
+		Transfer()
+		self:KillFocus()
+		Keyboard(false)
+	end
+
+	-- digits only (SetNumeric also lets "-" and "." in)
+	entry.AllowInput = function(_, char)
+		return !string.find(char, "%d")
+	end
+
+	local button = NW.widgets.Button(row, put and "▶" or "◀", Transfer, true)
 
 	button:SetSize(bw, h)
 	button:SetPos(put and w - bw or 0, 0)

@@ -111,6 +111,11 @@ net.Receive("nwChatSay", function(_, client)
 		kind, body = nil, "achat"
 	end
 
+	-- dead or unconscious: silence; an admin keeps the commands and the admin chat (sh_incapable.lua)
+	if (NW.Incapable(client) and !(client:IsAdmin() and (!kind or kind == K.ADMIN))) then
+		return
+	end
+
 	-- the radios: only the Alliance has them (for everyone else the words are unknown)
 	local radioWord = {[K.RADIO] = "t", [K.RADIO_ALL] = "tr", [K.SQUAD] = "r"}
 

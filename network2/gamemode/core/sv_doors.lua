@@ -258,8 +258,8 @@ net.Receive("nwDoorSave", function(_, client)
 	-- a price: an apartment for sale, a business (paid at the terminal)
 	data.nwDoorPrice = (data.nwDoorMode == "buy" or kind == "business") and
 		math.Clamp(math.floor(tonumber(input.price) or 0), 0, D.maxPrice) or 0
-	-- how many may live there: an apartment given by the terminal
-	data.nwDoorCapacity = (kind == "apartment" and data.nwDoorMode == "terminal") and
+	-- how many may live there: any apartment (bought: each buys in for the price, up to this many)
+	data.nwDoorCapacity = kind == "apartment" and
 		math.Clamp(math.floor(tonumber(input.capacity) or 1), 1, 8) or 1
 
 	-- the Alliance's doors have no owner
@@ -287,8 +287,15 @@ NW.AddChatCommand("doorbuy", {run = function(client)
 		return Notify(client, "Эта дверь не продаётся")
 	end
 
-	if (D.Owner(door) != 0) then
-		return Notify(client, D.IsOwner(client, door) and "Это уже ваша дверь" or "Эта дверь уже занята")
+	if (D.IsOwner(client, door)) then
+		return Notify(client, "Это уже ваша дверь")
+	end
+
+	-- taken: there may still be places (an apartment for several)
+	local taken = D.Owner(door) != 0
+
+	if (taken and #D.Tenants(door) >= D.Capacity(door)) then
+		return Notify(client, "Эта дверь уже занята")
 	end
 
 	if (D.Owned(client) >= limit:GetInt()) then
@@ -303,7 +310,13 @@ NW.AddChatCommand("doorbuy", {run = function(client)
 	end
 
 	SO.SetTokens(client, tokens - price)
-	D.SetOwner(door, client)
+
+	if (taken) then
+		D.AddTenant(door, client)
+	else
+		D.SetOwner(door, client)
+	end
+
 	door:EmitSound("doors/door_latch3.wav", 60)
 	Notify(client, "Куплено: " .. door:GetNW2String("nwDoorName", "дверь") .. " за " .. price .. " ток.")
 end})

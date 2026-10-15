@@ -706,7 +706,8 @@ hook.Add("Think", "nwWheel", function()
 			(NW.menu and NW.menu.active) or (NW.inventory and NW.inventory.IsOpen and NW.inventory.IsOpen()) or
 			(NW.pause and NW.pause.IsOpen and NW.pause.IsOpen()) or vgui.CursorVisible()
 
-		if (!busy and IsValid(client) and client:Alive() and client:GetCharacterID() != 0) then
+		if (!busy and IsValid(client) and client:Alive() and client:GetCharacterID() != 0 and
+			!client:GetNW2Bool("nwKnocked", false)) then
 			W.Open()
 		end
 	end
