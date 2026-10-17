@@ -51,13 +51,22 @@ public final class GuardSkinRenderer {
         }
     }
 
+    /**
+     * Forge fires RenderArmEvent from inside PlayerRenderer.renderRightHand/renderLeftHand, so our own
+     * renderer re-enters this handler; the flag lets that inner call through to draw the arm.
+     */
     public static void onRenderArm(RenderArmEvent event) {
-        if (renderer == null || !ClientState.SKINS.containsKey(event.getPlayer().getUUID())) return;
+        if (rendering || renderer == null || !ClientState.SKINS.containsKey(event.getPlayer().getUUID())) return;
         event.setCanceled(true);
-        if (event.getArm() == HumanoidArm.RIGHT) {
-            renderer.renderRightHand(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(), event.getPlayer());
-        } else {
-            renderer.renderLeftHand(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(), event.getPlayer());
+        rendering = true;
+        try {
+            if (event.getArm() == HumanoidArm.RIGHT) {
+                renderer.renderRightHand(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(), event.getPlayer());
+            } else {
+                renderer.renderLeftHand(event.getPoseStack(), event.getMultiBufferSource(), event.getPackedLight(), event.getPlayer());
+            }
+        } finally {
+            rendering = false;
         }
     }
 
