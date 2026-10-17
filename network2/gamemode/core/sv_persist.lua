@@ -117,9 +117,15 @@ end)
 
 -- spawned from the menu / removed: kept, forgotten
 hook.Add("OnEntityCreated", "nwPersist", function(entity)
+	local class = IsValid(entity) and entity:GetClass()
+
+	if (!class or !P.classes[class]) then
+		return
+	end
+
 	timer.Simple(0.5, function()
-		if (IsValid(entity) and P.classes[entity:GetClass()] and !loading) then
-			P.Save(entity:GetClass())
+		if (IsValid(entity) and !loading) then
+			P.Save(class)
 		end
 	end)
 end)

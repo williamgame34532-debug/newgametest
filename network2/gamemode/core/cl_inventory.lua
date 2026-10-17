@@ -1620,6 +1620,8 @@ local SETTINGS = {
 	}},
 	{name = "Изображение", rows = {
 		Client("nw_postfx", "Яркая и насыщенная картинка", "toggle"),
+		Client("nw_softlight", "Мягкий свет (HDR)", "toggle"),
+		Client("nw_softlight_strength", "Сила мягкого света", "slider", {min = 0, max = 2, decimals = 1, live = true}),
 		Client("nw_vignette", "Виньетка по краям экрана", "toggle"),
 		Client("nw_watermark", "Логотип в углу экрана", "toggle"),
 		Client("nw_weather", "Погода: частицы и картинка", "toggle"),
