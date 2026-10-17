@@ -964,11 +964,24 @@ function ENT:DrawScreen(width, height)
 	local accent = self:GetAccent()
 	local alpha = (0.92 + math.sin(CurTime() * 1.3) * 0.03) * (self.flicker or 1)
 
-	-- the glass: the wallpaper, a light veil of the accent, a slow sweep of light
-	surface.SetDrawColor(255, 255, 255, 170 * alpha)
+	-- the light of the glass bleeding out around it (the screens of the Alyx stations glow past
+	-- their edges)
+	for i = 1, 14 do
+		local a = (15 - i) ^ 2 * 0.22 * alpha
+
+		surface.SetDrawColor(accent.r, accent.g, accent.b, a)
+		surface.DrawRect(-i, -i, width + i * 2, 1)
+		surface.DrawRect(-i, height + i - 1, width + i * 2, 1)
+		surface.DrawRect(-i, -i + 1, 1, height + i * 2 - 2)
+		surface.DrawRect(width + i - 1, -i + 1, 1, height + i * 2 - 2)
+	end
+
+	-- the glass: the wallpaper (pale, the bands burning at the edges, the floor plane), a thin veil
+	-- so the text reads, a slow sweep of light
+	surface.SetDrawColor(255, 255, 255, 225 * alpha)
 	surface.SetMaterial(BG)
 	surface.DrawTexturedRect(0, 0, width, height)
-	surface.SetDrawColor(2, 18, 24, 150)
+	surface.SetDrawColor(4, 20, 26, 96)
 	surface.DrawRect(0, 0, width, height)
 
 	if (self:IsAlarm()) then

@@ -40,48 +40,50 @@ def smooth_noise(w, h, cell, seed):
 
 W, H = 1024, 512
 y, x = np.mgrid[0:H, 0:W].astype(float)
-cyan = np.array([120, 214, 232])
+# pale, cold, not saturated (the glass of the Alyx stations is nearly white-cyan where it is lit)
+cyan = np.array([150, 214, 228])
 
-# the haze: brighter in the middle, a slow wave of light across
-haze = 0.34 + 0.22 * np.exp(-(((x - W * 0.5) / (W * 0.62)) ** 2 + ((y - H * 0.48) / (H * 0.75)) ** 2))
+# the haze: a little more light in the middle
+haze = 0.16 + 0.10 * np.exp(-(((x - W * 0.5) / (W * 0.6)) ** 2 + ((y - H * 0.45) / (H * 0.8)) ** 2))
 haze *= 0.85 + 0.3 * smooth_noise(W, H, 128, 5)
 
-# scan streaks: every 6 px a soft line two pixels thick; its brightness drifts along it and
-# between lines, with long brighter runs (the streaks of the Alyx screens)
+# the scan bands: every 9 px a soft band three pixels thick; each band has its own brightness,
+# drifting along it with long brighter runs; towards the left and right edges they burn brighter
 streaks = np.zeros((H, W))
-for row in range(2, H, 6):
-    level = 0.25 + 0.55 * smooth_noise(W, 1, 96, row)[0] ** 1.6
+for row in range(3, H - 2, 9):
+    level = 0.22 + 0.5 * smooth_noise(W, 1, 140, row)[0] ** 1.4
     line = level.copy()
     pos = 0
     while pos < W:
-        length = int(rng.integers(30, 240))
-        if rng.random() < 0.35:
-            line[pos:pos + length] *= rng.uniform(1.3, 1.9)
-        pos += length + int(rng.integers(10, 120))
+        length = int(rng.integers(60, 320))
+        if rng.random() < 0.3:
+            line[pos:pos + length] *= rng.uniform(1.25, 1.7)
+        pos += length + int(rng.integers(20, 160))
     streaks[row] = line
-    streaks[row + 1] = line * 0.7
-    streaks[row - 1] += line * 0.18
-streaks = np.asarray(Image.fromarray(np.clip(streaks * 255, 0, 255).astype(np.uint8)).filter(
-    ImageFilter.GaussianBlur(0.8)), dtype=float) / 255
+    streaks[row - 1] += line * 0.55
+    streaks[row + 1] += line * 0.55
+    streaks[row + 2] += line * 0.15
+streaks = np.asarray(Image.fromarray(np.clip(streaks * 200, 0, 255).astype(np.uint8)).filter(
+    ImageFilter.GaussianBlur(1.1)), dtype=float) / 255
+edges = np.exp(-np.minimum(x, W - 1 - x) / 140)
+streaks *= 0.55 + 0.9 * edges
 
-# the perspective floor: a lighter trapezoid going away, with a few depth lines
+# the floor plane going away in the lower half: a lighter trapezoid with a clean far edge
 floor = Image.new("L", (W, H), 0)
 d = ImageDraw.Draw(floor)
-d.polygon([(int(W * 0.05), H), (int(W * 0.95), H), (int(W * 0.78), int(H * 0.56)), (int(W * 0.22), int(H * 0.56))],
-          fill=70)
-for k in range(1, 6):
-    yy = int(H * 0.56 + (H * 0.44) * (k / 6) ** 1.7)
-    d.line([(0, yy), (W, yy)], fill=110, width=1)
-floor = np.asarray(floor.filter(ImageFilter.GaussianBlur(6)), dtype=float) / 255
+d.polygon([(int(W * 0.02), H), (int(W * 0.98), H), (int(W * 0.8), int(H * 0.58)), (int(W * 0.2), int(H * 0.58))],
+          fill=60)
+d.line([(int(W * 0.2), int(H * 0.58)), (int(W * 0.8), int(H * 0.58))], fill=120, width=2)
+floor = np.asarray(floor.filter(ImageFilter.GaussianBlur(3)), dtype=float) / 255
 
-light = haze * 0.55 + streaks * 0.5 + floor * 0.35
-img = np.zeros((H, W, 3)) + np.array([10, 34, 42])
+light = haze + streaks * 0.62 + floor * 0.4
+img = np.zeros((H, W, 3)) + np.array([16, 34, 42])
 img += light[..., None] * cyan
 
-# grain, then the edges a little brighter (the rim of the glass)
-img += rng.normal(0, 2.0, (H, W, 1))
-rim = np.clip(1 - np.minimum(np.minimum(x, W - 1 - x) / 40, np.minimum(y, H - 1 - y) / 28), 0, 1) ** 2
-img += rim[..., None] * cyan * 0.35
+# grain, then the rim of the glass, bright
+img += rng.normal(0, 1.6, (H, W, 1))
+rim = np.clip(1 - np.minimum(np.minimum(x, W - 1 - x) / 26, np.minimum(y, H - 1 - y) / 20), 0, 1) ** 2
+img += rim[..., None] * np.array([190, 240, 250]) * 0.55
 Image.fromarray(np.clip(img, 0, 255).astype(np.uint8)).save(os.path.join(MAT, "wallpaper.png"), optimize=True)
 
 
