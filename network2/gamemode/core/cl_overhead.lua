@@ -147,6 +147,12 @@ hook.Add("HUDPaint", "nwOverhead", function()
 			if (screen.visible) then
 				local known = NW.char.Knows(client, entity)
 				local faction = NW.char.factions[entity:GetFaction() or ""]
+
+				-- the Resistance looks like citizens to everyone but its own
+				if (faction and faction.disguise and client:GetFaction() != entity:GetFaction()) then
+					faction = NW.char.factions[faction.disguise] or faction
+				end
+
 				-- a stranger: a question mark instead of the faction icon
 				local icon = known and faction and U.Material("network2/factions/" .. faction.logo .. ".png") or
 					(!known and U.Material("network2/ui/unknown.png"))

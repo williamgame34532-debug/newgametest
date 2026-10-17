@@ -142,6 +142,53 @@ net.Receive("nwChatSay", function(_, client)
 		kind, body = nil, radioWord[kind]
 	end
 
+	-- the frequency of the Resistance: only for them (for everyone else the word is unknown)
+	if (kind == K.REBEL and client:GetFaction() != "rebel") then
+		kind, body = nil, "rr"
+	end
+
+	if (kind == K.REBEL) then
+		if (body == "" or !client:Alive() or NW.IsInMenu(client)) then
+			return
+		end
+
+		if (!client:GetNW2Bool("nwHasRadio", false)) then
+			return Notice(client, "Нужна рация")
+		end
+
+		local listeners, onChannel = {}, {}
+
+		for _, target in ipairs(player.GetAll()) do
+			if (target == client or (target:GetFaction() == "rebel" and target:GetNW2Bool("nwHasRadio", false))) then
+				listeners[#listeners + 1] = target
+				onChannel[target] = true
+			end
+		end
+
+		Send(K.REBEL, client, body, "", listeners)
+
+		local around = {}
+
+		for _, target in ipairs(InRange(client, K.range[K.WHISPER])) do
+			if (!onChannel[target]) then
+				around[#around + 1] = target
+			end
+		end
+
+		-- said into the radio quietly: who stands right next to it hears a whisper
+		if (#around > 0) then
+			Send(K.WHISPER, client, body, "", around)
+		end
+
+		if (voice) then
+			NW.voices.Play(client, voice, K.WHISPER, listeners)
+		end
+
+		MsgN(string.format("[REBEL] %s (%s): %s", client:Nick(), client:SteamName(), body))
+
+		return
+	end
+
 	if (!kind) then
 		local command = NW.chatCommands[string.lower(body)]
 

@@ -6,8 +6,9 @@
 --   snow               flakes drifting and swaying
 --   fog                the fog of the world and of the skybox (colour, start, end, density)
 --   the picture        darker and greyer with the clouds
---   sounds             sound/network2/weather (branding/make_weather_sounds.py): rain, downpour,
---                      wind; indoors they are quieter
+--   sounds             sound/network2/weather (real recordings, branding/make_weather_real.py): rain,
+--                      downpour, wind, the howling storm; under a roof the rain on the windows instead,
+--                      the wind quieter
 --   lightning          a flash of the sky (two, sometimes), the thunder a moment after
 -- Settings: nw_weather_fx (0..1 - how many particles), nw_weather 0 - no particles and no picture.
 
@@ -293,12 +294,17 @@ timer.Create("nwWeatherSounds", 0.5, 0, function()
 		return
 	end
 
+	-- outside: the rain itself; under a roof: the rain on the windows and the roof
+	local open = outdoors > 0 and 1 or 0
 	local inside = outdoors > 0 and 1 or 0.3
+	local rain = math.Clamp(now.rain * 1.6, 0, 1)
 
-	Loop("rain", "network2/weather/rain_loop.wav", math.Clamp(now.rain * 1.6, 0, 1) * (1 - math.Clamp((now.rain - 0.6) *
-		2.5, 0, 1)) * 0.7 * inside)
-	Loop("heavy", "network2/weather/rain_heavy_loop.wav", math.Clamp((now.rain - 0.5) * 2, 0, 1) * 0.75 * inside)
-	Loop("wind", "network2/weather/wind_loop.wav", math.Clamp((now.wind - 0.2) * 1.4, 0, 1) * 0.6 * inside)
+	Loop("rain", "network2/weather/rain_loop.wav", rain * (1 - math.Clamp((now.rain - 0.6) * 2.5, 0, 1)) * 0.7 * open)
+	Loop("heavy", "network2/weather/rain_heavy_loop.wav", math.Clamp((now.rain - 0.5) * 2, 0, 1) * 0.75 * open)
+	Loop("indoor", "network2/weather/rain_indoor_loop.wav", rain * 0.55 * (1 - open))
+	Loop("wind", "network2/weather/wind_loop.wav", math.Clamp((now.wind - 0.2) * 1.4, 0, 1) *
+		(1 - math.Clamp((now.wind - 0.7) * 3, 0, 1)) * 0.6 * inside)
+	Loop("storm", "network2/weather/wind_storm_loop.wav", math.Clamp((now.wind - 0.6) * 2.5, 0, 1) * 0.6 * inside)
 end)
 
 -- the weather now, for the others (the civic terminal shows it)

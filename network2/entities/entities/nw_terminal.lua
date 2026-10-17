@@ -575,7 +575,7 @@ end
 -- ---------------------------------------------------------------- screens --
 local MENU = {
 	{"go_housing", "Назначение жилья"},
-	{"go_business", "Аренда помещений"},
+	{"go_license", "Бизнес и торговля"},
 	{"go_bank", "Кредитный баланс"},
 	{"go_announcements", "Объявления города"},
 	{"go_call", "Вызов Гражданской Обороны"},
@@ -628,13 +628,125 @@ function ENT:DrawMain()
 	self:DrawHeader("Навигация")
 
 	local y = 46
+	-- a refugee has no address yet: the registration instead of the housing (sh_rebels.lua)
+	local refugee = self.profile and self.profile.factionID == "refugee"
 
 	for _, entry in ipairs(MENU) do
-		self:Key(entry[1], entry[2], W_ / 2 - 140, y, 280, 25)
+		if (refugee and entry[1] == "go_housing") then
+			self:Key("go_refugee", "Регистрация беженца", W_ / 2 - 140, y, 280, 25, nil, {color = AMBER})
+		else
+			self:Key(entry[1], entry[2], W_ / 2 - 140, y, 280, 25)
+		end
+
 		y = y + 31
 	end
 
 	self:DrawFooter()
+end
+
+-- the steps of a request: done, the current one, the next ones
+function ENT:DrawSteps(steps, current)
+	for index, step in ipairs(steps) do
+		local y = 64 + (index - 1) * 38
+		local done = index < current
+		local now = index == current
+		local color = done and Alpha(TEXT, 150) or (now and TEXT or Alpha(DIM, 170))
+
+		Outline(LIST_X, y, 22, 22, now and AMBER or self:GetAccent(), now and 240 or 120)
+
+		if (done) then
+			surface.SetDrawColor(FILL.r, FILL.g, FILL.b, 160)
+			surface.DrawRect(LIST_X + 4, y + 4, 14, 14)
+		end
+
+		Spaced(tostring(index), "nwTermSmall", LIST_X + 11, y + 11, done and DARK or color, 1, 1)
+		Spaced(step[1], "nwTermSmall", LIST_X + 32, y + 6, color, 0, 1.3)
+		Spaced(step[2], "nwTermTiny", LIST_X + 32, y + 19, Alpha(color, 170), 0, 1.1)
+	end
+end
+
+local STATUS = {pending = "На рассмотрении", approved = "Одобрено", denied = "Отказано", revoked = "Отозвано"}
+
+-- the business: the application, the check, the license, the premises, the counter (sh_business.lua)
+function ENT:DrawLicense()
+	self:DrawHeader("Бизнес и торговля")
+	self:DrawColumns("Порядок открытия", "", "Ваша лицензия")
+
+	local extra = self.profile and self.profile.extra or {}
+	local license = extra.license
+	local status = license and license.status or "none"
+	local current = (status == "pending" and 2) or (status == "approved" and 4) or 1
+
+	self:DrawSteps({
+		{"Заявка", "название, вид торговли, пошлина " .. tostring(extra.fee or 60) .. " кр."},
+		{"Проверка", "решение Гражданской Обороны"},
+		{"Лицензия", "документ и торговая стойка"},
+		{"Помещение", "аренда коммерческого помещения"},
+		{"Торговля", "стойка в помещении: товары и цены"}
+	}, current)
+
+	if (status == "approved") then
+		self:DrawSummary("«" .. tostring(license.title) .. "»", "Лицензия действует. Арендуйте помещение, поставьте " ..
+			"в нём торговую стойку из инвентаря (смотрите на пол и используйте) и выставьте товары: E у стойки.")
+		self:Key("go_business", "Аренда помещений", SUM_X, 254, 140, 22)
+		self:DrawReturn(SUM_X + 148)
+	elseif (status == "pending") then
+		self:DrawSummary("«" .. tostring(license.title) .. "»", "Заявка " .. string.lower(STATUS.pending) .. ". Решение " ..
+			"придёт уведомлением. Если в городе нет Гражданской Обороны, заявку рассмотрит администрация.", AMBER)
+		self:Key("license_cancel", "Отозвать", SUM_X, 254, 120, 22, nil, {color = RED})
+		self:DrawReturn(SUM_X + 128)
+	else
+		local text = "Частная торговля разрешена по лицензии Гражданской администрации. Заполните заявку: " ..
+			"название лавки, вид торговли и товары."
+
+		if (status == "denied" or status == "revoked") then
+			text = STATUS[status] .. ((license.reason or "") != "" and (": " .. license.reason) or "") .. ". Можно подать " ..
+				"новую заявку."
+		end
+
+		self:DrawSummary(status == "none" and "Лицензии нет" or STATUS[status], text, status == "none" and TEXT or RED)
+		self:Key("license_form", "Подать заявку", SUM_X, 254, 120, 22)
+		self:DrawReturn(SUM_X + 128)
+	end
+
+	self:DrawFooter(true)
+end
+
+-- a refugee: the registration as a citizen (sh_rebels.lua)
+function ENT:DrawRefugee()
+	self:DrawHeader("Регистрация беженца")
+	self:DrawColumns("Порядок регистрации", "", "Статус")
+
+	local extra = self.profile and self.profile.extra or {}
+	local registration = extra.registration
+	local status = registration and registration.status or "none"
+
+	self:DrawSteps({
+		{"Заявка", "имя и откуда вы пришли"},
+		{"Досмотр", "проверка Гражданской Обороной"},
+		{"Гражданство", "CID-карта и статус гражданина"},
+		{"Жильё", "назначение жилья на терминале"}
+	}, (status == "pending" and 2) or (status == "approved" and 4) or 1)
+
+	if (status == "pending") then
+		self:DrawSummary(STATUS.pending, "Ожидайте решения. Гражданская Оборона может вызвать вас на досмотр.", AMBER)
+		self:Key("refugee_cancel", "Отозвать", SUM_X, 254, 120, 22, nil, {color = RED})
+		self:DrawReturn(SUM_X + 128)
+	else
+		local text = "Лица без регистрации не получают рационов и жилья. Подайте заявку: после проверки вам выдадут " ..
+			"CID-карту гражданина."
+
+		if (status == "denied") then
+			text = STATUS.denied .. ((registration.reason or "") != "" and (": " .. registration.reason) or "") ..
+				". Можно подать заявку снова."
+		end
+
+		self:DrawSummary(status == "denied" and STATUS.denied or "Нет регистрации", text, status == "denied" and RED or TEXT)
+		self:Key("refugee_apply", "Подать заявку", SUM_X, 254, 120, 22, nil, {color = AMBER})
+		self:DrawReturn(SUM_X + 128)
+	end
+
+	self:DrawFooter(true)
 end
 
 function ENT:DrawHousing()
@@ -954,7 +1066,7 @@ end
 
 local SCREENS = {
 	main = "DrawMain", housing = "DrawHousing", roulette = "DrawRoulette", assigned = "DrawAssigned",
-	business = "DrawBusiness", bank = "DrawBank", announcements = "DrawAnnouncements", call = "DrawCall",
+	business = "DrawBusiness", license = "DrawLicense", refugee = "DrawRefugee", bank = "DrawBank", announcements = "DrawAnnouncements", call = "DrawCall",
 	info = "DrawInfo"
 }
 
@@ -1263,7 +1375,9 @@ function ENT:HandleUse(client)
 
 	if (action == "back") then
 		self.housingMessage = ""
-		self:Go(self.screen == "assigned" and (self.assigned and self.assigned.back or "main") or "main")
+		local back = {business = "license"}
+
+		self:Go(self.screen == "assigned" and (self.assigned and self.assigned.back or "main") or back[self.screen] or "main")
 
 		if (self.screen == "business") then
 			self:Request("business")
@@ -1276,6 +1390,20 @@ function ENT:HandleUse(client)
 		self:Go("housing")
 		self:Request("housinglist")
 		self:Request("profile")
+	elseif (action == "go_license") then
+		self:Go("license")
+		self:Request("profile")
+	elseif (action == "go_refugee") then
+		self:Go("refugee")
+		self:Request("profile")
+	elseif (action == "license_form" or action == "license_cancel" or action == "refugee_cancel") then
+		self:Request(action)
+	elseif (action == "refugee_apply") then
+		T.OpenTextPrompt("Откуда вы пришли и зачем", "", function(value)
+			if (IsValid(self)) then
+				self:Request("refugee_apply", {story = value})
+			end
+		end, true)
 	elseif (action == "go_business") then
 		self.businesses = {}
 		self:Go("business")

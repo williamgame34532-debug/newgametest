@@ -152,6 +152,10 @@ local function Profile(client)
 	local faction = NW.char.factions[client:GetFaction() or ""]
 	local color = faction and faction.color or Color(96, 186, 206)
 	local home = Home(client)
+	local extra = {}
+
+	-- other systems add their part (the license: sh_business.lua, the registration: sh_rebels.lua)
+	hook.Run("NWTerminalProfile", client, extra)
 
 	return {
 		name = client:Nick(),
@@ -162,7 +166,9 @@ local function Profile(client)
 		tokens = SO.GetTokens(client),
 		model = client:GetModel(),
 		logs = data.bankLog,
-		home = home and home:GetNW2String("nwDoorName", "") or ""
+		home = home and home:GetNW2String("nwDoorName", "") or "",
+		factionID = client:GetFaction(),
+		extra = extra
 	}
 end
 
@@ -413,6 +419,11 @@ function ACTIONS.rent(client, terminal, input)
 		return Result(client, terminal, "ПРЕВЫШЕН ЛИМИТ ПОМЕЩЕНИЙ")
 	end
 
+	-- commercial premises: only with a license to trade (sh_business.lua)
+	if (NW.business and !NW.business.Licensed(client)) then
+		return Result(client, terminal, "НУЖНА ЛИЦЕНЗИЯ НА ТОРГОВЛЮ")
+	end
+
 	local data = Data(client)
 	local price = door:GetNW2Int("nwDoorPrice", 0)
 
@@ -484,6 +495,15 @@ function ACTIONS.announce_delete(client, _, input)
 
 	ACTIONS.announce_list(client)
 end
+
+-- for the other systems (sh_business.lua, sh_rebels.lua): their actions and the helpers
+T.actions = ACTIONS
+T.Send = Send
+T.Result = Result
+T.Data = Data
+T.SaveData = SaveData
+T.Log = Log
+T.Profile = Profile
 
 net.Receive("nwTerminal", function(_, client)
 	local action = net.ReadString()

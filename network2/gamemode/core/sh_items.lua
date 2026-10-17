@@ -18,6 +18,8 @@
 --   leaves                 what stays in its cell after it is used up (an empty bottle, a can)
 --   useVerb                the verb of "Взаимодействовать" (default: by category)
 --   OnUse(client, cell)    server, when used; false keeps the item (a card, a flashlight)
+--   contraband             forbidden by the Alliance (sh_rebels.lua): a lockpick, a spray can
+--   price                  the price in tokens (the shops of the businesses start from it)
 -- NW.items.Register(id, table) adds one; test items: nw_testitems (superadmin).
 
 NW.items = NW.items or {}
@@ -162,6 +164,15 @@ function I.Effects(item)
 
 	if (item.contents) then
 		lines[#lines + 1] = "Зажмите, чтобы распаковать"
+	end
+
+	-- found on a search: trouble (sh_rebels.lua)
+	if (item.contraband) then
+		lines[#lines + 1] = "Контрабанда — изымается при обыске"
+	end
+
+	if (item.price and item.price > 0) then
+		lines[#lines + 1] = "Цена: " .. item.price .. " ток."
 	end
 
 	return lines

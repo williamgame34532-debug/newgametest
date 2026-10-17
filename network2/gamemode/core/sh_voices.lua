@@ -84,7 +84,8 @@ V.kinds = {
 	[NW.chatKinds.YELL] = 90,
 	[NW.chatKinds.RADIO] = 60,
 	[NW.chatKinds.RADIO_ALL] = 60,
-	[NW.chatKinds.SQUAD] = 60
+	[NW.chatKinds.SQUAD] = 60,
+	[NW.chatKinds.REBEL] = 55
 }
 
 if (SERVER) then

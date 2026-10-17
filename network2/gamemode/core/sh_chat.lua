@@ -19,6 +19,8 @@ local K = NW.chatKinds
 K.IC, K.WHISPER, K.YELL, K.OOC, K.LOOC, K.PM, K.ROLL, K.ME, K.IT, K.ADMIN = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 -- the radios of the Alliance: /t - Civil Protection, /tr - with the Combine, /r - the squad (sh_squads.lua)
 K.RADIO, K.RADIO_ALL, K.SQUAD = 11, 12, 13
+-- the hidden radio of the Resistance: /rr (sh_rebels.lua)
+K.REBEL = 14
 
 K.range = {
 	[K.IC] = 300,
@@ -43,7 +45,8 @@ K.commands = {
 	achat = K.ADMIN,
 	t = K.RADIO,
 	tr = K.RADIO_ALL,
-	r = K.SQUAD
+	r = K.SQUAD,
+	rr = K.REBEL
 }
 
 -- what the input shows above itself while typing (the kind of message being written)
@@ -60,7 +63,8 @@ K.names = {
 	[K.ADMIN] = "Админ-чат",
 	[K.RADIO] = "Рация ГО",
 	[K.RADIO_ALL] = "Общая рация Альянса",
-	[K.SQUAD] = "Рация отряда"
+	[K.SQUAD] = "Рация отряда",
+	[K.REBEL] = "Частота Сопротивления"
 }
 
 -- the command hints (typing "/" in the chat)
@@ -83,6 +87,7 @@ K.help = {
 	{command = "/t", args = "<текст>", kind = K.RADIO, text = "рация Гражданской Обороны", alliance = true},
 	{command = "/tr", args = "<текст>", kind = K.RADIO_ALL, text = "общая рация с комбайнами", alliance = true},
 	{command = "/r", args = "<текст>", kind = K.SQUAD, text = "рация отряда", alliance = true},
+	{command = "/rr", args = "<текст>", kind = K.REBEL, text = "частота Сопротивления (нужна рация)", rebel = true},
 	{command = "/squadcreate", args = "[название]", text = "создать отряд и вести его", alliance = true},
 	{command = "/squadjoin", args = "<название>", text = "вступить в отряд своей стороны", alliance = true},
 	{command = "/squadleave", args = "", text = "выйти из отряда", alliance = true},
@@ -112,6 +117,10 @@ K.help = {
 -- may this player use / see this hint?
 function K.Allowed(entry, client)
 	if (entry.alliance and !(IsValid(client) and NW.zones and NW.zones.IsAlliance(client))) then
+		return false
+	end
+
+	if (entry.rebel and !(IsValid(client) and client:GetFaction() == "rebel")) then
 		return false
 	end
 
@@ -190,7 +199,7 @@ end
 -- speech is written properly: the first letter big, a full stop at the end (if there is no
 -- . ! ? … already). Used for speech and the radios (sv_chat.lua).
 K.polished = {[K.IC] = true, [K.WHISPER] = true, [K.YELL] = true, [K.RADIO] = true, [K.RADIO_ALL] = true,
-	[K.SQUAD] = true}
+	[K.SQUAD] = true, [K.REBEL] = true}
 
 local function Upper(code)
 	if (code >= 0x430 and code <= 0x44F) then

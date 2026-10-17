@@ -31,7 +31,7 @@ local function Wanted(text)
 
 	local kind = K.Parse(text)
 
-	if (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
+	if (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD or kind == K.REBEL) then
 		return 5
 	end
 

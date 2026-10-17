@@ -337,7 +337,7 @@ local function Items(target)
 	local tokens = client:GetNW2Int("nwTokens", 0)
 	local card = HasCard()
 
-	return {
+	local items = {
 		{name = "Познакомиться", icon = "meet", disabled = known,
 			hint = known and "Вы уже знакомы" or "Предложить знакомство: после согласия вы будете знать имена друг друга",
 			run = function() Send("meet", target) end},
@@ -352,7 +352,14 @@ local function Items(target)
 			hint = Behind(target) and "Быстро обыскать одежду и карманы" or "Только со спины: зайдите сзади",
 			run = function() Send("search", target) end}
 	}
+
+	-- other systems add theirs (sh_rebels.lua: recruiting)
+	hook.Run("NWSocialItems", target, items)
+
+	return items
 end
+
+SO.Send = Send
 
 function SO.IsOpen()
 	return IsValid(SO.wheel)
@@ -542,6 +549,9 @@ local TEXTS = {
 	tokens = "хочет передать вам %d ток.",
 	cid = "показывает вам свою CID-карту"
 }
+
+-- other systems add the texts of their requests
+SO.requestTexts = TEXTS
 
 net.Receive("nwRequest", function()
 	local id = net.ReadUInt(16)

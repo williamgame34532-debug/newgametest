@@ -237,7 +237,8 @@ local STYLE = {
 	[K.ADMIN] = {color = Color(240, 150, 60), font = "nwChat"},
 	[K.RADIO] = {color = Color(96, 200, 255), font = "nwChat"},
 	[K.RADIO_ALL] = {color = Color(96, 200, 255), font = "nwChat"},
-	[K.SQUAD] = {color = Color(96, 200, 255), font = "nwChat"}
+	[K.SQUAD] = {color = Color(96, 200, 255), font = "nwChat"},
+	[K.REBEL] = {color = Color(236, 150, 60), font = "nwChat"}
 }
 
 net.Receive("nwChatTyped", function()
@@ -292,6 +293,10 @@ net.Receive("nwChatTyped", function()
 		CH.AddStyled(style.font, c, "** " .. text)
 	elseif (kind == K.ADMIN) then
 		CH.AddStyled(style.font, c, "|A| ", NAME, steam, c, ": " .. text)
+	elseif (kind == K.REBEL) then
+		-- the Resistance: an orange line, no mask
+		CH.AddStyled(style.font, c, "[ЧАСТОТА] ", NAME, name, c, " по рации: \"" .. text .. "\"")
+		CH.RadioSound(speaker == LocalPlayer() and "off" or "on")
 	elseif (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
 		-- like the visor log: <name> по рации: "<:: text ::>" - blue for Civil Protection, red for the Combine
 		local radio = extra == "ota" and RADIO_RED or RADIO_BLUE
