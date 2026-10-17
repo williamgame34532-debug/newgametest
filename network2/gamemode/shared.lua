@@ -118,6 +118,11 @@ local FILES = {
 	"cl_cwu.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
+	"sh_craft.lua",
+	"cl_craft.lua",
+	"sh_weather.lua",
+	"cl_weather.lua",
+	"cl_thermal.lua",
 	"sh_incapable.lua"
 }
 

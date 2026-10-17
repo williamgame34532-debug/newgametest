@@ -18,7 +18,8 @@ KS.list = {
 	{id = "accept", name = "Принять запрос", convar = "nw_key_accept", default = KEY_F1},
 	{id = "decline", name = "Отказаться от запроса", convar = "nw_key_decline", default = KEY_F2},
 	{id = "radio", name = "Рация: настроить", convar = "nw_key_radio", default = KEY_B},
-	{id = "radio_talk", name = "Рация: говорить (зажать)", convar = "nw_key_radio_talk", default = KEY_H}
+	{id = "radio_talk", name = "Рация: говорить (зажать)", convar = "nw_key_radio_talk", default = KEY_H},
+	{id = "thermal", name = "Тепловизор (Альянс)", convar = "nw_key_thermal", default = KEY_N}
 }
 
 KS.byID = {}

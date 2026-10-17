@@ -1621,7 +1621,10 @@ local SETTINGS = {
 	{name = "Изображение", rows = {
 		Client("nw_postfx", "Яркая и насыщенная картинка", "toggle"),
 		Client("nw_vignette", "Виньетка по краям экрана", "toggle"),
-		Client("nw_watermark", "Логотип в углу экрана", "toggle")
+		Client("nw_watermark", "Логотип в углу экрана", "toggle"),
+		Client("nw_weather", "Погода: частицы и картинка", "toggle"),
+		Client("nw_weather_fx", "Погода: плотность частиц", "slider", {min = 0, max = 1, decimals = 1, live = true}),
+		Client("nw_squad_outline", "Контур отряда сквозь стены", "toggle")
 	}},
 	{name = "Звук", rows = {
 		Client("nw_music", "Музыка", "toggle"),

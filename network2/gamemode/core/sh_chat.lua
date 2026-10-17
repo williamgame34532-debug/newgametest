@@ -77,6 +77,7 @@ K.help = {
 	{command = "/doorsell", args = "", text = "продать свою дверь (половина цены)"},
 	{command = "/doorlock", args = "", text = "запереть или отпереть свою дверь"},
 	{command = "/whitelists", args = "", text = "какие фракции вам открыты"},
+	{command = "/menufactory", args = "", text = "инструкция завода: как ставить, роли, ранги"},
 	-- the Alliance only (alliance = true)
 	{command = "/t", args = "<текст>", kind = K.RADIO, text = "рация Гражданской Обороны", alliance = true},
 	{command = "/tr", args = "<текст>", kind = K.RADIO_ALL, text = "общая рация с комбайнами", alliance = true},
@@ -101,7 +102,10 @@ K.help = {
 		admin = true},
 	{command = "/announce", args = "", text = "новое объявление для гражданских терминалов", admin = true},
 	{command = "/whitelist", args = "<имя> <фракция>", text = "открыть игроку фракцию с вайтлистом", admin = true},
-	{command = "/unwhitelist", args = "<имя> <фракция>", text = "закрыть игроку фракцию", admin = true}
+	{command = "/unwhitelist", args = "<имя> <фракция>", text = "закрыть игроку фракцию", admin = true},
+	{command = "/itemedit", args = "", text = "редактор предметов: свои предметы, иконки, названия", admin = true},
+	{command = "/weather", args = "<ясно|пасмурно|дождь|гроза|туман|снег|авто>", text = "погода", admin = true},
+	{command = "/entmodel", args = "<модель>", text = "модель энтити сервера, на которую смотрите", admin = true}
 }
 
 -- may this player use / see this hint?
