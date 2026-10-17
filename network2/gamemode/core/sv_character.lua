@@ -475,6 +475,7 @@ end)
 -- back to the menu: the character is saved and unloaded
 hook.Add("NWEnterMenu", "nwCharacter", function(client)
 	C.Save(client, "возврат в меню")
+	hook.Run("NWCharacterUnloaded", client)
 
 	client.nwCharacter = nil
 	client:SetNW2Int("nwCharID", 0)

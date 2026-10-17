@@ -350,6 +350,7 @@ function ACTIONS.housing(client, terminal)
 
 	Send(client, "housing", terminal, {success = true, chosen = chosen.name, names = names, pos = {pos.x, pos.y, pos.z}})
 	MsgN(string.format("[Terminal] %s заселён: %s", client:Nick(), chosen.name))
+	NW.Notify(client, "Ключи от квартиры — в почтовом ящике дома")
 end
 
 function ACTIONS.housinglist(client, terminal)

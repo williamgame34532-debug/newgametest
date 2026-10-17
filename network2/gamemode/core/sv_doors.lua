@@ -15,7 +15,9 @@ local sellRatio = CreateConVar("nw_door_sell", "0.5", FCVAR_ARCHIVE, "Какая
 local VARS = {
 	{"nwDoorName", "String", ""}, {"nwDoorKind", "String", ""}, {"nwDoorMode", "String", ""},
 	{"nwDoorPrice", "Int", 0}, {"nwDoorOwner", "Int", 0}, {"nwDoorOwnerName", "String", ""},
-	{"nwDoorCapacity", "Int", 1}, {"nwDoorTenants", "String", ""}
+	{"nwDoorCapacity", "Int", 1}, {"nwDoorTenants", "String", ""},
+	-- the lock: changed whenever the people living there change - the old keys stop fitting
+	{"nwDoorEpoch", "Int", 0}
 }
 
 local function Notify(client, text)
@@ -71,6 +73,11 @@ function D.Load()
 		local door = ents.GetMapCreatedEntity(tonumber(id) or -1)
 
 		if (D.IsDoor(door) and istable(data)) then
+			-- an apartment given by the terminal is free: nobody keeps it over a restart
+			if (data.nwDoorKind == "apartment" and data.nwDoorMode == "terminal") then
+				data.nwDoorOwner, data.nwDoorOwnerName, data.nwDoorTenants = 0, "", ""
+			end
+
 			Write(door, data)
 		end
 	end
@@ -115,6 +122,7 @@ function D.SetOwner(door, client)
 	data.nwDoorOwner = IsValid(client) and client:GetCharacterID() or 0
 	data.nwDoorOwnerName = IsValid(client) and client:Nick() or ""
 	data.nwDoorTenants = data.nwDoorOwner != 0 and tostring(data.nwDoorOwner) or ""
+	data.nwDoorEpoch = (data.nwDoorEpoch or 0) + 1
 
 	if (data.nwDoorOwner == 0) then
 		for _, member in ipairs(D.Group(door)) do
@@ -171,6 +179,7 @@ function D.RemoveTenant(door, client)
 	end
 
 	data.nwDoorTenants = table.concat(left, ",")
+	data.nwDoorEpoch = (data.nwDoorEpoch or 0) + 1
 	Apply(door, data)
 end
 
@@ -319,6 +328,10 @@ NW.AddChatCommand("doorbuy", {run = function(client)
 
 	door:EmitSound("doors/door_latch3.wav", 60)
 	Notify(client, "Куплено: " .. door:GetNW2String("nwDoorName", "дверь") .. " за " .. price .. " ток.")
+
+	if (door:GetNW2String("nwDoorKind", "") == "apartment") then
+		Notify(client, "Ключи — в почтовом ящике дома")
+	end
 end})
 
 NW.AddChatCommand("doorsell", {run = function(client)
@@ -336,20 +349,42 @@ NW.AddChatCommand("doorsell", {run = function(client)
 	Notify(client, refund > 0 and ("Дверь продана: +" .. refund .. " ток.") or "Вы отказались от двери")
 end})
 
-NW.AddChatCommand("doorlock", {run = function(client)
-	local door = D.Aimed(client)
+-- ------------------------------------------------------------------ the keys --
+-- An apartment is locked with its key (framework/items/tools/key.lua): the key is taken from the
+-- mailbox of the house (nw_mailbox) and fits while the people living there stay the same (the
+-- epoch of the lock, nwDoorEpoch). A key can be given to someone else - it opens for them too.
 
-	if (!door) then
-		return Notify(client, "Посмотрите на дверь")
+-- the map ids of the door and its pair
+local function GroupIDs(door)
+	local out = {}
+
+	for _, member in ipairs(D.Group(door)) do
+		out[member:MapCreationID()] = true
 	end
 
-	local kind = door:GetNW2String("nwDoorKind", "")
-	local allowed = D.IsOwner(client, door) or (kind == "alliance" and NW.zones.IsAlliance(client))
+	return out
+end
 
-	if (!allowed) then
-		return Notify(client, "Это не ваша дверь")
+function D.KeyFits(data, door)
+	return istable(data) and GroupIDs(door)[tonumber(data.door) or -1] == true and
+		tonumber(data.epoch) == door:GetNW2Int("nwDoorEpoch", 0)
+end
+
+function D.HasKey(client, door)
+	local inventory = NW.inventory.Get(client)
+
+	for index = 1, NW.items.maxSize do
+		local cell = inventory.grid[index]
+
+		if (cell and cell.id == "key" and D.KeyFits(cell.data, door)) then
+			return true
+		end
 	end
 
+	return false
+end
+
+function D.ToggleLock(door, client)
 	local locked = !door.nwLocked
 
 	for _, member in ipairs(D.Group(door)) do
@@ -358,8 +393,84 @@ NW.AddChatCommand("doorlock", {run = function(client)
 	end
 
 	door:EmitSound(locked and "doors/door_locked2.wav" or "doors/latchunlocked1.wav", 60)
-	Notify(client, locked and "Заперто" or "Открыто")
+
+	if (IsValid(client)) then
+		Notify(client, locked and "Заперто" or "Открыто")
+	end
+end
+
+-- a key used from the inventory: the door of the key close by
+function D.UseKey(client, data)
+	local door = D.Aimed(client, 140)
+
+	if (!door) then
+		for _, other in ipairs(ents.FindInSphere(client:GetPos(), 140)) do
+			if (D.IsDoor(other) and GroupIDs(other)[tonumber(data.door) or -1]) then
+				door = other
+
+				break
+			end
+		end
+	end
+
+	if (!door or !GroupIDs(door)[tonumber(data.door) or -1]) then
+		return Notify(client, "Подойдите к двери этого ключа")
+	end
+
+	if (!D.KeyFits(data, door)) then
+		door:EmitSound("doors/door_locked2.wav", 55, 120)
+
+		return Notify(client, "Ключ не подходит: замок сменили")
+	end
+
+	NW.SayMe(client, door.nwLocked and "отпирает дверь ключом" or "запирает дверь ключом")
+	D.ToggleLock(door, client)
+end
+
+NW.AddChatCommand("doorlock", {run = function(client)
+	local door = D.Aimed(client)
+
+	if (!door) then
+		return Notify(client, "Посмотрите на дверь")
+	end
+
+	local kind = door:GetNW2String("nwDoorKind", "")
+
+	-- an apartment: with its key; the Alliance's doors: the Alliance; a business: the owner
+	if (kind == "apartment") then
+		if (!D.HasKey(client, door) and !client:IsAdmin()) then
+			return Notify(client, D.IsOwner(client, door) and "Нужен ключ: заберите его в почтовом ящике дома" or
+				"Это не ваша дверь")
+		end
+	elseif (!(D.IsOwner(client, door) or (kind == "alliance" and NW.zones.IsAlliance(client)))) then
+		return Notify(client, "Это не ваша дверь")
+	end
+
+	D.ToggleLock(door, client)
 end})
+
+-- a free apartment (given by the terminal) is not kept: leaving the game or the character gives it back
+local function GiveBack(client)
+	if (!IsValid(client) or client:GetCharacterID() == 0) then
+		return
+	end
+
+	local seen = {}
+
+	for _, door in ipairs(ents.GetAll()) do
+		if (D.IsDoor(door) and !seen[door] and door:GetNW2String("nwDoorKind", "") == "apartment" and
+			D.Mode(door) == "terminal" and D.IsOwner(client, door)) then
+			for _, member in ipairs(D.Group(door)) do
+				seen[member] = true
+			end
+
+			D.RemoveTenant(door, client)
+		end
+	end
+end
+
+hook.Add("PlayerDisconnected", "nwFreeApartments", GiveBack)
+hook.Add("NWCharacterUnloaded", "nwFreeApartments", GiveBack)
 
 -- sliding and brush doors of the maps (func_door, func_door_rotating) often do not react to E at all
 -- (no "Use Opens" flag: the engine never offers them for use, so PlayerUse never runs). For the

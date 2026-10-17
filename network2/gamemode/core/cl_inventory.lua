@@ -607,12 +607,13 @@ local function Tooltip(frame)
 
 	local view = ItemView(tip)
 
-	tip.SetItem = function(self, item)
-		if (self.item == item) then
+	tip.SetItem = function(self, item, data)
+		if (self.item == item and self.data == data) then
 			return
 		end
 
 		self.item = item
+		self.data = data
 		view:SetItem(item)
 
 		if (!item) then
@@ -624,7 +625,14 @@ local function Tooltip(frame)
 		local textW = math.Round(sh * 0.26)
 
 		self.cat = I.categories[item.category] or I.categories.misc
-		self.lines = WrapText(item.description or "", "nwInvTipText", textW)
+		-- a thing with its own line (a key: the door it opens)
+		local description = item.description or ""
+
+		if (item.Describe and data) then
+			description = item.Describe(data) or description
+		end
+
+		self.lines = WrapText(description, "nwInvTipText", textW)
 		self.effects = I.Effects(item)
 
 		surface.SetFont("nwInvTipName")
@@ -2046,7 +2054,7 @@ local function Build()
 				INV.tipTime = RealTime()
 			end
 
-			tip:SetItem(item)
+			tip:SetItem(item, cell.data)
 
 			local tw, th = tip:GetSize()
 			local tx, ty = mx + 20, my + 20
