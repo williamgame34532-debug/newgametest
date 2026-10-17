@@ -110,6 +110,7 @@ if (CLIENT) then
 	local GLOW = Material("effects/stunstick")
 	local GLOW2 = Material("effects/blueflare1")
 	local GLOW_NOZ = Material("sprites/light_glow02_add_noz")
+	local ARC = Material("trails/electric")
 	local color_glow = Color(128, 128, 128)
 
 	function SWEP:DrawWorldModel()
@@ -129,6 +130,22 @@ if (CLIENT) then
 			render.DrawSprite(attachment.Pos, size * 2, size * 2, Color(glow, glow, glow))
 			render.SetMaterial(GLOW)
 			render.DrawSprite(attachment.Pos, size, size + 3, color_glow)
+
+			-- small arcs crawling over the head of the baton
+			if (math.random() < 0.55) then
+				local direction = VectorRand():GetNormalized()
+				local from = attachment.Pos
+
+				render.SetMaterial(ARC)
+				render.StartBeam(4)
+
+				for i = 0, 3 do
+					render.AddBeam(from + direction * i * 2.2 + VectorRand() * 1.2, 1.2 - i * 0.25, i / 3,
+						Color(170, 215, 255, 220))
+				end
+
+				render.EndBeam()
+			end
 		end
 	end
 
@@ -221,7 +238,8 @@ function SWEP:PrimaryAttack()
 		effect:SetStart(trace.HitPos)
 		effect:SetNormal(trace.HitNormal)
 		effect:SetOrigin(trace.HitPos)
-		util.Effect("StunstickImpact", effect, true, true)
+		util.Effect("nw_stunspark", effect, true, true)
+		owner:EmitSound("ambient/energy/zap" .. math.random(1, 3) .. ".wav", 62, math.random(105, 120), 0.6)
 	end
 
 	owner:EmitSound("Weapon_StunStick.Melee_HitWorld")
@@ -243,10 +261,13 @@ function SWEP:PrimaryAttack()
 			entity.nwStunLast = CurTime()
 			entity.nwStuns = (entity.nwStuns or 0) + 1
 			entity:SetNW2Float("nwStunnedUntil", CurTime() + 6)
+			entity:EmitSound("network2/stunstick/player_stunned" .. math.random(1, 2) .. ".mp3", 68)
 
 			if (entity.nwStuns >= STUNS_TO_KNOCK and NW.body and NW.body.Knock) then
 				entity.nwStuns = 0
 				NW.body.Knock(entity)
+				-- the one who falls hears the world go out
+				entity:SendLua("surface.PlaySound(\"network2/stunstick/player_stunned_blackout.mp3\")")
 
 				return
 			end

@@ -302,7 +302,32 @@ local function BodyItems(body)
 	return items
 end
 
+-- a door (held E, cl_doors.lua): knock; the Alliance kicks a locked one down
+local function DoorItems(door)
+	local function Act(action)
+		net.Start("nwDoorAction")
+			net.WriteString(action)
+			net.WriteEntity(door)
+		net.SendToServer()
+	end
+
+	local items = {
+		{name = "Постучать", icon = "door", hint = "Постучать в дверь", run = function() Act("knock") end}
+	}
+
+	if (NW.zones.IsAlliance(LocalPlayer())) then
+		items[#items + 1] = {name = "Выбить дверь", icon = "kick", hint = "Запертую: удар ногой, замок ломается",
+			run = function() Act("kick") end}
+	end
+
+	return items
+end
+
 local function Items(target)
+	if (NW.doors.IsDoor(target)) then
+		return DoorItems(target)
+	end
+
 	if (!target:IsPlayer()) then
 		return BodyItems(target)
 	end
@@ -458,7 +483,9 @@ function SO.Open(target)
 
 		local item = self.hover and items[self.hover]
 		local title = item and item.name or (IsValid(self.target) and (self.target:IsPlayer() and
-			Visible(LocalPlayer(), self.target) or BodyName(self.target)) or "")
+			Visible(LocalPlayer(), self.target) or (NW.doors.IsDoor(self.target) and
+			(self.target:GetNW2String("nwDoorName", "") != "" and self.target:GetNW2String("nwDoorName", "") or "Дверь") or
+			BodyName(self.target))) or "")
 		local hint = item and item.hint or "Выберите действие"
 
 		draw.SimpleText(title, "nwSocialName", cx, cy - h * 0.014, ColorAlpha(U.color.text, 255 * e),

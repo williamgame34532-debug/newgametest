@@ -344,3 +344,52 @@ net.Receive("nwDoorMenu", function()
 		Open(door)
 	end
 end)
+
+-- -------------------------------------------------------- hold E on a door --
+-- held for half a second: the wheel of the door (cl_social.lua: Постучать, Выбить дверь)
+local held = {}
+
+hook.Add("Think", "nwDoorHold", function()
+	local client = LocalPlayer()
+
+	if (!IsValid(client) or !client:Alive() or vgui.CursorVisible() or (NW.social and NW.social.IsOpen()) or
+		(NW.Incapable and NW.Incapable(client))) then
+		held.since = nil
+
+		return
+	end
+
+	local key = input.GetKeyCode(input.LookupBinding("+use", true) or "e")
+	local door = key and key > 0 and input.IsKeyDown(key) and D.Aimed(client, 110)
+
+	if (!door) then
+		held.since, held.door = nil, nil
+
+		return
+	end
+
+	if (held.door != door) then
+		held.door, held.since = door, RealTime()
+	elseif (held.since and RealTime() - held.since > 0.5) then
+		held.since = nil
+
+		if (NW.social and NW.social.Open) then
+			NW.social.Open(door)
+		end
+	end
+end)
+
+-- the kick: kickdoorbaton on the Civil Protection models
+net.Receive("nwDoorKick", function()
+	local client = net.ReadEntity()
+
+	if (!IsValid(client)) then
+		return
+	end
+
+	local sequence = client:LookupSequence("kickdoorbaton")
+
+	if (sequence and sequence > 0) then
+		client:AddVCDSequenceToGestureSlot(GESTURE_SLOT_CUSTOM, sequence, 0, true)
+	end
+end)

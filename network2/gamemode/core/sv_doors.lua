@@ -445,3 +445,82 @@ hook.Add("PlayerUse", "nwDoors", function(client, entity)
 		end)
 	end
 end)
+
+-- ------------------------------------------------------- knock / kick down --
+-- Hold E on a door: the wheel (cl_doors.lua). Постучать - anyone; Выбить дверь - the Alliance, a
+-- locked door: the unit kicks (kickdoorbaton, on the Civil Protection models), the lock breaks, the
+-- door swings open.
+util.AddNetworkString("nwDoorAction")
+util.AddNetworkString("nwDoorKick")
+
+local function Locked(door)
+	return door.nwLocked == true or door:GetInternalVariable("m_bLocked") == true
+end
+
+net.Receive("nwDoorAction", function(_, client)
+	local action = net.ReadString()
+	local door = net.ReadEntity()
+
+	if ((client.nwDoorAct or 0) > CurTime() or !D.IsDoor(door) or !client:Alive() or
+		(NW.Incapable and NW.Incapable(client)) or client:GetPos():DistToSqr(door:GetPos()) > 140 * 140) then
+		return
+	end
+
+	client.nwDoorAct = CurTime() + 1.5
+
+	if (action == "knock") then
+		NW.SayMe(client, "стучит в дверь")
+		client:SetAnimation(PLAYER_ATTACK1)
+
+		for i = 0, 2 do
+			timer.Simple(i * 0.28, function()
+				if (IsValid(door)) then
+					door:EmitSound("physics/wood/wood_crate_impact_hard" .. math.random(2, 3) .. ".wav", 65, math.random(95, 105))
+				end
+			end)
+		end
+	elseif (action == "kick") then
+		if (!NW.zones.IsAlliance(client)) then
+			return
+		end
+
+		if (!Locked(door)) then
+			return Notify(client, "Дверь не заперта")
+		end
+
+		client.nwDoorAct = CurTime() + 3
+
+		net.Start("nwDoorKick")
+			net.WriteEntity(client)
+		net.SendPVS(client:GetPos())
+
+		NW.SayMe(client, "выбивает дверь ногой")
+
+		timer.Simple(0.55, function()
+			if (!IsValid(door) or !IsValid(client)) then
+				return
+			end
+
+			door:EmitSound("physics/wood/wood_furniture_break" .. math.random(1, 2) .. ".wav", 75)
+			door:EmitSound("doors/heavy_metal_stop1.wav", 70)
+
+			local lock = door.nwCombineLock
+
+			if (IsValid(lock) and lock:GetLocked()) then
+				lock:SetState(false)
+			end
+
+			for _, member in ipairs(D.Group(door)) do
+				member.nwLocked = false
+				member:Fire("Unlock")
+				member:Fire("Open")
+			end
+
+			util.ScreenShake(door:GetPos(), 3, 8, 0.4, 300)
+
+			if (NW.skills) then
+				NW.skills.Add(client, "strength", 6)
+			end
+		end)
+	end
+end)
