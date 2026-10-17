@@ -1,0 +1,364 @@
+{
+  "variants": {
+    "facing=north,level=0,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=1,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=2,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=3,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=4,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=5,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower"
+    },
+    "facing=north,level=0,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=1,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=2,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=3,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=4,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=5,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper"
+    },
+    "facing=north,level=0,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=1,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=2,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=3,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=4,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=5,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=0,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=1,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=2,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=3,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=4,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=north,level=5,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open"
+    },
+    "facing=east,level=0,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=1,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=2,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=3,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=4,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=5,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 90
+    },
+    "facing=east,level=0,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=1,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=2,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=3,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=4,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=5,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 90
+    },
+    "facing=east,level=0,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=1,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=2,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=3,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=4,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=5,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=0,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=1,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=2,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=3,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=4,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=east,level=5,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 90
+    },
+    "facing=south,level=0,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=1,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=2,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=3,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=4,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=5,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 180
+    },
+    "facing=south,level=0,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=1,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=2,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=3,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=4,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=5,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 180
+    },
+    "facing=south,level=0,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=1,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=2,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=3,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=4,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=5,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=0,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=1,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=2,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=3,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=4,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=south,level=5,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 180
+    },
+    "facing=west,level=0,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=1,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=2,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=3,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=4,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=5,open=false,upper=false": {
+      "model": "scpzone19:block/lcz_door_lower",
+      "y": 270
+    },
+    "facing=west,level=0,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=1,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=2,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=3,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=4,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=5,open=false,upper=true": {
+      "model": "scpzone19:block/lcz_door_upper",
+      "y": 270
+    },
+    "facing=west,level=0,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=1,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=2,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=3,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=4,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=5,open=true,upper=false": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=0,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=1,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=2,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=3,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=4,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    },
+    "facing=west,level=5,open=true,upper=true": {
+      "model": "scpzone19:block/lcz_door_open",
+      "y": 270
+    }
+  }
+}

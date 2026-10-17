@@ -1,0 +1,14 @@
+{
+  "music.menu": {
+    "replace": true,
+    "sounds": [
+      { "name": "minecraft:zone19/menu", "stream": true }
+    ]
+  },
+  "ui.button.click": {
+    "replace": true,
+    "sounds": [
+      { "name": "minecraft:zone19/button", "volume": 0.6 }
+    ]
+  }
+}

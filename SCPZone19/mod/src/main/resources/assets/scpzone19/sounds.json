@@ -1,0 +1,200 @@
+{
+  "ambient.zone": {
+    "sounds": [
+      "scpzone19:ambient/ambient1",
+      "scpzone19:ambient/ambient2",
+      "scpzone19:ambient/ambient3"
+    ],
+    "subtitle": "subtitles.scpzone19.ambient"
+  },
+  "alarm": {
+    "sounds": [
+      "scpzone19:alarm/alarm"
+    ],
+    "subtitle": "subtitles.scpzone19.alarm"
+  },
+  "alarm.long": {
+    "sounds": [
+      {
+        "name": "scpzone19:alarm/alarm_long",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.scpzone19.alarm"
+  },
+  "door.open": {
+    "sounds": [
+      "scpzone19:door/open"
+    ],
+    "subtitle": "subtitles.scpzone19.door_open"
+  },
+  "door.close": {
+    "sounds": [
+      "scpzone19:door/close"
+    ],
+    "subtitle": "subtitles.scpzone19.door_close"
+  },
+  "door.big_open": {
+    "sounds": [
+      "scpzone19:door/big_open"
+    ],
+    "subtitle": "subtitles.scpzone19.door_open"
+  },
+  "door.error": {
+    "sounds": [
+      "scpzone19:door/error"
+    ],
+    "subtitle": "subtitles.scpzone19.door_error"
+  },
+  "keycard": {
+    "sounds": [
+      "scpzone19:interact/keycard"
+    ],
+    "subtitle": "subtitles.scpzone19.keycard"
+  },
+  "button": {
+    "sounds": [
+      "scpzone19:interact/button"
+    ],
+    "subtitle": "subtitles.scpzone19.button"
+  },
+  "pickup": {
+    "sounds": [
+      "scpzone19:interact/pickup"
+    ]
+  },
+  "gun.pistol": {
+    "sounds": [
+      "scpzone19:gun/shot_pistol"
+    ],
+    "subtitle": "subtitles.scpzone19.gunshot"
+  },
+  "gun.rifle": {
+    "sounds": [
+      "scpzone19:gun/shot_rifle"
+    ],
+    "subtitle": "subtitles.scpzone19.gunshot"
+  },
+  "scp173.snap": {
+    "sounds": [
+      "scpzone19:scp173/snap1",
+      "scpzone19:scp173/snap2"
+    ],
+    "subtitle": "subtitles.scpzone19.scp173_snap"
+  },
+  "scp173.drag": {
+    "sounds": [
+      "scpzone19:scp173/drag"
+    ],
+    "subtitle": "subtitles.scpzone19.scp173_drag"
+  },
+  "scp173.rattle": {
+    "sounds": [
+      "scpzone19:scp173/rattle"
+    ],
+    "subtitle": "subtitles.scpzone19.scp173_drag"
+  },
+  "scp096.scream": {
+    "sounds": [
+      {
+        "name": "scpzone19:scp096/scream",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.scpzone19.scp096_scream"
+  },
+  "scp096.triggered": {
+    "sounds": [
+      "scpzone19:scp096/triggered"
+    ],
+    "subtitle": "subtitles.scpzone19.scp096_triggered"
+  },
+  "scp106.laugh": {
+    "sounds": [
+      "scpzone19:scp106/laugh"
+    ],
+    "subtitle": "subtitles.scpzone19.scp106_laugh"
+  },
+  "scp106.breathing": {
+    "sounds": [
+      "scpzone19:scp106/breathing"
+    ],
+    "subtitle": "subtitles.scpzone19.scp106_breathing"
+  },
+  "scp106.decay": {
+    "sounds": [
+      "scpzone19:scp106/decay"
+    ],
+    "subtitle": "subtitles.scpzone19.scp106_decay"
+  },
+  "radio.chatter": {
+    "sounds": [
+      "scpzone19:radio/chatter1",
+      "scpzone19:radio/chatter2"
+    ],
+    "subtitle": "subtitles.scpzone19.radio"
+  },
+  "radio.beep": {
+    "sounds": [
+      "scpzone19:radio/beep"
+    ],
+    "subtitle": "subtitles.scpzone19.radio"
+  },
+  "radio.announcement": {
+    "sounds": [
+      {
+        "name": "scpzone19:radio/announcement",
+        "stream": true
+      }
+    ],
+    "subtitle": "subtitles.scpzone19.announcement"
+  },
+  "music.intro": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/intro",
+        "stream": true
+      }
+    ]
+  },
+  "music.hcz": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/hcz",
+        "stream": true
+      }
+    ]
+  },
+  "music.chase096": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/chase096",
+        "stream": true
+      }
+    ]
+  },
+  "music.scp106": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/scp106",
+        "stream": true
+      }
+    ]
+  },
+  "music.gateb": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/gateb",
+        "stream": true
+      }
+    ]
+  },
+  "music.menu": {
+    "sounds": [
+      {
+        "name": "scpzone19:music/menu",
+        "stream": true
+      }
+    ]
+  }
+}
