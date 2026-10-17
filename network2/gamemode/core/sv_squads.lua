@@ -273,7 +273,19 @@ function SQ.Request(client, action, arg)
 	if (action == "create") then
 		return SQ.Create(client, arg)
 	elseif (action == "join") then
-		return SQ.Join(client, Find(client, arg))
+		local target = Find(client, arg)
+		local current = SQ.Of(client)
+
+		-- from another squad: out of it first (not the leader - the squad would fall apart)
+		if (current and target and current != target) then
+			if (current.leader == client) then
+				return false, "Вы ведёте своё формирование: распустите его или передайте"
+			end
+
+			SQ.Leave(client)
+		end
+
+		return SQ.Join(client, target)
 	elseif (action == "leave") then
 		return SQ.Leave(client)
 	elseif (action == "disband") then
@@ -334,3 +346,71 @@ NW.AddChatCommand("squadleave", Command("leave"))
 NW.AddChatCommand("squaddisband", Command("disband"))
 NW.AddChatCommand("squadkick", Command("kick"))
 NW.AddChatCommand("squadsuccession", Command("succession"))
+
+-- ------------------------------------------------------------------ test --
+-- bot_squad (console, admins): a bot joins your squad - your faction, into your squad (made if you
+-- have none). No free bot - one is added first.
+local function BotJoin(client)
+	if (!IsValid(client) or !Alliance(client)) then
+		return
+	end
+
+	local bot
+
+	for _, other in ipairs(player.GetBots()) do
+		if (!SQ.Of(other) or SQ.Of(other) != SQ.Of(client)) then
+			bot = other
+
+			break
+		end
+	end
+
+	if (!bot) then
+		return false
+	end
+
+	if (!SQ.Of(client)) then
+		local ok, why = SQ.Create(client, "")
+
+		if (!ok) then
+			Notify(client, why)
+
+			return true
+		end
+	end
+
+	if (bot:GetFaction() != client:GetFaction()) then
+		NW.char.SetFaction(bot, client:GetFaction())
+	end
+
+	if (SQ.Of(bot)) then
+		SQ.Leave(bot)
+	end
+
+	local ok, why = SQ.Join(bot, SQ.Of(client))
+
+	Notify(client, ok and (bot:Nick() .. " вступил в ваш отряд") or why)
+
+	return true
+end
+
+concommand.Add("bot_squad", function(client)
+	if (!IsValid(client) or !client:IsAdmin()) then
+		return
+	end
+
+	if (!Alliance(client)) then
+		return Notify(client, "Сначала станьте юнитом Альянса (/setfaction)")
+	end
+
+	if (BotJoin(client) == false) then
+		RunConsoleCommand("bot")
+		Notify(client, "Добавляю бота...")
+
+		timer.Simple(2, function()
+			if (IsValid(client) and BotJoin(client) == false) then
+				Notify(client, "Бот не появился: нет свободных мест на сервере")
+			end
+		end)
+	end
+end)

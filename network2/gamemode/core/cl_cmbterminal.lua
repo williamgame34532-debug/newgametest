@@ -350,12 +350,17 @@ CMB.pages.formations = {
 		end
 
 		local scroll = CT.Scroll(area, 0, y, w, h - y)
+		local any = false
 
 		for _, squad in SortedPairsByMemberValue(SQ.list, "created") do
 			if (squad.side == side) then
+				any = true
+
 				local members = SQ.Members(squad)
 				local card = scroll:Add("DPanel")
-				local cardH = math.Round(rowH * 1.1 + #members * h * 0.04 + gap)
+				-- a squad that is not yours has a row with the button to join it at the bottom
+				local joinRow = mine != squad and math.Round(rowH * 0.85) or 0
+				local cardH = math.Round(rowH * 1.1 + #members * h * 0.04 + gap + joinRow)
 
 				card:Dock(TOP)
 				card:DockMargin(0, 0, 8, gap)
@@ -401,15 +406,22 @@ CMB.pages.formations = {
 					end
 				end
 
-				if (!mine) then
-					local join = CT.Button(card, "Вступить", w - 8 - w * 0.2 - gap, rowH * 0.6 + gap * 0.5, w * 0.2, rowH * 0.6,
-						function()
+				if (mine != squad) then
+					local full = #members >= SQ.size:GetInt()
+					local leading = mine and mine.leader == me
+					local label = full and "Мест нет" or (leading and "Вы ведёте своё формирование" or
+						(mine and "Перейти в это формирование" or "Вступить в формирование"))
+					local join = CT.Button(card, label, gap, cardH - joinRow, w - gap * 2 - 8, joinRow - gap * 0.6, function()
 						SQ.Action("join", squad.id)
 					end, true)
 
-					join:SetEnabled(#members < SQ.size:GetInt())
+					join:SetEnabled(!full and !leading)
 				end
 			end
+		end
+
+		if (!any) then
+			CT.Label(scroll, "Формирований нет — создайте своё", 0, 0, "nwCmtText", DIM)
 		end
 	end
 }
