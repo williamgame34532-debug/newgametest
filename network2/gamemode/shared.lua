@@ -113,6 +113,9 @@ local FILES = {
 	"sh_skills.lua",
 	"cl_skills.lua",
 	"cl_status.lua",
+	"sh_cwu.lua",
+	"sv_cwu.lua",
+	"cl_cwu.lua",
 	"sh_incapable.lua"
 }
 

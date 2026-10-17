@@ -150,6 +150,9 @@ local function Choose(answer)
 	elseif (answer.action == "callsign") then
 		-- the server answers with the list (nwNpcCallsigns)
 		Action("callsigns")
+	elseif (answer.action == "factory") then
+		-- the office window (cl_cwu.lua) opens over the talk
+		Action("factory")
 	else
 		NP.Close()
 	end
@@ -225,6 +228,8 @@ local function BuildDialog(frame, sw, sh)
 			label = label .. "  [профессии]"
 		elseif (answer.action == "callsign") then
 			label = label .. "  [позывной]"
+		elseif (answer.action == "factory") then
+			label = label .. "  [завод]"
 		end
 
 		row:SetPos(pad, ay)

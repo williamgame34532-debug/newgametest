@@ -382,6 +382,13 @@ function ACTIONS.profession(client, entity, arg)
 	return true
 end
 
+-- the personnel office of the factory (sh_cwu.lua)
+function ACTIONS.factory(client, entity)
+	if (NPC.HasAction(entity.nwConfig, "factory")) then
+		NW.cwu.OpenOffice(client, entity)
+	end
+end
+
 -- the callsign of a unit (sh_units.lua): the list, then the choice ("victor:4")
 function ACTIONS.callsigns(client, entity)
 	if (!NPC.HasAction or NPC.HasAction(entity.nwConfig, "callsign")) then

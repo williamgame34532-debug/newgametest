@@ -9,6 +9,7 @@
 --                           "quest" → the quest `target` (take it / hand it in)
 --                           "profession" → the professions window
 --                           "callsign" → the callsign of a unit (sh_units.lua; the metrocop NPC)
+--                           "factory" → the personnel office of the factory (sh_cwu.lua)
 --                           "close" → end the talk
 --   shop           what is sold: {item, price (tokens), priceItem, priceCount (another item as the
 --                  price, or with tokens), stock (-1 = endless), sell (tokens the NPC pays for one;
@@ -32,6 +33,7 @@ NPC.ACTIONS = {
 	{"quest", "Задание"},
 	{"profession", "Профессии"},
 	{"callsign", "Выдать позывной (метрокоп)"},
+	{"factory", "Отдел кадров завода"},
 	{"close", "Закончить разговор"}
 }
 
@@ -144,7 +146,7 @@ function NPC.Sanitize(config)
 						local action = answer.action
 
 						if (action != "goto" and action != "trade" and action != "quest" and action != "profession" and
-							action != "callsign" and action != "close") then
+							action != "callsign" and action != "factory" and action != "close") then
 							action = "close"
 						end
 

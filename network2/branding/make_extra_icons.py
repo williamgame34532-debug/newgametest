@@ -13,7 +13,7 @@ GI, TABLER, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 
 ITEMS = {
     "radio": "walkie-talkie", "key": "key", "scrap": "metal-bar", "parts": "gears", "unit_core": "circuitry",
-    "factory_crate": "cargo-crate", "disinfectant": "spray", "toolkit": "toolbox", "chemicals": "chemical-tank",
+    "factory_crate": "cargo-crate", "disinfectant": "spray", "toolkit": "toolbox",
 }
 UI = {
     "radio": "radio", "broadcast": "broadcast", "skills": "chart-bar", "status": "activity-heartbeat",
