@@ -21,7 +21,7 @@ net.Receive("nwSquads", function()
 
 	for _, data in ipairs(list) do
 		local squad = {id = data.id, name = data.name, side = data.side, succession = data.succession,
-			created = data.created, leader = Entity(data.leader or 0), members = {}}
+			created = data.created, size = data.size, leader = Entity(data.leader or 0), members = {}}
 
 		for _, index in ipairs(data.members or {}) do
 			squad.members[#squad.members + 1] = Entity(index)

@@ -196,7 +196,10 @@ local function Talk(bOn)
 		net.WriteBool(bOn)
 	net.SendToServer()
 
-	RunConsoleCommand(bOn and "+voicerecord" or "-voicerecord")
+	-- the microphone (the console +voicerecord is closed to the Lua)
+	if (permissions and permissions.EnableVoiceChat) then
+		permissions.EnableVoiceChat(bOn)
+	end
 end
 
 hook.Add("NWKey", "nwRadio", function(id)

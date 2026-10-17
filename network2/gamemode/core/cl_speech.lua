@@ -188,7 +188,10 @@ hook.Add("PostDrawTranslucentRenderables", "nwSpeech", function(bDepth, bSkybox)
 
 		speaking = speaking > 0.01 and speaking or nil
 
-		if (!(typing or hasWords or speaking) or !client:Alive() or (client == me and !client:ShouldDrawLocalPlayer())) then
+		-- on the radio: the mark of the transmission, the voice heard or not yet
+		local onRadio = client:GetNW2Bool("nwRadioTalk", false)
+
+		if (!(typing or hasWords or speaking or onRadio) or !client:Alive() or (client == me and !client:ShouldDrawLocalPlayer())) then
 			continue
 		end
 
@@ -205,18 +208,18 @@ hook.Add("PostDrawTranslucentRenderables", "nwSpeech", function(bDepth, bSkybox)
 		cam.Start3D2D(pos, angle, SCALE)
 			local y = 0
 
-			-- talking in voice: the microphone at the very bottom
-			if (speaking) then
+			-- talking in voice: the microphone at the very bottom, the mark of the radio beside it
+			if (speaking or onRadio) then
 				local size = 64
+				local blink = 0.6 + 0.4 * math.abs(math.sin(now * 4))
 
-				NW.voice.DrawMic(-size / 2, y - size + (1 - speaking) * 10, size, level, speaking * fade)
+				if (speaking) then
+					NW.voice.DrawMic(-size / 2, y - size + (1 - speaking) * 10, size, level, speaking * fade)
+				end
 
-				-- on the radio: the mark of the transmission beside the microphone
-				if (client:GetNW2Bool("nwRadioTalk", false)) then
-					local blink = 0.6 + 0.4 * math.abs(math.sin(now * 4))
-
-					NW.ui.DrawIcon("broadcast", size / 2 + 6, y - size * 0.85, size * 0.7, Color(96, 200, 255), speaking *
-						fade * blink)
+				if (onRadio) then
+					NW.ui.DrawIcon("broadcast", speaking and (size / 2 + 6) or (-size * 0.35), y - size * 0.85,
+						size * 0.7, Color(96, 200, 255), fade * blink)
 				end
 				y = y - size - 6
 			end

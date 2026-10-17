@@ -331,13 +331,13 @@ hook.Add("ChatText", "nwChat", function(index, name, text, kind)
 end)
 
 -- the dispatcher (sv_chat.lua NW.Dispatch): red-orange, with the alarm of the city
-local DISPATCH = Color(236, 98, 74)
+local DISPATCH = Color(232, 58, 52)
 
 net.Receive("nwDispatch", function()
 	local text = net.ReadString()
 	local alarm = net.ReadBool()
 
-	CH.AddStyled("nwChat", DISPATCH, "Диспетчер: ", Color(236, 226, 220), text)
+	CH.AddStyled("nwChat", DISPATCH, "Диспетчер: " .. text)
 	MsgN("Диспетчер: " .. text)
 
 	if (alarm) then

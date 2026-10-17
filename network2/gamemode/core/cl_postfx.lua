@@ -62,7 +62,7 @@ hook.Add("RenderScreenspaceEffects", "nwSoftLight", function()
 	local client = LocalPlayer()
 
 	if (!soft:GetBool() or !IsValid(client) or client:GetCharacterID() == 0 or (NW.menu and NW.menu.active) or
-		(NW.ThermalOn and NW.ThermalOn())) then
+		(NW.vision and NW.vision.Mode and NW.vision.Mode())) then
 		return
 	end
 

@@ -84,6 +84,8 @@ local function Active()
 		!client:GetNW2Bool("nwInMenu", false) and !client:GetNW2Bool("nwKnocked", false) and Kind(client) != nil
 end
 
+NW.combineHud = {Active = Active}
+
 -- --------------------------------------------------------------- the visor --
 hook.Add("RenderScreenspaceEffects", "nwCombineOverlay", function()
 	if (!Active()) then
@@ -403,6 +405,11 @@ hook.Add("HUDPaint", "nwCombineHud", function()
 		y = NW.squads.DrawHud(x, y, Text, Bar)
 	end
 
+	-- the thermal (cl_vision.lua): working, its heat, the overheat
+	if (NW.vision and NW.vision.DrawHud) then
+		y = NW.vision.DrawHud(x, y, Text, Bar, color)
+	end
+
 	-- top right: who, where, how
 	local rx, ry = sw * 0.965, sh * 0.07
 	local zone = Z.At(Z.Point(client))
@@ -430,49 +437,4 @@ hook.Add("HUDPaint", "nwCombineHud", function()
 	render.PopFilterMag()
 end)
 
--- ---------------------------------------------------------------- teammates --
-local function Teammates()
-	local me = LocalPlayer()
-	local out = {}
-
-	for _, other in ipairs(player.GetAll()) do
-		-- the squad has its own outline (cl_squads.lua)
-		local mate = NW.squads and NW.squads.Of(me) and NW.squads.Of(other) == NW.squads.Of(me)
-
-		if (other != me and !mate and other:Alive() and !other:GetNoDraw() and Kind(other) and
-			other:GetPos():DistToSqr(me:GetPos()) < 1400 * 1400) then
-			out[#out + 1] = other
-		end
-	end
-
-	return out
-end
-
-hook.Add("PreDrawHalos", "nwCombineHud", function()
-	if (!Active()) then
-		return
-	end
-
-	local list = Teammates()
-
-	if (#list > 0) then
-		halo.Add(list, Kind(LocalPlayer()) == "cp" and BLUE or RED, 1, 1, 1, true, true)
-	end
-end)
-
-hook.Add("HUDPaint", "nwCombineHudMates", function()
-	if (!Active()) then
-		return
-	end
-
-	local color = Kind(LocalPlayer()) == "cp" and BLUE or RED
-
-	for _, other in ipairs(Teammates()) do
-		local screen = (other:EyePos() + Vector(0, 0, 10)):ToScreen()
-
-		if (screen.visible) then
-			draw.SimpleTextOutlined("+ " .. NW.terminal.Upper(other:Nick()), "nwCmbSmall", screen.x, screen.y, color,
-				TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 1, Color(0, 0, 0, 180))
-		end
-	end
-end)
+-- the other units: no outline and no names over the heads - only the squad is marked (cl_squads.lua)

@@ -2,17 +2,11 @@
 -- what its screen asks for. The squads go through nwSquadAction (sv_squads.lua).
 --   close        the user leaves the terminal
 --   resolve <n>  close the call of the civic terminal n (sv_terminal.lua)
---   broadcast    an announcement of the Overwatch to the whole city (sh_overwatch.lua), once in
---                nw_cmbterminal_broadcast seconds for everyone
+--   cam_view <n> the combine camera n is watched from this terminal (sh_cameras.lua)
 
 util.AddNetworkString("nwCmbTerminalOpen")
 util.AddNetworkString("nwCmbTerminalLean")
 util.AddNetworkString("nwCmbTerminal")
-
-local cooldown = CreateConVar("nw_cmbterminal_broadcast", "120", FCVAR_ARCHIVE,
-	"Как часто терминал Альянса может давать оповещение городу (секунды)")
-
-local nextBroadcast = 0
 
 local ACTIONS = {}
 
@@ -27,17 +21,6 @@ function ACTIONS.resolve(client, terminal, arg)
 
 	if (IsValid(civic) and civic:GetClass() == NW.terminal.class and NW.terminal.Resolve) then
 		NW.terminal.Resolve(civic, client)
-	end
-end
-
-function ACTIONS.broadcast(client, terminal, arg)
-	if (CurTime() < nextBroadcast) then
-		return NW.Notify(client, "Канал оповещения занят ещё " .. math.ceil(nextBroadcast - CurTime()) .. " с")
-	end
-
-	if (NW.overwatch.City(arg)) then
-		nextBroadcast = CurTime() + cooldown:GetFloat()
-		MsgN(string.format("[CMB TERMINAL] %s (%s): оповещение %s", client:Nick(), client:SteamName(), arg))
 	end
 end
 

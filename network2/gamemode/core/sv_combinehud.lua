@@ -25,7 +25,7 @@ hook.Add("PlayerDeath", "nwUnitDown", function(victim)
 	net.Send(members)
 
 	-- the dispatcher, to the Alliance only
-	NW.Dispatch("[ПАТРУЛЬ] Потеря био-сигнала юнита: " .. victim:Nick() .. ", в зоне: " .. where, members)
+	NW.Dispatch("Потеря био-сигнала юнита: " .. victim:Nick() .. ", в зоне: " .. where, members)
 
 	-- the Overwatch voice: "lost biosignal for unit" and the callsign, if the unit has one
 	local data = victim.nwCharacter and victim.nwCharacter.data

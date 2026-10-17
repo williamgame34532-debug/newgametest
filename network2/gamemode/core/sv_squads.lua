@@ -26,7 +26,8 @@ function SQ.Sync(target)
 		end
 
 		out[#out + 1] = {id = id, name = squad.name, side = squad.side, leader = IsValid(squad.leader) and
-			squad.leader:EntIndex() or 0, members = members, succession = squad.succession, created = squad.created}
+			squad.leader:EntIndex() or 0, members = members, succession = squad.succession, created = squad.created,
+			size = SQ.Limit(squad)}
 	end
 
 	net.Start("nwSquads")
@@ -76,10 +77,6 @@ function SQ.Create(client, name)
 
 	local side = SQ.Side(client)
 
-	if (SQ.Count(side) >= SQ.max:GetInt()) then
-		return false, "Отрядов уже " .. SQ.max:GetInt() .. " — больше нельзя"
-	end
-
 	for _, squad in pairs(SQ.list) do
 		if (squad.side == side and string.lower(squad.name) == string.lower(name)) then
 			return false, "Отряд с таким названием уже есть"
@@ -90,7 +87,7 @@ function SQ.Create(client, name)
 
 	nextID = nextID + 1
 	SQ.list[id] = {id = id, name = name, side = side, leader = client, members = {client}, succession = false,
-		created = os.time()}
+		created = os.time(), size = SQ.defaultSize}
 	client:SetNW2Int("nwSquad", id)
 
 	Sound(SQ.list[id], "create")
@@ -131,7 +128,7 @@ function SQ.Join(client, squad)
 		return false, "Сначала выйдите из своего отряда"
 	elseif (squad.side != SQ.Side(client)) then
 		return false, "Это отряд другой стороны"
-	elseif (#SQ.Members(squad) >= SQ.size:GetInt()) then
+	elseif (#SQ.Members(squad) >= SQ.Limit(squad)) then
 		return false, "В отряде нет мест"
 	end
 
@@ -202,6 +199,29 @@ function SQ.Kick(leader, target)
 	Notify(target, "Вас исключили из отряда «" .. squad.name .. "»")
 
 	return SQ.Leave(target)
+end
+
+-- the leader: how many members (never fewer than are in it now)
+function SQ.SetSize(leader, size)
+	local squad = SQ.Of(leader)
+
+	if (!squad or squad.leader != leader) then
+		return false, "Только лидер отряда"
+	end
+
+	size = math.floor(tonumber(size) or 0)
+
+	if (size < 2 or size > SQ.size:GetInt()) then
+		return false, "Лимит отряда: от 2 до " .. SQ.size:GetInt()
+	elseif (size < #SQ.Members(squad)) then
+		return false, "В отряде уже " .. #SQ.Members(squad) .. " юнитов — сначала исключите лишних"
+	end
+
+	squad.size = size
+	Tell(squad, "Лимит отряда: " .. size .. " юнитов")
+	SQ.Sync()
+
+	return true
 end
 
 function SQ.SetSuccession(leader, bOn)
@@ -295,7 +315,8 @@ function SQ.Request(client, action, arg)
 			return false, "Нет такого отряда"
 		end
 
-		if (squad.leader != client and !client:IsAdmin()) then
+		-- only the leader: not a member, not an admin
+		if (squad.leader != client) then
 			return false, "Расформировать может только лидер"
 		end
 
@@ -304,6 +325,8 @@ function SQ.Request(client, action, arg)
 		return true
 	elseif (action == "kick") then
 		return SQ.Kick(client, NW.FindPlayer(arg))
+	elseif (action == "size") then
+		return SQ.SetSize(client, arg)
 	elseif (action == "succession") then
 		local squad = SQ.Of(client)
 
@@ -346,6 +369,7 @@ NW.AddChatCommand("squadleave", Command("leave"))
 NW.AddChatCommand("squaddisband", Command("disband"))
 NW.AddChatCommand("squadkick", Command("kick"))
 NW.AddChatCommand("squadsuccession", Command("succession"))
+NW.AddChatCommand("squadsize", Command("size"))
 
 -- ------------------------------------------------------------------ test --
 -- bot_squad (console, admins): a bot joins your squad - your faction, into your squad (made if you

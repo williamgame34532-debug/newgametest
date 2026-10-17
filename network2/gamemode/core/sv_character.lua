@@ -330,6 +330,7 @@ function C.Activate(client, character, description)
 	client:SetNW2Int("nwCharID", character.id)
 	client:SetNW2String("nwCharName", character.name)
 	client:SetNW2String("nwCharFaction", character.faction)
+	client:SetNW2String("nwCharGender", character.gender or "male")
 	client:SetNW2String("nwCharDesc", #description > 240 and
 		string.sub(description, 1, (utf8.offset(description, 120) or 241) - 1) .. "..." or description)
 	client:SetNW2Bool("nwInMenu", false)

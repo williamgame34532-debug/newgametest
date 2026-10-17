@@ -106,9 +106,12 @@ local FILES = {
 	"sv_squads.lua",
 	"cl_squads.lua",
 	"sh_radio.lua",
+	"sh_voices_data.lua",
+	"sh_voices.lua",
 	"sh_overwatch.lua",
 	"sv_cmbterminal.lua",
 	"cl_cmbterminal.lua",
+	"sh_cameras.lua",
 	"sv_persist.lua",
 	"sh_skills.lua",
 	"cl_skills.lua",
@@ -122,7 +125,7 @@ local FILES = {
 	"cl_craft.lua",
 	"sh_weather.lua",
 	"cl_weather.lua",
-	"cl_thermal.lua",
+	"cl_vision.lua",
 	"sh_incapable.lua"
 }
 

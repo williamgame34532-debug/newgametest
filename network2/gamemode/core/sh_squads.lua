@@ -1,6 +1,6 @@
 -- Squads of the Alliance (formations). Made and run at the Alliance terminal (nw_cmb_terminal) or
 -- with the chat commands; only members of the Alliance, each side (Civil Protection / the Combine)
--- has its own squads (nw_squad_max of them at a time, nw_squad_size members each).
+-- has its own squads (as many as are made; the leader sets how many members, 2..nw_squad_size).
 --   create      a name; the one who makes it leads it
 --   join        any squad of your side that has room
 --   leave       a member leaves; the leader leaving ends the squad - unless the leader turned the
@@ -18,8 +18,13 @@ NW.squads = NW.squads or {}
 
 local SQ = NW.squads
 
-SQ.max = CreateConVar("nw_squad_max", "5", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Сколько отрядов одной стороны")
-SQ.size = CreateConVar("nw_squad_size", "8", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Сколько юнитов в отряде")
+SQ.size = CreateConVar("nw_squad_size", "16", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Сколько юнитов может быть в отряде (верх лимита лидера)")
+SQ.defaultSize = 6
+
+-- the limit of a squad: set by its leader
+function SQ.Limit(squad)
+	return math.Clamp(squad and squad.size or SQ.defaultSize, 2, SQ.size:GetInt())
+end
 
 SQ.list = SQ.list or {}
 

@@ -76,6 +76,7 @@ K.help = {
 	{command = "/doorbuy", args = "", text = "купить дверь, на которую вы смотрите"},
 	{command = "/doorsell", args = "", text = "продать свою дверь (половина цены)"},
 	{command = "/doorlock", args = "", text = "запереть или отпереть свою дверь"},
+	{command = "/voices", args = "", text = "голосовые фразы: напишите фразу целиком — персонаж скажет её вслух"},
 	{command = "/whitelists", args = "", text = "какие фракции вам открыты"},
 	{command = "/menufactory", args = "", text = "инструкция завода: как ставить, роли, ранги"},
 	-- the Alliance only (alliance = true)

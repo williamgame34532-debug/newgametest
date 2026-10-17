@@ -1,0 +1,281 @@
+0|Ноль.|npc/metropolice/vo/zero.wav
+10|Десять.|npc/metropolice/vo/ten.wav
+10-107TAG|У нас 10-107, вышлите воздушный патруль для метки.|npc/metropolice/vo/gota10-107sendairwatch.wav
+10-14DUTY|Остаюсь на 10-14, код 4.|npc/metropolice/vo/holdingon10-14duty.wav
+10-2|10-2.|npc/metropolice/vo/ten2.wav
+10-4|10-4.|npc/metropolice/vo/10-4.wav
+10-4B|10-4.|npc/metropolice/vo/ten4.wav
+10-8STANDINGBY|10-8, на связи.|npc/metropolice/vo/ten8standingby.wav
+10-97|10-97.|npc/metropolice/vo/ten97.wav
+10-97GOA|10-97, подозреваемый скрылся.|npc/metropolice/vo/ten97suspectisgoa.wav
+100|Сто.|npc/metropolice/vo/onehundred.wav
+11|Одиннадцать.|npc/metropolice/vo/eleven.wav
+11-44INBOUND|Вызывайте 11-44, мы зачищаем.|npc/metropolice/vo/get11-44inboundcleaningup.wav
+11-99|11-99, офицеру нужна помощь!|npc/metropolice/vo/11-99officerneedsassistance.wav
+12|Двенадцать.|npc/metropolice/vo/twelve.wav
+13|Тринадцать.|npc/metropolice/vo/thirteen.wav
+14|Четырнадцать.|npc/metropolice/vo/fourteen.wav
+15|Пятнадцать.|npc/metropolice/vo/fifteen.wav
+16|Шестнадцать.|npc/metropolice/vo/sixteen.wav
+17|Семнадцать.|npc/metropolice/vo/seventeen.wav
+18|Восемнадцать.|npc/metropolice/vo/eighteen.wav
+19|Девятнадцать.|npc/metropolice/vo/nineteen.wav
+2|Два.|npc/metropolice/vo/two.wav
+20|Двадцать.|npc/metropolice/vo/twenty.wav
+200|Двести.|npc/metropolice/vo/twohundred.wav
+3|Три.|npc/metropolice/vo/three.wav
+30|Тридцать.|npc/metropolice/vo/thirty.wav
+300|Триста.|npc/metropolice/vo/threehundred.wav
+4|Четыре.|npc/metropolice/vo/four.wav
+40|Сорок.|npc/metropolice/vo/fourty.wav
+404ZONE|Зона 404.|npc/metropolice/vo/404zone.wav
+408HERE|У меня 408 на месте.|npc/metropolice/vo/ivegot408hereatlocation.wav
+5|Пять.|npc/metropolice/vo/five.wav
+50|Пятьдесят.|npc/metropolice/vo/fifty.wav
+6|Шесть.|npc/metropolice/vo/six.wav
+60|Шестьдесят.|npc/metropolice/vo/sixty.wav
+603|603, незаконное проникновение.|npc/metropolice/vo/unlawfulentry603.wav
+63TRESSPASS|63, преступное нарушение границ.|npc/metropolice/vo/criminaltrespass63.wav
+7|Семь.|npc/metropolice/vo/seven.wav
+70|Семьдесят.|npc/metropolice/vo/seventy.wav
+8|Восемь.|npc/metropolice/vo/eight.wav
+80|Восемьдесят.|npc/metropolice/vo/eighty.wav
+9|Девять.|npc/metropolice/vo/nine.wav
+90|Девяносто.|npc/metropolice/vo/ninety.wav
+ACQUIRINGVISUAL|Есть визуальный контакт!|npc/metropolice/vo/acquiringonvisual.wav
+AFFIRMATIVE|Подтверждаю.|npc/metropolice/vo/affirmative.wav
+AFFIRMATIVE2|Так точно.|npc/metropolice/vo/affirmative2.wav
+AIRWATCH505|Диспетчер, нужен воздушный патруль, субъект 505.|npc/metropolice/vo/airwatchsubjectis505.wav
+AIRWATCHBOL243|ГО, нужен воздушный патруль на розыск того 243.|npc/metropolice/vo/cpbolforthat243.wav
+ALLUNITSATBOL|Всем отрядам розыск, у нас 34-е на|npc/metropolice/vo/allunitsbol34sat.wav
+ALLUNITSATLOCATIONCODE3|Всем отрядам на месте, код 3!|npc/metropolice/vo/allunitsrespondcode3.wav
+ALLUNITSCODE2|Всем отрядам код 2.|npc/metropolice/vo/allunitscode2.wav
+ALLUNITSMAINTAINTHISCP|Всем отрядам удерживать этот пост!|npc/metropolice/vo/allunitsmaintainthiscp.wav
+ALLUNITSMOVEIN|Всем отрядам вперёд!|npc/metropolice/vo/allunitsmovein.wav
+AMPUTATE|Ампутировать.|npc/metropolice/vo/amputate.wav
+ANTICITIZEN|Антигражданин.|npc/metropolice/vo/anticitizen.wav
+APPLY|Применить.|npc/metropolice/vo/apply.wav
+ATCHECKPOINT|На контрольной точке.|npc/metropolice/vo/atcheckpoint.wav
+ATHARDPOINTREADYTOPROSECUTE|на огневой точке, готов к преследованию!|npc/metropolice/vo/isathardpointreadytoprosecute.wav
+BACKUP|Подкрепление.|npc/metropolice/vo/backup.wav
+BLOCK|Квартал.|npc/metropolice/vo/block.wav
+BLOCKCOHESIVE|Квартал держится.|npc/metropolice/vo/blockisholdingcohesive.wav
+BREAKCOVER|Выбейте его из укрытия!|npc/metropolice/vo/breakhiscover.wav
+CAN1|Подними банку.|npc/metropolice/vo/pickupthecan1.wav
+CAN2|Ты её уронил. Подними.|npc/metropolice/vo/youknockeditover.wav
+CAN3|Под. Ни. Ми. Банку.|npc/metropolice/vo/pickupthecan2.wav
+CAN4|Я сказал, подними банку.|npc/metropolice/vo/pickupthecan3.wav
+CANAL|Канал.|npc/metropolice/vo/canal.wav
+CANALBLOCK|Квартал у канала.|npc/metropolice/vo/canalblock.wav
+CATCHBLIP|Видел всплеск на стабилизационном индикаторе?|npc/metropolice/vo/catchthatbliponstabilization.wav
+CAUTERIZE|Прижечь.|npc/metropolice/vo/cauterize.wav
+CHECKFORMISCOUNT|Проверить на недосчёт.|npc/metropolice/vo/checkformiscount.wav
+CHUCKLE|*Усмехается.*|npc/metropolice/vo/chuckle.wav
+CITIZEN|Гражданин.|npc/metropolice/vo/citizen.wav
+CLEARCODE100|Чисто, код 100.|npc/metropolice/vo/clearandcode100.wav
+CLEARNO647|Чисто, ни 647, ни 10-107.|npc/metropolice/vo/clearno647no10-107.wav
+CLOSEONSUSPECT|Всем отрядам окружить подозреваемого!|npc/metropolice/vo/allunitscloseonsuspect.wav
+CLOSINGONSUSPECT|приближается к подозреваемому!|npc/metropolice/vo/isclosingonsuspect.wav
+CODE100|Код 100.|npc/metropolice/vo/code100.wav
+CODE7|Код 7.|npc/metropolice/vo/code7.wav
+CONDEMNEDZONE|Запретная зона.|npc/metropolice/vo/condemnedzone.wav
+CONTACTWITH243|Контакт с подозреваемым 243, моя позиция 10-20 —|npc/metropolice/vo/contactwith243suspect.wav
+CONTROL100|Контроль сто процентов, признаков 647E нет.|npc/metropolice/vo/control100percent.wav
+CONTROLSECTION|Контрольная секция.|npc/metropolice/vo/controlsection.wav
+CONVERGING|Сходимся.|npc/metropolice/vo/converging.wav
+COPY|Принял.|npc/metropolice/vo/copy.wav
+COVERMEIN|Прикройте, я захожу!|npc/metropolice/vo/covermegoingin.wav
+CPCOMPROMISED|Пост скомпрометирован, восстановить!|npc/metropolice/vo/cpiscompromised.wav
+CPESTABLISHPERIMETER|ГО, нужно установить периметр у|npc/metropolice/vo/cpweneedtoestablishaperimeterat.wav
+CPLOCATIONREPORT|ГО запрашивает у всех отрядов... доклад о местоположении.|npc/metropolice/vo/cprequestsallunitsreportin.wav
+CPOVERRUN|Пост захвачен, сдерживания нет!|npc/metropolice/vo/cpisoverrunwehavenocontainment.wav
+CPREPORTSTATUS|Местный пост, доложите обстановку.|npc/metropolice/vo/localcptreportstatus.wav
+DBCOUNT|Счёт трупов:|npc/metropolice/vo/dbcountis.wav
+DBHERE|А, у нас тут труп, отмена 11-42.|npc/metropolice/vo/wegotadbherecancel10-102.wav
+DEFENDER|Защитник!|npc/metropolice/vo/defender.wav
+DESERVICEDAREA|Необслуживаемая зона.|npc/metropolice/vo/deservicedarea.wav
+DESIGNATESUSPECTAS|Обозначить подозреваемого как|npc/metropolice/vo/designatesuspectas.wav
+DESTROYTHATCOVER|Уничтожить укрытие!|npc/metropolice/vo/destroythatcover.wav
+DISMOUNTINGHARDPOINT|Покидаю огневую точку.|npc/metropolice/vo/dismountinghardpoint.wav
+DISPATCH10-78|Диспетчер, нужен 10-78. Офицер в беде!|npc/metropolice/vo/dispatchineed10-78.wav
+DISTRIBUTIONBLOCK|Распределительный квартал.|npc/metropolice/vo/distributionblock.wav
+DOCUMENT|Документ.|npc/metropolice/vo/document.wav
+DONTMOVE|Не двигаться!|npc/metropolice/vo/dontmove.wav
+EXAMINE|Осмотреть.|npc/metropolice/vo/examine.wav
+EXPIRED|Ликвидирован.|npc/metropolice/vo/expired.wav
+EXTERNALJURISDICTION|Внешняя юрисдикция.|npc/metropolice/vo/externaljurisdiction.wav
+FINALVERDICT|Окончательный приговор приведён в исполнение.|npc/metropolice/vo/finalverdictadministered.wav
+FINALWARNING|Последнее предупреждение!|npc/metropolice/vo/finalwarning.wav
+FIRINGEXPOSETARGET|Огонь, выкурить цель!|npc/metropolice/vo/firingtoexposetarget.wav
+FIRSTWARNINGMOVE|Первое предупреждение, отойди!|npc/metropolice/vo/firstwarningmove.wav
+GETDOWN|Ложись!|npc/metropolice/vo/getdown.wav
+GETOUT|Убирайся отсюда.|npc/metropolice/vo/getoutofhere.wav
+GOTHIMAGAIN|Снова вижу его, подозреваемый 10-20 у|npc/metropolice/vo/gothimagainsuspect10-20at.wav
+GRENADE|Граната!|npc/metropolice/vo/grenade.wav
+HARDPOINTSCANNING|Огневая точка, сканирую.|npc/metropolice/vo/hardpointscanning.wav
+HAVE10-108|У нас 10-108!|npc/metropolice/vo/wehavea10-108.wav
+HAVE10-30|У меня 10-30 на моей 10-20, отвечаю по коду 2.|npc/metropolice/vo/ihave10-30my10-20responding.wav
+HELP|Помогите!|npc/metropolice/vo/help.wav
+HELPWITHTHISONE|Помочь тебе с ним?|npc/metropolice/vo/needanyhelpwiththisone.wav
+HERO|Герой!|npc/metropolice/vo/hero.wav
+HESGONE148|Он ушёл, 148!|npc/metropolice/vo/hesgone148.wav
+HIGHREGION|Приоритетный район.|npc/metropolice/vo/highpriorityregion.wav
+HOLDIT|Стоять!|npc/metropolice/vo/holdit.wav
+HOLDPOSITION|Группа защиты, удерживать позицию!|npc/metropolice/vo/holdthisposition.wav
+HOLDTHERE|А ну стоять!|npc/metropolice/vo/holditrightthere.wav
+INDUSTRIALZONE|Промышленная зона.|npc/metropolice/vo/industrialzone.wav
+INFECTION|Инфекция.|npc/metropolice/vo/infection.wav
+INFESTEDZONE|Заражённая зона.|npc/metropolice/vo/infestedzone.wav
+INJECT|Ввести!|npc/metropolice/vo/inject.wav
+INNOCULATE|Привить.|npc/metropolice/vo/innoculate.wav
+INPOSITION|На позиции.|npc/metropolice/vo/inposition.wav
+INPOSITIONHARDPOINT|На позиции у огневой точки.|npc/metropolice/vo/inpositionathardpoint.wav
+INTERCEDE|Вмешаться.|npc/metropolice/vo/intercede.wav
+INTERLOCK|Блокировка.|npc/metropolice/vo/interlock.wav
+INVESTIGATE|Расследовать.|npc/metropolice/vo/investigate.wav
+INVESTIGATE10-103|Проверяю 10-103.|npc/metropolice/vo/investigating10-103.wav
+IS10-108|— 10-108.|npc/metropolice/vo/is10-108.wav
+IS415B|— 415B.|npc/metropolice/vo/is415b.wav
+ISDOWN|— выведен из строя!|npc/metropolice/vo/isdown.wav
+ISMOVINGIN|выдвигается!|npc/metropolice/vo/ismovingin.wav
+ISOLATE|Изолировать.|npc/metropolice/vo/isolate.wav
+ISPASSIVE|пассивен.|npc/metropolice/vo/ispassive.wav
+JURY|Судья!|npc/metropolice/vo/jury.wav
+KEEPMOVING|Не останавливайся!|npc/metropolice/vo/keepmoving.wav
+KING|Король!|npc/metropolice/vo/king.wav
+LEVEL3PRIVACY|Обнаружен нарушитель гражданской неприкосновенности третьего уровня.|npc/metropolice/vo/level3civilprivacyviolator.wav
+LINE|Лок!|npc/metropolice/vo/line.wav
+LOCATION|Местоположение.|npc/metropolice/vo/location.wav
+LOCK|Заблокировать.|npc/metropolice/vo/lock.wav
+LOCKPOSITION|Всем отрядам зафиксировать позиции!|npc/metropolice/vo/lockyourposition.wav
+LOOKINGTROUBLE|Ищешь неприятностей?|npc/metropolice/vo/lookingfortrouble.wav
+LOOKOUT|Берегись!|npc/metropolice/vo/lookout.wav
+MALCOMPLIANCEVERDICT|Хочешь приговор за неподчинение?|npc/metropolice/vo/youwantamalcomplianceverdict.wav
+MALCOPLIANT10-107|Неподчинение 10-107 на моей 10-20, готов к преследованию.|npc/metropolice/vo/malcompliant10107my1020.wav
+MALCOPLIANTCITATION|Выписываю взыскание за неподчинение.|npc/metropolice/vo/issuingmalcompliantcitation.wav
+MALIGNANT|Злостный.|npc/metropolice/vo/malignant.wav
+MOVE|Двигай.|npc/metropolice/vo/move.wav
+MOVEALONG|Проходи.|npc/metropolice/vo/movealong.wav
+MOVEARRESTPOSITIONS|Всем отрядам занять позиции для ареста.|npc/metropolice/vo/movetoarrestpositions.wav
+MOVEBACK|Назад, живо!|npc/metropolice/vo/movebackrightnow.wav
+MOVEIT|Пошевеливайся.|npc/metropolice/vo/moveit2.wav
+MOVEIT2|Пошевеливайся!|npc/metropolice/vo/moveit.wav
+MOVINGTOCOVER|Ухожу в укрытие!|npc/metropolice/vo/movingtocover.wav
+NECROTICS|Некротики!|npc/metropolice/vo/necrotics.wav
+NOCONTACT|Контакта нет.|npc/metropolice/vo/nocontact.wav
+NONCITIZEN|Негражданин.|npc/metropolice/vo/noncitizen.wav
+NONPATROLREGION|Непатрулируемый район.|npc/metropolice/vo/nonpatrolregion.wav
+NOVISUALONUPI|Визуального контакта с ВНЛ сейчас нет.|npc/metropolice/vo/novisualonupi.wav
+NOWGETOUT|А теперь убирайся отсюда.|npc/metropolice/vo/nowgetoutofhere.wav
+OFFICERASSISTANCE|Офицеру нужна помощь, у меня 11-99!|npc/metropolice/vo/officerneedsassistance.wav
+OFFICERDOWN|Офицер ранен, всем отрядам код 3 на мою 10-20!|npc/metropolice/vo/officerdowncode3tomy10-20.wav
+OFFICERDOWN10-99|Офицер ранен, у меня 10-99, повторяю, 10-99!|npc/metropolice/vo/officerdowniam10-99.wav
+OFFICERFIRE|Офицер под огнём, ухожу в укрытие!|npc/metropolice/vo/officerunderfiretakingcover.wav
+OFFICERHELP|Офицеру нужна помощь!|npc/metropolice/vo/officerneedshelp.wav
+ONEACCOMPLICE|Тут у меня один сообщник.|npc/metropolice/vo/gotoneaccomplicehere.wav
+OUTBREAK|Вспышка!|npc/metropolice/vo/outbreak.wav
+OUTLANDZONE|Внешняя зона.|npc/metropolice/vo/outlandzone.wav
+PACIFY|Усмиряю!|npc/metropolice/vo/pacifying.wav
+PATROL|Патруль!|npc/metropolice/vo/patrol.wav
+PICKUP647E|Кто-нибудь ещё засёк... показание 647E?|npc/metropolice/vo/anyonepickup647e.wav
+POSITIONCONTAIN|Позиция для сдерживания.|npc/metropolice/vo/positiontocontain.wav
+POSSIBLE404|Возможно, 404.|npc/metropolice/vo/possible404here.wav
+POSSIBLELEVEL3VIOLATOR|Возможно, нарушитель гражданской неприкосновенности третьего уровня.|npc/metropolice/vo/possiblelevel3civilprivacyviolator.wav
+PREPARE10-15|Готовься к 10-15.|npc/metropolice/vo/preparefor1015.wav
+PREPAREJUDGMENT|Подозреваемый, приготовься к гражданскому приговору.|npc/metropolice/vo/prepareforjudgement.wav
+PRESERVE|Сохранить.|npc/metropolice/vo/preserve.wav
+PRESSURE|Давление.|npc/metropolice/vo/pressure.wav
+PRODUCTIONBLOCK|Производственный квартал.|npc/metropolice/vo/productionblock.wav
+PROSECUTE|Преследовать.|npc/metropolice/vo/prosecute.wav
+PROTECTIONCOMPLETE|Защита завершена.|npc/metropolice/vo/protectioncomplete.wav
+PTATLOCATIONREPORT|Группы защиты на месте, доложите.|npc/metropolice/vo/ptatlocationreport.wav
+QUICK|Быстрый!|npc/metropolice/vo/quick.wav
+READYAMPUTATE|Готов ампутировать!|npc/metropolice/vo/readytoamputate.wav
+READYJUDGE|Готов судить!|npc/metropolice/vo/readytojudge.wav
+READYPROSECUTE|Готов к преследованию!|npc/metropolice/vo/readytoprosecute.wav
+READYPROSECUTEWARNING|Готов к преследованию неподчиняющегося гражданина, последнее предупреждение сделано.|npc/metropolice/vo/readytoprosecutefinalwarning.wav
+REINFORCEMENTCODE3|Группы подкрепления, код 3!|npc/metropolice/vo/reinforcementteamscode3.wav
+REPORTLOCATIONSUSPECT|Всем отрядам доложить местоположение подозреваемого.|npc/metropolice/vo/allunitsreportlocationsuspect.wav
+REPORTSIGHTACCOMPLICES|Докладывать о возможных сообщниках.|npc/metropolice/vo/reportsightingsaccomplices.wav
+RESIDENTALBLOCK|Жилой квартал.|npc/metropolice/vo/residentialblock.wav
+RESPONDING|Выдвигаюсь!|npc/metropolice/vo/responding2.wav
+RESTRICT|Ограничить.|npc/metropolice/vo/restrict.wav
+RESTRICTEDBLOCK|Закрытый квартал.|npc/metropolice/vo/restrictedblock.wav
+RODGERTHAT|Вас понял.|npc/metropolice/vo/rodgerthat.wav
+ROLLER|Роллер!|npc/metropolice/vo/roller.wav
+RUNNING|Он убегает!|npc/metropolice/vo/hesrunning.wav
+SACRIFICECODEMAINTAIN|Всем отрядам пожертвовать кодом 1 и удерживать пост!|npc/metropolice/vo/sacrificecode1maintaincp.wav
+SAIDMOVEALONG|Я сказал, проходи!|npc/metropolice/vo/isaidmovealong.wav
+SEARCH|Обыскать!|npc/metropolice/vo/search.wav
+SEARCHINGFORSUSPECT|Ищу подозреваемого, статуса нет.|npc/metropolice/vo/searchingforsuspect.wav
+SECONDWARNING|Второе предупреждение сделано!|npc/metropolice/vo/secondwarning.wav
+SECTOR|Сектор.|npc/metropolice/vo/sector.wav
+SENTENCEDELIVERED|Приговор исполнен.|npc/metropolice/vo/sentencedelivered.wav
+SERVE|Служить.|npc/metropolice/vo/serve.wav
+SHIT|Чёрт!|npc/metropolice/vo/shit.wav
+SHOTSFIRED|Стрельба, здесь враждебные злоумышленники.|npc/metropolice/vo/shotsfiredhostilemalignants.wav
+SOCIOCIDE|Социоцид.|npc/metropolice/vo/sociocide.wav
+SOCIOSTABLE|На этой территории социальная стабильность.|npc/metropolice/vo/wearesociostablethislocation.wav
+STABILIZATIONJURISDICTION|Юрисдикция стабилизации.|npc/metropolice/vo/stabilizationjurisdiction.wav
+STATIONBLOCK|Вокзальный квартал.|npc/metropolice/vo/stationblock.wav
+STERILIZE|Стерилизовать.|npc/metropolice/vo/sterilize.wav
+STICK|Жезл.|npc/metropolice/vo/stick.wav
+STORMSYSTEM|Штормовая система.|npc/metropolice/vo/stormsystem.wav
+SUBJECT|Субъект.|npc/metropolice/vo/subject.wav
+SUBJECT505|Субъект 505.|npc/metropolice/vo/subjectis505.wav
+SUSPECTLOCATIONUNKNOWN|Местоположение подозреваемого неизвестно.|npc/metropolice/vo/suspectlocationunknown.wav
+SUSPEND|Задержать!|npc/metropolice/vo/suspend.wav
+SWEEPINGSUSPECT|Прочёсываю в поисках подозреваемого.|npc/metropolice/vo/sweepingforsuspect.wav
+TAGNECROTIC|Отметить некротика!|npc/metropolice/vo/tagonenecrotic.wav
+TAGPARASITE|Отметить паразита!|npc/metropolice/vo/tagoneparasitic.wav
+TAKEALOOK|Пойду посмотрю!|npc/metropolice/vo/goingtotakealook.wav
+TAKECOVER|В укрытие!|npc/metropolice/vo/takecover.wav
+TAP|Тап!|npc/metropolice/vo/tap.wav
+TEAMPOSITIONADVANCE|Группа на позиции, вперёд.|npc/metropolice/vo/teaminpositionadvance.wav
+THATSAGRENADE|Это граната!|npc/metropolice/vo/thatsagrenade.wav
+THEREHEIS|Вот он!|npc/metropolice/vo/thereheis.wav
+THISSECONDWARNING|Это твоё второе предупреждение!|npc/metropolice/vo/thisisyoursecondwarning.wav
+TRANSITBLOCK|Транзитный квартал.|npc/metropolice/vo/transitblock.wav
+TRASH1|А теперь выкинь это в мусорку.|npc/metropolice/vo/putitinthetrash1.wav
+TRASH2|Я сказал, выкинь это в мусорку.|npc/metropolice/vo/putitinthetrash2.wav
+UNION|Союз!|npc/metropolice/vo/union.wav
+UNIT10-65|Юнит 10-65.|npc/metropolice/vo/unitis10-65.wav
+UNIT10-8STANDINGBY|Юнит 10-8, на связи.|npc/metropolice/vo/unitis10-8standingby.wav
+UNITISONDUTY|Юнит на службе, 10-8.|npc/metropolice/vo/unitisonduty10-8.wav
+UPI|ВНЛ.|npc/metropolice/vo/upi.wav
+UPTHERE|Он наверху!|npc/metropolice/vo/hesupthere.wav
+VACATECITIZEN|Освободить, гражданин.|npc/metropolice/vo/vacatecitizen.wav
+VICE|Порок!|npc/metropolice/vo/vice.wav
+VICTOR|Виктор!|npc/metropolice/vo/victor.wav
+VISCERATORDEPLOYED|Висцератор выпущен!|npc/metropolice/vo/visceratordeployed.wav
+WASTERIVER|Сточная река.|npc/metropolice/vo/wasteriver.wav
+WATCHIT|Осторожнее!|npc/metropolice/vo/watchit.wav
+WORKFORCEINTAKE|Набор рабочей силы.|npc/metropolice/vo/workforceintake.wav
+XRAY|Рентген.|npc/metropolice/vo/xray.wav
+YELLOW|Жёлтый!|npc/metropolice/vo/yellow.wav
+YOUCANGO|Ладно, можешь идти.|npc/metropolice/vo/allrightyoucango.wav
+ZONE|Зона.|npc/metropolice/vo/zone.wav
+TAKEHIMDOWN|Взять его!|npc/metropolice/takedown.wav
+AFFIRMATIVEGOTHIM|Подтверждаю, он у нас.|npc/combine_soldier/vo/affirmativewegothimnow.wav
+CONTACT|Контакт.|npc/combine_soldier/vo/contact.wav
+CONTACTCONFIRMED|Контакт подтверждён.|npc/combine_soldier/vo/contactconfim.wav
+CONTACTCONFIRMEDPROSECUTING|Контакт подтверждён, преследую.|npc/combine_soldier/vo/contactconfirmprosecuting.wav
+ENGAGING|Вступаю в бой.|npc/combine_soldier/vo/engaging.wav
+FLATLINE|Сигнал потерян.|npc/combine_soldier/vo/flatline.wav
+GOSHARP|Внимание.|npc/combine_soldier/vo/gosharp.wav
+GOSHARP2|Внимание, внимание.|npc/combine_soldier/vo/gosharpgosharp.wav
+MOVEIN|Вперёд.|npc/combine_soldier/vo/movein.wav
+PREPFORCONTACT|Готовность к контакту, доложить.|npc/combine_soldier/vo/prepforcontact.wav
+PROSECUTING|Преследую.|npc/combine_soldier/vo/prosecuting.wav
+READYWEAPONS|Оружие к бою.|npc/combine_soldier/vo/readyweapons.wav
+READYWEAPONSHOSTILES|Оружие к бою, возможно приближение противника.|npc/combine_soldier/vo/readyweaponshostilesinbound.wav
+REPORTINGCLEAR|Докладываю: чисто.|npc/combine_soldier/vo/reportingclear.wav
+REPORTPOSITIONSCLEAR|Доложить: все позиции чисты.|npc/combine_soldier/vo/reportallpositionsclear.wav
+REPORTRADIALSFREE|Доложить: все радиалы свободны.|npc/combine_soldier/vo/reportallradialsfree.wav
+REQUESTMEDICAL|Запрашиваю медпомощь.|npc/combine_soldier/vo/requestmedical.wav
+RIPCORD|Отход.|npc/combine_soldier/vo/ripcord.wav
+RIPCORD2|Отход, отход.|npc/combine_soldier/vo/ripcordripcord.wav
+SECTOR2|Сектор.|npc/combine_soldier/vo/sector.wav
+SECTORNOTSECURE|Сектор не зачищен.|npc/combine_soldier/vo/sectorisnotsecure.wav
+SECTORSECURE|Сектор зачищен, визуального контакта нет.|npc/combine_soldier/vo/sectorissecurenovison.wav
+SECURE|Зачищено.|npc/combine_soldier/vo/secure.wav

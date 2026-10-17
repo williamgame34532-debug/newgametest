@@ -12,9 +12,10 @@ local U = NW.ui
 
 local AMBER = Color(232, 170, 64)
 local GREEN = Color(130, 214, 90)
-local TEXT = Color(196, 236, 250)
-local DIM = Color(64, 132, 160)
-local DARK = Color(6, 20, 28)
+-- the amber of the CWU screen (CT.palettes.cwu)
+local TEXT = CT.colors.text
+local DIM = CT.colors.dim
+local DARK = CT.colors.dark
 
 local function Up(text)
 	return NW.terminal.Upper(tostring(text or ""))
@@ -58,6 +59,7 @@ end
 local SCREEN = {
 	title = "СОЮЗ ГРАЖДАНСКИХ РАБОЧИХ / ТЕРМИНАЛ ГСР",
 	footer = "ГСР / РАБОЧИЙ ДОСТУП",
+	palette = "cwu",
 	start = "index",
 	pages = {}
 }
@@ -203,7 +205,7 @@ SCREEN.pages.assign = {
 					CT.LitBar(0, 0, 4, ch)
 				end
 
-				U.DrawIcon(class.icon, ch * 0.18, ch * 0.18, ch * 0.36, current and Color(92, 204, 242) or DIM)
+				U.DrawIcon(class.icon, ch * 0.18, ch * 0.18, ch * 0.36, current and CT.colors.cyan or DIM)
 				draw.SimpleText(Up(class.name), "nwCmtHead", ch * 0.7, ch * 0.26, TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
 				local lines = NW.inventory.WrapText(class.text, "nwCmtText", cw * 0.62)

@@ -8,7 +8,7 @@
 --                                  succession and sending members away (sh_squads.lua)
 --               ПЕРСОНАЛ           the units in the game: name, zone, socio-status, formation
 --               ВЫЗОВЫ             the calls of the civic terminals: how far, why; close them
---               ОПОВЕЩЕНИЯ         the announcements of the Overwatch to the whole city
+--               КАМЕРЫ             the combine cameras: the view, turning, photos (sh_cameras.lua)
 --   right     the session activity (time and page), log out, exit
 -- Other screens on the same frame (the CWU terminal, cl_cwu.lua) register their pages in
 -- NW.cmbTerminal.screens[kind].
@@ -18,7 +18,7 @@ NW.cmbTerminal = NW.cmbTerminal or {}
 local CT = NW.cmbTerminal
 local SQ = NW.squads
 
-local BG = Material("network2/cmb/bg_cmb.png", "smooth")
+local BGS = {cmb = Material("network2/cmb/bg_cmb.png", "smooth"), cwu = Material("network2/cmb/bg_cwu.png", "smooth")}
 local HATCH = Material("network2/cmb/hatch.png", "noclamp")
 local EMBLEM = Material("network2/factions/combineclaw_logo.png", "smooth mips")
 
@@ -29,6 +29,20 @@ local TEXT = Color(196, 236, 250)
 local RED = Color(236, 96, 80)
 
 CT.screens = CT.screens or {}
+
+-- the colours of a screen: the Alliance teal, the CWU amber (screen.palette); the Color objects
+-- stay the same, their values change, so every widget follows
+CT.colors = {cyan = CYAN, dim = DIM, dark = DARK, text = TEXT, red = RED}
+CT.palettes = {
+	cmb = {cyan = {92, 204, 242}, dim = {64, 132, 160}, dark = {6, 20, 28}, text = {196, 236, 250}},
+	cwu = {cyan = {244, 186, 60}, dim = {164, 120, 44}, dark = {26, 18, 6}, text = {252, 238, 204}}
+}
+
+function CT.SetPalette(name)
+	for key, value in pairs(CT.palettes[name] or CT.palettes.cmb) do
+		CT.colors[key].r, CT.colors[key].g, CT.colors[key].b = value[1], value[2], value[3]
+	end
+end
 
 local function Fonts()
 	local h = ScrH()
@@ -260,7 +274,7 @@ CMB.order = {
 	{"formations", "Формирования"},
 	{"personnel", "Персонал"},
 	{"calls", "Вызовы"},
-	{"broadcast", "Оповещения"}
+	{"cameras", "Камеры"}
 }
 
 CMB.pages.index = {
@@ -276,12 +290,12 @@ CMB.pages.index = {
 			return #Units(true) .. " юнитов в сети"
 		end)
 		CT.Card(area, cw + gap, 0, cw, ch, "Активные формирования", function()
-			return SQ.Count(SQ.Side(me)) .. " / " .. SQ.max:GetInt()
+			return SQ.Count(SQ.Side(me)) .. " в работе"
 		end)
 		CT.Card(area, 0, ch + gap, cw, ch, "Прикреплённый персонал", function()
 			local current = SQ.Of(me)
 
-			return current and (#SQ.Members(current) .. " / " .. SQ.size:GetInt() .. " юнитов") or "нет"
+			return current and (#SQ.Members(current) .. " / " .. SQ.Limit(current) .. " юнитов") or "нет"
 		end)
 		CT.Card(area, cw + gap, ch + gap, cw, ch, "Текущее назначение", function()
 			local current = SQ.Of(me)
@@ -345,8 +359,24 @@ CMB.pages.formations = {
 				SQ.Action("disband", mine.id)
 			end, false, true)
 
-			disband:SetEnabled(leader or me:IsAdmin())
+			disband:SetEnabled(leader)
 			y = rowH + gap
+
+			-- the leader: the limit of members
+			if (leader) then
+				CT.Label(area, "Лимит юнитов: " .. SQ.Limit(mine), 0, y + rowH * 0.2, "nwCmtText", TEXT)
+
+				local less = CT.Button(area, "−", w * 0.34, y, w * 0.1, rowH * 0.8, function()
+					SQ.Action("size", SQ.Limit(mine) - 1)
+				end)
+				local more = CT.Button(area, "+", w * 0.46, y, w * 0.1, rowH * 0.8, function()
+					SQ.Action("size", SQ.Limit(mine) + 1)
+				end)
+
+				less:SetEnabled(SQ.Limit(mine) > math.max(2, #SQ.Members(mine)))
+				more:SetEnabled(SQ.Limit(mine) < SQ.size:GetInt())
+				y = y + rowH * 0.8 + gap
+			end
 		end
 
 		local scroll = CT.Scroll(area, 0, y, w, h - y)
@@ -369,7 +399,7 @@ CMB.pages.formations = {
 					local head = rowH * 0.6
 
 					CT.LitBar(0, 0, cw, head)
-					draw.SimpleText(Up(squad.name) .. "  ·  " .. #members .. " / " .. SQ.size:GetInt(), "nwCmtHead",
+					draw.SimpleText(Up(squad.name) .. "  ·  " .. #members .. " / " .. SQ.Limit(squad), "nwCmtHead",
 						head * 0.3, head / 2, DARK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 					draw.SimpleText(squad.succession and "ПРЕЕМСТВЕННОСТЬ" or "", "nwCmtSmall", cw - head * 0.3, head / 2, DARK,
 						TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
@@ -407,7 +437,7 @@ CMB.pages.formations = {
 				end
 
 				if (mine != squad) then
-					local full = #members >= SQ.size:GetInt()
+					local full = #members >= SQ.Limit(squad)
 					local leading = mine and mine.leader == me
 					local label = full and "Мест нет" or (leading and "Вы ведёте своё формирование" or
 						(mine and "Перейти в это формирование" or "Вступить в формирование"))
@@ -503,32 +533,6 @@ CMB.pages.calls = {
 	end
 }
 
-CMB.pages.broadcast = {
-	title = "Оповещения",
-	subtitle = "Голос Надзора / на весь город",
-	Build = function(area, w, h)
-		local rowH = math.Round(h * 0.075)
-		local scroll = CT.Scroll(area, 0, 0, w, h)
-
-		for _, entry in ipairs(NW.overwatch.list) do
-			local row = scroll:Add("DPanel")
-
-			row:Dock(TOP)
-			row:DockMargin(0, 0, 8, 4)
-			row:SetTall(rowH)
-			row.Paint = function(_, rw, rh)
-				surface.SetDrawColor(DARK.r, DARK.g, DARK.b, 170)
-				surface.DrawRect(0, 0, rw, rh)
-				draw.SimpleText(entry.text, "nwCmtText", rh * 0.25, rh / 2, TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			end
-
-			CT.Button(row, "Передать", w - 8 - w * 0.16 - 6, rowH * 0.15, w * 0.16, rowH * 0.7, function()
-				Send("broadcast", entry.id)
-			end, true)
-		end
-	end
-}
-
 CT.screens.cmb = CMB
 
 -- ---------------------------------------------------------------- frame --
@@ -591,6 +595,9 @@ function CT.Open(entity, kind)
 	CT.entity = entity
 	CT.kind = kind
 	CT.log = {}
+	CT.SetPalette(screen.palette or "cmb")
+
+	local BG = BGS[screen.palette or "cmb"] or BGS.cmb
 
 	local sw, sh = ScrW(), ScrH()
 	local frame = vgui.Create("EditablePanel")
@@ -729,13 +736,13 @@ function CT.Open(entity, kind)
 		local key = {}
 
 		for id, squad in pairs(SQ.list) do
-			key[#key + 1] = id .. ":" .. #SQ.Members(squad) .. ":" .. tostring(squad.succession) .. ":" ..
+			key[#key + 1] = id .. ":" .. #SQ.Members(squad) .. ":" .. tostring(squad.succession) .. ":" .. (squad.size or 0) .. ":" ..
 				(IsValid(squad.leader) and squad.leader:EntIndex() or 0)
 		end
 
 		key = table.concat(key, ",") .. "|" .. LocalPlayer():GetNW2Int("nwSquad", 0) .. "|" .. #(NW.terminal.alerts or {})
 
-		if (self.squadKey and self.squadKey != key and CT.page != "personnel") then
+		if (self.squadKey and self.squadKey != key and CT.page != "personnel" and CT.page != "cameras") then
 			-- keep what is being typed
 			local focus = vgui.GetKeyboardFocus()
 

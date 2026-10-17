@@ -14,6 +14,8 @@ GI, TABLER, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 ITEMS = {
     "radio": "walkie-talkie", "key": "key", "scrap": "metal-bar", "parts": "gears", "unit_core": "circuitry",
     "factory_crate": "cargo-crate", "disinfectant": "spray", "toolkit": "toolbox",
+    "nvg": "night-vision", "ration_bag": "light-backpack", "contraband": "swap-bag", "lockpick": "lockpicks",
+    "license": "contract", "goods": "cardboard-box",
 }
 UI = {
     "radio": "radio", "broadcast": "broadcast", "skills": "chart-bar", "status": "activity-heartbeat",
@@ -26,6 +28,8 @@ UI = {
     # skills (cl_skills.lua)
     "sk_strength": "barbell", "sk_endurance": "run", "sk_medicine": "stethoscope", "sk_engineering": "tool",
     "sk_stealth": "eye-off", "sk_persuasion": "message-circle", "trend": "trending-up",
+    "camera": "camera", "shop": "building-store", "thermal": "temperature", "nvg": "eye", "tent": "tent",
+    "fist": "hand-stop", "flag": "flag",
 }
 
 icons = json.load(open(os.path.join(GI, "icons.json")))

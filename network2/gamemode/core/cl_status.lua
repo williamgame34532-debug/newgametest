@@ -224,10 +224,14 @@ local function Advice(viewer, unit)
 	return "ПОДЧИНЯТЬСЯ", ORANGE
 end
 
-hook.Add("HUDPaint", "nwUnitCard", function()
+-- who is looked at: chosen in the HUD pass, drawn in the world (beside the unit, a line from the chest)
+hook.Add("Think", "nwUnitCard", function()
 	local client = LocalPlayer()
 
 	if (!unitPanel:GetBool() or !IsValid(client) or !client:Alive() or client:GetCharacterID() == 0) then
+		card.target = nil
+		card.a = 0
+
 		return
 	end
 
@@ -253,14 +257,59 @@ hook.Add("HUDPaint", "nwUnitCard", function()
 	end
 
 	card.a = math.Approach(card.a, card.target and !card.lost and 1 or 0, FrameTime() * 5)
+end)
 
+-- the card itself, in its own pixels (0, 0 - the top left)
+local function DrawCard(w, h, rowH, lines, color, faction, e)
+	local sh = ScrH()
+
+	draw.RoundedBox(6, 0, 0, w, h, Color(10, 14, 20, 225 * e))
+	surface.SetDrawColor(color.r, color.g, color.b, 255 * e)
+	surface.DrawRect(0, 0, w, 3)
+	surface.SetDrawColor(LINE.r, LINE.g, LINE.b, 200 * e)
+	surface.DrawOutlinedRect(0, 0, w, h, 1)
+
+	if (faction.logo) then
+		surface.SetMaterial(U.Material("network2/factions/" .. faction.logo .. ".png"))
+		surface.SetDrawColor(color.r, color.g, color.b, 200 * e)
+		surface.DrawTexturedRect(w - sh * 0.05, sh * 0.014, sh * 0.036, sh * 0.036)
+	end
+
+	draw.SimpleText("ЛОКАЛЬНЫЕ ДАННЫЕ ЮНИТА", "nwUnitHead", sh * 0.018, sh * 0.032, Color(150, 160, 172, 255 * e),
+		TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+	-- typed out, line by line
+	local age = RealTime() - card.since
+	local budget = math.floor(age * 60)
+
+	for index, line in ipairs(lines) do
+		local ly = sh * 0.07 + (index - 1) * rowH
+		local text = line[2]
+		local length = utf8.len(text) or #text
+		local part = budget >= length and text or string.sub(text, 1, (utf8.offset(text, math.max(budget, 0) + 1) or 1) - 1)
+
+		budget = budget - length
+
+		draw.SimpleText(line[1] .. " //", "nwUnitHead", sh * 0.018, ly, Color(120, 130, 142, 255 * e), TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
+		draw.SimpleText(part, "nwUnitText", sh * 0.018, ly + sh * 0.021, ColorAlpha(line[3], 255 * e), TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
+	end
+end
+
+-- the card in the world: it stands to the side of the unit (the side of nw_status_side), facing the
+-- eye, over the walls; a thin line goes from the chest of the unit to it
+local WIDTH = 20
+
+hook.Add("PostDrawTranslucentRenderables", "nwUnitCard", function(_, bSkybox)
 	local unit = card.target
 
-	if (card.a <= 0.01 or !IsValid(unit)) then
+	if (bSkybox or card.a <= 0.01 or !IsValid(unit)) then
 		return
 	end
 
-	local sw, sh = ScrW(), ScrH()
+	local client = LocalPlayer()
+	local sh = ScrH()
 	local faction = NW.char.factions[unit:GetFaction()] or {}
 	local color = faction.color or BLUE
 	local advice, adviceColor = Advice(client, unit)
@@ -272,46 +321,34 @@ hook.Add("HUDPaint", "nwUnitCard", function()
 	local w = math.Round(sh * 0.36)
 	local rowH = math.Round(sh * 0.05)
 	local h = math.Round(sh * 0.07 + #lines * rowH)
-	local left = side:GetString() == "left"
-	local x = left and (sw - w - sh * 0.04) or (sw - w - sh * 0.1)
-	local y = sh * 0.64
+	local scale = WIDTH / w
 	local e = card.a
-	local slide = (1 - e) * sh * 0.03
 
-	x = x + slide
+	-- upright, turned to the eye (only the yaw: the card does not lean)
+	local yaw = EyeAngles().y
+	local right, up = Angle(0, yaw, 0):Right(), Vector(0, 0, 1)
+	local toSide = side:GetString() == "left" and -1 or 1
+	local chest = unit:WorldSpaceCenter() + Vector(0, 0, 10)
+	-- the card: beside the unit, sliding out as it appears
+	local corner = chest + right * toSide * (16 + 6 * e) + up * (h * scale * 0.5 + 4)
 
-	draw.RoundedBox(6, x, y, w, h, Color(10, 14, 20, 225 * e))
-	surface.SetDrawColor(color.r, color.g, color.b, 255 * e)
-	surface.DrawRect(x, y, w, 3)
-	surface.SetDrawColor(LINE.r, LINE.g, LINE.b, 200 * e)
-	surface.DrawOutlinedRect(x, y, w, h, 1)
-
-	if (faction.logo) then
-		surface.SetMaterial(U.Material("network2/factions/" .. faction.logo .. ".png"))
-		surface.SetDrawColor(color.r, color.g, color.b, 200 * e)
-		surface.DrawTexturedRect(x + w - sh * 0.05, y + sh * 0.014, sh * 0.036, sh * 0.036)
+	if (toSide < 0) then
+		corner = corner - right * WIDTH
 	end
 
-	draw.SimpleText("ЛОКАЛЬНЫЕ ДАННЫЕ ЮНИТА", "nwUnitHead", x + sh * 0.018, y + sh * 0.032, Color(150, 160, 172, 255 * e),
-		TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	local edge = corner + right * (toSide > 0 and 0 or WIDTH) - up * (h * scale * 0.5)
+	local angle = Angle(0, yaw - 90, 90)
 
-	-- typed out, line by line
-	local age = RealTime() - card.since
-	local budget = math.floor(age * 60)
+	cam.IgnoreZ(true)
+		-- the line and its dot on the chest
+		render.SetColorMaterial()
+		render.DrawLine(chest, edge, ColorAlpha(color, 200 * e), false)
+		render.DrawSphere(chest, 0.6, 8, 8, ColorAlpha(color, 230 * e))
 
-	for index, line in ipairs(lines) do
-		local ly = y + sh * 0.07 + (index - 1) * rowH
-		local text = line[2]
-		local length = utf8.len(text) or #text
-		local part = budget >= length and text or string.sub(text, 1, (utf8.offset(text, math.max(budget, 0) + 1) or 1) - 1)
-
-		budget = budget - length
-
-		draw.SimpleText(line[1] .. " //", "nwUnitHead", x + sh * 0.018, ly, Color(120, 130, 142, 255 * e), TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-		draw.SimpleText(part, "nwUnitText", x + sh * 0.018, ly + sh * 0.021, ColorAlpha(line[3], 255 * e), TEXT_ALIGN_LEFT,
-			TEXT_ALIGN_CENTER)
-	end
+		cam.Start3D2D(corner, angle, scale)
+			DrawCard(w, h, rowH, lines, color, faction, e)
+		cam.End3D2D()
+	cam.IgnoreZ(false)
 end)
 
 -- ----------------------------------------------------------- the page (Q) --

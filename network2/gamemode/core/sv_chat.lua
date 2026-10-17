@@ -112,6 +112,13 @@ net.Receive("nwChatSay", function(_, client)
 		kind, body = nil, "achat"
 	end
 
+	-- a voice line typed whole: its text, said aloud (sh_voices.lua)
+	local voice = kind and NW.voices.kinds[kind] and NW.voices.Match(client, body)
+
+	if (voice) then
+		body = voice.text
+	end
+
 	-- speech is written properly; the speech of the Alliance goes through the mask: <:: text ::>
 	-- (the radio lines get the brackets when they are shown, cl_chat.lua)
 	if (kind and K.polished[kind]) then
@@ -213,6 +220,10 @@ net.Receive("nwChatSay", function(_, client)
 
 		Send(kind, client, body, K.RadioSide(client), listeners)
 
+		if (voice) then
+			NW.voices.Play(client, voice, kind, listeners)
+		end
+
 		local around = {}
 
 		for _, target in ipairs(InRange(client, K.range[K.IC])) do
@@ -246,6 +257,10 @@ net.Receive("nwChatSay", function(_, client)
 	local recipients = kind == K.OOC and player.GetAll() or InRange(client, K.range[kind])
 
 	Send(kind, client, body, "", recipients)
+
+	if (voice) then
+		NW.voices.Play(client, voice, kind)
+	end
 
 	-- talking: sometimes a gesture with it (not in a pose)
 	if ((kind == K.IC or kind == K.WHISPER or kind == K.YELL) and !client:GetAct() and

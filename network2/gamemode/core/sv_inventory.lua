@@ -1010,8 +1010,33 @@ hook.Add("PlayerSpawn", "nwFlashlight", function(client)
 	client:AllowFlashlight(true)
 end)
 
+-- the night vision goggles (an item with nvg, put on): the key F is theirs, not the flashlight's
+local function UpdateNVG(client)
+	local has = false
+
+	for _, cell in pairs(INV.Get(client).equip) do
+		local item = I.Get(cell.id)
+
+		if (item and item.nvg) then
+			has = true
+		end
+	end
+
+	client:SetNW2Bool("nwHasNVG", has)
+end
+
+hook.Add("NWInventoryChanged", "nwNVG", UpdateNVG)
+hook.Add("NWCharacterLoaded", "nwNVG", function(client)
+	timer.Simple(0.5, function()
+		if (IsValid(client)) then
+			UpdateNVG(client)
+		end
+	end)
+end)
+
 hook.Add("PlayerSwitchFlashlight", "nwFlashlight", function(client, bEnabled)
-	if (bEnabled and (client:GetCharacterID() == 0 or !INV.Has(client, "flashlight"))) then
+	if (bEnabled and (client:GetCharacterID() == 0 or !INV.Has(client, "flashlight") or
+		client:GetNW2Bool("nwHasNVG", false))) then
 		return false
 	end
 end)
