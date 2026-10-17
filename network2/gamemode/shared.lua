@@ -109,6 +109,7 @@ local FILES = {
 	"sh_overwatch.lua",
 	"sv_cmbterminal.lua",
 	"cl_cmbterminal.lua",
+	"sv_persist.lua",
 	"sh_incapable.lua"
 }
 
