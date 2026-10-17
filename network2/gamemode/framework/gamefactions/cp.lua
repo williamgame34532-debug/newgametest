@@ -9,5 +9,5 @@ FACTION.models = {
 	male = {"models/network/cp/networkcp.mdl"},
 	female = {"models/network/cp/networkcp.mdl"}
 }
-FACTION.items = {"stunstick"}
+FACTION.items = {"stunstick", "radio"}
 FACTION.unitPrefix = "C24.MPD.RCT:"

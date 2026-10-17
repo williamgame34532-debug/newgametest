@@ -398,6 +398,11 @@ hook.Add("HUDPaint", "nwCombineHud", function()
 		y = y + sh * 0.026
 	end
 
+	-- the squad (cl_squads.lua): "ОТРЯД :: <name>" and the members
+	if (NW.squads and NW.squads.DrawHud) then
+		y = NW.squads.DrawHud(x, y, Text, Bar)
+	end
+
 	-- top right: who, where, how
 	local rx, ry = sw * 0.965, sh * 0.07
 	local zone = Z.At(Z.Point(client))
@@ -431,7 +436,10 @@ local function Teammates()
 	local out = {}
 
 	for _, other in ipairs(player.GetAll()) do
-		if (other != me and other:Alive() and !other:GetNoDraw() and Kind(other) and
+		-- the squad has its own outline (cl_squads.lua)
+		local mate = NW.squads and NW.squads.Of(me) and NW.squads.Of(other) == NW.squads.Of(me)
+
+		if (other != me and !mate and other:Alive() and !other:GetNoDraw() and Kind(other) and
 			other:GetPos():DistToSqr(me:GetPos()) < 1400 * 1400) then
 			out[#out + 1] = other
 		end

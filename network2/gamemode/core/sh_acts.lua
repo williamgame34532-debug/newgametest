@@ -482,6 +482,11 @@ if (SERVER) then
 			return false
 		end
 
+		-- over the radio: everyone on the channel, flat (sh_radio.lua)
+		if (NW.radio and NW.radio.Hears(listener, talker)) then
+			return true, false
+		end
+
 		local mode = A.voice[talker:GetVoiceMode()] or A.voice[2]
 
 		return listener:GetPos():DistToSqr(talker:GetPos()) <= mode.range * mode.range, true

@@ -31,6 +31,10 @@ local function Wanted(text)
 
 	local kind = K.Parse(text)
 
+	if (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
+		return 5
+	end
+
 	return kind == K.IC and 1 or kind == K.WHISPER and 2 or kind == K.YELL and 3 or 4
 end
 
@@ -206,6 +210,14 @@ hook.Add("PostDrawTranslucentRenderables", "nwSpeech", function(bDepth, bSkybox)
 				local size = 64
 
 				NW.voice.DrawMic(-size / 2, y - size + (1 - speaking) * 10, size, level, speaking * fade)
+
+				-- on the radio: the mark of the transmission beside the microphone
+				if (client:GetNW2Bool("nwRadioTalk", false)) then
+					local blink = 0.6 + 0.4 * math.abs(math.sin(now * 4))
+
+					NW.ui.DrawIcon("broadcast", size / 2 + 6, y - size * 0.85, size * 0.7, Color(96, 200, 255), speaking *
+						fade * blink)
+				end
 				y = y - size - 6
 			end
 

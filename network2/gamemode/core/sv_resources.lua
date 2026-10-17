@@ -162,3 +162,25 @@ for _, name in ipairs({"Combine_Alphabet.ttf", "combine_alphabet.ttf", "Combine_
 		resource.AddSingleFile("resource/fonts/" .. name)
 	end
 end
+
+-- whole folders of the content addon, as they are on the disk of the server (new icons, the squads,
+-- the radio, the dispatcher, the entities of the Alliance and the factory, ...): every file goes
+local function Folder(path)
+	local files, folders = file.Find(path .. "/*", "GAME")
+
+	for _, name in ipairs(files or {}) do
+		resource.AddSingleFile(path .. "/" .. name)
+	end
+
+	for _, name in ipairs(folders or {}) do
+		Folder(path .. "/" .. name)
+	end
+end
+
+for _, path in ipairs({"materials/network2/ui/icons", "materials/network2/items", "materials/network2/squad",
+	"materials/network2/cmb", "materials/network2/forcefield", "materials/network2/fx", "sound/network2/squad",
+	"sound/network2/radio2", "sound/network2/dispatch", "sound/network2/overwatch", "sound/network2/forcefield",
+	"sound/network2/lock", "sound/network2/dispenser", "sound/network2/cmbterminal", "sound/network2/stunstick",
+	"sound/network2/factory"}) do
+	Folder(path)
+end

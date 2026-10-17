@@ -102,6 +102,10 @@ local FILES = {
 	"cl_combinehud.lua",
 	"sh_units.lua",
 	"sv_units.lua",
+	"sh_squads.lua",
+	"sv_squads.lua",
+	"cl_squads.lua",
+	"sh_radio.lua",
 	"sh_incapable.lua"
 }
 

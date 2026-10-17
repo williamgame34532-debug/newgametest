@@ -112,6 +112,17 @@ net.Receive("nwChatSay", function(_, client)
 		kind, body = nil, "achat"
 	end
 
+	-- speech is written properly; the speech of the Alliance goes through the mask: <:: text ::>
+	-- (the radio lines get the brackets when they are shown, cl_chat.lua)
+	if (kind and K.polished[kind]) then
+		body = K.Polish(body)
+
+		if ((kind == K.IC or kind == K.WHISPER or kind == K.YELL) and body != "" and NW.zones.IsAlliance(client) and
+			client:GetCharacterID() != 0) then
+			body = "<:: " .. body .. " ::>"
+		end
+	end
+
 	-- dead or unconscious: silence; an admin keeps the commands and the admin chat (sh_incapable.lua)
 	if (NW.Incapable(client) and !(client:IsAdmin() and (!kind or kind == K.ADMIN))) then
 		return
@@ -184,15 +195,17 @@ net.Receive("nwChatSay", function(_, client)
 			return
 		end
 
-		if (kind == K.SQUAD) then
-			return Notice(client, "Рация отряда пока не настроена: /t или /tr")
+		local squad = kind == K.SQUAD and NW.squads.Of(client)
+
+		if (kind == K.SQUAD and !squad) then
+			return Notice(client, "Вы не в отряде (терминал Альянса или /squadcreate)")
 		end
 
 		local listeners, onChannel = {}, {}
 
-		for _, target in ipairs(player.GetAll()) do
+		for _, target in ipairs(squad and NW.squads.Members(squad) or player.GetAll()) do
 			if (target == client or (target:GetCharacterID() != 0 and NW.zones.IsAlliance(target) and
-				(kind == K.RADIO_ALL or K.RadioSide(target) == "cp"))) then
+				(squad or kind == K.RADIO_ALL or K.RadioSide(target) == "cp"))) then
 				listeners[#listeners + 1] = target
 				onChannel[target] = true
 			end
@@ -268,7 +281,7 @@ local function Relay(client)
 end
 
 net.Receive("nwTyping", function(_, client)
-	client.nwTypingPending = math.Clamp(net.ReadUInt(3), 0, 4)
+	client.nwTypingPending = math.Clamp(net.ReadUInt(3), 0, 5)
 
 	local wait = 0.1 - (RealTime() - (client.nwTypingSent or 0))
 

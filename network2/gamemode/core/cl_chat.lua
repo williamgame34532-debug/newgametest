@@ -295,7 +295,7 @@ net.Receive("nwChatTyped", function()
 	elseif (kind == K.RADIO or kind == K.RADIO_ALL or kind == K.SQUAD) then
 		-- like the visor log: <name> по рации: "<:: text ::>" - blue for Civil Protection, red for the Combine
 		local radio = extra == "ota" and RADIO_RED or RADIO_BLUE
-		local channel = kind == K.RADIO_ALL and "[ОБЩ] " or ""
+		local channel = kind == K.RADIO_ALL and "[ОБЩ] " or (kind == K.SQUAD and "[ОТРЯД] " or "")
 
 		CH.AddStyled(style.font, radio, channel, NAME, name, radio, " по рации: \"<:: " .. text .. " ::>\"")
 		c = radio

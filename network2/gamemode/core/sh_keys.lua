@@ -1,6 +1,7 @@
 -- The framework's own keys (changed in the pause menu → Бинды, saved per player):
 --   Инвентарь (Q), Круговое меню (G), Предохранитель (R, hold), Третье / первое лицо (F3),
---   Сменить плечо (F4), Принять / Отказаться от запроса другого игрока (F1 / F2).
+--   Сменить плечо (F4), Принять / Отказаться от запроса другого игрока (F1 / F2), Рация: настроить (B),
+--   Рация: говорить (H, зажать).
 -- The client turns a press into hook.Run("NWKey", id); the safety key is read by the server too
 -- (the convars go with the userinfo).
 
@@ -15,7 +16,9 @@ KS.list = {
 	{id = "camera", name = "Третье / первое лицо", convar = "nw_key_camera", default = KEY_F3},
 	{id = "shoulder", name = "Сменить плечо", convar = "nw_key_shoulder", default = KEY_F4},
 	{id = "accept", name = "Принять запрос", convar = "nw_key_accept", default = KEY_F1},
-	{id = "decline", name = "Отказаться от запроса", convar = "nw_key_decline", default = KEY_F2}
+	{id = "decline", name = "Отказаться от запроса", convar = "nw_key_decline", default = KEY_F2},
+	{id = "radio", name = "Рация: настроить", convar = "nw_key_radio", default = KEY_B},
+	{id = "radio_talk", name = "Рация: говорить (зажать)", convar = "nw_key_radio_talk", default = KEY_H}
 }
 
 KS.byID = {}
@@ -55,6 +58,19 @@ if (CLIENT) then
 		for _, key in ipairs(KS.list) do
 			if (KS.Get(key.id) == button) then
 				hook.Run("NWKey", key.id)
+			end
+		end
+	end)
+
+	-- letting a key go (held keys: the radio)
+	hook.Add("PlayerButtonUp", "nwKeys", function(client, button)
+		if (!IsFirstTimePredicted() or client != LocalPlayer()) then
+			return
+		end
+
+		for _, key in ipairs(KS.list) do
+			if (KS.Get(key.id) == button) then
+				hook.Run("NWKeyUp", key.id)
 			end
 		end
 	end)

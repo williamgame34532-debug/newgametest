@@ -17,7 +17,7 @@ NW.chatKinds = NW.chatKinds or {}
 local K = NW.chatKinds
 
 K.IC, K.WHISPER, K.YELL, K.OOC, K.LOOC, K.PM, K.ROLL, K.ME, K.IT, K.ADMIN = 1, 2, 3, 4, 5, 6, 7, 8, 9, 10
--- the radios of the Alliance: /t - Civil Protection, /tr - with the Combine, /r - the squad (to come)
+-- the radios of the Alliance: /t - Civil Protection, /tr - with the Combine, /r - the squad (sh_squads.lua)
 K.RADIO, K.RADIO_ALL, K.SQUAD = 11, 12, 13
 
 K.range = {
@@ -81,6 +81,12 @@ K.help = {
 	{command = "/t", args = "<текст>", kind = K.RADIO, text = "рация Гражданской Обороны", alliance = true},
 	{command = "/tr", args = "<текст>", kind = K.RADIO_ALL, text = "общая рация с комбайнами", alliance = true},
 	{command = "/r", args = "<текст>", kind = K.SQUAD, text = "рация отряда", alliance = true},
+	{command = "/squadcreate", args = "[название]", text = "создать отряд и вести его", alliance = true},
+	{command = "/squadjoin", args = "<название>", text = "вступить в отряд своей стороны", alliance = true},
+	{command = "/squadleave", args = "", text = "выйти из отряда", alliance = true},
+	{command = "/squaddisband", args = "", text = "расформировать свой отряд (лидер)", alliance = true},
+	{command = "/squadkick", args = "<имя>", text = "исключить юнита из отряда (лидер)", alliance = true},
+	{command = "/squadsuccession", args = "", text = "преемственность лидера: вкл / выкл (лидер)", alliance = true},
 	-- staff only (admin = true): nobody else sees them
 	{command = "/achat", args = "<текст>", kind = K.ADMIN, text = "чат администрации", admin = true},
 	{command = "/spawnadd", args = "[фракция]", text = "точка появления фракции здесь (по умолчанию — вашей)",
@@ -143,7 +149,7 @@ K.gestures = {"g_puncuate", "g_shrug", "g_palm_out_l", "g_palm_up_high_l", "g_lh
 K.gestureChance = 0.6
 
 -- what shows over the head while typing
-K.typing = {"Говорит...", "Шепчет...", "Кричит...", "Пишет..."}
+K.typing = {"Говорит...", "Шепчет...", "Кричит...", "Пишет...", "Говорит в рацию..."}
 
 -- text -> kind, the rest of the text
 function K.Parse(text)
@@ -174,4 +180,55 @@ function K.Parse(text)
 	end
 
 	return K.IC, text
+end
+
+-- speech is written properly: the first letter big, a full stop at the end (if there is no
+-- . ! ? … already). Used for speech and the radios (sv_chat.lua).
+K.polished = {[K.IC] = true, [K.WHISPER] = true, [K.YELL] = true, [K.RADIO] = true, [K.RADIO_ALL] = true,
+	[K.SQUAD] = true}
+
+local function Upper(code)
+	if (code >= 0x430 and code <= 0x44F) then
+		return code - 0x20
+	elseif (code == 0x451) then
+		return 0x401
+	elseif (code >= 97 and code <= 122) then
+		return code - 32
+	end
+
+	return code
+end
+
+function K.Polish(text)
+	text = string.Trim(text or "")
+
+	if (text == "") then
+		return text
+	end
+
+	-- the first letter (after quotes, dashes and the like)
+	local out, done = {}, false
+
+	for _, code in utf8.codes(text) do
+		if (!done and Upper(code) != code) then
+			code = Upper(code)
+			done = true
+		elseif (!done and ((code >= 0x410 and code <= 0x42F) or code == 0x401 or (code >= 65 and code <= 90) or
+			(code >= 48 and code <= 57))) then
+			done = true
+		end
+
+		out[#out + 1] = utf8.char(code)
+	end
+
+	text = table.concat(out)
+
+	-- the last character (bytes: "…" and "»" are several)
+	local last = string.sub(text, -1)
+
+	if (!string.find(last, "[%.%!%?%)\"]") and string.sub(text, -3) != "…" and string.sub(text, -2) != "»") then
+		text = text .. "."
+	end
+
+	return text
 end
