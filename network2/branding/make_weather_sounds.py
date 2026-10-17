@@ -1,4 +1,4 @@
-"""The weather (sh_weather.lua, cl_weather.lua): its sounds, synthesised (own work).
+"""The weather: the first, synthesised sounds (own work) - replaced by make_weather_real.py (recordings).
     sound/network2/weather/rain_loop.wav        light rain: a soft hiss and scattered drops (loop, 8 s)
     sound/network2/weather/rain_heavy_loop.wav  a downpour: a dense roar and many drops (loop, 8 s)
     sound/network2/weather/wind_loop.wav        wind: a low rush with gusts swelling and falling (loop, 12 s)
