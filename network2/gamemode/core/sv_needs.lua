@@ -122,10 +122,9 @@ hook.Add("Think", "nwStamina", function()
 			speed > client:GetWalkSpeed() + 15
 
 		if (running) then
-			local endurance = client.nwCharacter and client.nwCharacter.skills and
-				tonumber(client.nwCharacter.skills.endurance) or 0
-
-			stamina = stamina - drain:GetFloat() * (1 - math.min(endurance, 5) * 0.07) * (parched and 2.2 or 1) * step
+			-- Выносливость: -5% a level (sh_skills.lua)
+			stamina = stamina - drain:GetFloat() * NW.skills.Factor(client, "endurance", -0.05) * (parched and 2.2 or 1) *
+				step
 			client.nwStaminaUsed = CurTime()
 		elseif (CurTime() - (client.nwStaminaUsed or 0) > (parched and 2 or 1)) then
 			stamina = stamina + (speed < 10 and 9 or 5) * (parched and 0.4 or 1) * step

@@ -157,8 +157,9 @@ function ACTIONS.buy(client, entity, arg)
 
 	local inventory = INV.Get(client)
 	local tokens = NW.social.GetTokens(client)
+	local price = NPC.Price(client, line)
 
-	if (tokens < line.price) then
+	if (tokens < price) then
 		return Notify(client, "Не хватает токенов")
 	end
 
@@ -179,9 +180,11 @@ function ACTIONS.buy(client, entity, arg)
 		return Notify(client, "Нет места в инвентаре")
 	end
 
-	if (line.price > 0) then
-		NW.social.SetTokens(client, tokens - line.price)
+	if (price > 0) then
+		NW.social.SetTokens(client, tokens - price)
 	end
+
+	NW.skills.Add(client, "speech", 3)
 
 	if (line.stock > 0) then
 		line.stock = line.stock - 1

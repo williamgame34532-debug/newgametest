@@ -630,6 +630,33 @@ local function Build()
 		surface.DrawRect(0, 0, bw, bh)
 	end
 
+	-- TAB → Навыки (cl_skills.lua): the panel beside the sheet
+	local skills = sheet:Add("DButton")
+	local bh = math.Round(header * 0.42)
+
+	surface.SetFont("nwBoardSub")
+
+	local bw = math.Round(surface.GetTextSize("НАВЫКИ") + bh * 1.6)
+
+	skills:SetSize(bw, bh)
+	skills:SetPos(w - pad - bw, (header - bh) / 2)
+	skills:SetText("")
+	skills.Paint = function(self, pw, ph)
+		local open = IsValid(NW.skills.panel)
+		local hover = self:IsHovered()
+
+		draw.RoundedBox(6, 0, 0, pw, ph, Color(255, 255, 255, open and 40 or (hover and 26 or 12)))
+		U.DrawIcon("skills", ph * 0.22, ph * 0.2, ph * 0.6, open and Color(232, 196, 72) or U.color.text)
+		draw.SimpleText("НАВЫКИ", "nwBoardSub", ph * 0.98, ph / 2, U.color.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	end
+	skills.DoClick = function()
+		U.Tick()
+		NW.skills.OpenPanel(frame, w + math.Round(sh * 0.08))
+	end
+	skills.OnCursorEntered = function()
+		surface.PlaySound("network2/ui/hover.wav")
+	end
+
 	SB.frame = frame
 	SB.sheet = sheet
 	SB.scroll = scroll

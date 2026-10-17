@@ -686,7 +686,11 @@ local function Use(client, kind, key)
 			return false
 		end
 
-		client:SetHealth(math.min(client:GetMaxHealth(), client:Health() + item.heal))
+		-- Медицина: +8% a level (sh_skills.lua)
+		local heal = math.Round(item.heal * NW.skills.Factor(client, "medicine", 0.08))
+
+		client:SetHealth(math.min(client:GetMaxHealth(), client:Health() + heal))
+		NW.skills.Add(client, "medicine", 4)
 	end
 
 	if (item.hunger) then

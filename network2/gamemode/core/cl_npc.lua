@@ -284,12 +284,12 @@ local function Price(parent, line, x, y, h)
 		local is = rh - 4
 
 		if (line.price > 0 or line.priceItem == "") then
-			local ok = Tokens() >= line.price
+			local ok = Tokens() >= NPC.Price(LocalPlayer(), line)
 
 			U.DrawIcon("tokens", px, 2, is, ACCENT)
 			surface.SetFont("nwNpcAnswer")
 
-			local text = line.price .. " ток."
+			local text = NPC.Price(LocalPlayer(), line) .. " ток."
 
 			draw.SimpleText(text, "nwNpcAnswer", px + is + 4, rh / 2, ok and U.color.text or BAD, TEXT_ALIGN_LEFT,
 				TEXT_ALIGN_CENTER)
@@ -437,7 +437,7 @@ local function BuildTrade(frame, sw, sh)
 			if (selling) then
 				ok = Have(line.item) > 0
 			else
-				ok = stock != 0 and Tokens() >= line.price and
+				ok = stock != 0 and Tokens() >= NPC.Price(LocalPlayer(), line) and
 					(line.priceItem == "" or Have(line.priceItem) >= line.priceCount)
 			end
 

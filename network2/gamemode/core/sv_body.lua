@@ -549,6 +549,7 @@ function SO.actions.pulse(client, body)
 
 		body.nwChecked = body.nwChecked or {}
 		body.nwChecked[client] = true
+		NW.skills.Add(client, "medicine", 2)
 
 		net.Start("nwPulse")
 			net.WriteEntity(body)
@@ -578,6 +579,7 @@ function SO.actions.helpup(client, body)
 		if (IsValid(victim) and B.IsKnocked(victim) and victim:Alive()) then
 			victim:SetHealth(math.max(victim:Health(), 10))
 			B.Wake(victim)
+			NW.skills.Add(client, "medicine", 8)
 		end
 	end, function()
 		return Near(client, body)
@@ -624,7 +626,9 @@ function SO.actions.heal(client, body)
 		end
 
 		inventory.grid[index] = item.leaves and I.Get(item.leaves) and {id = item.leaves, data = {}} or nil
-		victim:SetHealth(math.min(victim:GetMaxHealth(), victim:Health() + item.heal))
+		victim:SetHealth(math.min(victim:GetMaxHealth(), victim:Health() + math.Round(item.heal *
+			NW.skills.Factor(client, "medicine", 0.08))))
+		NW.skills.Add(client, "medicine", 10)
 		INV.Changed(client)
 		Notify(client, "Вы использовали: " .. item.name)
 	end, function()
@@ -715,6 +719,7 @@ function SO.actions.search(client, target)
 
 	if (NW.progress.Start(client, "Обыскиваю", 3, function()
 		ST.Open(client, ST.PlayerSource(target, client))
+		NW.skills.Add(client, "stealth", 5)
 	end, function()
 		return IsValid(target) and target:Alive() and client:GetPos():DistToSqr(target:GetPos()) < 130 * 130 and
 			B.Behind(client, target)

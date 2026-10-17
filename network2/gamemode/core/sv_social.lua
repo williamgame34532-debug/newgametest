@@ -249,6 +249,8 @@ function ACTIONS.meet(client, target)
 
 	Request(client, target, "meet", 0, function()
 		Meet(client, target)
+		NW.skills.Add(client, "speech", 5)
+		NW.skills.Add(target, "speech", 5)
 	end)
 end
 

@@ -110,6 +110,8 @@ local FILES = {
 	"sv_cmbterminal.lua",
 	"cl_cmbterminal.lua",
 	"sv_persist.lua",
+	"sh_skills.lua",
+	"cl_skills.lua",
 	"sh_incapable.lua"
 }
 

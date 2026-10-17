@@ -268,3 +268,14 @@ function NPC.HasAction(config, action)
 
 	return false
 end
+
+-- the price in tokens for this player (Убеждение: -2% a level, sh_skills.lua)
+function NPC.Price(client, line)
+	local price = tonumber(line and line.price) or 0
+
+	if (price <= 0 or !NW.skills) then
+		return price
+	end
+
+	return math.max(1, math.Round(price * NW.skills.Factor(client, "speech", -0.02)))
+end
