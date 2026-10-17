@@ -106,6 +106,9 @@ local FILES = {
 	"sv_squads.lua",
 	"cl_squads.lua",
 	"sh_radio.lua",
+	"sh_overwatch.lua",
+	"sv_cmbterminal.lua",
+	"cl_cmbterminal.lua",
 	"sh_incapable.lua"
 }
 
