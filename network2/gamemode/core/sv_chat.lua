@@ -7,6 +7,7 @@ util.AddNetworkString("nwChatTyped")
 util.AddNetworkString("nwChatNotice")
 util.AddNetworkString("nwGesture")
 util.AddNetworkString("nwTyping")
+util.AddNetworkString("nwDispatch")
 
 local K = NW.chatKinds
 local MAX = 1000
@@ -279,3 +280,28 @@ net.Receive("nwTyping", function(_, client)
 		end)
 	end
 end)
+
+-- ---------------------------------------------------------------- dispatch --
+-- The voice of the city: "Диспетчер: <text>" (sound/network2/dispatch/alarm.mp3 before it).
+-- recipients: a table of players (nil - everyone in the game); bAlarm - with the alarm sound.
+function NW.Dispatch(text, recipients, bAlarm)
+	if (!isstring(text) or string.Trim(text) == "") then
+		return
+	end
+
+	net.Start("nwDispatch")
+		net.WriteString(string.Trim(text))
+		net.WriteBool(bAlarm == true)
+	net.Send(recipients or player.GetAll())
+
+	MsgN("[DISPATCH] " .. text)
+end
+
+-- /disp <text>: an admin speaks for the dispatcher to the whole city; not in the hints
+NW.AddChatCommand("disp", {admin = true, run = function(client, rest)
+	if (string.Trim(rest or "") == "") then
+		return Notice(client, "/disp <текст>")
+	end
+
+	NW.Dispatch(rest, nil, true)
+end})

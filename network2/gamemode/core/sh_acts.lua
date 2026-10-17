@@ -28,7 +28,7 @@ A.list = {
 	{id = "ground", name = "Сесть на землю", icon = "act_ground", place = "ground", variants = {"sit_ground"}},
 	{id = "wall", name = "Сесть у стены", icon = "act_wall", place = "wallsit", variants = {"sitwall"}},
 	{id = "lie", name = "Лечь", icon = "act_lie", place = "lie", variants = {"down01", "down02", "down03"}},
-	{id = "injured", name = "Раненый", icon = "act_injured", place = "ground", variants = {"injured"}},
+	{id = "injured", name = "Раненый", icon = "act_injured", place = "ground", variants = {"injured", "=nw_hla_wounded"}},
 	{id = "handsup", name = "Руки вверх", icon = "act_handsup", place = "floor", variants = {"handsup"}},
 	{id = "arrest", name = "Арест", icon = "act_arrest", place = "floor", variants = {"arrest", "arrest_sit01"}},
 	{id = "lean", name = "Опереться", icon = "act_lean", place = "wall", variants = {"lean01", "lean02",
@@ -36,8 +36,14 @@ A.list = {
 	{id = "stand", name = "Стоять", icon = "act_stand", place = "floor", variants = {"stand01", "stand02", "stand03",
 		"stand04", "stand05"}},
 	{id = "check", name = "Осмотреться", icon = "act_check", place = "floor", variants = {"check"}},
-	{id = "kneel", name = "На колено", icon = "act_kneel", place = "floor", variants = {"=nw_civ_kneel"}},
-	{id = "shiver", name = "Дрожать", icon = "act_shiver", place = "floor", variants = {"=nw_civ_shiver"}}
+	{id = "kneel", name = "На колено", icon = "act_kneel", place = "floor", variants = {"=nw_civ_kneel", "=nw_hla_kneel"}},
+	{id = "shiver", name = "Дрожать", icon = "act_shiver", place = "floor", variants = {"=nw_civ_shiver"}},
+	-- Civil Protection (HL:A motion capture on networkcp; "only" - hidden from models without them)
+	{id = "cp_report", name = "Доклад", icon = "act_check", place = "floor", variants = {"=nw_hla_chat"}, only = true},
+	{id = "cp_interrogate", name = "Допрос", icon = "act_arrest", place = "floor", variants = {"=nw_hla_interrogate"},
+		only = true},
+	{id = "cp_guard", name = "На посту", icon = "act_foldarms", place = "floor", variants = {"=nw_hla_idle_05",
+		"=nw_hla_idle_06", "=nw_hla_idle_03"}, only = true}
 }
 
 A.byID = {}

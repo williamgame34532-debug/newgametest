@@ -330,6 +330,21 @@ hook.Add("ChatText", "nwChat", function(index, name, text, kind)
 	end
 end)
 
+-- the dispatcher (sv_chat.lua NW.Dispatch): red-orange, with the alarm of the city
+local DISPATCH = Color(236, 98, 74)
+
+net.Receive("nwDispatch", function()
+	local text = net.ReadString()
+	local alarm = net.ReadBool()
+
+	CH.AddStyled("nwChat", DISPATCH, "Диспетчер: ", Color(236, 226, 220), text)
+	MsgN("Диспетчер: " .. text)
+
+	if (alarm) then
+		surface.PlaySound("network2/dispatch/alarm.mp3")
+	end
+end)
+
 -- the radio of the Alliance (sound/network2/radio, combine_tech): the key goes down when a radio
 -- command is typed, up when it is sent; the others hear the channel open and close
 local RADIO_SOUNDS = {on = 5, off = 6}

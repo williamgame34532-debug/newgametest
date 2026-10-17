@@ -1,5 +1,5 @@
 -- The Alliance HUD (cl_combinehud.lua), server side: a member of the Alliance dies - every member of
--- the Alliance gets "UNIT DOWN AT LOCATION :: <zone>" in red with the name.
+-- the Alliance gets "ПОТЕРЯ БИО-СИГНАЛА :: <зона>" in red with the name.
 
 util.AddNetworkString("nwUnitDown")
 
@@ -17,8 +17,24 @@ hook.Add("PlayerDeath", "nwUnitDown", function(victim)
 		end
 	end
 
+	local where = zone and zone.name or "неизвестно"
+
 	net.Start("nwUnitDown")
 		net.WriteString(victim:Nick())
-		net.WriteString(zone and zone.name or "неизвестно")
+		net.WriteString(where)
 	net.Send(members)
+
+	-- the dispatcher, to the Alliance only
+	NW.Dispatch("[ПАТРУЛЬ] Потеря био-сигнала юнита: " .. victim:Nick() .. ", в зоне: " .. where, members)
+
+	-- the Overwatch voice: "lost biosignal for unit" and the callsign, if the unit has one
+	local data = victim.nwCharacter and victim.nwCharacter.data
+	local side = NW.units.Side(victim:GetFaction())
+	local voice = {"npc/overwatch/radiovoice/lostbiosignalforunit.wav"}
+
+	if (data and data.callsignSide == side) then
+		table.Add(voice, NW.units.VoiceFor(side, data.callsign))
+	end
+
+	NW.units.Voice(members, voice)
 end)

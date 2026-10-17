@@ -38,6 +38,8 @@ MU.lastTrack = MU.lastTrack or {}
 
 net.Receive("nwCombat", function()
 	MU.combatUntil = CurTime() + COMBAT_HOLD
+	-- in a fight the camera goes into the eyes (cl_thirdperson.lua) for a while after the last shot
+	NW.combatUntil = CurTime() + 12
 end)
 
 local function Mood()

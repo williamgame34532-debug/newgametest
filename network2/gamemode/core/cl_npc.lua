@@ -147,6 +147,9 @@ local function Choose(answer)
 	elseif (answer.action == "profession") then
 		NP.view = "professions"
 		Rebuild()
+	elseif (answer.action == "callsign") then
+		-- the server answers with the list (nwNpcCallsigns)
+		Action("callsigns")
 	else
 		NP.Close()
 	end
@@ -220,6 +223,8 @@ local function BuildDialog(frame, sw, sh)
 			label = label .. "  [торговля]"
 		elseif (answer.action == "profession") then
 			label = label .. "  [профессии]"
+		elseif (answer.action == "callsign") then
+			label = label .. "  [позывной]"
 		end
 
 		row:SetPos(pad, ay)
@@ -619,6 +624,103 @@ local function BuildSpawns(frame, sw, sh)
 	stay:SetSize(sh * 0.2, sh * 0.042)
 end
 
+-- ---------------------------------------------------------------- callsign --
+-- The words of the side in rows, the numbers 1..9 in each: taken ones are dark, yours is lit.
+local CALLSIGN_COLOR = {cp = Color(96, 200, 255), ota = Color(240, 92, 80)}
+
+local function BuildCallsign(frame, sw, sh)
+	local W = NW.widgets
+	local data = NP.callsigns or {}
+	local side = data.side or "cp"
+	local list = NW.units.callsigns[side] or {}
+	local color = CALLSIGN_COLOR[side] or ACCENT
+	local rowH = math.Round(sh * 0.042)
+	local pad = math.Round(sh * 0.025)
+	local w = math.Round(sh * 0.86)
+	local listH = math.min(#list, 10) * (rowH + 6)
+	local h = math.Round(sh * 0.2 + listH)
+	local box = Box(frame, sw, sh, "Позывной юнита", w, h)
+	local y = sh * 0.07
+
+	local hint = box:Add("DLabel")
+
+	hint:SetPos(pad, y)
+	hint:SetSize(w - pad * 2, sh * 0.03)
+	hint:SetFont("nwNpcSmall")
+	hint:SetTextColor(MUTED)
+	hint:SetText(data.unit and ("Сейчас: " .. LocalPlayer():Nick() .. ". Выберите слово и номер — занятые " ..
+		"другими юнитами недоступны.") or "Позывные выдаются только юнитам Альянса.")
+	y = y + sh * 0.04
+
+	local scroll = W.Scroll(box)
+
+	scroll:SetPos(pad, y)
+	scroll:SetSize(w - pad * 2, h - y - sh * 0.08)
+
+	local nameW = math.Round(w * 0.24)
+
+	for _, entry in ipairs(list) do
+		local row = scroll:Add("EditablePanel")
+
+		row:Dock(TOP)
+		row:DockMargin(0, 0, 8, 6)
+		row:SetTall(rowH)
+		row.Paint = function(_, rw, rh)
+			draw.SimpleText(entry.name, "nwNpcAnswer", 4, rh / 2, U.color.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		end
+
+		local cell = math.Round((w - pad * 2 - nameW - 8 - 9 * 4) / 9)
+
+		for number = 1, 9 do
+			local key = entry.id .. ":" .. number
+			local taken = data.taken and data.taken[key]
+			local mine = data.current and data.current.id == entry.id and tonumber(data.current.num) == number
+			local button = row:Add("DButton")
+
+			button:SetPos(nameW + (number - 1) * (cell + 4), 0)
+			button:SetSize(cell, rowH)
+			button:SetText("")
+			button:SetEnabled(data.unit == true and !taken and !mine)
+			button.Paint = function(self, bw, bh)
+				local hover = self:IsHovered() and self:IsEnabled()
+				local fill = mine and ColorAlpha(color, 200) or (hover and ColorAlpha(color, 70) or
+					Color(255, 255, 255, taken and 4 or 12))
+
+				draw.RoundedBox(4, 0, 0, bw, bh, fill)
+				draw.SimpleText(number, "nwNpcAnswer", bw / 2, bh / 2, mine and Color(10, 14, 18) or
+					(taken and Color(90, 92, 96) or U.color.text), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			end
+			button.DoClick = function()
+				surface.PlaySound("network2/ui/char/hls_ui_affirm.wav")
+				Action("callsign", key)
+			end
+			button.OnCursorEntered = function(self)
+				if (self:IsEnabled()) then
+					surface.PlaySound("network2/ui/hover.wav")
+				end
+			end
+		end
+	end
+
+	local back = W.Button(box, "Назад", function()
+		GoNode(NP.node and NP.node.id or NP.config.start)
+	end)
+
+	back:SetPos(pad, h - sh * 0.065)
+	back:SetSize(sh * 0.2, sh * 0.042)
+end
+
+net.Receive("nwNpcCallsigns", function()
+	local entity = net.ReadEntity()
+	local data = util.JSONToTable(net.ReadString() or "") or {}
+
+	if (entity == NP.entity and IsValid(NP.frame)) then
+		NP.callsigns = data
+		NP.view = "callsign"
+		Rebuild()
+	end
+end)
+
 net.Receive("nwNpcSpawns", function()
 	local entity = net.ReadEntity()
 	local data = util.JSONToTable(net.ReadString() or "") or {}
@@ -865,6 +967,8 @@ Rebuild = function()
 		BuildProfessions(frame, sw, sh)
 	elseif (NP.view == "spawns") then
 		BuildSpawns(frame, sw, sh)
+	elseif (NP.view == "callsign") then
+		BuildCallsign(frame, sw, sh)
 	else
 		BuildDialog(frame, sw, sh)
 	end
@@ -1146,6 +1250,31 @@ function NP.Editor(entity, cfg)
 		hint:SetText("Модель — путь к .mdl (например models/humans/group01/female_02.mdl). После смены модели " ..
 			"сохраните и откройте редактор снова, чтобы увидеть её анимации.\nДиалог — реплики NPC и ответы игрока. " ..
 			"Торговля — товары за токены и/или за другой предмет. Задания — принести предметы за награду.")
+
+		-- the type: a ready dialogue for a metrocop who gives the callsigns of units
+		local template = W.Button(area, "Тип: метрокоп (позывные)", function()
+			cfg.nodes = {
+				{id = "start", text = "Юнит. Назовись по форме или проходи.", answers = {
+					{text = "Мне нужен позывной.", action = "callsign", target = ""},
+					{text = "Ничего. Конец связи.", action = "close", target = ""}
+				}}
+			}
+			cfg.start = "start"
+
+			if (cfg.name == "" or cfg.name == "Торговец" or cfg.name == "NPC") then
+				cfg.name = "Диспетчер участка"
+			end
+
+			if (string.find(string.lower(cfg.model or ""), "humans/", 1, true)) then
+				cfg.model = "models/police.mdl"
+			end
+
+			surface.PlaySound("network2/ui/char/hls_ui_affirm.wav")
+			Show("general")
+		end)
+
+		template:SetPos(0, y + sh * 0.13)
+		template:SetSize(aw * 0.4, sh * 0.042)
 	end
 
 	-- -------------------------------------------------------------- Диалог --

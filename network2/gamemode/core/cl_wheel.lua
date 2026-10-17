@@ -81,6 +81,11 @@ local function Levels()
 		local count = #A.Available(client, act)
 		local choice = math.Clamp(W.choice[act.id] or 1, 1, math.max(count, 1))
 
+		-- poses of one model only (Civil Protection): not shown to the others
+		if (act.only and count == 0) then
+			continue
+		end
+
 		acts[#acts + 1] = {name = act.name, icon = act.icon, disabled = count == 0, act = act,
 			hint = count == 0 and "Эта модель не умеет" or (count > 1 and
 				("Вариант " .. choice .. " из " .. count .. "  ·  ПКМ — другой") or "ЛКМ — разместить"),

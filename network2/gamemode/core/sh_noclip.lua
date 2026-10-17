@@ -4,18 +4,51 @@
 
 local hide = CreateConVar("nw_noclip_hide", "1", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Скрывать админа в ноуклипе")
 
+-- hidden: an observer nobody sees (the model, the weapon, what hangs on the model, the shadow, the
+-- steps), nobody hurts and no NPC notices
+function NW.Hidden(client)
+	return IsValid(client) and client:GetNW2Bool("nwObserver", false) and hide:GetBool()
+end
+
 local function Observe(client, bOn)
+	local hidden = bOn and hide:GetBool()
+
 	client:SetNW2Bool("nwObserver", bOn)
-	client:SetNoDraw(bOn and hide:GetBool())
-	client:DrawShadow(!bOn)
+	client:SetNoDraw(hidden)
+	client:DrawShadow(!hidden)
 	client:SetNotSolid(bOn)
+	client:SetNoTarget(bOn)
+
+	if (bOn and client:FlashlightIsOn()) then
+		client:Flashlight(false)
+	end
 
 	local weapon = client:GetActiveWeapon()
 
 	if (IsValid(weapon)) then
-		weapon:SetNoDraw(bOn and hide:GetBool())
+		weapon:SetNoDraw(hidden)
+	end
+
+	-- clothes, gear and other models attached to the player
+	for _, child in ipairs(client:GetChildren()) do
+		if (IsValid(child) and !child:IsWeapon()) then
+			if (hidden) then
+				child.nwObserverDraw = child.nwObserverDraw == nil and !child:GetNoDraw() or child.nwObserverDraw
+				child:SetNoDraw(true)
+			elseif (child.nwObserverDraw != nil) then
+				child:SetNoDraw(!child.nwObserverDraw)
+				child.nwObserverDraw = nil
+			end
+		end
 	end
 end
+
+-- no steps heard
+hook.Add("PlayerFootstep", "nwObserver", function(client)
+	if (NW.Hidden(client)) then
+		return true
+	end
+end)
 
 function GM:PlayerNoClip(client, bDesired)
 	if (!bDesired) then
@@ -38,6 +71,13 @@ function GM:PlayerNoClip(client, bDesired)
 end
 
 if (SERVER) then
+	-- no damage in noclip
+	hook.Add("EntityTakeDamage", "nwObserver", function(target)
+		if (target:IsPlayer() and target:GetNW2Bool("nwObserver", false)) then
+			return true
+		end
+	end)
+
 	hook.Add("PlayerSpawn", "nwObserver", function(client)
 		if (client:GetNW2Bool("nwObserver", false)) then
 			Observe(client, false)
@@ -51,6 +91,15 @@ if (SERVER) then
 					new:SetNoDraw(hide:GetBool())
 				end
 			end)
+		end
+	end)
+end
+
+if (CLIENT) then
+	-- the model is not drawn at all for the others (whatever else draws players: legs, effects)
+	hook.Add("PrePlayerDraw", "nwObserver", function(client)
+		if (client != LocalPlayer() and NW.Hidden(client)) then
+			return true
 		end
 	end)
 end

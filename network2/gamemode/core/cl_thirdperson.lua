@@ -18,10 +18,41 @@ local HULL = Vector(5, 5, 5)
 
 local state = {pos = nil, dist = 0, side = 1, raise = 0}
 
+local hud = CreateClientConVar("nw_tp_hud", "1", true, false, "Интерфейс в виде от третьего лица")
+
+-- in a fight (sv_music.lua nwCombat: hurt, hurting, shot at) third person is off for a while
+local function InCombat()
+	return NW.combatUntil != nil and NW.combatUntil > CurTime()
+end
+
 local function Active(client)
-	return enabled:GetBool() and IsValid(client) and client:Alive() and !client:InVehicle() and
+	return enabled:GetBool() and !InCombat() and IsValid(client) and client:Alive() and !client:InVehicle() and
 		client:GetViewEntity() == client and client:GetObserverMode() == OBS_MODE_NONE
 end
+
+NW.thirdPersonActive = function()
+	return Active(LocalPlayer())
+end
+
+-- the fight takes the camera: said once per fight
+local combatSaid = false
+
+hook.Add("Think", "nwThirdPersonCombat", function()
+	local now = enabled:GetBool() and InCombat()
+
+	if (now and !combatSaid and NW.notify) then
+		NW.notify.Add("Бой: вид от первого лица")
+	end
+
+	combatSaid = now
+end)
+
+-- no interface while looking from behind (nw_tp_hud 0): the picture alone
+hook.Add("HUDShouldDraw", "nwThirdPersonHud", function(name)
+	if (!hud:GetBool() and Active(LocalPlayer())) then
+		return false
+	end
+end)
 
 -- the point the player aims at. The camera sits off to the side and looks at it, so a point that
 -- jumps close (someone walking past, a carried prop, a thin pole) would swing the whole view for a

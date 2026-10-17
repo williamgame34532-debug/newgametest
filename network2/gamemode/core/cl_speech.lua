@@ -161,6 +161,10 @@ hook.Add("PostDrawTranslucentRenderables", "nwSpeech", function(bDepth, bSkybox)
 	local dt = FrameTime()
 
 	for _, client in ipairs(player.GetAll()) do
+		if (NW.Hidden and NW.Hidden(client) and client != LocalPlayer()) then
+			continue
+		end
+
 		-- the typing fade
 		client.nwTypingFade = math.Approach(client.nwTypingFade or 0, client.nwTypingOn and 1 or 0, dt * 4)
 

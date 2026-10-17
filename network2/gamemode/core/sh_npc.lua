@@ -8,6 +8,7 @@
 --                           "trade" → the trade window
 --                           "quest" → the quest `target` (take it / hand it in)
 --                           "profession" → the professions window
+--                           "callsign" → the callsign of a unit (sh_units.lua; the metrocop NPC)
 --                           "close" → end the talk
 --   shop           what is sold: {item, price (tokens), priceItem, priceCount (another item as the
 --                  price, or with tokens), stock (-1 = endless), sell (tokens the NPC pays for one;
@@ -30,6 +31,7 @@ NPC.ACTIONS = {
 	{"trade", "Открыть торговлю"},
 	{"quest", "Задание"},
 	{"profession", "Профессии"},
+	{"callsign", "Выдать позывной (метрокоп)"},
 	{"close", "Закончить разговор"}
 }
 
@@ -142,7 +144,7 @@ function NPC.Sanitize(config)
 						local action = answer.action
 
 						if (action != "goto" and action != "trade" and action != "quest" and action != "profession" and
-							action != "close") then
+							action != "callsign" and action != "close") then
 							action = "close"
 						end
 
@@ -252,4 +254,17 @@ function NPC.Count(grid, id)
 	end
 
 	return count
+end
+
+-- does any line of this NPC have an answer with this action?
+function NPC.HasAction(config, action)
+	for _, node in ipairs(istable(config) and config.nodes or {}) do
+		for _, answer in ipairs(node.answers or {}) do
+			if (answer.action == action) then
+				return true
+			end
+		end
+	end
+
+	return false
 end

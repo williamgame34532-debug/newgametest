@@ -11,6 +11,7 @@ NW.anim.civIdle = {"nw_civ_idle", "nw_civ_live_1", "nw_civ_live_2", "nw_civ_subt
 -- with empty hands only the unarmed idles; with the stunstick its own idles and the sprint
 NW.anim.cpIdle = {"nw_hla_idle_unarmed_1", "nw_hla_idle_unarmed_2"}
 NW.anim.cpStickIdle = {"nw_hla_idle_01", "nw_hla_idle_02", "nw_hla_idle_03", "nw_hla_idle_04"}
+NW.anim.cpSmgIdle = {"nw_hla_idle_smg", "nw_hla_idle_smg_onehand", "nw_hla_idle_smg_twohand"}
 
 NW.anim.citizen_male = {
 	normal = {
@@ -136,7 +137,7 @@ NW.anim.metrocop = {
 		reload = ACT_GESTURE_RELOAD_PISTOL
 	},
 	smg = {
-		[ACT_MP_STAND_IDLE] = {{"nw_hla_idle_smg", "nw_hla_idle_smg_twohand"}, ACT_IDLE_ANGRY_SMG1},
+		[ACT_MP_STAND_IDLE] = {NW.anim.cpSmgIdle, ACT_IDLE_ANGRY_SMG1},
 		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_SMG1_LOW, ACT_COVER_SMG1_LOW},
 		[ACT_MP_WALK] = {ACT_WALK_RIFLE, ACT_WALK_AIM_RIFLE},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
@@ -146,7 +147,7 @@ NW.anim.metrocop = {
 		reload = ACT_GESTURE_RELOAD_SMG1
 	},
 	shotgun = {
-		[ACT_MP_STAND_IDLE] = {{"nw_hla_idle_smg", "nw_hla_idle_smg_twohand"}, ACT_IDLE_ANGRY_SMG1},
+		[ACT_MP_STAND_IDLE] = {NW.anim.cpSmgIdle, ACT_IDLE_ANGRY_SMG1},
 		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_SMG1_LOW, ACT_COVER_SMG1_LOW},
 		[ACT_MP_WALK] = {ACT_WALK_RIFLE, ACT_WALK_AIM_RIFLE},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},

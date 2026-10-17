@@ -9,3 +9,4 @@ FACTION.models = {
 	male = {"models/network/combine/grunt.mdl"},
 	female = {"models/network/combine/grunt.mdl"}
 }
+FACTION.unitPrefix = "C24.OTA.ECHO:"

@@ -20,8 +20,26 @@ local ALWAYS = {
 	weapon_medkit = true
 }
 
+-- TFA weapons (tfa_*) have a safety of their own (Shift + E + R): ours stays out of their way, and
+-- with the TFA safety on the model carries the weapon lowered (the view model stays as TFA draws it)
+local function IsTFA(weapon)
+	return IsValid(weapon) and (weapon.IsTFAWeapon == true or string.sub(weapon:GetClass(), 1, 4) == "tfa_")
+end
+
+local function TFASafety(weapon)
+	if (isfunction(weapon.IsSafety)) then
+		return weapon:IsSafety() == true
+	elseif (isfunction(weapon.GetSafety)) then
+		return weapon:GetSafety() == true
+	end
+
+	return false
+end
+
+NW.IsTFA = IsTFA
+
 local function HasSafety(weapon)
-	if (!IsValid(weapon) or ALWAYS[weapon:GetClass()] or weapon.IsAlwaysRaised) then
+	if (!IsValid(weapon) or ALWAYS[weapon:GetClass()] or weapon.IsAlwaysRaised or IsTFA(weapon)) then
 		return false
 	end
 
@@ -41,6 +59,10 @@ function meta:IsWeaponRaised()
 
 	if (!IsValid(weapon)) then
 		return false
+	end
+
+	if (IsTFA(weapon)) then
+		return !TFASafety(weapon)
 	end
 
 	if (!safety:GetBool() or !HasSafety(weapon)) then

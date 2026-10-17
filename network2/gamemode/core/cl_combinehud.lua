@@ -4,7 +4,7 @@
 --   top left       "ИНФОРМАЦИЯ :", a bar under it and the system lines typed out in the Combine font
 --                  (nw_hud_combine_font, "Combine_Alphabet"): three at a time, then they go and the
 --                  next three come, round and round. A fallen member of the Alliance comes up there in
---                  red: "UNIT DOWN AT LOCATION :: <zone>" (the Overwatch voice says it too)
+--                  red: "ПОТЕРЯ БИО-СИГНАЛА :: <зона>" (the Overwatch voice says it too)
 --   top right      Юнит (Civil Protection) / Солдат (the Combine) :: the name, Зона :: the zone,
 --                  Социо-статус :: by the health (Зелёный, Жёлтый, Оранжевый, Красный)
 --   top centre     the Combine: a compass with the sides of the world in Russian and the degrees
@@ -266,16 +266,14 @@ net.Receive("nwUnitDown", function()
 	local name = net.ReadString()
 	local zone = net.ReadString()
 
-	table.insert(events, 1, {text = "UNIT DOWN AT LOCATION :: " .. NW.terminal.Upper(zone), name = name,
+	table.insert(events, 1, {text = "ПОТЕРЯ БИО-СИГНАЛА :: " .. NW.terminal.Upper(zone), name = name,
 		born = RealTime()})
 
 	while (#events > 3) do
 		table.remove(events)
 	end
 
-	if (Active()) then
-		surface.PlaySound("npc/overwatch/radiovoice/lostbiosignalforunit.wav")
-	end
+	-- the voice comes from the server (sv_combinehud.lua: the callsign after it)
 end)
 
 -- -------------------------------------------------------------- statuses --

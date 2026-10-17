@@ -448,6 +448,11 @@ function B.MakeCorpse(client, ragdoll)
 	end)
 end
 
+-- no "kill" / "explode" from the console (giving up while unconscious is done by the server itself)
+function GM:CanPlayerSuicide(client)
+	return false
+end
+
 -- the base gamemode makes a client ragdoll; here the body is a real one that stays
 function GM:DoPlayerDeath(client, attacker, damage)
 	-- unconscious: that body becomes the dead one

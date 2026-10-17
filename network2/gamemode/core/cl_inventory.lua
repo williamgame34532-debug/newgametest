@@ -1425,6 +1425,43 @@ local function Slider(parent, row, w, h)
 	return control
 end
 
+-- a few fixed values: a click goes to the next one (row.options = {{value, label}, ...})
+local function Choice(parent, row, w, h)
+	local button = parent:Add("DButton")
+
+	button:SetSize(w, h)
+	button:SetText("")
+	button.Paint = function(self, bw, bh)
+		local current = row.get()
+		local label = current
+
+		for _, option in ipairs(row.options) do
+			if (option[1] == current) then
+				label = option[2]
+			end
+		end
+
+		draw.RoundedBox(6, 0, 0, bw, bh, Color(255, 255, 255, self:IsHovered() and 22 or 12))
+		draw.SimpleText("‹", "nwInvSmall", bh * 0.4, bh / 2, MUTED, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		draw.SimpleText("›", "nwInvSmall", bw - bh * 0.4, bh / 2, MUTED, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		draw.SimpleText(label, "nwInvSmall", bw / 2, bh / 2, U.color.text, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	end
+	button.DoClick = function()
+		local current, index = row.get(), 0
+
+		for i, option in ipairs(row.options) do
+			if (option[1] == current) then
+				index = i
+			end
+		end
+
+		row.set(row.options[index % #row.options + 1][1])
+		U.Tick()
+	end
+
+	return button
+end
+
 local function TextField(parent, row, w, h)
 	local entry = parent:Add("DTextEntry")
 
@@ -1517,6 +1554,8 @@ local function GroupPage(parent, title, icon, subtitle, groups)
 				control = Switch(card, row, cw, ch)
 			elseif (row.type == "slider") then
 				control = Slider(card, row, cw, ch)
+			elseif (row.type == "choice") then
+				control = Choice(card, row, cw, ch)
 			else
 				control = TextField(card, row, cw, ch)
 			end
@@ -1565,6 +1604,7 @@ local SETTINGS = {
 		Client("nw_tp_distance", "Расстояние камеры", "slider", {min = 30, max = 160, live = true}),
 		Client("nw_tp_right", "Смещение вбок", "slider", {min = -40, max = 40, live = true}),
 		Client("nw_tp_up", "Смещение вверх", "slider", {min = -10, max = 20, live = true}),
+		Client("nw_tp_hud", "Интерфейс от третьего лица", "toggle"),
 		Client("nw_dyncam", "Динамичная камера", "toggle"),
 		Client("nw_dyncam_scale", "Сила динамичной камеры", "slider", {min = 0, max = 2, decimals = 1, live = true}),
 		Client("nw_legs", "Ноги от первого лица", "toggle"),

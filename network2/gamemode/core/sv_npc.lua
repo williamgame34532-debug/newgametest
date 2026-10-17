@@ -379,6 +379,32 @@ function ACTIONS.profession(client, entity, arg)
 	return true
 end
 
+-- the callsign of a unit (sh_units.lua): the list, then the choice ("victor:4")
+function ACTIONS.callsigns(client, entity)
+	if (!NPC.HasAction or NPC.HasAction(entity.nwConfig, "callsign")) then
+		NW.units.SendChoice(client, entity)
+	end
+end
+
+function ACTIONS.callsign(client, entity, arg)
+	if (NPC.HasAction and !NPC.HasAction(entity.nwConfig, "callsign")) then
+		return
+	end
+
+	local id, number = string.match(arg or "", "^([%w_]+):(%d)$")
+	local ok, why = NW.units.SetCallsign(client, id or "", number)
+
+	if (!ok) then
+		Notify(client, why)
+		NW.units.SendChoice(client, entity)
+
+		return
+	end
+
+	Notify(client, "Позывной: " .. client:Nick())
+	NW.units.SendChoice(client, entity)
+end
+
 -- the chosen point: the player goes there now and appears there after deaths ("0" - stay here)
 function ACTIONS.spawnat(client, entity, arg)
 	local pending = client.nwProfessionSpawn

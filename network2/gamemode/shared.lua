@@ -100,6 +100,8 @@ local FILES = {
 	"cl_noclip.lua",
 	"cl_terminal.lua",
 	"cl_combinehud.lua",
+	"sh_units.lua",
+	"sv_units.lua",
 	"sh_incapable.lua"
 }
 

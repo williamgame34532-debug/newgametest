@@ -78,6 +78,12 @@ hook.Add("Think", "nwBodyScreen", function()
 		state.ash = {}
 	end
 
+	-- back after death: the eyes open (DrawRise)
+	if (!dead and state.dead and InGame(client) and client:Alive()) then
+		state.rise = RealTime()
+		surface.PlaySound("player/heartbeat1.wav")
+	end
+
 	if (knocked and !state.knocked) then
 		state.knockSince = RealTime()
 		state.angles = nil
@@ -380,8 +386,64 @@ local function DrawKnock()
 	end
 end
 
+-- coming back (2 s): the picture is dark and blurred, the eyelids open, half close once, open
+local RISE = 2
+
+local function Smooth(t)
+	t = math.Clamp(t, 0, 1)
+
+	return t * t * (3 - 2 * t)
+end
+
+local function DrawRise()
+	local t = (RealTime() - state.rise) / RISE
+
+	if (t >= 1) then
+		state.rise = nil
+
+		return
+	end
+
+	local sw, sh = ScrW(), ScrH()
+	local open
+
+	if (t < 0.3) then
+		open = Smooth(t / 0.3) * 0.45
+	elseif (t < 0.48) then
+		open = 0.45 - Smooth((t - 0.3) / 0.18) * 0.3
+	else
+		open = 0.15 + Smooth((t - 0.48) / 0.52) * 0.85
+	end
+
+	Blur(6 * (1 - Smooth(t)))
+
+	surface.SetDrawColor(0, 0, 0, 200 * (1 - Smooth(t / 0.8)))
+	surface.DrawRect(0, 0, sw, sh)
+
+	-- the lids: from the middle out, soft at the edge
+	local lid = sh / 2 * (1 - open)
+
+	surface.SetDrawColor(0, 0, 0, 255)
+	surface.DrawRect(0, 0, sw, lid)
+	surface.DrawRect(0, sh - lid, sw, lid)
+
+	for i = 1, 12 do
+		local a = 255 * (1 - i / 12) * (1 - Smooth((t - 0.6) / 0.4))
+
+		surface.SetDrawColor(0, 0, 0, a)
+		surface.DrawRect(0, lid + (i - 1) * sh * 0.006, sw, sh * 0.006)
+		surface.DrawRect(0, sh - lid - i * sh * 0.006, sw, sh * 0.006)
+	end
+end
+
 -- over the whole HUD (it shows through only faintly)
 hook.Add("PostDrawHUD", "nwBodyScreen", function()
+	if (state.rise) then
+		cam.Start2D()
+			DrawRise()
+		cam.End2D()
+	end
+
 	if (state.fade <= 0.01 and state.knock <= 0.01) then
 		return
 	end
