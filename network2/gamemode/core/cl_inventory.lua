@@ -1622,6 +1622,9 @@ local SETTINGS = {
 	{name = "Интерфейс", rows = {
 		Client("nw_stamina_always", "Стамина всегда на экране", "toggle"),
 		Client("nw_crosshair", "Динамичный прицел", "toggle"),
+		Client("nw_status_icons", "Иконки статуса", "toggle"),
+		Client("nw_status_side", "Иконки статуса: сторона", "choice", {options = {{"right", "Справа"}, {"left", "Слева"}}}),
+		Client("nw_unit_panel", "Карточка юнита при наведении", "toggle"),
 		Client("nw_intro", "Интро при заходе", "toggle")
 	}}
 }
@@ -1708,8 +1711,14 @@ function INV.ShowPage(id)
 	end
 
 	INV.slots = {}
-	INV.page = PAGES[id] and id or "inventory"
-	INV.pagePanel = PAGES[INV.page](INV.frame)
+
+	-- pages of other files (Состояние: cl_status.lua)
+	INV.extraPages = INV.extraPages or {}
+
+	local builder = PAGES[id] or INV.extraPages[id]
+
+	INV.page = builder and id or "inventory"
+	INV.pagePanel = (builder or PAGES.inventory)(INV.frame)
 	INV.pagePanel.shown = 0
 end
 
@@ -1724,6 +1733,7 @@ local function Buttons(frame)
 	local M = math.Round(sh * 0.034)
 	local list = {
 		{id = "inventory", name = "Инвентарь", icon = "inventory"},
+		{id = "status", name = "Меню состояния", icon = "status"},
 		{id = "settings", name = "Настройки", icon = "settings"},
 		{id = "authors", name = "Авторы", icon = "authors"}
 	}

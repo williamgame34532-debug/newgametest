@@ -716,6 +716,7 @@ function SO.actions.search(client, target)
 	NW.SayMe(client, "быстро обыскивает одежду и карманы " ..
 		(NW.char.Knows(client, target) and target:Nick() or "человека"))
 	Notify(target, "Вас обыскивают")
+	target:SetNW2Float("nwSearchedUntil", CurTime() + 4)
 
 	if (NW.progress.Start(client, "Обыскиваю", 3, function()
 		ST.Open(client, ST.PlayerSource(target, client))

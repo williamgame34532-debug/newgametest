@@ -112,6 +112,7 @@ local FILES = {
 	"sv_persist.lua",
 	"sh_skills.lua",
 	"cl_skills.lua",
+	"cl_status.lua",
 	"sh_incapable.lua"
 }
 

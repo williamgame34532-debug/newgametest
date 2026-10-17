@@ -242,6 +242,7 @@ function SWEP:PrimaryAttack()
 
 			entity.nwStunLast = CurTime()
 			entity.nwStuns = (entity.nwStuns or 0) + 1
+			entity:SetNW2Float("nwStunnedUntil", CurTime() + 6)
 
 			if (entity.nwStuns >= STUNS_TO_KNOCK and NW.body and NW.body.Knock) then
 				entity.nwStuns = 0
