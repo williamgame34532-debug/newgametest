@@ -1,7 +1,9 @@
 -- /itemedit (admins): the editor of the items (sh_itemedit.lua). Left: every item with its icon,
 -- a search and "+ Новый предмет". Right: the item - the id, the type, the name, the description,
 -- the model (with a turning preview), the icon (a picker of the icons of the server or a link to a
--- picture) and what its type needs; Сохранить, Выдать себе, Удалить / Сбросить.
+-- picture) and what its type needs, the price; under the type - what the type does. The list: a search and
+-- a filter by type. The model: typed or taken from what you look at («С прицела»). Сохранить, Выдать
+-- себе, Копия (a new item from this one), Удалить / Сбросить.
 
 local IE = NW.itemEdit
 local I = NW.items
@@ -41,7 +43,11 @@ local function EntryOf(id)
 
 	local kind = "misc"
 
-	if (item.radio) then
+	if (item.nvg) then
+		kind = "nvg"
+	elseif (item.flashlight) then
+		kind = "light"
+	elseif (item.radio) then
 		kind = "radio"
 	elseif (item.contents) then
 		kind = "package"
@@ -56,7 +62,12 @@ local function EntryOf(id)
 		weapon = item.weapon, wearGroup = item.wear and item.wear.group, wearIndex = item.wear and item.wear.index,
 		protect = item.protect, gasmask = item.gasmask, bag = item.bag,
 		contents = item.contents and table.concat(item.contents, ", ") or nil, useVerb = item.useVerb,
-		useSound = item.useSound, leaves = item.leaves}
+		useSound = item.useSound, leaves = item.leaves, price = item.price}
+end
+
+-- the type of an item as the editor sees it (the filter of the list)
+local function KindOf(id)
+	return EntryOf(id).type or "misc"
 end
 
 function IE.Open()
@@ -100,8 +111,19 @@ function IE.Open()
 	local search = W.Entry(frame, "")
 
 	search:SetPos(pad, top)
-	search:SetSize(listW, fh)
+	search:SetSize(listW * 0.58, fh)
 	search.placeholder = "Поиск: название или ID"
+
+	local filters = {{"", "Все типы"}}
+
+	for _, entry in ipairs(IE.types) do
+		filters[#filters + 1] = {entry.id, entry.name}
+	end
+
+	local filter = W.Combo(frame, filters, IE.filter or "")
+
+	filter:SetPos(pad + listW * 0.6, top)
+	filter:SetSize(listW * 0.4, fh)
 
 	local list = W.Scroll(frame)
 
@@ -125,6 +147,7 @@ function IE.Open()
 
 		local query = string.lower(search:GetValue() or "")
 		local ids = table.GetKeys(I.list)
+		local only = IE.filter or ""
 
 		table.sort(ids, function(a, b)
 			return (I.list[a].name or a) < (I.list[b].name or b)
@@ -133,7 +156,8 @@ function IE.Open()
 		for _, id in ipairs(ids) do
 			local item = I.list[id]
 
-			if (query == "" or string.find(string.lower(item.name or ""), query, 1, true) or string.find(id, query, 1, true)) then
+			if ((query == "" or string.find(string.lower(item.name or ""), query, 1, true) or
+				string.find(id, query, 1, true)) and (only == "" or KindOf(id) == only)) then
 				local row = list:Add("DButton")
 
 				row:Dock(TOP)
@@ -161,11 +185,15 @@ function IE.Open()
 	end
 
 	search.OnChange = Fill
+	filter.OnSelect = function(self)
+		IE.filter = self:GetSelectedValue() or ""
+		Fill()
+	end
 	IE.Fill = Fill
 
 	-- ------------------------------------------------------------ the form --
 	-- keep: the values being edited (a new type rebuilds the form with them)
-	function IE.Select(id, keep)
+	function IE.Select(id, keep, newID)
 		IE.selected = id
 		form:Clear()
 
@@ -234,6 +262,11 @@ function IE.Open()
 			Label("ID: " .. id .. (I.list[id] and I.list[id].custom and "  (свой предмет)" or "  (предмет фреймворка)"), 0, y)
 		else
 			idEntry = Text("_id", "ID (латиница, цифры, _)", 0, y, col * 0.45)
+
+			if (newID and (edit._id or "") == "") then
+				edit._id = newID
+				idEntry:SetText(newID)
+			end
 		end
 
 		local types = {}
@@ -250,16 +283,69 @@ function IE.Open()
 				end
 			end)
 		end)
-		y = y + sh * 0.07
+		y = y + sh * 0.066
+
+		-- what the type does
+		local typeData = IE.typeByID[edit.type or "misc"]
+
+		if (typeData and typeData.hint) then
+			local hint = form:Add("DLabel")
+
+			hint:SetPos(0, y)
+			hint:SetSize(col, sh * 0.03)
+			hint:SetFont("nwNpcSmall")
+			hint:SetTextColor(ACCENT)
+			hint:SetWrap(true)
+			hint:SetText(typeData.hint)
+			y = y + sh * 0.036
+		end
 
 		Text("name", "Название", 0, y, col)
 		y = y + sh * 0.07
-		Text("description", "Описание", 0, y, col)
+
+		Label("Описание", 0, y)
+
+		local description = W.Entry(form, edit.description or "", nil, true)
+
+		description:SetPos(0, y + sh * 0.021)
+		description:SetSize(col, fh * 2)
+		description.OnChange = function(self)
+			edit.description = self:GetValue()
+		end
+		y = y + sh * 0.07 + fh
+
+		local model = Text("model", "Модель (.mdl)", 0, y, col * 0.72)
+		local bad = form:Add("DLabel")
+
+		bad:SetPos(col * 0.2, y)
+		bad:SetSize(col * 0.52, sh * 0.02)
+		bad:SetFont("nwNpcSmall")
+		bad:SetText("")
+		bad:SetTextColor(Color(232, 96, 80))
+		bad.Think = function(self)
+			local path = edit.model or ""
+
+			self:SetText((path != "" and !util.IsValidModel(path)) and "такой модели нет на сервере" or "")
+		end
+
+		local aim = W.Button(form, "С прицела", function()
+			local entity = LocalPlayer():GetEyeTrace().Entity
+
+			if (IsValid(entity) and entity:GetModel()) then
+				edit.model = entity:GetModel()
+				model:SetText(edit.model)
+				U.Tick()
+			else
+				NW.notify.Add("Посмотрите на предмет в мире")
+			end
+		end)
+
+		aim:SetPos(col * 0.74, y + sh * 0.021)
+		aim:SetSize(col * 0.26, fh)
 		y = y + sh * 0.07
-		Text("model", "Модель (.mdl)", 0, y, col)
-		y = y + sh * 0.07
-		Text("useVerb", "Действие в меню (ПКМ)", 0, y, col * 0.48)
-		Text("useSound", "Звук использования", col * 0.52, y, col * 0.48)
+		Text("useVerb", "Действие в меню (ПКМ)", 0, y, col * 0.36)
+		Text("useSound", "Звук использования", col * 0.38, y, col * 0.36)
+		Num("price", "Цена, ток.", col * 0.76, y, col * 0.24, 0, 100000)
 		y = y + sh * 0.07
 
 		-- what the type needs
@@ -287,13 +373,17 @@ function IE.Open()
 			Num("bag", "Ячеек +", 0, y, col * 0.3, 1, 24)
 		elseif (kind == "package") then
 			Text("contents", "Внутри: ID через запятую", 0, y, col)
+		elseif (kind == "nvg") then
+			Label("Надевается на голову; работает 30 с, потом остывает 20 с", 0, y + sh * 0.02)
+		elseif (kind == "light") then
+			Label("Свет — клавиша фонарика (F), пока предмет в инвентаре", 0, y + sh * 0.02)
 		elseif (kind == "radio") then
 			Label("Рация: ПКМ → каналы, говорить — клавиша рации (H)", 0, y + sh * 0.02)
 		else
 			Label("Обычный предмет: без особых действий", 0, y + sh * 0.02)
 		end
 
-		y = y + sh * 0.08
+		y = y + sh * 0.075
 
 		-- the icon
 		Label("Иконка: выберите или дайте ссылку на картинку (png / jpg)", 0, y)
@@ -413,6 +503,18 @@ function IE.Open()
 
 			give:SetPos(px + bw + 8, by)
 			give:SetSize(bw, fh)
+
+			-- a copy: a new item from this one
+			local copy = W.Button(form, "Копия", function()
+				local out = table.Copy(edit)
+
+				out._id = nil
+				out.name = (out.name or id) .. " (копия)"
+				IE.Select(nil, out, id .. "_2")
+			end)
+
+			copy:SetPos(px, by - (fh + 8) * (IE.data[id] and 2 or 1))
+			copy:SetSize(pw, fh)
 
 			if (IE.data[id]) then
 				local remove = W.Button(form, I.list[id] and I.list[id].custom and "Удалить предмет" or

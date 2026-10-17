@@ -11,6 +11,9 @@
 --   bag        bag (extra cells), the "Сумка" slot
 --   radio      a radio (sh_radio.lua): E - the channels, the key - talk
 --   package    contents (ids, comma separated): opened by holding the mouse
+--   nvg        night vision goggles (cl_vision.lua): put on the head, the key ПНВ (F)
+--   light      a flashlight: while carried the HL2 flashlight works; using it switches it
+-- Every item may have a price (the shops of the businesses, sv_business.lua, start from it).
 -- The icon: one of materials/network2/items/*.png, or a picture by a link (iconURL, png / jpg; the
 -- client downloads it to data/network2/icons).
 
@@ -20,15 +23,28 @@ local IE = NW.itemEdit
 local I = NW.items
 
 IE.types = {
-	{id = "misc", name = "Предмет", category = "misc"},
-	{id = "food", name = "Еда", category = "food", base = "food"},
-	{id = "drink", name = "Напиток", category = "drink", base = "drink"},
-	{id = "medical", name = "Медицина", category = "medical", base = "medical"},
-	{id = "weapon", name = "Оружие", category = "weapon", base = "weapon"},
-	{id = "clothing", name = "Одежда", category = "clothing", base = "clothing"},
-	{id = "bag", name = "Сумка", category = "misc", base = "bag"},
-	{id = "radio", name = "Рация", category = "misc"},
-	{id = "package", name = "Упаковка", category = "misc", base = "package"}
+	{id = "misc", name = "Предмет", category = "misc",
+		hint = "Вещь без особых действий: хлам, документ, деталь, товар, сырьё для крафта."},
+	{id = "food", name = "Еда", category = "food", base = "food",
+		hint = "Съедается: снимает голод. «Остаётся после» — что ляжет в ячейку (пустая банка)."},
+	{id = "drink", name = "Напиток", category = "drink", base = "drink",
+		hint = "Выпивается: снимает жажду. Может оставлять пустую бутылку."},
+	{id = "medical", name = "Медицина", category = "medical", base = "medical",
+		hint = "Лечит: здоровье +. Видна на странице «Состояние» инвентаря."},
+	{id = "weapon", name = "Оружие", category = "weapon", base = "weapon",
+		hint = "Кладётся в слот оружия и выдаёт SWEP (класс оружия, например weapon_pistol)."},
+	{id = "clothing", name = "Одежда", category = "clothing", base = "clothing",
+		hint = "Надевается в слот. Бодигруппа и вариант — как выглядит на модели; защита снижает урон."},
+	{id = "bag", name = "Сумка", category = "misc", base = "bag",
+		hint = "Слот «Сумка»: добавляет ячейки под сеткой инвентаря."},
+	{id = "radio", name = "Рация", category = "misc",
+		hint = "Работает как рация: ПКМ → каналы, говорить — клавиша рации (H)."},
+	{id = "package", name = "Упаковка", category = "misc", base = "package",
+		hint = "Внутри лежат предметы (ID через запятую): зажать мышь, чтобы открыть."},
+	{id = "nvg", name = "ПНВ", category = "clothing", base = "clothing",
+		hint = "Прибор ночного видения: надевается на голову, включается клавишей ПНВ (F), 30 с работы."},
+	{id = "light", name = "Фонарик", category = "misc",
+		hint = "Пока при себе — работает фонарик (F); «Использовать» включает и выключает свет."}
 }
 
 IE.typeByID = {}
@@ -43,8 +59,11 @@ IE.fields = {
 	useVerb = "string", useSound = "string", leaves = "string", slot = "string", weapon = "string",
 	wearGroup = "string", contents = "string",
 	hunger = "number", thirst = "number", heal = "number", protect = "number", bag = "number", wearIndex = "number",
-	gasmask = "boolean"
+	price = "number", gasmask = "boolean"
 }
+
+-- the numbers that may be bigger
+IE.limits = {price = 100000}
 
 IE.data = IE.data or {}
 IE.originals = IE.originals or {}
@@ -59,7 +78,7 @@ function IE.Sanitize(entry)
 		if (kind == "string" and isstring(value)) then
 			out[key] = string.sub(string.Trim(value), 1, key == "description" and 600 or 200)
 		elseif (kind == "number" and tonumber(value)) then
-			out[key] = math.Clamp(tonumber(value), -1000, 1000)
+			out[key] = math.Clamp(tonumber(value), IE.limits[key] and 0 or -1000, IE.limits[key] or 1000)
 		elseif (kind == "boolean" and value != nil) then
 			out[key] = tobool(value)
 		end
@@ -130,6 +149,26 @@ local function Apply(id, entry)
 		item.useVerb = entry.useVerb or "настроить"
 		item.OnUse = function(client)
 			NW.radio.Open(client)
+
+			return false
+		end
+	end
+
+	-- night vision goggles: on the head
+	if (entry.type == "nvg") then
+		item.nvg = true
+		item.slot = "head"
+		item.icon = entry.icon or "nvg"
+	end
+
+	-- a flashlight: the light while carried (sv_inventory.lua)
+	if (entry.type == "light") then
+		item.flashlight = true
+		item.icon = entry.icon or "flashlight"
+		item.useVerb = entry.useVerb or "включить / выключить"
+		item.OnUse = function(client)
+			client:Flashlight(!client:FlashlightIsOn())
+			client:EmitSound("items/flashlight1.wav", 55)
 
 			return false
 		end

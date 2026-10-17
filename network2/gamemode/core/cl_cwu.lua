@@ -9,6 +9,7 @@
 local CW = NW.cwu
 local CT = NW.cmbTerminal
 local U = NW.ui
+local I = NW.items
 
 local AMBER = Color(232, 170, 64)
 local GREEN = Color(130, 214, 90)
@@ -369,51 +370,259 @@ local function Window(title, w, h)
 	return frame
 end
 
-function CW.ShowInstruction()
+-- the pages of the instruction
+local BODY = Color(208, 212, 218)
+local FAINT = Color(150, 154, 160)
+local PAGES = {}
+
+-- the paragraph of a page, wrapped; returns the height used
+local function Paragraph(text, x, y, w, color)
+	local lineH = math.Round(ScrH() * 0.025)
+
+	for index, line in ipairs(NW.inventory.WrapText(text, "nwFactoryBody", w)) do
+		draw.SimpleText(line, "nwFactoryBody", x, y + (index - 1) * lineH, color or BODY, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+	end
+
+	return #NW.inventory.WrapText(text, "nwFactoryBody", w) * lineH
+end
+
+local function ItemName(id)
+	local item = id and I.Get(id)
+
+	return item and item.name or id
+end
+
+-- steps: a number in a circle, a title, the text
+function PAGES.steps(section, w)
+	local sh = ScrH()
+	local out = {}
+
+	for index, step in ipairs(section.steps) do
+		out[#out + 1] = function(y)
+			local size = sh * 0.036
+
+			draw.RoundedBox(size / 2, 0, y, size, size, AMBER)
+			draw.SimpleText(index, "nwFactorySection", size / 2, y + size / 2, Color(20, 16, 10), TEXT_ALIGN_CENTER,
+				TEXT_ALIGN_CENTER)
+			draw.SimpleText(step[1], "nwFactorySection", size + sh * 0.016, y + size / 2, U.color.text, TEXT_ALIGN_LEFT,
+				TEXT_ALIGN_CENTER)
+
+			return size + sh * 0.008 + Paragraph(step[2], size + sh * 0.016, y + size + sh * 0.004, w - size - sh * 0.02) +
+				sh * 0.02
+		end
+	end
+
+	return out
+end
+
+-- the line: the stations as cards with arrows, what goes in and out
+function PAGES.line(section, w)
+	local sh = ScrH()
+
+	return {function(y)
+		local count = #CW.order
+		local gap = sh * 0.026
+		local cw = (w - gap * (count - 1)) / count
+		local ch = sh * 0.26
+
+		for index, id in ipairs(CW.order) do
+			local station = CW.stations[id]
+			local x = (index - 1) * (cw + gap)
+			local take = {}
+
+			for item, amount in pairs(station.take) do
+				take[#take + 1] = amount .. " × " .. ItemName(item)
+			end
+
+			draw.RoundedBox(8, x, y, cw, ch, Color(255, 255, 255, 9))
+			draw.RoundedBox(2, x, y, cw, 3, AMBER)
+			draw.SimpleText(index, "nwFactoryHead", x + sh * 0.014, y + sh * 0.03, AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+			local ty = y + sh * 0.055
+
+			for _, line in ipairs(NW.inventory.WrapText(station.name, "nwFactorySection", cw - sh * 0.028)) do
+				draw.SimpleText(line, "nwFactorySection", x + sh * 0.014, ty, U.color.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+				ty = ty + sh * 0.024
+			end
+
+			ty = ty + sh * 0.008
+			draw.SimpleText("берёт", "nwFactoryBody", x + sh * 0.014, ty, FAINT)
+			ty = ty + sh * 0.022
+			ty = ty + Paragraph(#take > 0 and table.concat(take, ", ") or "ничего", x + sh * 0.014, ty, cw - sh * 0.028)
+			draw.SimpleText("даёт", "nwFactoryBody", x + sh * 0.014, ty + sh * 0.004, FAINT)
+			ty = ty + sh * 0.026
+			ty = ty + Paragraph(station.give and ItemName(station.give) or "токены", x + sh * 0.014, ty, cw - sh * 0.028,
+				GREEN)
+			draw.SimpleText(station.time .. " с  ·  от «" .. CW.ranks[station.rank].name .. "»", "nwFactoryBody",
+				x + sh * 0.014, y + ch - sh * 0.026, FAINT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+
+			-- the arrow to the next one
+			if (index < count) then
+				draw.SimpleText("›", "nwFactoryHead", x + cw + gap / 2, y + ch / 2, AMBER, TEXT_ALIGN_CENTER,
+					TEXT_ALIGN_CENTER)
+			end
+		end
+
+		return ch + sh * 0.025 + Paragraph(section.text, 0, y + ch + sh * 0.02, w)
+	end}
+end
+
+-- a table: the heads, the rows
+local function Table(y, w, heads, rows, widths)
+	local sh = ScrH()
+	local rowH = sh * 0.04
+	local x = 0
+
+	draw.RoundedBox(6, 0, y, w, rowH, Color(255, 255, 255, 12))
+
+	for index, head in ipairs(heads) do
+		draw.SimpleText(head, "nwFactorySection", x + sh * 0.012, y + rowH / 2, AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		x = x + w * widths[index]
+	end
+
+	for row, cells in ipairs(rows) do
+		local ry = y + row * rowH
+
+		if (row % 2 == 0) then
+			draw.RoundedBox(0, 0, ry, w, rowH, Color(255, 255, 255, 5))
+		end
+
+		x = 0
+
+		for index, cell in ipairs(cells) do
+			draw.SimpleText(cell, "nwFactoryBody", x + sh * 0.012, ry + rowH / 2, index == 1 and U.color.text or BODY,
+				TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			x = x + w * widths[index]
+		end
+	end
+
+	return (#rows + 1) * rowH
+end
+
+function PAGES.ranks(section, w)
+	local sh = ScrH()
+
+	return {function(y)
+		local rows = {}
+
+		for index, rank in ipairs(CW.ranks) do
+			local opens = {}
+
+			for _, id in ipairs(CW.order) do
+				if (CW.stations[id].rank == index) then
+					opens[#opens + 1] = CW.stations[id].name
+				end
+			end
+
+			rows[#rows + 1] = {rank.name, rank.xp .. " опыта", #opens > 0 and table.concat(opens, ", ") or
+				(index == #CW.ranks and "+25% к оплате" or "меньше брака")}
+		end
+
+		local used = Table(y, w, {"Ранг", "Нужно", "Открывает"}, rows, {0.28, 0.2, 0.52})
+
+		return used + sh * 0.02 + Paragraph(section.text, 0, y + used + sh * 0.02, w)
+	end}
+end
+
+function PAGES.pay(section, w)
+	local sh = ScrH()
+	local skills = {strength = "Сила", engineering = "Инженерия"}
+
+	return {function(y)
+		local rows = {}
+
+		for _, id in ipairs(CW.order) do
+			local station = CW.stations[id]
+
+			rows[#rows + 1] = {station.name, station.pay .. " ток.", "+" .. station.xp, skills[station.skill] or
+				station.skill, station.time .. " с"}
+		end
+
+		local used = Table(y, w, {"Станция", "Оплата", "Опыт", "Навык", "Время"}, rows, {0.36, 0.16, 0.12, 0.22, 0.14})
+
+		return used + sh * 0.02 + Paragraph(section.text, 0, y + used + sh * 0.02, w)
+	end}
+end
+
+function CW.ShowInstruction(startID)
 	if (IsValid(CW.help)) then
 		CW.help:Remove()
 	end
 
 	local sh = ScrH()
-	local w, h = math.Round(sh * 0.95), math.Round(sh * 0.8)
+	local w, h = math.min(ScrW() - 40, math.Round(sh * 1.3)), math.Round(sh * 0.82)
 	local frame = Window("Завод: инструкция", w, h)
 	local pad = math.Round(sh * 0.03)
-	local scroll = NW.widgets.Scroll(frame)
+	local navW = math.Round(w * 0.24)
+	local top = sh * 0.085
+	local page = vgui.Create("DScrollPanel", frame)
 
-	scroll:SetPos(pad, sh * 0.085)
-	scroll:SetSize(w - pad * 2, h - sh * 0.085 - pad)
+	page:SetPos(pad + navW + pad, top)
+	page:SetSize(w - navW - pad * 3, h - top - pad)
 	CW.help = frame
 
-	for _, section in ipairs(CW.instruction) do
-		local lines = {}
+	local current
 
-		for _, paragraph in ipairs(section[2]) do
-			local wrapped = NW.inventory.WrapText(paragraph, "nwFactoryBody", w - pad * 2 - sh * 0.06)
+	local function Open(section)
+		current = section
+		page:Clear()
 
-			for k, line in ipairs(wrapped) do
-				lines[#lines + 1] = {text = line, first = k == 1}
+		local pw = page:GetWide() - 16
+		local blocks = section.steps and PAGES.steps(section, pw) or PAGES[section.id](section, pw)
+		local canvas = page:Add("DPanel")
+
+		canvas:Dock(TOP)
+		canvas:SetTall(h)
+		canvas.Paint = function(self)
+			draw.SimpleText(section.title, "nwFactoryHead", 0, 0, U.color.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+
+			local y = sh * 0.05
+
+			for _, Block in ipairs(blocks) do
+				y = y + Block(y)
+			end
+
+			if (math.abs(self:GetTall() - y) > 2) then
+				self:SetTall(y)
 			end
 		end
 
-		local block = scroll:Add("DPanel")
-		local lineH = math.Round(sh * 0.025)
+		surface.PlaySound("network2/ui/hover.wav")
+	end
 
-		block:Dock(TOP)
-		block:DockMargin(0, 0, 8, sh * 0.018)
-		block:SetTall(sh * 0.045 + #lines * lineH)
-		block.Paint = function(_, bw, bh)
-			draw.RoundedBox(8, 0, 0, bw, bh, Color(255, 255, 255, 7))
-			draw.SimpleText(section[1], "nwFactorySection", sh * 0.018, sh * 0.024, AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	for index, section in ipairs(CW.instruction) do
+		local button = vgui.Create("DButton", frame)
 
-			for index, line in ipairs(lines) do
-				draw.SimpleText((line.first and "•  " or "    ") .. line.text, "nwFactoryBody", sh * 0.018,
-					sh * 0.05 + (index - 1) * lineH, Color(208, 212, 218), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		button:SetText("")
+		button:SetPos(pad, top + (index - 1) * (sh * 0.056))
+		button:SetSize(navW, sh * 0.048)
+		button.Paint = function(self, bw, bh)
+			local active = current == section
+
+			draw.RoundedBox(6, 0, 0, bw, bh, active and Color(232, 170, 64, 40) or (self:IsHovered() and
+				Color(255, 255, 255, 14) or Color(255, 255, 255, 6)))
+
+			if (active) then
+				draw.RoundedBox(2, 0, 0, 3, bh, AMBER)
 			end
+
+			U.DrawIcon(section.icon, bh * 0.25, bh * 0.25, bh * 0.5, active and AMBER or FAINT)
+			draw.SimpleText(section.title, "nwFactoryBody", bh * 0.95, bh / 2, active and U.color.text or BODY,
+				TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		end
+		button.DoClick = function()
+			Open(section)
+		end
+
+		if (section.id == startID or (!startID and index == 1)) then
+			Open(section)
 		end
 	end
 end
 
-net.Receive("nwFactoryHelp", CW.ShowInstruction)
+net.Receive("nwFactoryHelp", function()
+	CW.ShowInstruction()
+end)
 
 -- --------------------------------------------------------------- the office --
 net.Receive("nwFactoryOffice", function()

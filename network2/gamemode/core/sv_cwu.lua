@@ -191,15 +191,19 @@ function CW.Repair(client, entity)
 		return Notify(client, "Здесь всё работает")
 	end
 
-	if (!CW.IsCWU(client)) then
+	-- the settings of the point (the C menu, sh_entsettings.lua)
+	local conf = entity.Conf and entity:Conf() or {tool = "toolkit", time = 10, reward = 0, cwuOnly = true}
+	local tool = I.Get(conf.tool)
+
+	if (conf.cwuOnly and !CW.IsCWU(client)) then
 		return Notify(client, "Ремонтом занимаются рабочие ГСР")
 	end
 
-	if (!INV.Has(client, "toolkit")) then
-		return Notify(client, "Нужен набор инструментов")
+	if (tool and !INV.Has(client, conf.tool)) then
+		return Notify(client, "Нужно: " .. tool.name)
 	end
 
-	local seconds = 10 * NW.skills.Factor(client, "engineering", -0.06)
+	local seconds = conf.time * NW.skills.Factor(client, "engineering", -0.06)
 
 	NW.SayMe(client, "чинит " .. string.lower(entity:KindData().name))
 
@@ -208,10 +212,19 @@ function CW.Repair(client, entity)
 			return
 		end
 
+		if (tool and conf.consume) then
+			if (!INV.Has(client, conf.tool)) then
+				return Notify(client, "Нужно: " .. tool.name)
+			end
+
+			Take(client, conf.tool, 1)
+			INV.Changed(client)
+		end
+
 		entity:SetState(false)
 		entity:EmitSound("buttons/button9.wav", 60)
 
-		local reward = CW.Class(client) == "worker" and 18 or 12
+		local reward = conf.reward > 0 and conf.reward or (CW.Class(client) == "worker" and 18 or 12)
 
 		Pay(client, reward)
 		NW.skills.Add(client, "engineering", 12)

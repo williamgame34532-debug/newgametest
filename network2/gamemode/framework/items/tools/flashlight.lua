@@ -6,6 +6,7 @@ ITEM.description = "Небольшой фонарик на батарейках.
 ITEM.model = "models/lamps/torch.mdl"
 ITEM.icon = "flashlight"
 ITEM.useVerb = "включить / выключить"
+ITEM.flashlight = true
 
 function ITEM.OnUse(client)
 	client:Flashlight(!client:FlashlightIsOn())

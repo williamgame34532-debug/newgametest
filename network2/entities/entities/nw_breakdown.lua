@@ -2,8 +2,10 @@ AddCSLuaFile()
 
 -- A place where the city breaks (sh_cwu.lua): a pipe, a power box or a panel of the Combine. Now and
 -- then it breaks by itself (sv_cwu.lua): the pipe hisses with steam, the box sparks, the panel
--- flickers and crackles; the CWU sees it at its terminal and on the HUD. A worker of the CWU with a
--- toolkit fixes it: E (the time shrinks with Инженерия). Admins: Alt + E - the next kind.
+-- flickers and crackles; the CWU sees it at its terminal and on the HUD. A worker of the CWU with the
+-- tool fixes it: E (the time shrinks with Инженерия). Admins: the C menu → «Настройки» (the kind,
+-- the name, the model, the tool, whether it is used up, the time, the pay, who may repair) or
+-- Alt + E - the next kind (sh_entsettings.lua).
 
 ENT.Type = "anim"
 ENT.PrintName = "Точка поломки (ГСР)"
@@ -15,8 +17,14 @@ ENT.RenderGroup = RENDERGROUP_BOTH
 ENT.Kinds = {
 	{id = "pipe", name = "Утечка в трубе", model = "models/props_pipes/valve002.mdl"},
 	{id = "power", name = "Электрощит", model = "models/props_lab/powerbox01a.mdl"},
-	{id = "panel", name = "Панель Альянса", model = "models/props_combine/combine_interface002.mdl"}
+	{id = "panel", name = "Панель Альянса", model = "models/props_combine/combine_interface002.mdl"},
+	{id = "wire", name = "Оборванная проводка", model = "models/props_lab/tpplugholder_single.mdl"},
+	{id = "vent", name = "Неисправный котёл", model = "models/props_c17/furnitureboiler001a.mdl"},
+	{id = "lamp", name = "Уличный фонарь", model = "models/props_c17/light_cagelight02_on.mdl"}
 }
+
+-- the settings of a point (the C menu): what fixes it and how
+ENT.Defaults = {tool = "toolkit", consume = false, time = 10, reward = 0, name = "", cwuOnly = true}
 
 function ENT:SetupDataTables()
 	self:NetworkVar("Bool", 0, "Broken")
@@ -25,7 +33,39 @@ function ENT:SetupDataTables()
 end
 
 function ENT:KindData()
-	return self.Kinds[math.Clamp(self:GetKind(), 1, #self.Kinds)]
+	local kind = self.Kinds[math.Clamp(self:GetKind(), 1, #self.Kinds)]
+	local name = self:GetNW2String("nwBreakName", "")
+
+	return name != "" and {id = kind.id, name = name, model = kind.model} or kind
+end
+
+-- the tool that fixes it ("" - the hands)
+function ENT:Tool()
+	return self:GetNW2String("nwBreakTool", "toolkit")
+end
+
+if (SERVER) then
+	function ENT:Conf()
+		self.nwConf = self.nwConf or table.Copy(self.Defaults)
+
+		return self.nwConf
+	end
+
+	function ENT:SetConf(conf)
+		local out = self:Conf()
+
+		for key, default in pairs(self.Defaults) do
+			if (conf[key] != nil and type(conf[key]) == type(default)) then
+				out[key] = conf[key]
+			end
+		end
+
+		out.time = math.Clamp(out.time, 1, 120)
+		out.reward = math.Clamp(math.floor(out.reward), 0, 500)
+		out.name = string.sub(string.Trim(out.name), 1, 48)
+		self:SetNW2String("nwBreakName", out.name)
+		self:SetNW2String("nwBreakTool", out.tool)
+	end
 end
 
 if (SERVER) then
@@ -42,6 +82,7 @@ if (SERVER) then
 
 	function ENT:Initialize()
 		self:SetKind(math.max(1, self:GetKind()))
+		self:SetConf(self:Conf())
 		self:ApplyModel()
 		self:SetUseType(SIMPLE_USE)
 	end
@@ -71,11 +112,11 @@ if (SERVER) then
 
 		if (bBroken) then
 			local kind = self:KindData().id
-			local sound = kind == "pipe" and "ambient/gas/steam2.wav" or "ambient/energy/electric_loop.wav"
+			local sound = (kind == "pipe" or kind == "vent") and "ambient/gas/steam2.wav" or "ambient/energy/electric_loop.wav"
 
 			self.loop = CreateSound(self, sound)
 			self.loop:SetSoundLevel(68)
-			self.loop:PlayEx(kind == "pipe" and 0.5 or 0.3, 100)
+			self.loop:PlayEx(kind == "pipe" and 0.5 or (kind == "vent" and 0.25 or 0.3), kind == "vent" and 70 or 100)
 		end
 	end
 
@@ -106,7 +147,9 @@ if (SERVER) then
 
 	-- sparks of a broken box and panel now and then
 	function ENT:Think()
-		if (self:GetBroken() and self:KindData().id != "pipe" and math.random() < 0.35) then
+		local kind = self:KindData().id
+
+		if (self:GetBroken() and kind != "pipe" and kind != "vent" and math.random() < 0.35) then
 			local effect = EffectData()
 
 			effect:SetOrigin(self:WorldSpaceCenter() + VectorRand() * 6)
@@ -129,11 +172,12 @@ if (SERVER) then
 	timer.Simple(0, function()
 		NW.persist.Register("nw_breakdown", {
 			Save = function(entity)
-				return {kind = entity:GetKind(), model = entity.nwModel}
+				return {kind = entity:GetKind(), model = entity.nwModel, conf = entity:Conf()}
 			end,
 			Load = function(entity, data)
 				entity:SetKind(tonumber(data.kind) or 1)
 				entity.nwModel = data.model
+				entity:SetConf(istable(data.conf) and data.conf or {})
 				entity:ApplyModel()
 			end
 		})
@@ -154,9 +198,9 @@ function ENT:Think()
 
 	local kind = self:KindData().id
 
-	-- the steam of a pipe
-	if (kind == "pipe" and (self.nextPuff or 0) < CurTime()) then
-		self.nextPuff = CurTime() + 0.06
+	-- the steam of a pipe, the dust of a vent
+	if ((kind == "pipe" or kind == "vent") and (self.nextPuff or 0) < CurTime()) then
+		self.nextPuff = CurTime() + (kind == "vent" and 0.25 or 0.06)
 
 		local emitter = ParticleEmitter(self:GetPos())
 
@@ -180,8 +224,8 @@ function ENT:Think()
 		end
 	end
 
-	-- the flicker of a box or a panel
-	if (kind != "pipe") then
+	-- the flicker of a box, a panel, the wires, a lamp
+	if (kind != "pipe" and kind != "vent") then
 		local light = DynamicLight(self:EntIndex())
 
 		if (light and math.random() < 0.6) then

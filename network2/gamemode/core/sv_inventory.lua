@@ -1010,6 +1010,22 @@ hook.Add("PlayerSpawn", "nwFlashlight", function(client)
 	client:AllowFlashlight(true)
 end)
 
+-- any flashlight: the framework one or one made in /itemedit (item.flashlight)
+local function HasLight(client)
+	local inventory = INV.Get(client)
+
+	for index = 1, I.maxSize do
+		local cell = inventory.grid[index]
+		local item = cell and I.Get(cell.id)
+
+		if (item and (item.flashlight or cell.id == "flashlight")) then
+			return true
+		end
+	end
+
+	return false
+end
+
 -- the night vision goggles (an item with nvg, put on): the key F is theirs, not the flashlight's
 local function UpdateNVG(client)
 	local has = false
@@ -1035,7 +1051,7 @@ hook.Add("NWCharacterLoaded", "nwNVG", function(client)
 end)
 
 hook.Add("PlayerSwitchFlashlight", "nwFlashlight", function(client, bEnabled)
-	if (bEnabled and (client:GetCharacterID() == 0 or !INV.Has(client, "flashlight") or
+	if (bEnabled and (client:GetCharacterID() == 0 or !HasLight(client) or
 		client:GetNW2Bool("nwHasNVG", false))) then
 		return false
 	end
@@ -1044,7 +1060,7 @@ end)
 -- dropped or gone: the light goes out
 timer.Create("nwFlashlight", 1, 0, function()
 	for _, client in ipairs(player.GetAll()) do
-		if (client:FlashlightIsOn() and (client:GetCharacterID() == 0 or !INV.Has(client, "flashlight"))) then
+		if (client:FlashlightIsOn() and (client:GetCharacterID() == 0 or !HasLight(client))) then
 			client:Flashlight(false)
 		end
 	end
