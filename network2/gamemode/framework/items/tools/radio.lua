@@ -4,6 +4,7 @@ ITEM.description = "Портативная рация с шифрованием 
 ITEM.model = "models/props_lab/reciever01d.mdl"
 ITEM.icon = "radio"
 ITEM.useVerb = "настроить"
+ITEM.radio = true
 
 function ITEM.OnUse(client)
 	NW.radio.Open(client)

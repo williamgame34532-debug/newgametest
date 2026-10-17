@@ -199,7 +199,7 @@ hook.Add("HUDPaint", "nwOverhead", function()
 					local hintH = select(2, surface.GetTextSize("Ag"))
 					local height = nameH + sh * 0.003 + lines * lh + sh * 0.006 + hintH
 					Block(screen.x, screen.y - height - sh * 0.012 - (1 - a) * sh * 0.008,
-						U.Material("network2/items/" .. item.icon .. ".png"), cat.color, item.name,
+						NW.items.IconMaterial(item), cat.color, item.name,
 						Color(236, 240, 244), item.description, Color(186, 192, 198), a)
 				end
 			end

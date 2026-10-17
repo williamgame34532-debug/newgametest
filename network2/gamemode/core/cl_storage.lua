@@ -518,7 +518,7 @@ local function Build()
 		if (SU.drag and SU.drag.item) then
 			local s = size * 0.8
 
-			surface.SetMaterial(U.Material("network2/items/" .. SU.drag.item.icon .. ".png"))
+			surface.SetMaterial(NW.items.IconMaterial(SU.drag.item))
 			surface.SetDrawColor(255, 255, 255, 230)
 			surface.DrawTexturedRect(mxp - s / 2, myp - s / 2, s, s)
 

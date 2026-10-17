@@ -116,6 +116,8 @@ local FILES = {
 	"sh_cwu.lua",
 	"sv_cwu.lua",
 	"cl_cwu.lua",
+	"sh_itemedit.lua",
+	"cl_itemedit.lua",
 	"sh_incapable.lua"
 }
 

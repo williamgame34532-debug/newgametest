@@ -81,7 +81,7 @@ Fonts()
 hook.Add("OnScreenSizeChanged", "nwInvFonts", Fonts)
 
 local function ItemIcon(item)
-	return U.Material("network2/items/" .. (item and item.icon or "bag") .. ".png")
+	return I.IconMaterial(item)
 end
 
 local function Ease(t)

@@ -238,7 +238,7 @@ hook.Add("HUDPaint", "nwInteract", function()
 			local item = entity:GetItem()
 			local cat = item and (I.categories[item.category] or I.categories.misc)
 
-			material = U.Material("network2/items/" .. (item and item.icon or "bag") .. ".png")
+			material = NW.items.IconMaterial(item)
 			color = cat and cat.color or U.color.text
 		elseif (mark.kind == "door") then
 			material = U.Icon("door")

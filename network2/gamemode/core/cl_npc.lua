@@ -310,7 +310,7 @@ local function Price(parent, line, x, y, h)
 				px = px + 14
 			end
 
-			surface.SetMaterial(U.Material("network2/items/" .. (item and item.icon or "bag") .. ".png"))
+			surface.SetMaterial(I.IconMaterial(item))
 			surface.SetDrawColor(255, 255, 255)
 			surface.DrawTexturedRect(px, 2, is, is)
 			draw.SimpleText((item and item.name or "?") .. " ×" .. line.priceCount .. "  (у вас " ..
@@ -875,7 +875,7 @@ local function BuildQuest(frame, sw, sh)
 			local item = I.Get(need.item)
 			local have = Have(need.item)
 
-			surface.SetMaterial(U.Material("network2/items/" .. item.icon .. ".png"))
+			surface.SetMaterial(I.IconMaterial(item))
 			surface.SetDrawColor(255, 255, 255)
 			surface.DrawTexturedRect(pad, y + 2, rowH - 4, rowH - 4)
 			draw.SimpleText(item.name, "nwNpcAnswer", pad + rowH + 4, y + rowH / 2, U.color.text, TEXT_ALIGN_LEFT,
@@ -899,7 +899,7 @@ local function BuildQuest(frame, sw, sh)
 		for _, reward in ipairs(quest.rewardItems) do
 			local item = I.Get(reward.item)
 
-			surface.SetMaterial(U.Material("network2/items/" .. item.icon .. ".png"))
+			surface.SetMaterial(I.IconMaterial(item))
 			surface.SetDrawColor(255, 255, 255)
 			surface.DrawTexturedRect(pad, y + 2, rowH - 4, rowH - 4)
 			draw.SimpleText(item.name .. " ×" .. reward.count, "nwNpcAnswer", pad + rowH + 4, y + rowH / 2, U.color.text,

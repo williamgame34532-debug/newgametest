@@ -474,7 +474,7 @@ local function StatusPage(parent)
 			button.Paint = function(self, bw, bh)
 				draw.RoundedBox(6, 0, 0, bw, bh, Color(255, 255, 255, self:IsHovered() and 30 or 12))
 
-				local icon = U.Material("network2/items/" .. (entry.item.icon or entry.item.id) .. ".png")
+				local icon = I.IconMaterial(entry.item)
 
 				surface.SetMaterial(icon)
 				surface.SetDrawColor(255, 255, 255, 235)

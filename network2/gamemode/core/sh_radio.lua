@@ -66,8 +66,31 @@ if (SERVER) then
 	util.AddNetworkString("nwRadioOpen")
 	util.AddNetworkString("nwRadioClick")
 
+	-- any radio: the framework one or one made in /itemedit (item.radio)
+	local function HasRadio(client)
+		local inventory = NW.inventory.Get(client)
+
+		for _, cell in pairs(inventory.grid) do
+			local item = NW.items.Get(cell.id)
+
+			if (item and item.radio) then
+				return true
+			end
+		end
+
+		for _, cell in pairs(inventory.equip) do
+			local item = NW.items.Get(cell.id)
+
+			if (item and item.radio) then
+				return true
+			end
+		end
+
+		return false
+	end
+
 	local function Update(client)
-		local has = NW.inventory.Has(client, "radio")
+		local has = HasRadio(client)
 
 		client:SetNW2Bool("nwHasRadio", has)
 
