@@ -81,7 +81,8 @@ local function Active()
 	local client = LocalPlayer()
 
 	return enabled:GetBool() and IsValid(client) and client:Alive() and client:GetCharacterID() != 0 and
-		!client:GetNW2Bool("nwInMenu", false) and !client:GetNW2Bool("nwKnocked", false) and Kind(client) != nil
+		!client:GetNW2Bool("nwInMenu", false) and !client:GetNW2Bool("nwKnocked", false) and Kind(client) != nil and
+		!(NW.cameras and NW.cameras.full)
 end
 
 NW.combineHud = {Active = Active}

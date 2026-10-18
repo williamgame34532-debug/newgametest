@@ -123,6 +123,7 @@ local FILES = {
 	"sh_requests.lua",
 	"sh_business.lua",
 	"sh_rebels.lua",
+	"sh_schedule.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",

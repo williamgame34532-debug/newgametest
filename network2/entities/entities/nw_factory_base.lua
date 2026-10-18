@@ -82,12 +82,28 @@ function ENT:DrawTranslucent()
 	local angle = Angle(0, EyeAngles().y - 90, 90)
 	local rank = NW.cwu.ranks[station.rank]
 
+	-- for you: open, closed by the rank, not hired, outside the work shift
+	local client = LocalPlayer()
+	local mine = NW.cwu.Rank(client:GetNW2Int("nwFactoryXP", 0))
+	local state, color
+
+	if (!client:GetNW2Bool("nwFactoryHired", false)) then
+		state, color = "ВЫ НЕ ОФОРМЛЕНЫ: ОТДЕЛ КАДРОВ ИЛИ ТЕРМИНАЛ ЗАВОДА", Color(232, 120, 80)
+	elseif (mine < station.rank) then
+		state, color = "ЗАКРЫТО: НУЖЕН РАНГ «" .. string.upper(rank.name) .. "»", Color(232, 96, 80)
+	elseif (NW.schedule and !NW.schedule.Allows("factory")) then
+		state, color = "ЗАВОД ЗАКРЫТ ДО РАБОЧЕЙ СМЕНЫ", Color(232, 170, 64)
+	else
+		state, color = "ДОСТУПНО  ·  E", Color(130, 214, 120)
+	end
+
 	cam.Start3D2D(top, angle, 0.08)
-		draw.RoundedBox(10, -230, -60, 460, 112, Color(14, 16, 20, 210 * alpha))
-		draw.RoundedBox(2, -230, -60, 460, 4, Color(232, 170, 64, 255 * alpha))
+		draw.RoundedBox(10, -250, -60, 500, 150, Color(14, 16, 20, 210 * alpha))
+		draw.RoundedBox(2, -250, -60, 500, 4, Color(232, 170, 64, 255 * alpha))
 		draw.SimpleText(station.name, "nwFactoryTitle", 0, -24, Color(236, 238, 242, 255 * alpha), TEXT_ALIGN_CENTER,
 			TEXT_ALIGN_CENTER)
 		draw.SimpleText(station.hint .. "  ·  от ранга «" .. rank.name .. "»", "nwFactoryText", 0, 20,
 			Color(180, 184, 190, 255 * alpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		draw.SimpleText(state, "nwFactoryText", 0, 60, ColorAlpha(color, 255 * alpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	cam.End3D2D()
 end

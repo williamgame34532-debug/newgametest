@@ -297,6 +297,17 @@ function CW.Hire(client, bHire)
 	Notify(client, bHire and "Вы оформлены на завод" or "Вы уволились с завода")
 end
 
+-- where an ingredient comes from (the hint when it is missing)
+function CW.SourceOf(id)
+	for _, stationID in ipairs(CW.order) do
+		if (CW.stations[stationID].give == id) then
+			return "делают на станции «" .. CW.stations[stationID].name .. "»"
+		end
+	end
+
+	return "нет на линии"
+end
+
 function CW.Work(client, entity)
 	local station = CW.stations[entity.Station]
 	local factory = Factory(client)
@@ -315,9 +326,33 @@ function CW.Work(client, entity)
 		return Notify(client, "Эта станция — с ранга «" .. CW.ranks[station.rank].name .. "»")
 	end
 
+	-- the city schedule: the stations work in the work shift only (sh_schedule.lua)
+	if (NW.schedule and !NW.schedule.Allows("factory")) then
+		return Notify(client, "Завод закрыт: сейчас " .. string.lower(NW.schedule.Current().name) ..
+			". Ждите рабочей смены")
+	end
+
 	for id, count in pairs(station.take) do
 		if (Count(client, id) < count) then
-			return Notify(client, "Нужно: " .. (I.Get(id) and I.Get(id).name or id) .. " ×" .. count)
+			return Notify(client, "Нужно: " .. (I.Get(id) and I.Get(id).name or id) .. " ×" .. count ..
+				" (" .. CW.SourceOf(id) .. ")")
+		end
+	end
+
+	-- the shipping: the most valuable product you carry
+	local sold
+
+	if (station.buys) then
+		local best = 0
+
+		for id, deal in pairs(station.buys) do
+			if (deal[1] > best and Count(client, id) > 0) then
+				sold, best = id, deal[1]
+			end
+		end
+
+		if (!sold) then
+			return Notify(client, "Нечего сдавать: принесите лом, детали, блок или груз")
 		end
 	end
 
@@ -342,6 +377,18 @@ function CW.Work(client, entity)
 			Take(client, id, count)
 		end
 
+		local pay = station.pay
+		local xp = station.xp
+
+		if (sold) then
+			if (Count(client, sold) < 1) then
+				return Notify(client, "Продукция пропала из рук")
+			end
+
+			Take(client, sold, 1)
+			pay, xp = station.buys[sold][1], station.buys[sold][2]
+		end
+
 		local made = station.give
 
 		-- the control: a defect now and then (less with the rank); the block goes back as parts
@@ -358,8 +405,6 @@ function CW.Work(client, entity)
 
 		INV.Changed(client)
 
-		local pay = station.pay
-
 		if (rank >= #CW.ranks) then
 			pay = pay * 1.25
 		end
@@ -371,7 +416,7 @@ function CW.Work(client, entity)
 		pay = math.Round(pay)
 		Pay(client, pay)
 
-		factory.xp = (factory.xp or 0) + station.xp
+		factory.xp = (factory.xp or 0) + xp
 		factory.made = (factory.made or 0) + 1
 		client:SetNW2Int("nwFactoryXP", factory.xp)
 
@@ -386,9 +431,13 @@ function CW.Work(client, entity)
 		NW.skills.Add(client, station.skill, 3)
 		CW.shift = (CW.shift or 0) + (entity.Station == "shipping" and 1 or 0)
 
-		if (made or pay > 0) then
-			Notify(client, (made and ((I.Get(made) and I.Get(made).name or made) .. "  ·  ") or "") .. "+" .. pay .. " ток.")
-		end
+		-- what came of it and how far the next rank is
+		local nextRank = CW.ranks[newRank + 1]
+		local progress = nextRank and ("  ·  +" .. xp .. " опыта, до «" .. nextRank.name .. "» ещё " ..
+			(nextRank.xp - factory.xp)) or ("  ·  +" .. xp .. " опыта")
+
+		Notify(client, (made and ((I.Get(made) and I.Get(made).name or made) .. "  ·  ") or "") .. "+" .. pay .. " ток." ..
+			progress)
 	end, function()
 		return Near(client, entity)
 	end)

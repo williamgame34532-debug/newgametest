@@ -20,6 +20,37 @@ function ES.Register(class, data)
 	ES.list[class] = data
 end
 
+-- the model only (entity.nwModel, kept by the persist handlers of the class): the default when empty
+function ES.ModelOnly(class, title, default)
+	ES.Register(class, {
+		title = title,
+		fields = {{id = "model", name = "Модель (пусто — по умолчанию)", type = "model", default = default}},
+		Get = function(entity)
+			return {model = entity.nwModel or ""}
+		end,
+		Set = function(entity, values)
+			local model = string.Trim(values.model or "")
+
+			if (model != "" and !util.IsValidModel(model)) then
+				return false, "Нет такой модели: " .. model
+			end
+
+			entity.nwModel = model != "" and model or nil
+			entity:SetModel(entity.nwModel or default)
+			entity:PhysicsInit(SOLID_VPHYSICS)
+
+			local physics = entity:GetPhysicsObject()
+
+			if (IsValid(physics)) then
+				physics:EnableMotion(false)
+			end
+		end
+	})
+end
+
+ES.ModelOnly("nw_factory_terminal", "Терминал завода", "models/props_combine/combine_interface001.mdl")
+ES.ModelOnly("nw_fabricator", "Фабрикатор Альянса", "models/props_combine/combine_dispenser.mdl")
+
 -- ------------------------------------------------------------- the factory --
 local function Physics(entity)
 	entity:PhysicsInit(SOLID_VPHYSICS)

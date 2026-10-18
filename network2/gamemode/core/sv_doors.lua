@@ -621,10 +621,20 @@ net.Receive("nwDoorAction", function(_, client)
 				lock:SetState(false)
 			end
 
+			-- the door flies away from the one who kicked it (prop_door_rotating: OpenAwayFrom <name>)
+			local name = "nwKicker" .. client:EntIndex()
+
+			client:SetName(name)
+
 			for _, member in ipairs(D.Group(door)) do
 				member.nwLocked = false
 				member:Fire("Unlock")
-				member:Fire("Open")
+
+				if (member:GetClass() == "prop_door_rotating") then
+					member:Fire("OpenAwayFrom", name)
+				else
+					member:Fire("Open")
+				end
 			end
 
 			util.ScreenShake(door:GetPos(), 3, 8, 0.4, 300)

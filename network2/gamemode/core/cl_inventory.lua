@@ -347,6 +347,21 @@ function INV.Menu(ref)
 				INV.Action(ref, "use")
 			end
 		end)
+	-- a flashlight or night vision: which one F switches (cl_vision.lua; held F - the same choice)
+	local light = (item.flashlight or cell.id == "flashlight") and "flashlight" or (item.nvg and "nvg")
+
+	if (light) then
+		local convar = GetConVar("nw_light_primary")
+		local current = NW.vision and NW.vision.Primary and NW.vision.Primary() == light
+
+		MenuOption(menu, "Сделать основным на F", "settings", current and "основной" or nil, function()
+			if (convar) then
+				convar:SetString(light)
+				NW.notify.Add("Основной на F: " .. (light == "nvg" and "ночное видение" or "фонарик"))
+			end
+		end)
+	end
+
 	MenuOption(menu, "Выбросить", "drop", nil, function()
 		INV.Action(ref, "drop")
 	end)

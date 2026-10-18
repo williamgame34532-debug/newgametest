@@ -23,7 +23,8 @@ ENT.Displays = {
 	[6] = {"ОТКЛЮЧЁН", Color(255, 50, 40), true},
 	[7] = {"НЕТ CID", Color(255, 50, 40)},
 	[8] = {"ПОДГОТОВКА", Color(0, 255, 90)},
-	[9] = {"ПУСТО", Color(255, 120, 40), true}
+	[9] = {"ПУСТО", Color(255, 120, 40), true},
+	[10] = {"КОМЕНДАНТСКИЙ ЧАС", Color(255, 50, 40)}
 }
 
 function ENT:SetupDataTables()
@@ -186,6 +187,13 @@ if (SERVER) then
 
 		if (!NW.inventory.Has(client, "cid")) then
 			return self:Refuse(7)
+		end
+
+		-- the curfew: no rations (sh_schedule.lua)
+		if (NW.schedule and !NW.schedule.Allows("rations")) then
+			NW.Notify(client, "Раздача закрыта: комендантский час")
+
+			return self:Refuse(10)
 		end
 
 		self.ready = false

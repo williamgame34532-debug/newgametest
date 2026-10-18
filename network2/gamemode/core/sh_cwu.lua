@@ -14,7 +14,8 @@
 --   Станок             2 Металлолом → Детали        (Рабочий and up)
 --   Сборочный стол     2 Детали → Блок Альянса      (Оператор and up)
 --   Контроль/упаковка  Блок → Упакованный груз      (Мастер смены and up; a defect sometimes)
---   Отгрузка           Упакованный груз → токены    (anyone hired)
+--   Отгрузка           any product → токены         (anyone hired: scrap 1, parts 3, a block 6, a
+--                                                   crate 14 - so a trainee has somewhere to bring the scrap)
 -- Every station pays a little and gives experience of the factory; the experience raises the rank,
 -- the rank opens the stations. /menufactory - the instruction (also opens once for the admin who
 -- spawns the first station).
@@ -50,10 +51,10 @@ end
 -- ---------------------------------------------------------------- the factory --
 CW.ranks = {
 	{name = "Стажёр", xp = 0},
-	{name = "Рабочий", xp = 60},
-	{name = "Оператор", xp = 180},
-	{name = "Мастер смены", xp = 400},
-	{name = "Начальник цеха", xp = 800}
+	{name = "Рабочий", xp = 30},
+	{name = "Оператор", xp = 100},
+	{name = "Мастер смены", xp = 220},
+	{name = "Начальник цеха", xp = 420}
 }
 
 function CW.Rank(xp)
@@ -70,7 +71,7 @@ end
 
 -- the stations: what goes in, what comes out, how long, the pay, the experience, the rank needed
 CW.stations = {
-	intake = {name = "Приёмка сырья", rank = 1, take = {}, give = "scrap", time = 4, pay = 1, xp = 2,
+	intake = {name = "Приёмка сырья", rank = 1, take = {}, give = "scrap", time = 4, pay = 1, xp = 3,
 		skill = "strength", verb = "Разбираю лом", model = "models/props_junk/TrashDumpster01a.mdl",
 		hint = "Забрать металлолом"},
 	press = {name = "Станок", rank = 2, take = {scrap = 2}, give = "parts", time = 6, pay = 3, xp = 5,
@@ -82,9 +83,11 @@ CW.stations = {
 	packing = {name = "Контроль и упаковка", rank = 4, take = {unit_core = 1}, give = "factory_crate", time = 6, pay = 6,
 		xp = 10, skill = "engineering", verb = "Проверяю и упаковываю", defect = 0.18,
 		model = "models/props_combine/combine_interface001.mdl", hint = "Блок → упакованный груз"},
-	shipping = {name = "Отгрузка", rank = 1, take = {factory_crate = 1}, give = nil, time = 3, pay = 14, xp = 6,
-		skill = "strength", verb = "Сдаю груз", model = "models/props_junk/wood_crate002a.mdl",
-		hint = "Сдать упакованный груз за токены"}
+	shipping = {name = "Отгрузка", rank = 1, take = {}, give = nil, time = 3, pay = 0, xp = 2,
+		skill = "strength", verb = "Сдаю продукцию", model = "models/props_junk/wood_crate002a.mdl",
+		hint = "Сдать продукцию за токены",
+		-- what it takes (the most valuable one you carry): the pay and the experience for it
+		buys = {factory_crate = {14, 8}, unit_core = {6, 4}, parts = {3, 2}, scrap = {1, 1}}}
 }
 
 CW.order = {"intake", "press", "assembly", "packing", "shipping"}
@@ -101,7 +104,10 @@ CW.instruction = {
 		{"Нажать E", "Стойте рядом, пока идёт полоска. Отошли — операция прервалась, сырьё цело."},
 		{"Передать дальше", "Готовое ложится в инвентарь. Несите его на следующую станцию линии или " ..
 			"отдайте напарнику."},
-		{"Сдать груз", "Упакованный груз сдаётся на «Отгрузке» за токены. Это самая выгодная операция."}
+		{"Сдать продукцию", "«Отгрузка» принимает всё, что сделано на линии: лом — 1 токен, детали — 3, блок — 6, " ..
+			"упакованный груз — 14. Чем дальше по линии, тем выгоднее."},
+		{"Расти", "Опыт идёт за каждую операцию; после каждой видно, сколько осталось до ранга. Первый ранг — " ..
+			"около десяти операций. Работают станции только в рабочую смену (оповещения в чате)."}
 	}},
 	{id = "line", title = "Линия продукта", icon = "trend",
 		text = "Продукт проходит станции слева направо. Каждая станция берёт сырьё из инвентаря и отдаёт " ..

@@ -1038,10 +1038,15 @@ local function UpdateNVG(client)
 		end
 	end
 
-	client:SetNW2Bool("nwHasNVG", has)
+	-- the Alliance: the night vision of the visor and a flashlight always
+	local alliance = client:GetCharacterID() != 0 and NW.zones.IsAlliance(client)
+
+	client:SetNW2Bool("nwHasNVG", has or alliance)
+	client:SetNW2Bool("nwHasLight", alliance or HasLight(client))
 end
 
 hook.Add("NWInventoryChanged", "nwNVG", UpdateNVG)
+hook.Add("NWFactionChanged", "nwNVG", UpdateNVG)
 hook.Add("NWCharacterLoaded", "nwNVG", function(client)
 	timer.Simple(0.5, function()
 		if (IsValid(client)) then
@@ -1050,17 +1055,38 @@ hook.Add("NWCharacterLoaded", "nwNVG", function(client)
 	end)
 end)
 
+-- the key F belongs to the framework (cl_vision.lua): a tap switches the main device; the flashlight
+-- of the engine is switched only from there (nwLightToggle)
+util.AddNetworkString("nwLightToggle")
+
 hook.Add("PlayerSwitchFlashlight", "nwFlashlight", function(client, bEnabled)
-	if (bEnabled and (client:GetCharacterID() == 0 or !HasLight(client) or
-		client:GetNW2Bool("nwHasNVG", false))) then
+	if (bEnabled) then
 		return false
 	end
+end)
+
+net.Receive("nwLightToggle", function(_, client)
+	if ((client.nwLightNext or 0) > CurTime() or !client:Alive()) then
+		return
+	end
+
+	client.nwLightNext = CurTime() + 0.25
+
+	if (client:FlashlightIsOn()) then
+		client:Flashlight(false)
+	elseif (client:GetCharacterID() != 0 and client:GetNW2Bool("nwHasLight", false)) then
+		client:Flashlight(true)
+	else
+		return
+	end
+
+	client:EmitSound("items/flashlight1.wav", 55)
 end)
 
 -- dropped or gone: the light goes out
 timer.Create("nwFlashlight", 1, 0, function()
 	for _, client in ipairs(player.GetAll()) do
-		if (client:FlashlightIsOn() and (client:GetCharacterID() == 0 or !HasLight(client))) then
+		if (client:FlashlightIsOn() and (client:GetCharacterID() == 0 or !client:GetNW2Bool("nwHasLight", false))) then
 			client:Flashlight(false)
 		end
 	end

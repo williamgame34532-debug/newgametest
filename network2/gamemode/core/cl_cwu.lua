@@ -434,6 +434,10 @@ function PAGES.line(section, w)
 				take[#take + 1] = amount .. " × " .. ItemName(item)
 			end
 
+			if (station.buys) then
+				take[#take + 1] = "любую продукцию линии"
+			end
+
 			draw.RoundedBox(8, x, y, cw, ch, Color(255, 255, 255, 9))
 			draw.RoundedBox(2, x, y, cw, 3, AMBER)
 			draw.SimpleText(index, "nwFactoryHead", x + sh * 0.014, y + sh * 0.03, AMBER, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
@@ -534,8 +538,13 @@ function PAGES.pay(section, w)
 		for _, id in ipairs(CW.order) do
 			local station = CW.stations[id]
 
-			rows[#rows + 1] = {station.name, station.pay .. " ток.", "+" .. station.xp, skills[station.skill] or
-				station.skill, station.time .. " с"}
+			local pay, xp = station.pay .. " ток.", "+" .. station.xp
+
+			if (station.buys) then
+				pay, xp = "1–14 ток.", "+1–8"
+			end
+
+			rows[#rows + 1] = {station.name, pay, xp, skills[station.skill] or station.skill, station.time .. " с"}
 		end
 
 		local used = Table(y, w, {"Станция", "Оплата", "Опыт", "Навык", "Время"}, rows, {0.36, 0.16, 0.12, 0.22, 0.14})

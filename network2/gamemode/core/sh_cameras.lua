@@ -308,12 +308,179 @@ hook.Add("HUDPaint", "nwCameraPhotos", function()
 	end
 end)
 
+-- the picture of a camera: lines, the corners, the time, the number, the flash of a photo
+function CA.Overlay(entry, pw, ph)
+	-- the overlay of the camera: lines, the corners, the time, the number
+	local now = RealTime()
+
+	surface.SetDrawColor(0, 0, 0, 40)
+
+	for line = 0, ph, 4 do
+		surface.DrawRect(0, line, pw, 1)
+	end
+
+	surface.SetDrawColor(C.cyan.r, C.cyan.g, C.cyan.b, 200)
+
+	local corner = ph * 0.08
+
+	for _, c in ipairs({{0, 0, 1, 1}, {pw, 0, -1, 1}, {0, ph, 1, -1}, {pw, ph, -1, -1}}) do
+		surface.DrawRect(c[3] > 0 and c[1] + 8 or c[1] - 8 - corner, c[4] > 0 and c[2] + 8 or c[2] - 10, corner, 2)
+		surface.DrawRect(c[3] > 0 and c[1] + 8 or c[1] - 10, c[4] > 0 and c[2] + 8 or c[2] - 8 - corner, 2, corner)
+	end
+
+	surface.DrawRect(pw / 2 - 10, ph / 2, 20, 1)
+	surface.DrawRect(pw / 2, ph / 2 - 10, 1, 20)
+
+	draw.SimpleText(string.format("КАМ-%02d  ·  %s", CA.number or 0, Up(entry.zone != "" and entry.zone or "вне зон")),
+		"nwCmtText", 18, 20, C.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+	draw.SimpleText(os.date("%H:%M:%S"), "nwCmtText", pw - 18, 20, C.text, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+
+	if (math.floor(now * 2) % 2 == 0) then
+		draw.SimpleText("● REC", "nwCmtText", pw - 18, ph - 20, Color(236, 84, 72), TEXT_ALIGN_RIGHT,
+			TEXT_ALIGN_BOTTOM)
+	end
+
+	local aim = CA.aim[entry.index] or {yaw = 0, pitch = 20}
+
+	draw.SimpleText(string.format("АЗ %+04d  ·  УМ %+03d", math.Round(-aim.yaw), math.Round(-aim.pitch)), "nwCmtSmall",
+		18, ph - 20, C.dim, TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
+
+	-- the photo: a white flash
+	local since = CurTime() - ((CA.nextPhoto or 0) - cooldown:GetFloat())
+
+	if (since >= 0 and since < 0.3) then
+		surface.SetDrawColor(255, 255, 255, 200 * (1 - since / 0.3))
+		surface.DrawRect(0, 0, pw, ph)
+	end
+
+end
+
+-- -------------------------------------------------------- the full view --
+-- chosen at the terminal: the game is seen from the camera itself; the terminal hides until
+-- Backspace. The arrows or the mouse turn it, Enter takes a photo; the character stands still.
+surface.CreateFont("nwCamHint", {font = "JetBrains Mono ExtraBold", size = math.max(12, math.Round(ScrH() * 0.017)),
+	weight = 800, extended = true, antialias = true})
+
+function CA.Enter(entry, number)
+	CA.current, CA.number = entry, number
+	CA.full = true
+	CA.keys = {[KEY_ENTER] = true, [KEY_BACKSPACE] = true}
+	CT.Send("cam_view", entry.index)
+
+	if (IsValid(CT.frame)) then
+		CT.frame:SetVisible(false)
+	end
+
+	surface.PlaySound("buttons/combine_button7.wav")
+end
+
+function CA.Leave()
+	CA.full = false
+
+	if (IsValid(CT.frame)) then
+		CT.frame:SetVisible(true)
+		CT.frame:MakePopup()
+	end
+
+	surface.PlaySound("buttons/combine_button2.wav")
+end
+
+local function Pressed(key)
+	local down = input.IsKeyDown(key)
+	local was = CA.keys[key]
+
+	CA.keys[key] = down
+
+	return down and !was
+end
+
+local function Turn(entry, dyaw, dpitch)
+	local aim = CA.aim[entry.index] or {yaw = 0, pitch = 20}
+
+	aim.yaw = math.Clamp(aim.yaw + dyaw, -CA.yaw, CA.yaw)
+	aim.pitch = math.Clamp(aim.pitch + dpitch, -CA.pitchUp, CA.pitchDown)
+	CA.aim[entry.index] = aim
+end
+
+hook.Add("Think", "nwCameraFull", function()
+	if (!CA.full) then
+		return
+	end
+
+	local entry = CA.current
+
+	if (!entry or !IsValid(CT.frame) or !LocalPlayer():Alive()) then
+		CA.full = false
+
+		return
+	end
+
+	local step = FrameTime() * 40
+
+	Turn(entry, ((input.IsKeyDown(KEY_LEFT) and step or 0) - (input.IsKeyDown(KEY_RIGHT) and step or 0)),
+		((input.IsKeyDown(KEY_DOWN) and step or 0) - (input.IsKeyDown(KEY_UP) and step or 0)))
+
+	if (Pressed(KEY_ENTER) or Pressed(KEY_PAD_ENTER)) then
+		CA.TakePhoto(entry)
+	end
+
+	if (Pressed(KEY_BACKSPACE)) then
+		CA.Leave()
+	end
+end)
+
+hook.Add("CalcView", "nwCameraFull", function()
+	if (CA.full and CA.current) then
+		local pos, ang = View(CA.current)
+
+		return {origin = pos, angles = ang, fov = 70, drawviewer = true}
+	end
+end)
+
+-- the body stays, the mouse turns the camera
+hook.Add("CreateMove", "nwCameraFull", function(cmd)
+	if (CA.full) then
+		cmd:ClearMovement()
+		cmd:ClearButtons()
+	end
+end)
+
+hook.Add("InputMouseApply", "nwCameraFull", function(cmd, x, y)
+	if (CA.full and CA.current) then
+		Turn(CA.current, -x * 0.03, y * 0.03)
+		cmd:SetMouseX(0)
+		cmd:SetMouseY(0)
+
+		return true
+	end
+end)
+
+hook.Add("HUDShouldDraw", "nwCameraFull", function(name)
+	if (CA.full and (name == "CHudCrosshair" or name == "CHudWeaponSelection")) then
+		return false
+	end
+end)
+
+hook.Add("PostDrawHUD", "nwCameraFull", function()
+	if (!CA.full or !CA.current) then
+		return
+	end
+
+	cam.Start2D()
+		local sw, sh = ScrW(), ScrH()
+
+		CA.Overlay(CA.current, sw, sh)
+		draw.SimpleText("← → ↑ ↓ / МЫШЬ — ПОВОРОТ   ·   ENTER — СНИМОК   ·   BACKSPACE — К ТЕРМИНАЛУ", "nwCamHint", sw / 2,
+			sh - sh * 0.04, Color(200, 236, 250, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	cam.End2D()
+end)
+
 -- --------------------------------------------------------------- the page --
 local CMB = CT.screens.cmb
 
 CMB.pages.cameras = {
 	title = "Камеры",
-	subtitle = "Наблюдение / ←→↑↓ поворот / Enter снимок",
+	subtitle = "Выберите камеру: вид из неё / ←→↑↓ поворот / Enter снимок / Backspace назад",
 	Build = function(area, w, h)
 		local gap = math.Round(h * 0.02)
 		local listW = math.Round(w * 0.24)
@@ -332,9 +499,7 @@ CMB.pages.cameras = {
 
 		for number, entry in ipairs(CA.list) do
 			local button = CT.Button(scroll, string.format("КАМ-%02d", number), 0, 0, listW - 10, rowH, function()
-				CA.current = entry
-				CA.number = number
-				CT.Send("cam_view", entry.index)
+				CA.Enter(entry, number)
 			end, CA.current and CA.current.index == entry.index)
 
 			button:Dock(TOP)
@@ -408,48 +573,7 @@ CMB.pages.cameras = {
 			render.RenderView({origin = pos, angles = ang, x = sx, y = sy, w = pw, h = ph, fov = 70, drawviewmodel = false,
 				drawhud = false, dopostprocess = false})
 
-			-- the overlay of the camera: lines, the corners, the time, the number
-			local now = RealTime()
-
-			surface.SetDrawColor(0, 0, 0, 40)
-
-			for line = 0, ph, 4 do
-				surface.DrawRect(0, line, pw, 1)
-			end
-
-			surface.SetDrawColor(C.cyan.r, C.cyan.g, C.cyan.b, 200)
-
-			local corner = ph * 0.08
-
-			for _, c in ipairs({{0, 0, 1, 1}, {pw, 0, -1, 1}, {0, ph, 1, -1}, {pw, ph, -1, -1}}) do
-				surface.DrawRect(c[3] > 0 and c[1] + 8 or c[1] - 8 - corner, c[4] > 0 and c[2] + 8 or c[2] - 10, corner, 2)
-				surface.DrawRect(c[3] > 0 and c[1] + 8 or c[1] - 10, c[4] > 0 and c[2] + 8 or c[2] - 8 - corner, 2, corner)
-			end
-
-			surface.DrawRect(pw / 2 - 10, ph / 2, 20, 1)
-			surface.DrawRect(pw / 2, ph / 2 - 10, 1, 20)
-
-			draw.SimpleText(string.format("КАМ-%02d  ·  %s", CA.number or 0, Up(entry.zone != "" and entry.zone or "вне зон")),
-				"nwCmtText", 18, 20, C.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
-			draw.SimpleText(os.date("%H:%M:%S"), "nwCmtText", pw - 18, 20, C.text, TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
-
-			if (math.floor(now * 2) % 2 == 0) then
-				draw.SimpleText("● REC", "nwCmtText", pw - 18, ph - 20, Color(236, 84, 72), TEXT_ALIGN_RIGHT,
-					TEXT_ALIGN_BOTTOM)
-			end
-
-			local aim = CA.aim[entry.index] or {yaw = 0, pitch = 20}
-
-			draw.SimpleText(string.format("АЗ %+04d  ·  УМ %+03d", math.Round(-aim.yaw), math.Round(-aim.pitch)), "nwCmtSmall",
-				18, ph - 20, C.dim, TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
-
-			-- the photo: a white flash
-			local since = CurTime() - ((CA.nextPhoto or 0) - cooldown:GetFloat())
-
-			if (since >= 0 and since < 0.3) then
-				surface.SetDrawColor(255, 255, 255, 200 * (1 - since / 0.3))
-				surface.DrawRect(0, 0, pw, ph)
-			end
+			CA.Overlay(entry, pw, ph)
 
 			surface.SetDrawColor(C.cyan.r, C.cyan.g, C.cyan.b, 120)
 			surface.DrawOutlinedRect(0, 0, pw, ph, 1)
@@ -457,9 +581,9 @@ CMB.pages.cameras = {
 
 		local by = vh + gap
 
-		CT.Button(area, "Снимок (Enter)", vx, by, vw * 0.3, rowH, function()
+		CT.Button(area, "Смотреть камерой", vx, by, vw * 0.3, rowH, function()
 			if (CA.current) then
-				CA.TakePhoto(CA.current)
+				CA.Enter(CA.current, CA.number)
 			end
 		end, true)
 		CT.Button(area, "Сбросить поворот", vx + vw * 0.32, by, vw * 0.3, rowH, function()
@@ -478,5 +602,6 @@ CMB.pages.cameras = {
 hook.Add("Think", "nwCamerasClosed", function()
 	if (CA.current and !IsValid(CT.frame)) then
 		CA.current = nil
+		CA.full = false
 	end
 end)
