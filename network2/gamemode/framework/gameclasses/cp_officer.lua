@@ -1,0 +1,9 @@
+CLASS.faction = "cp"
+CLASS.name = "Офицер ГО"
+CLASS.description = "Опытный сотрудник: ведёт патрули, принимает решения по заявкам, отвечает за участок."
+CLASS.color = Color(60, 120, 220)
+CLASS.health = 120
+CLASS.armor = 50
+CLASS.run = 210
+CLASS.limit = 4
+CLASS.adminOnly = true

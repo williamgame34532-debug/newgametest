@@ -191,6 +191,31 @@ end
 
 local hiddenHead
 
+-- first person with a weapon in the hands (not the hands, not a pose): the view from the eyes of the model
+-- (it follows the head with the steps and the aiming), the body and the legs not drawn - only the weapon
+local FREE = {nw_hands = true, gmod_camera = true}
+
+local function WeaponEyes(client)
+	if (Active(client) or !IsValid(client) or !client:Alive() or client:InVehicle() or
+		client:GetViewEntity() != client or (client.GetAct and client:GetAct() != nil)) then
+		return false
+	end
+
+	local weapon = client:GetActiveWeapon()
+
+	return IsValid(weapon) and !FREE[weapon:GetClass()]
+end
+
+NW.weaponEyes = WeaponEyes
+
+hook.Add("ShouldDisableLegs", "nwWeaponEyes", function()
+	if (WeaponEyes(LocalPlayer())) then
+		return true
+	end
+end)
+
+local eyeOffset = Vector(0, 0, 0)
+
 hook.Add("Think", "nwPoseHead", function()
 	local client = LocalPlayer()
 
@@ -221,6 +246,30 @@ function GM:CalcView(client, origin, angles, fov, znear, zfar)
 			view.znear = 2
 		end
 	end
+	-- a weapon in the hands in first person: from the eyes of the model (smoothed: the attachment jitters)
+	if (WeaponEyes(client)) then
+		-- the body is not drawn: its bones are set up here for the attachment
+		client:SetupBones()
+
+		local attachment = client:LookupAttachment("eyes")
+		local eyes = attachment and attachment > 0 and client:GetAttachment(attachment)
+
+		if (eyes) then
+			local wanted = eyes.Pos + angles:Forward() * 2 - origin
+
+			-- not too far from the real eyes (a strange model)
+			if (wanted:LengthSqr() < 24 * 24) then
+				eyeOffset = LerpVector(math.Clamp(FrameTime() * 18, 0, 1), eyeOffset, wanted)
+				view.origin = origin + eyeOffset
+				view.angles = view.angles or angles
+				view.drawviewer = false
+				view.znear = 3
+			end
+		end
+	else
+		eyeOffset = Vector(0, 0, 0)
+	end
+
 	-- the dynamic camera: steps, lean, landing (cl_dyncam.lua)
 	if (NW.dyncam and view.origin and view.angles) then
 		view = NW.dyncam.Apply(client, view, Active(client))

@@ -130,6 +130,8 @@ local FILES = {
 	"sh_contraband.lua",
 	"sh_cleanup.lua",
 	"sh_classes.lua",
+	"sv_appearance.lua",
+	"sh_footsteps.lua",
 	"sv_npcrelations.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",

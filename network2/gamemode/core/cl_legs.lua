@@ -83,6 +83,11 @@ function Legs:CheckDrawVehicle()
 end
 
 local function ShouldDrawLegs()
+	-- a weapon in the hands in first person: the view from the eyes, no body at all (cl_thirdperson.lua)
+	if (NW.weaponEyes and NW.weaponEyes(LocalPlayer())) then
+		return false
+	end
+
 	if (hook.Run("ShouldDisableLegs") == true) then
 		return false
 	end

@@ -1,0 +1,9 @@
+CLASS.faction = "combine"
+CLASS.name = "Солдат Надзора"
+CLASS.description = "Ударная единица Надзора: зачистки, подавление, охрана объектов Альянса."
+CLASS.color = Color(214, 92, 80)
+CLASS.health = 150
+CLASS.armor = 100
+CLASS.walk = 95
+CLASS.run = 190
+CLASS.default = true

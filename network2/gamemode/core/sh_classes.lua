@@ -1,5 +1,6 @@
 -- The classes of the factions: each faction can have any number of classes with their own name, description,
--- colour, statistics, models and things. Made in the game and kept in data/network2/classes.json.
+-- colour, statistics, models and things. In files - gamemode/framework/gameclasses/<id>.lua (see the README
+-- there) - and in the game (/classedit), kept in data/network2/classes.json (over a file, when changed).
 --   /classedit   admins: the editor - the list on the left (by faction), the form on the right: the id, the
 --                faction, the name, the description, the colour, the health, the armour, the speed of the
 --                walk and the run, the models (one per line, the player picks one), the skin, the things
@@ -126,15 +127,69 @@ if (SERVER) then
 		end
 	end
 
+	-- the file keeps what was made or changed in the game; the classes of the folder stay in their files
 	local function Save()
+		local out = {}
+
+		for id, entry in pairs(CS.data) do
+			if (!entry.file or entry.edited) then
+				local copy = table.Copy(entry)
+
+				copy.file, copy.edited = nil, nil
+				out[id] = copy
+			end
+		end
+
 		file.CreateDir("network2")
-		file.Write(PATH, util.TableToJSON(CS.data, true))
+		file.Write(PATH, util.TableToJSON(out, true))
 		Send()
+	end
+
+	-- the classes in files: gamemode/framework/gameclasses/<id>.lua, CLASS = {faction, name, description,
+	-- color = Color(...), health, armor, walk, run, models = {...}, skin, items = {...}, limit, adminOnly,
+	-- default}. A class changed in /classedit is kept in classes.json over its file.
+	local FOLDER = (GM or GAMEMODE).FolderName .. "/gamemode/framework/gameclasses/"
+
+	CS.files = {}
+
+	for _, name in ipairs(file.Find(FOLDER .. "*.lua", "LUA")) do
+		CLASS = {}
+		include(FOLDER .. name)
+
+		local entry = table.Copy(CLASS)
+
+		CLASS = nil
+
+		if (istable(entry.models)) then
+			entry.models = table.concat(entry.models, "\n")
+		end
+
+		if (istable(entry.items)) then
+			entry.items = table.concat(entry.items, ", ")
+		end
+
+		if (IsColor(entry.color)) then
+			entry.color = entry.color.r .. ", " .. entry.color.g .. ", " .. entry.color.b
+		end
+
+		local id = string.StripExtension(name)
+
+		entry = CS.Sanitize(entry)
+		entry.file = true
+		CS.files[id] = entry
+		CS.data[id] = table.Copy(entry)
 	end
 
 	for id, entry in pairs(util.JSONToTable(file.Read(PATH, "DATA") or "") or {}) do
 		if (isstring(id) and istable(entry)) then
-			CS.data[id] = CS.Sanitize(entry)
+			local clean = CS.Sanitize(entry)
+
+			-- over a class of a file: changed in the game
+			if (CS.files[id]) then
+				clean.file, clean.edited = true, true
+			end
+
+			CS.data[id] = clean
 		end
 	end
 
@@ -272,6 +327,10 @@ if (SERVER) then
 			return NW.Notify(client, "Нужны название и фракция")
 		end
 
+		if (CS.files[id]) then
+			entry.file, entry.edited = true, true
+		end
+
 		CS.data[id] = entry
 		Save()
 		NW.Notify(client, "Класс сохранён: " .. entry.name .. " (" .. id .. ")")
@@ -293,6 +352,14 @@ if (SERVER) then
 
 		if (!client:IsAdmin() or !CS.data[id]) then
 			return
+		end
+
+		-- a class of a file: back to its file
+		if (CS.files[id]) then
+			CS.data[id] = table.Copy(CS.files[id])
+			Save()
+
+			return NW.Notify(client, "Класс из файла: изменения сброшены к файлу (удалить — удалите файл " .. id .. ".lua)")
 		end
 
 		CS.data[id] = nil
@@ -455,7 +522,8 @@ net.Receive("nwClassEditOpen", function()
 					surface.SetDrawColor(CS.Color(entry.class))
 					surface.DrawRect(0, 0, 3, rh)
 					draw.SimpleText(entry.class.name, "nwWidget", 10, rh / 2, U.color.text, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-					draw.SimpleText(entry.id, "nwWidgetLabel", rw - 8, rh / 2, MUTED, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+					draw.SimpleText(entry.id .. (entry.class.file and (entry.class.edited and "  · файл, изменён" or "  · файл") or ""),
+						"nwWidgetLabel", rw - 8, rh / 2, MUTED, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 				end
 				row.DoClick = function()
 					U.Tick()

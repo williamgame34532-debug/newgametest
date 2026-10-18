@@ -190,20 +190,46 @@ function NR.Deploy(client, class)
 	return true
 end
 
--- Alt + E on one's own turret: folded back
+-- folded back into the inventory: Alt + E on one's own device (a turret, a manhack, a rollermine; a unit can
+-- take one whose owner is gone), or /fold - all of one's own within 400 units
+NR.items = {npc_turret_floor = "deploy_turret", npc_manhack = "deploy_manhack", npc_rollermine = "deploy_rollermine"}
+
+local function Fold(client, entity)
+	local id = NR.items[entity:GetClass()]
+
+	if (!NW.inventory.Add(client, id)) then
+		NW.inventory.SpawnWorldItem(client, {id = id, data = {}})
+	end
+
+	NW.inventory.Changed(client)
+	entity:EmitSound("buttons/combine_button" .. math.random(1, 3) .. ".wav", 60)
+	entity:Remove()
+end
+
+local function Mine(client, entity)
+	return entity.nwOwner == client or (!IsValid(entity.nwOwner) and Alliance(client))
+end
+
 hook.Add("PlayerUse", "nwDeployables", function(client, entity)
-	if (IsValid(entity) and entity:GetClass() == "npc_turret_floor" and entity.nwOwner == client and
-		client:KeyDown(IN_WALK) and (client.nwFoldNext or 0) < CurTime()) then
+	if (IsValid(entity) and NR.items[entity:GetClass()] and Mine(client, entity) and client:KeyDown(IN_WALK) and
+		(client.nwFoldNext or 0) < CurTime()) then
 		client.nwFoldNext = CurTime() + 1
-
-		if (!NW.inventory.Add(client, "deploy_turret")) then
-			NW.inventory.SpawnWorldItem(client, {id = "deploy_turret", data = {}})
-		end
-
-		NW.inventory.Changed(client)
-		entity:Remove()
-		NW.Notify(client, "Турель сложена")
+		Fold(client, entity)
+		NW.Notify(client, "Устройство сложено в инвентарь")
 
 		return false
 	end
 end)
+
+NW.AddChatCommand("fold", {run = function(client)
+	local count = 0
+
+	for _, entity in ipairs(ents.FindInSphere(client:GetPos(), 400)) do
+		if (IsValid(entity) and NR.items[entity:GetClass()] and entity.nwOwner == client) then
+			Fold(client, entity)
+			count = count + 1
+		end
+	end
+
+	NW.Notify(client, count > 0 and ("Сложено устройств: " .. count) or "Рядом нет ваших устройств")
+end})
