@@ -1630,7 +1630,7 @@ local SETTINGS = {
 		Client("nw_tp_hud", "Интерфейс от третьего лица", "toggle"),
 		Client("nw_dyncam", "Динамичная камера", "toggle"),
 		Client("nw_dyncam_scale", "Сила динамичной камеры", "slider", {min = 0, max = 2, decimals = 1, live = true}),
-		Client("nw_legs", "Ноги от первого лица", "toggle"),
+		Client("nw_legs_fp", "Ноги от первого лица", "toggle"),
 		Client("nw_legs_vehicle", "Ноги в транспорте", "toggle")
 	}},
 	{name = "Изображение", rows = {

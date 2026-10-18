@@ -4,10 +4,12 @@
 -- sequence and pose parameters; the head, arms and upper spine are hidden, and everything above
 -- the eyes is clipped away. Drawn in first person only: not in third person, not in a pose seen
 -- through the eyes, not when the player is hidden (unconscious), dead or watching something else.
--- Settings (Q → Настройки → Камера): nw_legs - on / off, nw_legs_vehicle - also in vehicles.
+-- Settings (Q → Настройки → Камера): nw_legs_fp - on / off (off by default), nw_legs_vehicle - also in vehicles.
 -- Other systems can hide them: hook ShouldDisableLegs returning true, or client.ShouldDisableLegs.
 
-local enabled = CreateClientConVar("nw_legs", "1", true, false, "Ноги от первого лица")
+-- off by default: in first person no body is seen at all (the old nw_legs was saved "1" on every client,
+-- so the setting has a new name)
+local enabled = CreateClientConVar("nw_legs_fp", "0", true, false, "Ноги от первого лица")
 local inVehicle = CreateClientConVar("nw_legs_vehicle", "1", true, false, "Ноги в транспорте")
 
 NW.legs = NW.legs or {}
