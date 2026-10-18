@@ -159,10 +159,16 @@ local function Apply(client)
 		-- /setmodel of an admin wins over everything (sv_character.lua)
 		local faction = NW.char.factions[character.faction or ""]
 		local override = character.data and character.data.model
-		local model = M.Resolve(override or (faction and faction.model) or character.model)
+
+		-- the class of the character (sh_classes.lua): its model, the one picked of them
+		local class = NW.classes and NW.classes.Of(client)
+		local models = class and NW.classes.Models(class) or {}
+		local classModel = models[character.data and character.data.classModel or 1] or models[1]
+
+		local model = M.Resolve(override or classModel or (faction and faction.model) or character.model)
 
 		client:SetModel(util.IsValidModel(model) and model or DEFAULT)
-		client:SetSkin(math.Clamp(character.skin or 0, 0, math.max(client:SkinCount() - 1, 0)))
+		client:SetSkin(math.Clamp(class and class.skin or character.skin or 0, 0, math.max(client:SkinCount() - 1, 0)))
 
 		for index = 0, client:GetNumBodyGroups() - 1 do
 			client:SetBodygroup(index, 0)

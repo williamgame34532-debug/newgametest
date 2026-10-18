@@ -331,6 +331,8 @@ function C.Activate(client, character, description)
 	client:SetNW2String("nwCharName", character.name)
 	client:SetNW2String("nwCharFaction", character.faction)
 	client:SetNW2String("nwCharGender", character.gender or "male")
+	-- the class before the spawn: the model of the class is put on right away (sh_classes.lua)
+	client:SetNW2String("nwClass", character.data and character.data.class or "")
 	client:SetNW2String("nwCharDesc", #description > 240 and
 		string.sub(description, 1, (utf8.offset(description, 120) or 241) - 1) .. "..." or description)
 	client:SetNW2Bool("nwInMenu", false)

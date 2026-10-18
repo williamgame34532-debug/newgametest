@@ -315,7 +315,8 @@ hook.Add("PostDrawTranslucentRenderables", "nwUnitCard", function(_, bSkybox)
 	local advice, adviceColor = Advice(client, unit)
 	local lines = {
 		{"ИМЯ", NW.terminal.Upper(unit:Nick()), Color(232, 240, 246)},
-		{"ФРАКЦИЯ", NW.terminal.Upper(faction.name or "Альянс"), color},
+		{"ФРАКЦИЯ", NW.terminal.Upper(faction.name or "Альянс") .. (unit:GetNW2String("nwClassName", "") != "" and
+			("  ·  " .. NW.terminal.Upper(unit:GetNW2String("nwClassName", ""))) or ""), color},
 		{"УКАЗАНИЕ", advice, adviceColor}
 	}
 	local w = math.Round(sh * 0.36)

@@ -87,10 +87,10 @@ timer.Create("nwNeeds", TICK, 0, function()
 end)
 
 -- ---------------------------------------------------------------- stamina --
-local function RunSpeed()
+local function RunSpeed(client)
 	local convar = GetConVar("nw_runspeed")
 
-	return convar and convar:GetFloat() or 200
+	return client and client.nwRunSpeed or (convar and convar:GetFloat() or 200)
 end
 
 hook.Add("KeyPress", "nwStamina", function(client, key)
@@ -144,7 +144,7 @@ hook.Add("Think", "nwStamina", function()
 			client:SetRunSpeed(client:GetWalkSpeed())
 		elseif (exhausted and stamina >= 30) then
 			client:SetNW2Bool("nwExhausted", false)
-			client:SetRunSpeed(RunSpeed())
+			client:SetRunSpeed(RunSpeed(client))
 		end
 	end
 end)

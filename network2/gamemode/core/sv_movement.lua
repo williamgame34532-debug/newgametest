@@ -7,9 +7,13 @@ local run = CreateConVar("nw_runspeed", "200", FCVAR_ARCHIVE, "Скорость 
 local slow = CreateConVar("nw_slowwalkspeed", "70", FCVAR_ARCHIVE, "Медленный шаг (Alt)")
 local jump = CreateConVar("nw_jumppower", "170", FCVAR_ARCHIVE, "Сила прыжка")
 
+-- the class of the character may have its own speeds (sh_classes.lua)
 local function Apply(client)
-	client:SetWalkSpeed(walk:GetFloat())
-	client:SetRunSpeed(run:GetFloat())
+	local class = NW.classes and NW.classes.Of(client)
+
+	client.nwRunSpeed = class and class.run or nil
+	client:SetWalkSpeed(class and class.walk or walk:GetFloat())
+	client:SetRunSpeed(class and class.run or run:GetFloat())
 	client:SetSlowWalkSpeed(slow:GetFloat())
 	client:SetCrouchedWalkSpeed(0.5)
 	client:SetDuckSpeed(0.35)
@@ -17,6 +21,8 @@ local function Apply(client)
 	client:SetJumpPower(jump:GetFloat())
 	client:SetLadderClimbSpeed(120)
 end
+
+NW.movement = {Apply = Apply}
 
 -- the sandbox player class sets its own speeds while spawning: ours go on top afterwards
 function GM:PlayerSpawn(client, transition)
