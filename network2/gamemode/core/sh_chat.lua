@@ -109,6 +109,7 @@ K.help = {
 	{command = "/setname", args = "<имя> <новое имя>", text = "переименовать персонажа (сохраняется)", admin = true},
 	{command = "/setmodel", args = "<имя> <модель | сброс>", text = "сменить модель персонажа поверх фракции",
 		admin = true},
+	{command = "/cleanup", args = "", text = "очистка предметов и трупов через 10 секунд", admin = true},
 	{command = "/announce", args = "", text = "новое объявление для гражданских терминалов", admin = true},
 	{command = "/whitelist", args = "<имя> <фракция>", text = "открыть игроку фракцию с вайтлистом", admin = true},
 	{command = "/unwhitelist", args = "<имя> <фракция>", text = "закрыть игроку фракцию", admin = true},

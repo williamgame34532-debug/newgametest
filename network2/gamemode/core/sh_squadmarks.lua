@@ -235,44 +235,58 @@ hook.Add("Think", "nwSquadMarkChooser", function()
 	end
 end)
 
--- in the world: a column of light and a ring on the ground
+-- in the world: a column of light, a ring on the ground and the marker itself standing over the place,
+-- seen through the walls, the same size on the screen at any distance
 hook.Add("PostDrawTranslucentRenderables", "nwSquadMarks", function(_, bSkybox)
 	if (bSkybox or #SM.list == 0 or !SQ.Of(LocalPlayer())) then
 		return
 	end
 
 	local now = CurTime()
+	local eye = EyePos()
 
 	for _, mark in ipairs(SM.list) do
 		local kind = SM.byID[mark.kind]
 		local fade = math.Clamp((SM.life - (now - mark.born)) / 5, 0, 1)
+		local appear = math.Clamp((now - mark.born) / 0.35, 0, 1)
 		local color = ColorAlpha(kind.color, 200 * fade)
 		local pulse = (now * 0.8) % 1
+		local distance = eye:Distance(mark.pos)
 
 		render.SetMaterial(BEAM)
-		render.DrawBeam(mark.pos, mark.pos + Vector(0, 0, 70), 2, 0, 1, color)
+		render.DrawBeam(mark.pos, mark.pos + Vector(0, 0, 60), 2.5, 0, 1, color)
 
 		local last
 
-		for step = 0, 20 do
-			local angle = step / 20 * math.pi * 2
-			local radius = 10 + pulse * 18
+		for step = 0, 24 do
+			local angle = step / 24 * math.pi * 2
+			local radius = 10 + pulse * 22
 			local point = mark.pos + Vector(math.cos(angle) * radius, math.sin(angle) * radius, 1)
 
 			if (last) then
-				render.DrawBeam(last, point, 1.2, 0, 1, ColorAlpha(kind.color, 180 * (1 - pulse) * fade))
+				render.DrawBeam(last, point, 1.5, 0, 1, ColorAlpha(kind.color, 200 * (1 - pulse) * fade))
 			end
 
 			last = point
 		end
 
 		render.SetMaterial(GLOW)
-		render.DrawSprite(mark.pos, 18, 18, color)
+		render.DrawSprite(mark.pos, 22, 22, color)
+
+		-- the marker: over the column, a little bounce when it appears, over the walls
+		local size = math.Clamp(distance * 0.05, 18, 260) * (1.5 - 0.5 * appear)
+		local top = mark.pos + Vector(0, 0, 60 + size * 0.55 + math.sin(now * 3) * size * 0.04)
+
+		cam.IgnoreZ(true)
+			render.SetMaterial(MATERIALS[mark.kind])
+			render.DrawSprite(top, size, size, ColorAlpha(kind.color, 255 * fade * appear))
+		cam.IgnoreZ(false)
 	end
 end)
 
--- on the screen: the marker, its name and the distance; at the edge when it is behind
-surface.CreateFont("nwSquadMarkText", {font = "JetBrains Mono ExtraBold", size = math.max(10, math.Round(ScrH() * 0.013)),
+-- on the screen: the name and the distance in a plate under the marker; out of sight - at the edge, with
+-- an arrow to it
+surface.CreateFont("nwSquadMarkText", {font = "JetBrains Mono ExtraBold", size = math.max(11, math.Round(ScrH() * 0.015)),
 	weight = 800, extended = true, antialias = true})
 
 hook.Add("HUDPaint", "nwSquadMarks", function()
@@ -283,33 +297,53 @@ hook.Add("HUDPaint", "nwSquadMarks", function()
 	local sw, sh = ScrW(), ScrH()
 	local eye = EyePos()
 	local now = CurTime()
-	local size = math.Round(sh * 0.045)
-	local margin = sh * 0.05
+	local margin = sh * 0.06
+
+	surface.SetFont("nwSquadMarkText")
 
 	for _, mark in ipairs(SM.list) do
 		local kind = SM.byID[mark.kind]
-		local top = mark.pos + Vector(0, 0, 80)
-		local screen = top:ToScreen()
+		local distance = eye:Distance(mark.pos)
+		local size = math.Clamp(distance * 0.05, 18, 260)
+		local screen = (mark.pos + Vector(0, 0, 60)):ToScreen()
 		local fade = math.Clamp((SM.life - (now - mark.born)) / 5, 0, 1)
-		local appear = math.Clamp((now - mark.born) / 0.3, 0, 1)
-		local x, y = screen.x, screen.y
-
-		-- behind or off the screen: held at the edge
 		local behind = (mark.pos - eye):Dot(EyeAngles():Forward()) < 0
+		local text = kind.name .. "  " .. math.Round(distance / 52.5) .. " м"
+		local tw, th = surface.GetTextSize(text)
+		local off = behind or screen.x < margin or screen.x > sw - margin or screen.y < margin or screen.y > sh - margin
 
-		if (behind) then
-			x, y = sw - x, sh - margin
+		if (off) then
+			-- at the edge: the direction to it from the middle of the screen
+			local dx, dy = screen.x - sw / 2, screen.y - sh / 2
+
+			if (behind) then
+				dx, dy = -dx, -dy
+			end
+
+			local length = math.max(math.sqrt(dx * dx + dy * dy), 1)
+			local scale = math.min((sw / 2 - margin) / math.max(math.abs(dx), 1), (sh / 2 - margin) / math.max(math.abs(dy), 1))
+			local x, y = sw / 2 + dx * scale, sh / 2 + dy * scale
+			local s = sh * 0.05
+
+			surface.SetMaterial(MATERIALS[mark.kind])
+			surface.SetDrawColor(kind.color.r, kind.color.g, kind.color.b, 255 * fade)
+			surface.DrawTexturedRect(x - s / 2, y - s / 2, s, s)
+
+			local ax, ay = x + dx / length * s * 0.75, y + dy / length * s * 0.75
+			local nx, ny = -dy / length, dx / length
+
+			draw.NoTexture()
+			surface.DrawPoly({{x = ax + dx / length * 10, y = ay + dy / length * 10}, {x = ax + nx * 7, y = ay + ny * 7},
+				{x = ax - nx * 7, y = ay - ny * 7}})
+			draw.RoundedBox(4, x - tw / 2 - 6, y + s / 2 + 2, tw + 12, th + 4, Color(0, 0, 0, 170 * fade))
+			draw.SimpleText(text, "nwSquadMarkText", x, y + s / 2 + 4, ColorAlpha(kind.color, 255 * fade), TEXT_ALIGN_CENTER,
+				TEXT_ALIGN_TOP)
+		else
+			local y = screen.y + 6
+
+			draw.RoundedBox(4, screen.x - tw / 2 - 6, y, tw + 12, th + 4, Color(0, 0, 0, 170 * fade))
+			draw.SimpleText(text, "nwSquadMarkText", screen.x, y + 2, ColorAlpha(kind.color, 255 * fade), TEXT_ALIGN_CENTER,
+				TEXT_ALIGN_TOP)
 		end
-
-		x = math.Clamp(x, margin, sw - margin)
-		y = math.Clamp(y, margin, sh - margin)
-
-		local s = size * (1.4 - 0.4 * appear)
-
-		surface.SetMaterial(MATERIALS[mark.kind])
-		surface.SetDrawColor(kind.color.r, kind.color.g, kind.color.b, 255 * fade * appear)
-		surface.DrawTexturedRect(x - s / 2, y - s, s, s)
-		draw.SimpleTextOutlined(kind.name .. "  " .. math.Round(eye:Distance(mark.pos) / 52.5) .. " м", "nwSquadMarkText",
-			x, y + 2, ColorAlpha(kind.color, 230 * fade), TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 170 * fade))
 	end
 end)

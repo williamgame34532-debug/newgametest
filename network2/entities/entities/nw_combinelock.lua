@@ -326,10 +326,8 @@ local BLUE = Color(90, 150, 230)
 local GREEN = Color(110, 220, 150)
 local RED = Color(235, 80, 70)
 
--- the settings (Shift + E)
-net.Receive("nwLockMenu", function()
-	local lock = net.ReadEntity()
-
+-- the settings: from the wheel of the door (hold E on the door → «Режим замка», cl_social.lua) or Shift + E
+function NW.LockMenu(lock)
 	if (!IsValid(lock)) then
 		return
 	end
@@ -343,6 +341,12 @@ net.Receive("nwLockMenu", function()
 	end
 
 	local menu = DermaMenu()
+
+	-- the cursor while the menu is open
+	gui.EnableScreenClicker(true)
+	menu.OnRemove = function()
+		gui.EnableScreenClicker(false)
+	end
 	local access = menu:AddSubMenu("Кто открывает")
 
 	for index, entry in ipairs(lock.Accesses) do
@@ -367,6 +371,29 @@ net.Receive("nwLockMenu", function()
 	menu:AddOption("Закрыть"):SetIcon("icon16/cross.png")
 	menu:Open()
 	menu:Center()
+end
+
+-- the lock on this door (or nil)
+function NW.LockOf(door)
+	for _, lock in ipairs(ents.FindByClass("nw_combinelock")) do
+		if (lock:GetDoor() == door) then
+			return lock
+		end
+	end
+
+	-- the other half of a double door
+	for _, lock in ipairs(ents.FindByClass("nw_combinelock")) do
+		local other = lock:GetDoor()
+
+		if (IsValid(other) and other:GetPos():DistToSqr(door:GetPos()) < 140 * 140 and
+			other:GetClass() == door:GetClass()) then
+			return lock
+		end
+	end
+end
+
+net.Receive("nwLockMenu", function()
+	NW.LockMenu(net.ReadEntity())
 end)
 
 function ENT:Draw()

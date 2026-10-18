@@ -19,7 +19,7 @@ local FB = NW.fabricator
 FB.sections = {
 	{id = "primary", name = "Основное оружие", text = "Пистолеты-пулемёты и винтовки для патрулей и ударных групп."},
 	{id = "secondary", name = "Вторичное оружие", text = "Личное оружие юнита: пистолет и электродубинка."},
-	{id = "tertiary", name = "Третичное оружие", text = "Взрывные устройства Альянса."},
+	{id = "tertiary", name = "Третичное оружие", text = "Взрывные устройства и боевые машины Альянса."},
 	{id = "misc", name = "Разное", text = "Снабжение: боеприпасы, броня, медицина, пробивные заряды и замки."}
 }
 
@@ -41,6 +41,15 @@ FB.catalog = {
 	{id = "grenade", section = "tertiary", kind = "item", item = "frag_grenade", cost = 25, name = "Осколочная граната",
 		text = "Взрывное устройство Альянса. Взрывается через несколько секунд после броска.",
 		effect = "Одна граната в инвентарь.", model = "models/items/grenadeammo.mdl"},
+	{id = "manhack", section = "tertiary", kind = "item", item = "deploy_manhack", cost = 35, name = "Мэнхек",
+		text = "Летающий резак Альянса: атакует врагов Альянса.", effect = "Один мэнхек в инвентарь.",
+		model = "models/manhack.mdl"},
+	{id = "rollermine", section = "tertiary", kind = "item", item = "deploy_rollermine", cost = 45, name = "Роллермина",
+		text = "Шар, который катится к врагу и бьёт током.", effect = "Одна роллермина в инвентарь.",
+		model = "models/roller.mdl"},
+	{id = "turret", section = "tertiary", kind = "item", item = "deploy_turret", cost = 70, only = "combine",
+		name = "Турель Альянса", text = "Напольная автоматическая турель.",
+		effect = "Одна турель в инвентарь. Только Надзор.", model = "models/combine_turrets/floor_turret.mdl"},
 	{id = "ammo", section = "misc", kind = "ammo", cost = 15, name = "Боеприпасы",
 		text = "Магазины энергоячеек и патронов для оружия юнита.",
 		effect = "Пополняет боезапас всего оружия при вас до полного.", model = "models/items/boxmrounds.mdl"},

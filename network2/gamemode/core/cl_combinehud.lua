@@ -152,7 +152,7 @@ end)
 -- ------------------------------------------------------------- the curve --
 -- where a point of the flat HUD lies on the curved visor: the inside of a mask - the middle goes away
 -- from the eyes, the sides come closer (they bend up, turn and grow a little)
-local BEND = -0.035
+local BEND = -0.05
 
 local function Curve(x, y)
 	local sw, sh = ScrW(), ScrH()
@@ -162,7 +162,7 @@ local function Curve(x, y)
 	local dy = BEND * sh * nx * nx * top
 	local slope = 2 * BEND * sh * nx * top / cx
 
-	return x + sway.x, y + dy + sway.y, math.deg(math.atan(slope)), 1 + 0.08 * nx * nx
+	return x + sway.x, y + dy + sway.y, math.deg(math.atan(slope)), 1 + 0.11 * nx * nx
 end
 
 -- text on the visor: placed at (x, y) of the flat HUD, bent and tilted by the curve. The text is

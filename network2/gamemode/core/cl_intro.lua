@@ -8,6 +8,7 @@
 local enabled = CreateClientConVar("nw_intro", "1", true, false, "Интро при заходе")
 local TEXT = "Network: H-L Roleplay"
 local SPLASH = Material("network2/menu/splash.jpg", "smooth")
+local VIGNETTE = Material("network2/menu/vignette.png", "smooth")
 
 local I = {}
 
@@ -86,6 +87,44 @@ hook.Add("DrawOverlay", "nwIntro", function()
 	surface.SetDrawColor(255, 255, 255, 255 * gone * shown)
 	surface.DrawTexturedRect((sw - iw) / 2, (sh - ih) / 2, iw, ih)
 
+	-- a band of light passes slowly over the wall and the emblem
+	local sweep = ((t - 0.6) / 3.2)
+
+	if (sweep > 0 and sweep < 1.3) then
+		local bx = -sw * 0.3 + sweep * sw * 1.3
+		local band = sw * 0.12
+
+		for i = 0, 15 do
+			local k = 1 - math.abs(i - 7.5) / 7.5
+
+			surface.SetDrawColor(180, 210, 240, 10 * k * gone * shown)
+			surface.DrawRect(bx + i * band / 16, 0, band / 16 + 1, sh)
+		end
+	end
+
+	-- dust in the light: slow points drifting up
+	I.dust = I.dust or {}
+
+	if (#I.dust == 0) then
+		for i = 1, 70 do
+			I.dust[i] = {x = math.Rand(0, 1), y = math.Rand(0, 1), s = math.Rand(1, 2.6), v = math.Rand(0.006, 0.02),
+				p = math.Rand(0, 6)}
+		end
+	end
+
+	for _, mote in ipairs(I.dust) do
+		local my = (mote.y - t * mote.v) % 1
+		local mx = mote.x + math.sin(t * 0.4 + mote.p) * 0.01
+
+		surface.SetDrawColor(200, 220, 240, (30 + 30 * math.sin(t + mote.p)) * gone * shown)
+		surface.DrawRect(mx * sw, my * sh, mote.s, mote.s)
+	end
+
+	-- the corners breathe darker
+	surface.SetMaterial(VIGNETTE)
+	surface.SetDrawColor(0, 0, 0, (120 + 40 * math.sin(t * 0.8)) * gone)
+	surface.DrawTexturedRect(0, 0, sw, sh)
+
 	if (t < LETTERS_IN or t > OUT + 0.6) then
 		return
 	end
@@ -111,6 +150,9 @@ hook.Add("DrawOverlay", "nwIntro", function()
 		local wide = (1 - appear) * sh * 0.012
 		local alpha = 255 * appear * (1 - out)
 
+		-- a soft cold glow under each letter, then the letter
+		draw.SimpleText(char, "nwIntro", x + wide * (i - #I.chars / 2) * 0.3 + 1, y + (1 - appear) * sh * 0.015 + 2,
+			Color(0, 0, 0, alpha * 0.6), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 		draw.SimpleText(char, "nwIntro", x + wide * (i - #I.chars / 2) * 0.3, y + (1 - appear) * sh * 0.015,
 			Color(236, 240, 244, alpha), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 

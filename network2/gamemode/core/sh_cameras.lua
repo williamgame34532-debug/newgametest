@@ -31,10 +31,53 @@ function CA.Eye(entry)
 	return entry.pos + entry.ang:Forward() * 14 - entry.ang:Up() * 10, entry.ang
 end
 
+-- the turn of the camera model: our yaw / pitch into its pose parameters (aim_yaw, aim_pitch)
+function CA.Pose(entity, yaw, pitch)
+	local yMin, yMax = entity:GetPoseParameterRange(entity:LookupPoseParameter("aim_yaw"))
+	local pMin, pMax = entity:GetPoseParameterRange(entity:LookupPoseParameter("aim_pitch"))
+
+	if (yMin) then
+		entity:SetPoseParameter("aim_yaw", math.Clamp(yaw, yMin, yMax))
+	end
+
+	if (pMin) then
+		entity:SetPoseParameter("aim_pitch", math.Clamp(pitch, pMin, pMax))
+	end
+end
+
 if (SERVER) then
 	util.AddNetworkString("nwCamList")
 	util.AddNetworkString("nwCamPhoto")
 	util.AddNetworkString("nwCamPhotoShow")
+	util.AddNetworkString("nwCamAim")
+
+	-- the camera driven by a unit: its own brain is off (it would turn back), the pose is ours
+	local function Release(client)
+		local camera = client.nwCamView
+
+		if (IsValid(camera) and camera.nwDriven == client) then
+			camera.nwDriven = nil
+			camera:RemoveEFlags(EFL_NO_THINK_FUNCTION)
+		end
+	end
+
+	net.Receive("nwCamAim", function(_, client)
+		local yaw, pitch = net.ReadFloat(), net.ReadFloat()
+		local camera = client.nwCamView
+
+		if (!IsValid(camera) or (client.nwCamAimNext or 0) > CurTime()) then
+			return
+		end
+
+		client.nwCamAimNext = CurTime() + 0.04
+
+		if (camera.nwDriven != client) then
+			camera.nwDriven = client
+			camera:AddEFlags(EFL_NO_THINK_FUNCTION)
+		end
+
+		CA.Pose(camera, math.Clamp(yaw, -CA.yaw, CA.yaw), math.Clamp(pitch, -CA.pitchUp, CA.pitchDown))
+	end)
 
 	local ACTIONS = NW.cmbTerminalActions
 
@@ -71,6 +114,8 @@ if (SERVER) then
 	function ACTIONS.cam_view(client, terminal, arg)
 		local camera = Entity(tonumber(arg) or 0)
 
+		Release(client)
+
 		if (IsValid(camera) and camera:GetClass() == CA.class) then
 			client.nwCamView, client.nwCamTerminal = camera, terminal
 		else
@@ -81,6 +126,7 @@ if (SERVER) then
 	local close = ACTIONS.close
 
 	function ACTIONS.close(client, terminal)
+		Release(client)
 		client.nwCamView, client.nwCamTerminal = nil, nil
 		close(client, terminal)
 	end
@@ -94,6 +140,7 @@ if (SERVER) then
 		end
 
 		if (!IsValid(terminal) or terminal:GetUser() != client) then
+			Release(client)
 			client.nwCamView, client.nwCamTerminal = nil, nil
 
 			return
@@ -102,19 +149,47 @@ if (SERVER) then
 		AddOriginToPVS(camera:GetPos())
 	end)
 
+	-- the photo comes in parts (a whole screen in jpeg is bigger than one message): gathered, then sent to
+	-- every unit in the same parts
+	local PART = 48000
+
 	net.Receive("nwCamPhoto", function(len, client)
 		local index = net.ReadUInt(16)
+		local part = net.ReadUInt(8)
+		local parts = net.ReadUInt(8)
 		local size = net.ReadUInt(16)
 		local camera = client.nwCamView
 
-		if (!IsValid(camera) or camera:EntIndex() != index or size == 0 or size > 60000 or len / 8 < size or
-			(client.nwCamPhotoNext or 0) > CurTime()) then
+		if (!IsValid(camera) or camera:EntIndex() != index or parts == 0 or parts > 20 or part < 1 or part > parts or
+			size == 0 or size > PART or len / 8 < size) then
 			return
 		end
 
-		client.nwCamPhotoNext = CurTime() + cooldown:GetFloat()
+		if (part == 1) then
+			if ((client.nwCamPhotoNext or 0) > CurTime()) then
+				client.nwCamPhoto = nil
 
-		local data = net.ReadData(size)
+				return
+			end
+
+			client.nwCamPhotoNext = CurTime() + cooldown:GetFloat()
+			client.nwCamPhoto = {parts = parts, data = {}}
+		end
+
+		local photo = client.nwCamPhoto
+
+		if (!photo or photo.parts != parts) then
+			return
+		end
+
+		photo.data[part] = net.ReadData(size)
+
+		if (#photo.data < parts) then
+			return
+		end
+
+		client.nwCamPhoto = nil
+
 		local number = 0
 
 		for position, entry in ipairs(List()) do
@@ -132,13 +207,24 @@ if (SERVER) then
 			end
 		end
 
-		net.Start("nwCamPhotoShow")
-			net.WriteUInt(number, 8)
-			net.WriteString(zone and zone.name or "")
-			net.WriteString(client:Nick())
-			net.WriteUInt(#data, 16)
-			net.WriteData(data, #data)
-		net.Send(units)
+		local serial = (CA.serial or 0) + 1
+
+		CA.serial = serial
+
+		for number2, chunk in ipairs(photo.data) do
+			timer.Simple((number2 - 1) * 0.05, function()
+				net.Start("nwCamPhotoShow")
+					net.WriteUInt(serial % 65536, 16)
+					net.WriteUInt(number2, 8)
+					net.WriteUInt(parts, 8)
+					net.WriteUInt(number, 8)
+					net.WriteString(zone and zone.name or "")
+					net.WriteString(IsValid(client) and client:Nick() or "")
+					net.WriteUInt(#chunk, 16)
+					net.WriteData(chunk, #chunk)
+				net.Send(units)
+			end)
+		end
 
 		MsgN(string.format("[CAMERA] %s (%s): снимок камеры %d", client:Nick(), client:SteamName(), number))
 	end)
@@ -173,8 +259,22 @@ end
 
 -- where the chosen camera looks now
 local function View(entry)
-	local pos, ang = CA.Eye(entry)
 	local aim = CA.aim[entry.index] or {yaw = 0, pitch = 20}
+	local entity = Entity(entry.index or 0)
+
+	-- the camera is here: turned at once, the view from its lens
+	if (IsValid(entity) and entity:GetClass() == CA.class) then
+		CA.Pose(entity, aim.yaw, aim.pitch)
+		entity:InvalidateBoneCache()
+
+		local lens = entity:GetAttachment(entity:LookupAttachment("eyes") or 0)
+
+		if (lens) then
+			return lens.Pos + lens.Ang:Forward() * 4, lens.Ang
+		end
+	end
+
+	local pos, ang = CA.Eye(entry)
 	local view = Angle(ang.p, ang.y, 0)
 
 	view:RotateAroundAxis(view:Up(), aim.yaw)
@@ -183,9 +283,26 @@ local function View(entry)
 	return pos, view
 end
 
+-- the aim goes to the server (the model turns for everyone), not more often than 20 times a second
+local lastAim = 0
+
+local function SendAim(entry)
+	local aim = CA.aim[entry.index] or {yaw = 0, pitch = 20}
+
+	if (RealTime() - lastAim < 0.05 or (CA.sentYaw == aim.yaw and CA.sentPitch == aim.pitch)) then
+		return
+	end
+
+	lastAim = RealTime()
+	CA.sentYaw, CA.sentPitch = aim.yaw, aim.pitch
+
+	net.Start("nwCamAim")
+		net.WriteFloat(aim.yaw)
+		net.WriteFloat(aim.pitch)
+	net.SendToServer()
+end
+
 -- --------------------------------------------------------------- the photo --
-local RT_W, RT_H = 480, 270
-local target = GetRenderTarget("nwCamPhoto", RT_W, RT_H)
 local pending
 
 function CA.TakePhoto(entry)
@@ -193,37 +310,55 @@ function CA.TakePhoto(entry)
 		return NW.notify.Add("Камера перезаряжает затвор: " .. math.ceil(CA.nextPhoto - CurTime()) .. " с")
 	end
 
+	if (!CA.full) then
+		return NW.notify.Add("Снимок — из вида камеры")
+	end
+
 	CA.nextPhoto = CurTime() + cooldown:GetFloat()
-	pending = entry
-	surface.PlaySound("npc/scanner/scanner_photo1.wav")
+	-- the next frame is taken clean (no hint, no flash), then the flash
+	pending = {entry = entry, frame = FrameNumber() + 1}
+	CA.shooting = true
 end
 
+-- the frame on the screen is the view of the camera: taken as it is
 hook.Add("PostRender", "nwCameras", function()
-	if (!pending) then
+	if (!pending or FrameNumber() < pending.frame) then
 		return
 	end
 
-	local entry = pending
-	local pos, ang = View(entry)
+	local entry = pending.entry
 
 	pending = nil
+	CA.shooting = false
+	CA.flashAt = RealTime()
+	surface.PlaySound("npc/scanner/scanner_photo1.wav")
 
-	render.PushRenderTarget(target)
-		render.Clear(0, 0, 0, 255, true, true)
-		render.RenderView({origin = pos, angles = ang, x = 0, y = 0, w = RT_W, h = RT_H, fov = 70,
-			drawviewmodel = false, drawhud = false, dopostprocess = false})
-		local data = render.Capture({format = "jpeg", x = 0, y = 0, w = RT_W, h = RT_H, quality = 55})
-	render.PopRenderTarget()
+	local data = render.Capture({format = "jpeg", x = 0, y = 0, w = ScrW(), h = ScrH(), quality = 45})
 
-	if (!data or #data == 0 or #data > 60000) then
-		return
+	if (!data or #data == 0) then
+		return NW.notify.Add("Снимок не удался")
 	end
 
-	net.Start("nwCamPhoto")
-		net.WriteUInt(entry.index, 16)
-		net.WriteUInt(#data, 16)
-		net.WriteData(data, #data)
-	net.SendToServer()
+	local PART = 48000
+	local parts = math.ceil(#data / PART)
+
+	if (parts > 20) then
+		return NW.notify.Add("Снимок слишком большой")
+	end
+
+	for part = 1, parts do
+		local chunk = string.sub(data, (part - 1) * PART + 1, part * PART)
+
+		timer.Simple((part - 1) * 0.05, function()
+			net.Start("nwCamPhoto")
+				net.WriteUInt(entry.index, 16)
+				net.WriteUInt(part, 8)
+				net.WriteUInt(parts, 8)
+				net.WriteUInt(#chunk, 16)
+				net.WriteData(chunk, #chunk)
+			net.SendToServer()
+		end)
+	end
 end)
 
 -- the photos of the others: on the left, one under another
@@ -231,12 +366,27 @@ local photos = {}
 local serial = 0
 local LIFE = 14
 
+local incoming = {}
+
 net.Receive("nwCamPhotoShow", function()
+	local id = net.ReadUInt(16)
+	local part = net.ReadUInt(8)
+	local parts = net.ReadUInt(8)
 	local number = net.ReadUInt(8)
 	local zone = net.ReadString()
 	local who = net.ReadString()
-	local data = net.ReadData(net.ReadUInt(16))
+	local chunk = net.ReadData(net.ReadUInt(16))
 
+	incoming[id] = incoming[id] or {}
+	incoming[id][part] = chunk
+
+	if (#incoming[id] < parts) then
+		return
+	end
+
+	local data = table.concat(incoming[id])
+
+	incoming[id] = nil
 	serial = serial + 1
 
 	local name = "network2/photos/" .. os.time() .. "_" .. serial .. ".jpg"
@@ -269,7 +419,7 @@ hook.Add("HUDPaint", "nwCameraPhotos", function()
 
 	local sw, sh = ScrW(), ScrH()
 	local w = math.Round(sh * 0.3)
-	local h = math.Round(w * RT_H / RT_W)
+	local h = math.Round(w * ScrH() / ScrW())
 	local cap = math.Round(sh * 0.028)
 	local total = #photos * (h + cap + 10)
 	local x, y = math.Round(sw * 0.015), math.Round(sh * 0.5 - total / 2)
@@ -345,10 +495,10 @@ function CA.Overlay(entry, pw, ph)
 	draw.SimpleText(string.format("АЗ %+04d  ·  УМ %+03d", math.Round(-aim.yaw), math.Round(-aim.pitch)), "nwCmtSmall",
 		18, ph - 20, C.dim, TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
 
-	-- the photo: a white flash
-	local since = CurTime() - ((CA.nextPhoto or 0) - cooldown:GetFloat())
+	-- the photo: a white flash, after the frame was taken
+	local since = RealTime() - (CA.flashAt or -10)
 
-	if (since >= 0 and since < 0.3) then
+	if (!CA.shooting and since >= 0 and since < 0.3) then
 		surface.SetDrawColor(255, 255, 255, 200 * (1 - since / 0.3))
 		surface.DrawRect(0, 0, pw, ph)
 	end
@@ -419,6 +569,7 @@ hook.Add("Think", "nwCameraFull", function()
 
 	Turn(entry, ((input.IsKeyDown(KEY_LEFT) and step or 0) - (input.IsKeyDown(KEY_RIGHT) and step or 0)),
 		((input.IsKeyDown(KEY_DOWN) and step or 0) - (input.IsKeyDown(KEY_UP) and step or 0)))
+	SendAim(entry)
 
 	if (Pressed(KEY_ENTER) or Pressed(KEY_PAD_ENTER)) then
 		CA.TakePhoto(entry)
@@ -470,6 +621,13 @@ hook.Add("PostDrawHUD", "nwCameraFull", function()
 		local sw, sh = ScrW(), ScrH()
 
 		CA.Overlay(CA.current, sw, sh)
+
+		if (CA.shooting) then
+			cam.End2D()
+
+			return
+		end
+
 		draw.SimpleText("← → ↑ ↓ / МЫШЬ — ПОВОРОТ   ·   ENTER — СНИМОК   ·   BACKSPACE — К ТЕРМИНАЛУ", "nwCamHint", sw / 2,
 			sh - sh * 0.04, Color(200, 236, 250, 220), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	cam.End2D()

@@ -320,6 +320,18 @@ local function DoorItems(door)
 			run = function() Act("kick") end}
 	end
 
+	-- a combine lock on the door: its mode (who opens it, the self-locking)
+	local lock = NW.LockOf and NW.LockOf(door)
+
+	if (IsValid(lock) and (NW.zones.IsAlliance(LocalPlayer()) or LocalPlayer():IsAdmin())) then
+		items[#items + 1] = {name = "Режим замка", icon = "lock", hint = "Кто открывает и самозапирание",
+			run = function()
+				timer.Simple(0.1, function()
+					NW.LockMenu(lock)
+				end)
+			end}
+	end
+
 	return items
 end
 

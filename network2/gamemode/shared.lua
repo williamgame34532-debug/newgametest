@@ -128,6 +128,8 @@ local FILES = {
 	"sh_fabricator.lua",
 	"sv_pain.lua",
 	"sh_contraband.lua",
+	"sh_cleanup.lua",
+	"sv_npcrelations.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",
