@@ -20,7 +20,8 @@ KS.list = {
 	{id = "radio", name = "Рация: настроить", convar = "nw_key_radio", default = KEY_B},
 	{id = "radio_talk", name = "Рация: говорить (зажать)", convar = "nw_key_radio_talk", default = KEY_H},
 	{id = "thermal", name = "Тепловизор (Альянс)", convar = "nw_key_thermal", default = KEY_N},
-	{id = "light", name = "Фонарик / ПНВ (зажать — выбор основного)", convar = "nw_key_light", default = KEY_F}
+	{id = "light", name = "Фонарик / ПНВ (зажать — выбор основного)", convar = "nw_key_light", default = KEY_F},
+	{id = "squad_mark", name = "Метка отряда (лидер; зажать — выбор)", convar = "nw_key_squad_mark", default = KEY_J}
 }
 
 KS.byID = {}

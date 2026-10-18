@@ -4,8 +4,8 @@
 --   Комендантский час    the factory and the ration dispensers are closed; the citizens go home
 --                        (nw_schedule_curfew, 6)
 -- Every change: in the chat for everyone, yellow, «[ОПОВЕЩЕНИЕ] Наступает время: ...» with its sound
--- (sound/network2/schedule/reminder.mp3). The phase and the time left - a small line at the top of the
--- screen. Admins: /schedule <смена|свободное|комендантский|авто>; nw_schedule 0 - no schedule (always
+-- (sound/network2/schedule/reminder.mp3); no line on the screen (the terminal of the factory shows the
+-- phase). Admins: /schedule <смена|свободное|комендантский|авто>; nw_schedule 0 - no schedule (always
 -- the free time, the factory open).
 
 NW.schedule = NW.schedule or {}
@@ -129,23 +129,4 @@ net.Receive("nwSchedule", function()
 
 	NW.chat.AddStyled("nwChat", YELLOW, "[ОПОВЕЩЕНИЕ] Наступает время: " .. phase.name .. ". " .. phase.text)
 	surface.PlaySound("network2/schedule/reminder.mp3")
-end)
-
-surface.CreateFont("nwSchedule", {font = "Montserrat SemiBold", size = math.max(11, math.Round(ScrH() * 0.015)),
-	weight = 600, extended = true, antialias = true})
-
--- the phase at the top of the screen
-hook.Add("HUDPaint", "nwSchedule", function()
-	local client = LocalPlayer()
-
-	if (!enabled:GetBool() or !IsValid(client) or client:GetCharacterID() == 0 or (NW.cameras and NW.cameras.full)) then
-		return
-	end
-
-	local phase, left = SC.Current()
-	local text = string.upper(phase.name) .. "  ·  " .. string.format("%02d:%02d", math.floor(left / 60), math.floor(left % 60))
-	local color = phase.id == "curfew" and Color(236, 96, 80) or (phase.id == "work" and YELLOW or Color(200, 210, 220))
-
-	draw.SimpleTextOutlined(text, "nwSchedule", ScrW() / 2, ScrH() * 0.012, ColorAlpha(color, 220), TEXT_ALIGN_CENTER,
-		TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 160))
 end)

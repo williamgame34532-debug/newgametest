@@ -3,11 +3,11 @@ FACTION.description = "Сверхчеловеческий надзор Алья�
 FACTION.color = Color(214, 92, 80)
 FACTION.logo = "combineclaw_logo"
 FACTION.alliance = true
-FACTION.model = "models/network/combine/grunt.mdl"
+FACTION.model = "models/synapse/combine/combine_soldier_h.mdl"
 
 FACTION.models = {
-	male = {"models/network/combine/grunt.mdl"},
-	female = {"models/network/combine/grunt.mdl"}
+	male = {"models/synapse/combine/combine_soldier_h.mdl"},
+	female = {"models/synapse/combine/combine_soldier_h.mdl"}
 }
 FACTION.unitPrefix = "C24.OTA.ECHO:"
 FACTION.items = {"radio"}

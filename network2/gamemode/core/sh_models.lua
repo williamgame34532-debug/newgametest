@@ -16,6 +16,7 @@ M.list = {
 		"Солдат (nemez)"},
 	{category = "Альянс", "models/network/combine/nemez/combine_soldier_elite_h.mdl", "overwatch", "combine",
 		"Элита (nemez)"},
+	{category = "Альянс", "models/synapse/combine/combine_soldier_h.mdl", "overwatch", "combine", "Солдат ОТА"},
 	{category = "Гражданская оборона", "models/network/cp/networkcp.mdl", "metrocop", "cp", "Офицер ГО"}
 }
 
@@ -155,8 +156,10 @@ local function Apply(client)
 
 	if (character) then
 		-- a faction with its own model (Civil Protection, Combine) dresses everyone in it
+		-- /setmodel of an admin wins over everything (sv_character.lua)
 		local faction = NW.char.factions[character.faction or ""]
-		local model = M.Resolve(faction and faction.model or character.model)
+		local override = character.data and character.data.model
+		local model = M.Resolve(override or (faction and faction.model) or character.model)
 
 		client:SetModel(util.IsValidModel(model) and model or DEFAULT)
 		client:SetSkin(math.Clamp(character.skin or 0, 0, math.max(client:SkinCount() - 1, 0)))

@@ -12,6 +12,13 @@ ENT.AdminOnly = true
 ENT.RenderGroup = RENDERGROUP_BOTH
 ENT.Model = "models/props_combine/combine_dispenser.mdl"
 
+-- where a thing is printed: in front of the machine, at the middle of its height
+function ENT:PrintPoint()
+	local mins, maxs = self:OBBMins(), self:OBBMaxs()
+
+	return self:LocalToWorld(Vector(maxs.x + 6, 0, (mins.z + maxs.z) * 0.55))
+end
+
 function ENT:SetupDataTables()
 	self:NetworkVar("Int", 0, "Resin")
 	self:NetworkVar("Float", 0, "Printed")
@@ -66,10 +73,39 @@ if (SERVER) then
 		NW.fabricator.Open(client, self)
 	end
 
-	function ENT:Print()
+	-- the printing: the chamber opens, the thing is printed (a weapon - assembled), the work is done;
+	-- the effect of the printing (entities/effects/nw_fabprint.lua) runs on the clients
+	function ENT:Print(bWeapon)
 		self:SetPrinted(CurTime())
-		self:EmitSound("ambient/machines/combine_terminal_idle" .. math.random(2, 4) .. ".wav", 66)
-		self:EmitSound("buttons/combine_button" .. math.random(1, 3) .. ".wav", 60)
+		self:EmitSound("network2/fabricator/chamber_open.wav", 66)
+
+		timer.Simple(0.5, function()
+			if (IsValid(self)) then
+				self:EmitSound(bWeapon and "network2/fabricator/gun_attach_print.wav" or "network2/fabricator/print_item.wav", 68)
+			end
+		end)
+
+		if (bWeapon) then
+			timer.Simple(1.1, function()
+				if (IsValid(self)) then
+					self:EmitSound("network2/fabricator/upgrading.wav", 60, 100, 0.5)
+				end
+			end)
+		end
+
+		timer.Simple(NW.fabricator.printTime - 0.4, function()
+			if (IsValid(self)) then
+				self:StopSound("network2/fabricator/upgrading.wav")
+				self:EmitSound("network2/fabricator/work_complete.wav", 68)
+			end
+		end)
+
+		local effect = EffectData()
+
+		effect:SetEntity(self)
+		effect:SetOrigin(self:PrintPoint())
+		effect:SetMagnitude(NW.fabricator.printTime)
+		util.Effect("nw_fabprint", effect, true, true)
 	end
 
 	timer.Simple(0, function()
@@ -106,15 +142,15 @@ end
 
 function ENT:Think()
 	-- printing: a cold light for a moment
-	if (CurTime() - self:GetPrinted() < 1.5) then
+	if (CurTime() - self:GetPrinted() < NW.fabricator.printTime) then
 		local light = DynamicLight(self:EntIndex())
 
 		if (light) then
-			light.pos = self:WorldSpaceCenter() + self:GetForward() * 16
+			light.pos = self:PrintPoint()
 			light.r, light.g, light.b = 120, 200, 255
-			light.brightness = 2
+			light.brightness = 1.4 + math.sin(CurTime() * 20) * 0.4
 			light.decay = 1000
-			light.size = 160
+			light.size = 140
 			light.dietime = CurTime() + 0.2
 		end
 	end

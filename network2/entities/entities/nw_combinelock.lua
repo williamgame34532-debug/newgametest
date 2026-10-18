@@ -5,7 +5,10 @@ AddCSLuaFile()
 -- door closes and locks), anyone else gets the refusal. Kept with the map (sv_persist.lua).
 -- The look: the lamp of the state - a soft glow, a hot core and a little light on the door; blue -
 -- locked, green - open, red blinking - refused. A change: a short flash, blue sparks, a scan line
--- over the panel and the lock sounds of the server (sound/network2/lock).
+-- over the panel and the lock sounds of the server (sound/network2/lock). The lamp is small and soft:
+-- seen up close, not across the street, and not through walls.
+-- Shift + E (the Alliance): the settings - who may open it (the Alliance / with the CWU / Civil
+-- Protection only / the Overwatch only) and the self-locking (off, 5, 10, 30, 60 s after opening).
 
 ENT.Type = "anim"
 ENT.PrintName = "Замок Альянса"
@@ -19,6 +22,30 @@ function ENT:SetupDataTables()
 	self:NetworkVar("Bool", 1, "Error")
 	self:NetworkVar("Float", 0, "Changed")
 	self:NetworkVar("Entity", 0, "Door")
+	self:NetworkVar("Int", 0, "Access")
+	self:NetworkVar("Int", 1, "AutoLock")
+end
+
+ENT.Accesses = {
+	{name = "Весь Альянс", Allow = function(client)
+		return NW.zones.IsAlliance(client)
+	end},
+	{name = "Альянс и ГСР", Allow = function(client)
+		return NW.zones.IsAlliance(client) or client:GetFaction() == "cwu"
+	end},
+	{name = "Только ГО", Allow = function(client)
+		return client:GetFaction() == "cp"
+	end},
+	{name = "Только ОТА", Allow = function(client)
+		return client:GetFaction() == "combine"
+	end}
+}
+ENT.AutoLocks = {0, 5, 10, 30, 60}
+
+function ENT:CanOperate(client)
+	local access = self.Accesses[math.Clamp(self:GetAccess(), 1, #self.Accesses)]
+
+	return client:IsAdmin() or access.Allow(client)
 end
 
 if (SERVER) then
@@ -93,7 +120,11 @@ if (SERVER) then
 		return entity
 	end
 
+	util.AddNetworkString("nwLockMenu")
+	util.AddNetworkString("nwLockSet")
+
 	function ENT:Initialize()
+		self:SetAccess(math.max(1, self:GetAccess()))
 		self:SetModel("models/props_combine/combine_lock01.mdl")
 		self:PhysicsInit(SOLID_VPHYSICS)
 		self:SetSolid(SOLID_VPHYSICS)
@@ -168,12 +199,58 @@ if (SERVER) then
 
 		self.nextUse = CurTime() + 1.2
 
-		if (!NW.zones.IsAlliance(client) and !client:IsAdmin()) then
+		-- Shift + E: the settings (the Alliance)
+		if (client:KeyDown(IN_SPEED) and (NW.zones.IsAlliance(client) or client:IsAdmin())) then
+			net.Start("nwLockMenu")
+				net.WriteEntity(self)
+			net.Send(client)
+
+			return
+		end
+
+		if (!self:CanOperate(client)) then
 			return self:Refuse()
 		end
 
 		self:SetState(!self:GetLocked())
+
+		-- opened: locks itself again after a while
+		local wait = self:GetAutoLock()
+
+		if (!self:GetLocked() and wait > 0) then
+			local mark = self:GetChanged()
+
+			timer.Simple(wait, function()
+				if (IsValid(self) and !self:GetLocked() and self:GetChanged() == mark) then
+					self:SetState(true)
+				end
+			end)
+		end
 	end
+
+	net.Receive("nwLockSet", function(_, client)
+		local lock = net.ReadEntity()
+		local key = net.ReadString()
+		local value = net.ReadUInt(8)
+
+		if (!IsValid(lock) or lock:GetClass() != "nw_combinelock" or
+			!(NW.zones.IsAlliance(client) or client:IsAdmin()) or client:GetPos():DistToSqr(lock:GetPos()) > 200 * 200) then
+			return
+		end
+
+		if (key == "access" and lock.Accesses[value]) then
+			lock:SetAccess(value)
+			NW.Notify(client, "Доступ: " .. lock.Accesses[value].name)
+		elseif (key == "autolock" and table.HasValue(lock.AutoLocks, value)) then
+			lock:SetAutoLock(value)
+			NW.Notify(client, value > 0 and ("Самозапирание через " .. value .. " с") or "Самозапирание выключено")
+		else
+			return
+		end
+
+		lock:EmitSound("buttons/combine_button" .. math.random(1, 3) .. ".wav", 55)
+		NW.persist.Save("nw_combinelock")
+	end)
 
 	function ENT:OnRemove()
 		for _, door in ipairs(self:Doors()) do
@@ -190,6 +267,7 @@ if (SERVER) then
 				local door = entity:GetDoor()
 
 				return {door = IsValid(door) and door:MapCreationID() or -1, locked = entity:GetLocked(),
+					access = entity:GetAccess(), autolock = entity:GetAutoLock(),
 					local_pos = IsValid(door) and door:WorldToLocal(entity:GetPos()) or nil,
 					local_ang = IsValid(door) and door:WorldToLocalAngles(entity:GetAngles()) or nil}
 			end,
@@ -225,6 +303,9 @@ if (SERVER) then
 				return entity
 			end,
 			Load = function(entity, data)
+				entity:SetAccess(math.Clamp(tonumber(data.access) or 1, 1, #entity.Accesses))
+				entity:SetAutoLock(tonumber(data.autolock) or 0)
+
 				if (data.locked) then
 					timer.Simple(0.5, function()
 						if (IsValid(entity)) then
@@ -241,10 +322,52 @@ end
 
 -- ------------------------------------------------------------------ client --
 local GLOW = Material("sprites/light_glow02_add")
-local CORE = Material("sprites/glow04_noz")
-local BLUE = Color(70, 150, 255)
-local GREEN = Color(80, 255, 140)
-local RED = Color(255, 60, 50)
+local BLUE = Color(90, 150, 230)
+local GREEN = Color(110, 220, 150)
+local RED = Color(235, 80, 70)
+
+-- the settings (Shift + E)
+net.Receive("nwLockMenu", function()
+	local lock = net.ReadEntity()
+
+	if (!IsValid(lock)) then
+		return
+	end
+
+	local function Set(key, value)
+		net.Start("nwLockSet")
+			net.WriteEntity(lock)
+			net.WriteString(key)
+			net.WriteUInt(value, 8)
+		net.SendToServer()
+	end
+
+	local menu = DermaMenu()
+	local access = menu:AddSubMenu("Кто открывает")
+
+	for index, entry in ipairs(lock.Accesses) do
+		local option = access:AddOption(entry.name, function()
+			Set("access", index)
+		end)
+
+		option:SetChecked(lock:GetAccess() == index)
+	end
+
+	local auto = menu:AddSubMenu("Самозапирание")
+
+	for _, seconds in ipairs(lock.AutoLocks) do
+		local option = auto:AddOption(seconds > 0 and ("Через " .. seconds .. " с") or "Выключено", function()
+			Set("autolock", seconds)
+		end)
+
+		option:SetChecked(lock:GetAutoLock() == seconds)
+	end
+
+	menu:AddSpacer()
+	menu:AddOption("Закрыть"):SetIcon("icon16/cross.png")
+	menu:Open()
+	menu:Center()
+end)
 
 function ENT:Draw()
 	self:DrawModel()
@@ -262,13 +385,15 @@ function ENT:Draw()
 	local since = now - self:GetChanged()
 	local flash = since < 0.5 and (1 - since / 0.5) or 0
 	local pos = self:GetPos() + self:GetUp() * -8.7 + self:GetForward() * -3.85 + self:GetRight() * -6
-	local breath = 0.85 + 0.15 * math.sin(now * 2.2)
+	local breath = 0.9 + 0.1 * math.sin(now * 2.2)
+
+	-- small and soft: the colour is read up close, it does not shine across the street
+	local near = math.Clamp(1 - EyePos():Distance(pos) / 600, 0.25, 1)
 
 	render.SetMaterial(GLOW)
-	render.DrawSprite(pos, 22 * breath * strength + flash * 30, 22 * breath * strength + flash * 30,
-		ColorAlpha(color, 120 * strength))
-	render.SetMaterial(CORE)
-	render.DrawSprite(pos, 6 + flash * 6, 6 + flash * 6, ColorAlpha(color, 255 * strength))
+	render.DrawSprite(pos, 9 * breath * strength + flash * 14, 9 * breath * strength + flash * 14,
+		ColorAlpha(color, 55 * strength * near))
+	render.DrawSprite(pos, 3 + flash * 3, 3 + flash * 3, ColorAlpha(color, 170 * strength * near))
 
 	-- the scan line over the panel after a change
 	if (since < 0.8) then
@@ -282,7 +407,7 @@ end
 
 function ENT:Think()
 	-- a little light on the door
-	if (LocalPlayer():GetPos():DistToSqr(self:GetPos()) < 700 * 700) then
+	if (LocalPlayer():GetPos():DistToSqr(self:GetPos()) < 400 * 400) then
 		local light = DynamicLight(self:EntIndex())
 
 		if (light) then
@@ -290,9 +415,9 @@ function ENT:Think()
 
 			light.pos = self:GetPos() + self:GetForward() * -8
 			light.r, light.g, light.b = color.r, color.g, color.b
-			light.brightness = 0.6
+			light.brightness = 0.18
 			light.decay = 1000
-			light.size = 48
+			light.size = 26
 			light.dietime = CurTime() + 0.2
 		end
 	end

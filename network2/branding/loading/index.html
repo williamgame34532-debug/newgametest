@@ -1,0 +1,39 @@
+<!doctype html>
+<!-- The loading screen of the server (sv_loadingurl): the splash of Network with the status of the
+     joining. Put this folder on any web host and set in server.cfg:
+       sv_loadingurl "https://your.host/loading/index.html"
+     Garry's Mod calls GameDetails / SetStatusChanged / DownloadingFile on the page. -->
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Network</title>
+<style>
+	html, body { margin: 0; height: 100%; background: #1c2027; overflow: hidden; font-family: "Segoe UI", Arial, sans-serif; }
+	#splash { position: fixed; inset: 0; background: url("splash.jpg") center / cover no-repeat;
+		animation: in 1.6s ease-out both, drift 40s linear infinite alternate; }
+	@keyframes in { from { opacity: 0; } to { opacity: 1; } }
+	@keyframes drift { from { transform: scale(1); } to { transform: scale(1.05); } }
+	#status { position: fixed; left: 0; right: 0; bottom: 9%; text-align: center; color: #8a96a6;
+		letter-spacing: .35em; font-size: 13px; text-transform: uppercase; }
+	#bar { position: fixed; left: 35%; right: 35%; bottom: calc(9% - 18px); height: 2px; background: #2b323c; }
+	#fill { height: 100%; width: 0; background: #40bef0; transition: width .4s; }
+	#file { position: fixed; left: 0; right: 0; bottom: calc(9% - 40px); text-align: center; color: #56606e;
+		font-size: 11px; letter-spacing: .1em; }
+</style>
+</head>
+<body>
+<div id="splash"></div>
+<div id="status">Подключение</div>
+<div id="bar"><div id="fill"></div></div>
+<div id="file"></div>
+<script>
+	var total = 0, needed = 0;
+	function GameDetails(server, url, map) { document.getElementById("status").textContent = (map || "") ; }
+	function SetFilesTotal(n) { total = n; }
+	function SetFilesNeeded(n) { needed = n; var p = total > 0 ? (1 - needed / total) * 100 : 0;
+		document.getElementById("fill").style.width = p + "%"; }
+	function DownloadingFile(name) { document.getElementById("file").textContent = name; }
+	function SetStatusChanged(text) { document.getElementById("status").textContent = text; }
+</script>
+</body>
+</html>

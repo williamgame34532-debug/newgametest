@@ -132,7 +132,9 @@ local function DrawBodies(list)
 	end
 end
 
-local OFFSETS = {{-2, 0}, {2, 0}, {0, -2}, {0, 2}, {-1, -1}, {1, -1}, {-1, 1}, {1, 1}}
+-- the line: crisp at 1 px; the glow: wider and soft, breathing slowly
+local LINE = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+local GLOW = {{-3, 0}, {3, 0}, {0, -3}, {0, 3}, {-2, -2}, {2, -2}, {-2, 2}, {2, 2}}
 
 hook.Add("PostDrawEffects", "nwSquadOutline", function()
 	local list = Targets()
@@ -186,9 +188,18 @@ hook.Add("PostDrawEffects", "nwSquadOutline", function()
 
 	cam.Start2D()
 		surface.SetMaterial(material)
-		surface.SetDrawColor(color.r, color.g, color.b, 255)
 
-		for _, offset in ipairs(OFFSETS) do
+		local breath = 0.6 + 0.4 * math.sin(RealTime() * 2)
+
+		surface.SetDrawColor(color.r, color.g, color.b, 34 * breath)
+
+		for _, offset in ipairs(GLOW) do
+			surface.DrawTexturedRect(offset[1], offset[2], W, H)
+		end
+
+		surface.SetDrawColor(math.min(color.r + 40, 255), math.min(color.g + 40, 255), math.min(color.b + 40, 255), 255)
+
+		for _, offset in ipairs(LINE) do
 			surface.DrawTexturedRect(offset[1], offset[2], W, H)
 		end
 	cam.End2D()

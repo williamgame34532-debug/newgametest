@@ -66,10 +66,13 @@ end
 
 FB.max = CreateConVar("nw_fabricator_resin", "200", {FCVAR_ARCHIVE, FCVAR_REPLICATED}, "Сколько смолы вмещает фабрикатор")
 FB.perCrate = 25
+-- how long a thing is printed (seconds)
+FB.printTime = 2.8
 
 if (SERVER) then
 	util.AddNetworkString("nwFabricator")
 	util.AddNetworkString("nwFabricatorAcquire")
+	util.AddNetworkString("nwFabricatorClose")
 
 	local INV = NW.inventory
 	local I = NW.items
@@ -115,6 +118,21 @@ if (SERVER) then
 			return true
 		end
 
+		-- the resin tray: out, the crates in, back
+		fabricator:EmitSound("network2/fabricator/resin_tray_open.wav", 66)
+
+		timer.Simple(1.2, function()
+			if (IsValid(fabricator)) then
+				fabricator:EmitSound("network2/fabricator/resin_tray_advance.wav", 66)
+			end
+		end)
+
+		timer.Simple(1.9, function()
+			if (IsValid(fabricator)) then
+				fabricator:EmitSound("network2/fabricator/resin_tray_retract.wav", 66)
+			end
+		end)
+
 		TakeAll(client, "factory_crate")
 
 		for _ = 1, crates - loaded do
@@ -123,7 +141,6 @@ if (SERVER) then
 
 		INV.Changed(client)
 		fabricator:SetResin(fabricator:GetResin() + loaded * FB.perCrate)
-		fabricator:EmitSound("ambient/machines/combine_terminal_idle4.wav", 65)
 
 		-- the workers are paid by the city
 		if (!NW.zones.IsAlliance(client)) then
@@ -139,6 +156,9 @@ if (SERVER) then
 	end
 
 	function FB.Open(client, fabricator)
+		fabricator:EmitSound("network2/fabricator/eyestalk_extend.wav", 60, 100, 0.6)
+		fabricator:EmitSound("network2/fabricator/interface_open.wav", 60, 100, 0.5)
+
 		net.Start("nwFabricator")
 			net.WriteEntity(fabricator)
 		net.Send(client)
@@ -211,17 +231,60 @@ if (SERVER) then
 			return NW.Notify(client, "Не хватает смолы: нужно " .. entry.cost .. ". Пополните резервуар грузом завода")
 		end
 
-		local problem = GIVE[entry.kind](client, entry)
+		if (fabricator:GetPrinted() + FB.printTime > CurTime()) then
+			return NW.Notify(client, "Фабрикатор занят: идёт печать")
+		end
 
-		if (isstring(problem)) then
-			return NW.Notify(client, problem)
+		-- the supplies (ammunition, armour) right away; the things are printed first
+		if (entry.kind != "item") then
+			local problem = GIVE[entry.kind](client, entry)
+
+			if (isstring(problem)) then
+				return NW.Notify(client, problem)
+			end
+
+			fabricator:SetResin(fabricator:GetResin() - entry.cost)
+			fabricator:EmitSound("network2/fabricator/resin_tray_advance.wav", 65)
+			NW.persist.Save("nw_fabricator")
+
+			return NW.Notify(client, "Получено: " .. entry.name .. " · −" .. entry.cost .. " смолы")
 		end
 
 		fabricator:SetResin(fabricator:GetResin() - entry.cost)
-		fabricator:Print()
+		fabricator:Print(entry.section == "primary" or entry.section == "secondary")
 		NW.persist.Save("nw_fabricator")
-		NW.Notify(client, "Получено: " .. entry.name .. " · −" .. entry.cost .. " смолы")
 		MsgN(string.format("[FABRICATOR] %s (%s): %s", client:Nick(), client:SteamName(), entry.id))
+
+		timer.Simple(FB.printTime, function()
+			if (!IsValid(client)) then
+				return
+			end
+
+			if (IsValid(fabricator) and client:GetPos():DistToSqr(fabricator:GetPos()) > 300 * 300) then
+				-- walked away: it lies at the fabricator
+				local item = ents.Create("nw_item")
+
+				if (IsValid(item)) then
+					item:SetItem(entry.item, {})
+					item:SetPos(fabricator:LocalToWorld(Vector(fabricator:OBBMaxs().x + 10, 0, 20)))
+					item:Spawn()
+
+					return
+				end
+			end
+
+			GIVE.item(client, entry)
+			NW.Notify(client, "Получено: " .. entry.name .. " · −" .. entry.cost .. " смолы")
+		end)
+	end)
+
+	net.Receive("nwFabricatorClose", function(_, client)
+		local fabricator = net.ReadEntity()
+
+		if (IsValid(fabricator) and fabricator:GetClass() == "nw_fabricator" and
+			client:GetPos():DistToSqr(fabricator:GetPos()) < 300 * 300) then
+			fabricator:EmitSound("network2/fabricator/eyestalk_retract.wav", 60, 100, 0.6)
+		end
 	end)
 
 	-- ------------------------------------------------------ the things it makes --
@@ -331,24 +394,32 @@ if (SERVER) then
 end
 
 -- ------------------------------------------------------------------ client --
-surface.CreateFont("nwFabTitle", {font = "Exo 2", size = math.max(20, math.Round(ScrH() * 0.034)), weight = 600,
+-- The window: the glass of the Alliance terminal. On the left the reservoir (a tall gauge in segments)
+-- and the sections; on the right the cards (the model turning, the name, what it is, the price in resin,
+-- «Печать»); at the bottom the line of the printing while it goes.
+surface.CreateFont("nwFabHead", {font = "Oswald Medium", size = math.max(16, math.Round(ScrH() * 0.03)), weight = 500,
 	extended = true, antialias = true})
-surface.CreateFont("nwFabText", {font = "Exo 2", size = math.max(12, math.Round(ScrH() * 0.017)), weight = 500,
+surface.CreateFont("nwFabText", {font = "Exo 2", size = math.max(11, math.Round(ScrH() * 0.0155)), weight = 500,
 	extended = true, antialias = true})
-surface.CreateFont("nwFabRow", {font = "Exo 2", size = math.max(16, math.Round(ScrH() * 0.027)), weight = 600,
+surface.CreateFont("nwFabName", {font = "Exo 2", size = math.max(13, math.Round(ScrH() * 0.019)), weight = 700,
 	extended = true, antialias = true})
-surface.CreateFont("nwFabButton", {font = "Exo 2", size = math.max(12, math.Round(ScrH() * 0.018)), weight = 500,
-	extended = true, antialias = true})
+surface.CreateFont("nwFabMono", {font = "JetBrains Mono ExtraBold", size = math.max(10, math.Round(ScrH() * 0.014)),
+	weight = 800, extended = true, antialias = true})
 
-local TEXT = Color(226, 230, 232)
-local DIM = Color(170, 176, 180)
-local CELL = Color(42, 44, 46, 235)
-local CELL_HOVER = Color(56, 60, 62, 240)
-local CORNERS = {primary = Color(196, 52, 40), secondary = Color(196, 52, 40), tertiary = Color(196, 52, 40),
-	misc = Color(196, 140, 52)}
+local GLASS = Color(8, 18, 24, 236)
+local CARD = Color(14, 30, 38, 230)
+local CARD_HOVER = Color(22, 48, 60, 240)
+local CYAN = Color(96, 200, 240)
+local DIM = Color(110, 160, 180)
+local TEXT = Color(214, 238, 246)
+local RED = Color(220, 96, 80)
 
 local function Click()
 	surface.PlaySound("network2/cmbterminal/combine_tech_click_0" .. math.random(1, 5) .. ".wav")
+end
+
+local function Up(text)
+	return NW.terminal and NW.terminal.Upper and NW.terminal.Upper(text) or text
 end
 
 net.Receive("nwFabricator", function()
@@ -363,145 +434,169 @@ net.Receive("nwFabricator", function()
 	end
 
 	local sw, sh = ScrW(), ScrH()
-	local frame = vgui.Create("EditablePanel")
-	local pad = math.Round(sw * 0.02)
-	local leftW = math.Round(sw * 0.33)
+	local w, h = math.Round(math.min(sw * 0.8, sh * 1.5)), math.Round(sh * 0.78)
+	local back = vgui.Create("EditablePanel")
+	local frame = back:Add("EditablePanel")
+	local pad = math.Round(sh * 0.022)
+	local leftW = math.Round(w * 0.22)
+	local top = math.Round(sh * 0.07)
 
-	frame:SetSize(sw, sh)
-	frame:MakePopup()
+	back:SetSize(sw, sh)
+	back:MakePopup()
+	back.Paint = function(self, pw, ph)
+		NW.ui.Blur(0, 0, pw, ph, 3, 255, self, 10)
+		surface.SetDrawColor(0, 0, 0, 150)
+		surface.DrawRect(0, 0, pw, ph)
+	end
+	back.OnRemove = function()
+		net.Start("nwFabricatorClose")
+			net.WriteEntity(fabricator)
+		net.SendToServer()
+	end
+
+	frame:SetSize(w, h)
+	frame:Center()
+	frame.section = FB.section or "primary"
 	frame.born = RealTime()
-	frame.section = FB.section or "misc"
-	FB.frame = frame
+	FB.frame = back
 
-	frame.Paint = function(self, w, h)
+	frame.Paint = function(self, pw, ph)
 		local a = math.Clamp((RealTime() - self.born) / 0.25, 0, 1)
 
-		NW.ui.Blur(0, 0, w, h, 4, 255 * a, self, 12)
-		surface.SetDrawColor(10, 12, 14, 215 * a)
-		surface.DrawRect(0, 0, w, h)
+		draw.RoundedBox(6, 0, 0, pw, ph, ColorAlpha(GLASS, GLASS.a * a))
+		surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 90 * a)
+		surface.DrawOutlinedRect(0, 0, pw, ph, 1)
 
-		draw.SimpleText("Станция снабжения", "nwFabTitle", pad, sh * 0.035, ColorAlpha(TEXT, 255 * a))
-		draw.SimpleText("Комбайновский 3D-принтер для изготовления оружия и снаряжения.", "nwFabText", pad, sh * 0.075,
-			ColorAlpha(DIM, 255 * a))
+		-- the head: a lit strip with the name, the node on the right
+		surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 22 * a)
+		surface.DrawRect(1, 1, pw - 2, top - 2)
+		surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 160 * a)
+		surface.DrawRect(0, top - 1, pw, 1)
+		draw.SimpleText("ФАБРИКАТОР", "nwFabHead", pad, top / 2, ColorAlpha(TEXT, 255 * a), TEXT_ALIGN_LEFT,
+			TEXT_ALIGN_CENTER)
+		draw.SimpleText("ПЕЧАТЬ СНАРЯЖЕНИЯ  ::  УЗЕЛ " .. string.format("%02d", fabricator:EntIndex() % 97), "nwFabMono",
+			pad + sh * 0.17, top / 2, ColorAlpha(DIM, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 
-		local section
+		-- the reservoir: a tall gauge in segments
+		local resin, max = IsValid(fabricator) and fabricator:GetResin() or 0, FB.max:GetInt()
+		local gx, gy, gw, gh = pad, top + pad, math.Round(leftW * 0.28), math.Round(h * 0.42)
+		local segments = 12
+		local filled = resin / max * segments
 
-		for _, entry in ipairs(FB.sections) do
-			if (entry.id == self.section) then
-				section = entry
+		for index = 0, segments - 1 do
+			local sy = gy + gh - (index + 1) * (gh / segments)
+			local lit = math.Clamp(filled - index, 0, 1)
+
+			surface.SetDrawColor(30, 54, 64, 255 * a)
+			surface.DrawRect(gx, sy + 2, gw, gh / segments - 4)
+
+			if (lit > 0) then
+				surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, (80 + 175 * lit) * a)
+				surface.DrawRect(gx, sy + 2, gw, gh / segments - 4)
 			end
 		end
 
-		draw.SimpleText(section.name, "nwFabTitle", pad * 2 + leftW, sh * 0.035, ColorAlpha(TEXT, 255 * a))
-		draw.SimpleText(section.text, "nwFabText", pad * 2 + leftW, sh * 0.075, ColorAlpha(DIM, 255 * a))
+		local tx = gx + gw + pad * 0.6
 
-		-- the reservoir
-		local ry = sh * 0.095 + #FB.sections * sh * 0.062 + sh * 0.02
-		local resin, max = IsValid(fabricator) and fabricator:GetResin() or 0, FB.max:GetInt()
+		draw.SimpleText("СМОЛА", "nwFabMono", tx, gy, ColorAlpha(DIM, 255 * a))
+		draw.SimpleText(resin, "nwFabHead", tx, gy + sh * 0.02, ColorAlpha(TEXT, 255 * a))
+		draw.SimpleText("из " .. max, "nwFabText", tx, gy + sh * 0.06, ColorAlpha(DIM, 255 * a))
 
-		draw.SimpleText("Резервуар смолы", "nwFabTitle", pad, ry, ColorAlpha(TEXT, 255 * a))
-		draw.SimpleText("Пополняется упакованным грузом завода (" .. FB.perCrate .. " смолы за ящик).", "nwFabText", pad,
-			ry + sh * 0.04, ColorAlpha(DIM, 255 * a))
-		surface.SetDrawColor(60, 62, 64, 255 * a)
-		surface.DrawRect(pad, ry + sh * 0.07, leftW, 4)
-		surface.SetDrawColor(230, 232, 234, 255 * a)
-		surface.DrawRect(pad, ry + sh * 0.07, leftW * math.Clamp(resin / max, 0, 1), 4)
-		draw.SimpleText(math.Round(resin / max * 100) .. "% - " .. resin .. "/" .. max, "nwFabText", pad + leftW,
-			ry + sh * 0.085, ColorAlpha(DIM, 255 * a), TEXT_ALIGN_RIGHT)
+		local note = NW.inventory.WrapText("Пополняется грузом завода: " .. FB.perCrate .. " за ящик.", "nwFabText",
+			leftW - gw - pad * 1.6)
+
+		for index, line in ipairs(note) do
+			draw.SimpleText(line, "nwFabText", tx, gy + gh - #note * sh * 0.02 + (index - 1) * sh * 0.02,
+				ColorAlpha(DIM, 200 * a))
+		end
+
+		-- the printing now
+		local since = IsValid(fabricator) and CurTime() - fabricator:GetPrinted() or 99
+
+		if (since < FB.printTime) then
+			local bx, by, bw = leftW + pad * 2, h - pad - sh * 0.012, w - leftW - pad * 3
+
+			surface.SetDrawColor(30, 54, 64, 255 * a)
+			surface.DrawRect(bx, by, bw, 4)
+			surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 255 * a)
+			surface.DrawRect(bx, by, bw * since / FB.printTime, 4)
+			draw.SimpleText("ПЕЧАТЬ  " .. math.floor(since / FB.printTime * 100) .. "%", "nwFabMono", bx + bw, by - 4,
+				ColorAlpha(CYAN, 255 * a), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
+		end
 	end
 
-	local close = vgui.Create("DButton", frame)
+	local close = frame:Add("DButton")
 
 	close:SetText("")
-	close:SetSize(sw * 0.06, sh * 0.035)
-	close:SetPos(sw - pad - sw * 0.06, sh * 0.01)
-	close.Paint = function(self, w, h)
-		draw.SimpleText("ЗАКРЫТЬ  ✕", "nwFabButton", w, h / 2, self:IsHovered() and color_white or DIM, TEXT_ALIGN_RIGHT,
+	close:SetSize(top, top)
+	close:SetPos(w - top, 0)
+	close.Paint = function(self, pw, ph)
+		draw.SimpleText("✕", "nwFabName", pw / 2, ph / 2, self:IsHovered() and RED or DIM, TEXT_ALIGN_CENTER,
 			TEXT_ALIGN_CENTER)
 	end
 	close.DoClick = function()
 		Click()
-		frame:Remove()
+		back:Remove()
 	end
 
-	local list = vgui.Create("DScrollPanel", frame)
-	local listX = pad * 2 + leftW
+	-- the cards
+	local gridX = leftW + pad * 2
+	local scroll = frame:Add("DScrollPanel")
 
-	list:SetPos(listX, sh * 0.1)
-	list:SetSize(sw - listX - pad, sh * 0.85)
+	scroll:SetPos(gridX, top + pad)
+	scroll:SetSize(w - gridX - pad, h - top - pad * 2 - sh * 0.03)
 
 	local function Fill()
-		list:Clear()
+		scroll:Clear()
 
 		local me = LocalPlayer()
+		local columns = 3
+		local gap = math.Round(sh * 0.012)
+		local cw = math.floor((scroll:GetWide() - 12 - gap * (columns - 1)) / columns)
+		local ch = math.Round(cw * 0.92)
+		local index = 0
+		local canvas = scroll:Add("EditablePanel")
+
+		canvas:Dock(TOP)
 
 		for _, entry in ipairs(FB.catalog) do
 			if (entry.section == frame.section) then
-				local rowH = math.Round(sh * 0.09)
-				local row = list:Add("DPanel")
+				local col, row = index % columns, math.floor(index / columns)
 				local locked = entry.only and me:GetFaction() != entry.only
+				local card = canvas:Add("DButton")
 
-				row:Dock(TOP)
-				row:DockMargin(0, 0, 0, 3)
-				row:SetTall(rowH)
-				row.Paint = function(self, w, h)
-					draw.RoundedBox(0, 0, 0, w, h, CELL)
-
-					-- the price corner
-					local corner = CORNERS[entry.section]
-
-					draw.NoTexture()
-					surface.SetDrawColor(corner.r, corner.g, corner.b, 220)
-					surface.DrawPoly({{x = h * 0.82, y = h - 2}, {x = h * 0.82 + h * 0.18, y = h - h * 0.18 - 2},
-						{x = h * 0.82 + h * 0.18, y = h - 2}})
-
-					draw.SimpleText(entry.name, "nwFabRow", h * 1.1, h * 0.24, locked and DIM or TEXT, TEXT_ALIGN_LEFT,
-						TEXT_ALIGN_CENTER)
-					draw.SimpleText(entry.text, "nwFabText", h * 1.1, h * 0.54, DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-					draw.SimpleText(entry.effect, "nwFabButton", h * 1.1, h * 0.79, TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-				end
-
-				local icon = row:Add("DModelPanel")
-
-				icon:SetPos(4, 4)
-				icon:SetSize(rowH - 8, rowH - 8)
-				icon:SetModel(entry.model)
-				icon:SetMouseInputEnabled(false)
-				icon.LayoutEntity = function(self, model)
-					model:SetAngles(Angle(0, 30, 0))
-				end
-
-				local model = icon:GetEntity()
-
-				if (IsValid(model)) then
-					local mins, maxs = model:GetRenderBounds()
-					local size = math.max(maxs:Distance(mins), 4)
-
-					icon:SetFOV(30)
-					icon:SetCamPos(Vector(size * 1.6, size * 0.6, size * 0.5))
-					icon:SetLookAt((mins + maxs) / 2)
-				end
-
-				local acquire = row:Add("DButton")
-				local bw = math.Round(sw * 0.08)
-
-				acquire:SetText("")
-				acquire:Dock(RIGHT)
-				acquire:SetWide(bw)
-				acquire.Paint = function(self, w, h)
+				index = index + 1
+				card:SetText("")
+				card:SetPos(col * (cw + gap), row * (ch + gap))
+				card:SetSize(cw, ch)
+				card.Paint = function(self, pw, ph)
 					local enough = IsValid(fabricator) and fabricator:GetResin() >= entry.cost and !locked
 
-					if (self:IsHovered() and enough) then
-						surface.SetDrawColor(CELL_HOVER)
-						surface.DrawRect(0, 0, w, h)
+					draw.RoundedBox(4, 0, 0, pw, ph, self:IsHovered() and enough and CARD_HOVER or CARD)
+					surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, self:IsHovered() and 160 or 50)
+					surface.DrawOutlinedRect(0, 0, pw, ph, 1)
+
+					local ty = ph * 0.56
+
+					draw.SimpleText(entry.name, "nwFabName", pw * 0.06, ty, locked and DIM or TEXT)
+
+					for line, part in ipairs(NW.inventory.WrapText(entry.effect, "nwFabText", pw * 0.88)) do
+						if (line <= 2) then
+							draw.SimpleText(part, "nwFabText", pw * 0.06, ty + sh * 0.028 + (line - 1) * sh * 0.019, DIM)
+						end
 					end
 
-					draw.SimpleText(locked and "Недоступно" or "Получить", "nwFabButton", w / 2, h * 0.42,
-						enough and TEXT or DIM, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-					draw.SimpleText(entry.cost .. " смолы", "nwFabText", w / 2, h * 0.66, enough and DIM or
-						Color(196, 80, 60), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+					-- the price and the action
+					local bh = ph * 0.15
+
+					surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, enough and (self:IsHovered() and 60 or 25) or 10)
+					surface.DrawRect(0, ph - bh, pw, bh)
+					draw.SimpleText("◆ " .. entry.cost, "nwFabMono", pw * 0.06, ph - bh / 2,
+						enough and CYAN or RED, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+					draw.SimpleText(locked and "ТОЛЬКО ОТА" or (entry.kind == "item" and "ПЕЧАТЬ" or "ВЫДАТЬ"), "nwFabMono",
+						pw * 0.94, ph - bh / 2, enough and TEXT or DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 				end
-				acquire.DoClick = function()
+				card.DoClick = function()
 					Click()
 
 					net.Start("nwFabricatorAcquire")
@@ -509,22 +604,54 @@ net.Receive("nwFabricator", function()
 						net.WriteString(entry.id)
 					net.SendToServer()
 				end
+
+				local view = card:Add("DModelPanel")
+
+				view:SetPos(cw * 0.06, ch * 0.04)
+				view:SetSize(cw * 0.88, ch * 0.48)
+				view:SetModel(entry.model)
+				view:SetMouseInputEnabled(false)
+				view.LayoutEntity = function(self, model)
+					model:SetAngles(Angle(0, RealTime() * 25 % 360, 0))
+				end
+
+				local model = view:GetEntity()
+
+				if (IsValid(model)) then
+					local mins, maxs = model:GetRenderBounds()
+					local size = math.max(maxs:Distance(mins), 4)
+
+					view:SetFOV(32)
+					view:SetCamPos(Vector(size * 1.5, size * 0.4, size * 0.45))
+					view:SetLookAt((mins + maxs) / 2)
+				end
 			end
 		end
+
+		canvas:SetTall(math.ceil(index / columns) * (ch + gap))
 	end
 
-	for index, section in ipairs(FB.sections) do
-		local button = vgui.Create("DButton", frame)
+	-- the sections
+	local sy = top + pad + math.Round(h * 0.42) + pad * 1.5
+
+	for number, section in ipairs(FB.sections) do
+		local button = frame:Add("DButton")
 
 		button:SetText("")
-		button:SetPos(pad, sh * 0.1 + (index - 1) * sh * 0.062)
-		button:SetSize(leftW, sh * 0.058)
-		button.Paint = function(self, w, h)
+		button:SetPos(pad, sy + (number - 1) * sh * 0.052)
+		button:SetSize(leftW, sh * 0.046)
+		button.Paint = function(self, pw, ph)
 			local active = frame.section == section.id
 
-			surface.SetDrawColor(active and CELL_HOVER or (self:IsHovered() and Color(50, 52, 54, 240) or CELL))
-			surface.DrawRect(0, 0, w, h)
-			draw.SimpleText(section.name, "nwFabButton", w / 2, h / 2, active and color_white or TEXT, TEXT_ALIGN_CENTER,
+			surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, active and 40 or (self:IsHovered() and 20 or 0))
+			surface.DrawRect(0, 0, pw, ph)
+
+			if (active) then
+				surface.SetDrawColor(CYAN)
+				surface.DrawRect(0, 0, 3, ph)
+			end
+
+			draw.SimpleText(Up(section.name), "nwFabMono", ph * 0.4, ph / 2, active and TEXT or DIM, TEXT_ALIGN_LEFT,
 				TEXT_ALIGN_CENTER)
 		end
 		button.DoClick = function()
@@ -536,5 +663,4 @@ net.Receive("nwFabricator", function()
 	end
 
 	Fill()
-	surface.PlaySound("buttons/combine_button7.wav")
 end)

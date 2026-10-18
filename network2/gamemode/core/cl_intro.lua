@@ -1,10 +1,13 @@
--- The intro when joining: a black screen, then "Network: H-L Roleplay" comes in letter by letter
+-- The intro when joining: the splash (materials/network2/menu/splash.jpg, branding/make_splash.py - the
+-- emblem pressed into a dark wall) comes out of the black and slowly closes in, then
+-- "Network: H-L Roleplay" comes in letter by letter at the bottom
 -- (each rises and sharpens out of a wide spacing, a thin line opens under it), holds, goes away
 -- (the letters drift apart and fade), and the black fades into the main menu. Space / Enter
 -- skips it. nw_intro 0 turns it off.
 
 local enabled = CreateClientConVar("nw_intro", "1", true, false, "Интро при заходе")
 local TEXT = "Network: H-L Roleplay"
+local SPLASH = Material("network2/menu/splash.jpg", "smooth")
 
 local I = {}
 
@@ -67,11 +70,21 @@ hook.Add("DrawOverlay", "nwIntro", function()
 	local sw, sh = ScrW(), ScrH()
 	local t = RealTime() - I.start
 
-	-- the black
-	local black = t < OUT and 1 or 1 - Ease((t - OUT) / (BLACK_OUT - OUT))
+	-- the splash out of the black, closing in slowly; all of it fades into the menu at the end
+	local gone = t < OUT and 1 or 1 - Ease((t - OUT) / (BLACK_OUT - OUT))
+	local shown = Ease(t / 1.2)
+	local zoom = 1 + 0.04 * Ease(t / BLACK_OUT)
+	local iw, ih = sw * zoom, sw * zoom * 9 / 16
 
-	surface.SetDrawColor(0, 0, 0, 255 * black)
+	if (ih < sh * zoom) then
+		iw, ih = sh * zoom * 16 / 9, sh * zoom
+	end
+
+	surface.SetDrawColor(0, 0, 0, 255 * gone)
 	surface.DrawRect(0, 0, sw, sh)
+	surface.SetMaterial(SPLASH)
+	surface.SetDrawColor(255, 255, 255, 255 * gone * shown)
+	surface.DrawTexturedRect((sw - iw) / 2, (sh - ih) / 2, iw, ih)
 
 	if (t < LETTERS_IN or t > OUT + 0.6) then
 		return
@@ -91,7 +104,7 @@ hook.Add("DrawOverlay", "nwIntro", function()
 	end
 
 	local x = (sw - total) / 2
-	local y = sh * 0.46
+	local y = sh * 0.84
 
 	for i, char in ipairs(I.chars) do
 		local appear = Ease((t - LETTERS_IN - (i - 1) * 0.045) / 0.6)

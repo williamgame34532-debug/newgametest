@@ -1,0 +1,248 @@
+0|Ноль.|npc/combine_soldier/vo/zero.wav
+1|Один.|npc/combine_soldier/vo/one.wav
+10|Десять.|npc/combine_soldier/vo/ten.wav
+100|Сто.|npc/combine_soldier/vo/onehundred.wav
+11|Одиннадцать.|npc/combine_soldier/vo/eleven.wav
+12|Двенадцать.|npc/combine_soldier/vo/twelve.wav
+13|Тринадцать.|npc/combine_soldier/vo/thirteen.wav
+14|Четырнадцать.|npc/combine_soldier/vo/fourteen.wav
+15|Пятнадцать.|npc/combine_soldier/vo/fifteen.wav
+16|Шестнадцать.|npc/combine_soldier/vo/sixteen.wav
+17|Семнадцать.|npc/combine_soldier/vo/seventeen.wav
+18|Восемнадцать.|npc/combine_soldier/vo/eighteen.wav
+19|Девятнадцать.|npc/combine_soldier/vo/nineteen.wav
+2|Два.|npc/combine_soldier/vo/two.wav
+20|Двадцать.|npc/combine_soldier/vo/twenty.wav
+200|Двести.|npc/combine_soldier/vo/twohundred.wav
+3|Три.|npc/combine_soldier/vo/three.wav
+30|Тридцать.|npc/combine_soldier/vo/thirty.wav
+300|Триста.|npc/combine_soldier/vo/threehundred.wav
+4|Четыре.|npc/combine_soldier/vo/four.wav
+40|Сорок.|npc/combine_soldier/vo/fourty.wav
+5|Пять.|npc/combine_soldier/vo/five.wav
+50|Пятьдесят.|npc/combine_soldier/vo/fifty.wav
+6|Шесть.|npc/combine_soldier/vo/six.wav
+60|Шестьдесят.|npc/combine_soldier/vo/sixty.wav
+7|Семь.|npc/combine_soldier/vo/seven.wav
+70|Семьдесят.|npc/combine_soldier/vo/seventy.wav
+8|Восемь.|npc/combine_soldier/vo/eight.wav
+80|Восемьдесят.|npc/combine_soldier/vo/eighty.wav
+9|Девять.|npc/combine_soldier/vo/niner.wav
+90|Девяносто.|npc/combine_soldier/vo/ninety.wav
+ADMINISTER|Применить.|npc/combine_soldier/vo/administer.wav
+AFFIRMATIVE|Подтверждаю.|npc/combine_soldier/vo/affirmative.wav
+AFFIRMATIVE2|Так точно.|npc/combine_soldier/vo/affirmative2.wav
+AFFIRMATIVEGOTHIM|Подтверждаю, он у нас.|npc/combine_soldier/vo/affirmativewegothimnow.wav
+ANTISEPTIC|Антисептик.|npc/combine_soldier/vo/antiseptic.wav
+APEX|Вершина.|npc/combine_soldier/vo/apex.wav
+BEARING|Пеленг.|npc/combine_soldier/vo/bearing.wav
+BLADE|Клинок.|npc/combine_soldier/vo/blade.wav
+BODYPACKHOLDING|Бронекостюм держит.|npc/combine_soldier/vo/bodypackholding.wav
+BOOMER|Бумер.|npc/combine_soldier/vo/boomer.wav
+BOUNCERBOUNCER|Прыгун, прыгун!|npc/combine_soldier/vo/bouncerbouncer.wav
+CLEANED|Зачищено.|npc/combine_soldier/vo/cleaned.wav
+CLOSING|Сближаюсь.|npc/combine_soldier/vo/closing.wav
+CONTACT|Контакт.|npc/combine_soldier/vo/contact.wav
+CONTACTCONFIRMED|Контакт подтверждён.|npc/combine_soldier/vo/contactconfim.wav
+CONTACTCONFIRMEDPROSECUTING|Контакт подтверждён, преследую.|npc/combine_soldier/vo/contactconfirmprosecuting.wav
+CONTAINMENTPROCEEDING|Сдерживание продолжается.|npc/combine_soldier/vo/containmentproceeding.wav
+COPY|Принял.|npc/combine_soldier/vo/copy.wav
+COPYTHAT|Вас понял.|npc/combine_soldier/vo/copythat.wav
+COVER|Укрытие.|npc/combine_soldier/vo/cover.wav
+COVER2|В укрытие!|npc/combine_soldier/vo/coverhurt.wav
+COVERME|Прикройте!|npc/combine_soldier/vo/coverme.wav
+DAGGER|Кинжал.|npc/combine_soldier/vo/dagger.wav
+DASH|Рывок.|npc/combine_soldier/vo/dash.wav
+DEGREES|Градусов.|npc/combine_soldier/vo/degrees.wav
+DELIVERED|Доставлено.|npc/combine_soldier/vo/delivered.wav
+DESIGNATETARGET|Обозначить цель как|npc/combine_soldier/vo/designatetargetas.wav
+DISPLACE|Переместиться.|npc/combine_soldier/vo/displace.wav
+DISPLACE2|Сменить позицию.|npc/combine_soldier/vo/displace2.wav
+ECHO|Эхо.|npc/combine_soldier/vo/echo.wav
+ENGAGEDCLEANUP|Веду зачистку.|npc/combine_soldier/vo/engagedincleanup.wav
+ENGAGING|Вступаю в бой.|npc/combine_soldier/vo/engaging.wav
+EXECUTINGRESPONSE|Выполняю полный ответ.|npc/combine_soldier/vo/executingfullresponse.wav
+EXTRACTORAWAY|Экстрактор выпущен.|npc/combine_soldier/vo/extractoraway.wav
+EXTRACTORLIVE|Экстрактор активен.|npc/combine_soldier/vo/extractorislive.wav
+FIST|Кулак.|npc/combine_soldier/vo/fist.wav
+FLAREDOWN|Сигнальная ракета сброшена.|npc/combine_soldier/vo/flaredown.wav
+FLASH|Вспышка.|npc/combine_soldier/vo/flash.wav
+FLATLINE|Сигнал потерян.|npc/combine_soldier/vo/flatline.wav
+FLUSH|Выкурить.|npc/combine_soldier/vo/flush.wav
+FULLACTIVE|Полная активность.|npc/combine_soldier/vo/fullactive.wav
+GHOST|Призрак.|npc/combine_soldier/vo/ghost.wav
+GOINTERCEPT|Перехват, активировать.|npc/combine_soldier/vo/goactiveintercept.wav
+GOSHARP|Внимание.|npc/combine_soldier/vo/gosharp.wav
+GOSHARP2|Внимание, внимание.|npc/combine_soldier/vo/gosharpgosharp.wav
+GRID|Сетка.|npc/combine_soldier/vo/grid.wav
+HAMMER|Молот.|npc/combine_soldier/vo/hammer.wav
+HARDENPOSITION|Укрепить позицию.|npc/combine_soldier/vo/hardenthatposition.wav
+HEAVYRESISTANCE|Надзор, внимание: сильное сопротивление.|npc/combine_soldier/vo/heavyresistance.wav
+HELIX|Спираль.|npc/combine_soldier/vo/helix.wav
+HOLDINGATCODE|удерживает позицию по коду|npc/combine_soldier/vo/isholdingatcode.wav
+HUNTER|Охотник.|npc/combine_soldier/vo/hunter.wav
+HURRICANE|Ураган.|npc/combine_soldier/vo/hurricane.wav
+ICE|Лёд.|npc/combine_soldier/vo/ice.wav
+INBOUND|Приближается.|npc/combine_soldier/vo/inbound.wav
+INFECTED|Заражён.|npc/combine_soldier/vo/infected.wav
+ION|Ион.|npc/combine_soldier/vo/ion.wav
+ISATCODE|на коде|npc/combine_soldier/vo/isatcode.wav
+ISFINALTEAMUNIT|последний юнит группы, запрашиваю подкрепление.|npc/combine_soldier/vo/isfinalteamunitbackup.wav
+JET|Джет.|npc/combine_soldier/vo/jet.wav
+JUDGE|Судья.|npc/combine_soldier/vo/judge.wav
+KILO|Кило.|npc/combine_soldier/vo/kilo.wav
+LEADER|Лидер.|npc/combine_soldier/vo/leader.wav
+LOSTCONTACT|Контакт потерян.|npc/combine_soldier/vo/lostcontact.wav
+MACE|Булава.|npc/combine_soldier/vo/mace.wav
+METERS|Метров.|npc/combine_soldier/vo/meters.wav
+MOTIONCHECK|Проверка движения по всем радиалам.|npc/combine_soldier/vo/motioncheckallradials.wav
+MOVEIN|Вперёд.|npc/combine_soldier/vo/movein.wav
+NECROTICS|Некротики.|npc/combine_soldier/vo/necrotics.wav
+NECROTICSINBOUND|Некротики приближаются.|npc/combine_soldier/vo/necroticsinbound.wav
+NEGATIVEMOVEMENT|Движения нет.|npc/combine_soldier/vo/hasnegativemovement.wav
+NOMAD|Кочевник.|npc/combine_soldier/vo/nomad.wav
+NOVA|Нова.|npc/combine_soldier/vo/nova.wav
+NOVISCON|Визуального контакта нет.|npc/combine_soldier/vo/noviscon.wav
+ONECONTAINED|Один сдержан.|npc/combine_soldier/vo/onecontained.wav
+ONEDOWN|Один готов.|npc/combine_soldier/vo/onedown.wav
+OUTBREAK|Вспышка заражения.|npc/combine_soldier/vo/outbreak.wav
+OVERWATCH|Надзор.|npc/combine_soldier/vo/overwatch.wav
+OVERWATCHCONTAINED|Надзор, цель сдержана.|npc/combine_soldier/vo/overwatchtargetcontained.wav
+OVERWATCHOVERRUN|Надзор, сектор захвачен, повторяю, сектор захвачен.|npc/combine_soldier/vo/overwatchsectoroverrun.wav
+OVERWATCHPOSSIBLEHOSTILES|Надзор сообщает о возможном приближении противника.|npc/combine_soldier/vo/overwatchreportspossiblehostiles.wav
+OVERWATCHREINFORCEMENT|Надзор, запрашиваю подкрепление.|npc/combine_soldier/vo/overwatchrequestreinforcement.wav
+OVERWATCHRESERVEACTIVATION|Надзор, запрашиваю активацию резерва.|npc/combine_soldier/vo/overwatchrequestreserveactivation.wav
+OVERWATCHSKYSHIELD|Надзор, запрашиваю небесный щит.|npc/combine_soldier/vo/overwatchrequestskyshield.wav
+OVERWATCHTEAMDOWN|Надзор, группа уничтожена. Сектор не контролируется.|npc/combine_soldier/vo/overwatchteamisdown.wav
+PAYBACK|Расплата.|npc/combine_soldier/vo/payback.wav
+PHANTOM|Фантом.|npc/combine_soldier/vo/phantom.wav
+PREPFORCONTACT|Готовность к контакту, доложить.|npc/combine_soldier/vo/prepforcontact.wav
+CONTAINED|Сдержано.|npc/combine_soldier/vo/contained.wav
+PROSECUTING|Преследую.|npc/combine_soldier/vo/prosecuting.wav
+QUICKSAND|Зыбучий песок.|npc/combine_soldier/vo/quicksand.wav
+RANGE|Дальность.|npc/combine_soldier/vo/range.wav
+RANGER|Рейнджер.|npc/combine_soldier/vo/ranger.wav
+RAZOR|Бритва.|npc/combine_soldier/vo/razor.wav
+READYCHARGES|Заряды к бою.|npc/combine_soldier/vo/readycharges.wav
+READYEXTRACTORS|Экстракторы к бою.|npc/combine_soldier/vo/readyextractors.wav
+READYWEAPONS|Оружие к бою.|npc/combine_soldier/vo/readyweapons.wav
+READYWEAPONSHOSTILES|Оружие к бою, возможно приближение противника.|npc/combine_soldier/vo/readyweaponshostilesinbound.wav
+REAPER|Жнец.|npc/combine_soldier/vo/reaper.wav
+REPORTINGCLEAR|Докладываю: чисто.|npc/combine_soldier/vo/reportingclear.wav
+REPORTPOSITIONSCLEAR|Доложить: все позиции чисты.|npc/combine_soldier/vo/reportallpositionsclear.wav
+REPORTRADIALSFREE|Доложить: все радиалы свободны.|npc/combine_soldier/vo/reportallradialsfree.wav
+REQUESTMEDICAL|Запрашиваю медпомощь.|npc/combine_soldier/vo/requestmedical.wav
+RIPCORD|Отход.|npc/combine_soldier/vo/ripcord.wav
+RIPCORD2|Отход, отход!|npc/combine_soldier/vo/ripcordripcord.wav
+SAVAGE|Дикарь.|npc/combine_soldier/vo/savage.wav
+SCAR|Шрам.|npc/combine_soldier/vo/scar.wav
+SECTOR|Сектор.|npc/combine_soldier/vo/sector.wav
+SECTORNOTSECURE|Сектор не зачищен.|npc/combine_soldier/vo/sectorisnotsecure.wav
+SECTORNOTSTERILE|Подтверждаю: сектор не стерилен.|npc/combine_soldier/vo/confirmsectornotsterile.wav
+SECTORSECURE|Сектор зачищен, визуального контакта нет.|npc/combine_soldier/vo/sectorissecurenovison.wav
+SECURE|Зачищено.|npc/combine_soldier/vo/secure.wav
+SHADOW|Тень.|npc/combine_soldier/vo/shadow.wav
+SHARPZONE|Опасная зона.|npc/combine_soldier/vo/sharpzone.wav
+SIGHTLINECLEAR|Линия обзора чиста.|npc/combine_soldier/vo/sightlineisclear.wav
+SIGHTLINESMOVEIN|Закрыть линии обзора, вперёд.|npc/combine_soldier/vo/fixsightlinesmovein.wav
+SLAM|Удар.|npc/combine_soldier/vo/slam.wav
+SLASH|Рассечь.|npc/combine_soldier/vo/slash.wav
+SPEAR|Копьё.|npc/combine_soldier/vo/spear.wav
+STAB|Укол.|npc/combine_soldier/vo/stab.wav
+STABILIZATIONHASSECTOR|Группа стабилизации контролирует сектор.|npc/combine_soldier/vo/stabilizationteamhassector.wav
+STABILIZATIONTEAMHOLDING|Группа стабилизации удерживает позицию.|npc/combine_soldier/vo/stabilizationteamholding.wav
+STANDINGBY|На связи.|npc/combine_soldier/vo/standingby].wav
+STAR|Звезда.|npc/combine_soldier/vo/star.wav
+STAYALERT|Не терять бдительности.|npc/combine_soldier/vo/stayalert.wav
+STAYALERT2|Не терять бдительности, доложить о линиях обзора.|npc/combine_soldier/vo/stayalertreportsightlines.wav
+STINGER|Жало.|npc/combine_soldier/vo/stinger.wav
+STORM|Шторм.|npc/combine_soldier/vo/storm.wav
+STRIKER|Ударник.|npc/combine_soldier/vo/striker.wav
+SUNDOWN|Закат.|npc/combine_soldier/vo/sundown.wav
+SUPPRESSING|Подавляю.|npc/combine_soldier/vo/suppressing.wav
+SWARMOUTBREAK|Нашествие роя в секторе.|npc/combine_soldier/vo/swarmoutbreakinsector.wav
+SWEEPER|Дворник.|npc/combine_soldier/vo/sweeper.wav
+SWEEPINGIN|Прочёсываю.|npc/combine_soldier/vo/sweepingin.wav
+SWIFT|Стриж.|npc/combine_soldier/vo/swift.wav
+SWORD|Меч.|npc/combine_soldier/vo/sword.wav
+TARGET|Цель.|npc/combine_soldier/vo/target.wav
+TARGETCOMPROMISED|Цель обнаружена, вперёд, вперёд!|npc/combine_soldier/vo/targetcompromisedmovein.wav
+TARGETINEFFECTIVE|Цель нейтрализована.|npc/combine_soldier/vo/targetineffective.wav
+TARGETISAT|Цель находится в|npc/combine_soldier/vo/targetisat.wav
+TARGETRADIAL|Цель на моём радиале.|npc/combine_soldier/vo/targetmyradial.wav
+TEAMDEPLOYED|Группа развёрнута, сканирую.|npc/combine_soldier/vo/teamdeployedandscanning.wav
+TRACKER|Следопыт.|npc/combine_soldier/vo/tracker.wav
+UNIFORM|Униформа.|npc/combine_soldier/vo/uniform.wav
+UNITINBOUND|Юнит на подходе.|npc/combine_soldier/vo/unitisinbound.wav
+UNITMOVINGIN|Юнит выдвигается.|npc/combine_soldier/vo/unitismovingin.wav
+VAMP|Вамп.|npc/combine_soldier/vo/vamp.wav
+VISCON|Визуальный контакт.|npc/combine_soldier/vo/viscon.wav
+VISUALEXOGEN|Вижу экзогенов.|npc/combine_soldier/vo/visualonexogens.wav
+WEAPONSOFFSAFE|Оружие с предохранителя, готовность к контакту.|npc/combine_soldier/vo/weaponsoffsafeprepforcontact.wav
+WINDER|Виндер.|npc/combine_soldier/vo/winder.wav
+WRAPITUP|Всё, сворачиваемся.|npc/combine_soldier/vo/thatsitwrapitup.wav
+HOLDIT|Стоять!|npc/metropolice/vo/holdit.wav
+SUSPEND|Задержать!|npc/metropolice/vo/suspend.wav
+HOLDTHERE|А ну стоять!|npc/metropolice/vo/holditrightthere.wav
+XRAY|Рентген.|npc/metropolice/vo/xray.wav
+YELLOW|Жёлтый!|npc/metropolice/vo/yellow.wav
+VICE|Порок!|npc/metropolice/vo/vice.wav
+VICTOR|Виктор!|npc/metropolice/vo/victor.wav
+TAP|Тап!|npc/metropolice/vo/tap.wav
+STICK|Жезл.|npc/metropolice/vo/stick.wav
+STORMSYSTEM|Штормовая система.|npc/metropolice/vo/stormsystem.wav
+SWEEPINGSUSPECT|Прочёсываю в поисках подозреваемого.|npc/metropolice/vo/sweepingforsuspect.wav
+SERVE|Служить.|npc/metropolice/vo/serve.wav
+SHIT|Чёрт!|npc/metropolice/vo/shit.wav
+RODGERTHAT|Вас понял.|npc/metropolice/vo/rodgerthat.wav
+ROLLER|Роллер!|npc/metropolice/vo/roller.wav
+RUNNING|Он убегает!|npc/metropolice/vo/hesrunning.wav
+RESTRICT|Ограничить.|npc/metropolice/vo/restrict.wav
+RESTRICTEDBLOCK|Закрытый квартал.|npc/metropolice/vo/restrictedblock.wav
+REPORTLOCATIONSUSPECT|Всем отрядам доложить местоположение подозреваемого.|npc/metropolice/vo/allunitsreportlocationsuspect.wav
+REPORTSIGHTACCOMPLICES|Докладывать о возможных сообщниках.|npc/metropolice/vo/reportsightingsaccomplices.wav
+RESIDENTALBLOCK|Жилой квартал.|npc/metropolice/vo/residentialblock.wav
+QUICK|Быстрый!|npc/metropolice/vo/quick.wav
+MOVEBACK|Назад, живо!|npc/metropolice/vo/movebackrightnow.wav
+MOVEIT|Пошевеливайся.|npc/metropolice/vo/moveit2.wav
+MOVEIT2|Пошевеливайся!|npc/metropolice/vo/moveit.wav
+MOVE|Двигай.|npc/metropolice/vo/move.wav
+MOVEALONG|Проходи.|npc/metropolice/vo/movealong.wav
+JURY|Судья!|npc/metropolice/vo/jury.wav
+KEEPMOVING|Не останавливайся!|npc/metropolice/vo/keepmoving.wav
+KING|Король!|npc/metropolice/vo/king.wav
+LINE|Лок!|npc/metropolice/vo/line.wav
+LOCATION|Местоположение.|npc/metropolice/vo/location.wav
+INPOSITION|На позиции.|npc/metropolice/vo/inposition.wav
+INDUSTRIALZONE|Промышленная зона.|npc/metropolice/vo/industrialzone.wav
+INFECTION|Инфекция.|npc/metropolice/vo/infection.wav
+INFESTEDZONE|Заражённая зона.|npc/metropolice/vo/infestedzone.wav
+HERO|Герой!|npc/metropolice/vo/hero.wav
+HIGHREGION|Приоритетный район.|npc/metropolice/vo/highpriorityregion.wav
+GRENADE|Граната!|npc/metropolice/vo/grenade.wav
+DISTRIBUTIONBLOCK|Распределительный квартал.|npc/metropolice/vo/distributionblock.wav
+DOCUMENT|Документ.|npc/metropolice/vo/document.wav
+DONTMOVE|Не двигаться!|npc/metropolice/vo/dontmove.wav
+EXAMINE|Осмотреть.|npc/metropolice/vo/examine.wav
+EXPIRED|Ликвидирован.|npc/metropolice/vo/expired.wav
+COVERMEIN|Прикройте, я захожу!|npc/metropolice/vo/covermegoingin.wav
+DBCOUNT|Счёт трупов:|npc/metropolice/vo/dbcountis.wav
+DEFENDER|Защитник!|npc/metropolice/vo/defender.wav
+CODE100|Код 100.|npc/metropolice/vo/code100.wav
+CODE7|Код 7.|npc/metropolice/vo/code7.wav
+CONDEMNEDZONE|Запретная зона.|npc/metropolice/vo/condemnedzone.wav
+CONTACTWITH243|Контакт с подозреваемым 243, моя позиция 10-20 —|npc/metropolice/vo/contactwith243suspect.wav
+CONTROL100|Контроль сто процентов, признаков 647E нет.|npc/metropolice/vo/control100percent.wav
+CONTROLSECTION|Контрольная секция.|npc/metropolice/vo/controlsection.wav
+CONVERGING|Сходимся.|npc/metropolice/vo/converging.wav
+CITIZEN|Гражданин.|npc/metropolice/vo/citizen.wav
+CLEARCODE100|Чисто, код 100.|npc/metropolice/vo/clearandcode100.wav
+CLEARNO647|Чисто, ни 647, ни 10-107.|npc/metropolice/vo/clearno647no10-107.wav
+BACKUP|Подкрепление.|npc/metropolice/vo/backup.wav
+BLOCK|Квартал.|npc/metropolice/vo/block.wav
+BLOCKCOHESIVE|Квартал держится.|npc/metropolice/vo/blockisholdingcohesive.wav
+BREAKCOVER|Выбейте его из укрытия!|npc/metropolice/vo/breakhiscover.wav
+ALLUNITSMOVEIN|Всем отрядам вперёд!|npc/metropolice/vo/allunitsmovein.wav
+AMPUTATE|Ампутировать.|npc/metropolice/vo/amputate.wav
+ANTICITIZEN|Антигражданин.|npc/metropolice/vo/anticitizen.wav
+ACQUIRINGVISUAL|Есть визуальный контакт!|npc/metropolice/vo/acquiringonvisual.wav

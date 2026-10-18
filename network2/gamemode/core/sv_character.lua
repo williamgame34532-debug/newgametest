@@ -576,3 +576,64 @@ NW.chatCommands.setfaction = {admin = true, run = function(client, rest)
 	Log(string.format("%s: персонаж %d «%s» переведён во фракцию %s", client:SteamName(), target:GetCharacterID(),
 		target.nwCharacter.name, faction))
 end}
+
+-- /setname <игрок> <новое имя> (admins): the name of the character, saved (a unit too - over its number)
+NW.chatCommands.setname = {admin = true, run = function(client, rest)
+	local who, name = string.match(rest or "", "^(%S+)%s+(.+)$")
+	local target = NW.FindPlayer(who)
+
+	name = string.Trim(name or "")
+
+	if (!target or !target.nwCharacter or target:GetCharacterID() == 0) then
+		return NW.Notify(client, "Игрок не найден. /setname <имя игрока> <новое имя>")
+	end
+
+	if ((utf8.len(name) or 0) < 2 or (utf8.len(name) or 0) > 48) then
+		return NW.Notify(client, "Имя: от 2 до 48 символов")
+	end
+
+	local old = target:Nick()
+
+	C.SetName(target, name)
+	NW.Notify(client, old .. " → " .. name)
+
+	if (target != client) then
+		NW.Notify(target, "Ваше имя теперь: " .. name)
+	end
+
+	Log(string.format("%s: персонаж %d переименован «%s» → «%s»", client:SteamName(), target:GetCharacterID(), old, name))
+end}
+
+-- /setmodel <игрок> <модель | сброс> (admins): the model of the character, over the model of its faction;
+-- "сброс" - the faction / the chosen one again. Saved with the character.
+NW.chatCommands.setmodel = {admin = true, run = function(client, rest)
+	local who, model = string.match(rest or "", "^(%S+)%s+(%S+)")
+	local target = NW.FindPlayer(who)
+
+	if (!target or !target.nwCharacter or target:GetCharacterID() == 0) then
+		return NW.Notify(client, "Игрок не найден. /setmodel <имя> <models/....mdl | сброс>")
+	end
+
+	local character = target.nwCharacter
+
+	character.data = character.data or {}
+	model = string.lower(model or "")
+
+	if (model == "сброс" or model == "reset") then
+		character.data.model = nil
+	elseif (!util.IsValidModel(model)) then
+		return NW.Notify(client, "Нет такой модели на сервере: " .. model)
+	else
+		character.data.model = model
+	end
+
+	C.SaveData(target)
+
+	if (target:Alive()) then
+		NW.models.Apply(target)
+	end
+
+	NW.Notify(client, target:Nick() .. ": модель " .. (character.data.model or "по умолчанию"))
+	Log(string.format("%s: персонажу %d модель %s", client:SteamName(), target:GetCharacterID(),
+		tostring(character.data.model)))
+end}
