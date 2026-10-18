@@ -5,6 +5,7 @@
 --   ota                             the Overwatch soldiers
 -- The key is the English one ("be careful", "10-4") or the Russian text ("теперь осторожнее"), any
 -- case, the punctuation does not matter. The text in the chat becomes the line's text.
+-- Several through commas - "Виктор, девять" - are said one after another (up to 8).
 --   /voices - the list of one's own lines (a search, a click puts the line into the chat).
 -- Range: whisper quiet, speech normal, yell loud; on the radio the listeners hear it in the radio,
 -- the ones around - from the speaker.
@@ -72,10 +73,39 @@ function V.ListOf(client)
 	return client:GetNW2String("nwCharGender", "male") == "female" and "citizen_female" or "citizen_male"
 end
 
+-- a line typed whole, or several through commas ("Виктор, девять"): then all of them, one after
+-- another (each part must be a line, or nothing is said); up to 8
 function V.Match(client, text)
 	local list = V.ListOf(client)
 
-	return list and V.index[list][V.Key(text)]
+	if (!list) then
+		return
+	end
+
+	local whole = V.index[list][V.Key(text)]
+
+	if (whole or !string.find(text, ",", 1, true)) then
+		return whole
+	end
+
+	local texts, sounds = {}, {}
+
+	for part in string.gmatch(text, "[^,]+") do
+		local entry = V.index[list][V.Key(part)]
+
+		if (!entry or #sounds >= 8) then
+			return
+		end
+
+		texts[#texts + 1] = entry.text
+		sounds[#sounds + 1] = entry.sound
+	end
+
+	if (#sounds < 2) then
+		return
+	end
+
+	return {text = table.concat(texts, " "), sound = sounds[1], sounds = sounds}
 end
 
 V.kinds = {
@@ -92,25 +122,47 @@ if (SERVER) then
 	util.AddNetworkString("nwVoiceRadio")
 
 	-- said: from the speaker; on the radio also in the radios of the ones far away
-	function V.Play(client, entry, kind, listeners)
-		local level = V.kinds[kind] or 75
+	local function Say(client, path, kind, listeners, bFirst)
+		if (!IsValid(client) or !client:Alive()) then
+			return
+		end
 
-		client:EmitSound(entry.sound, level, 100, kind == NW.chatKinds.WHISPER and 0.6 or 1)
+		client:EmitSound(path, V.kinds[kind] or 75, 100, kind == NW.chatKinds.WHISPER and 0.6 or 1)
 
 		if (listeners) then
 			local far = {}
 
 			for _, target in ipairs(listeners) do
-				if (target != client and target:GetPos():DistToSqr(client:GetPos()) > 600 * 600) then
+				if (IsValid(target) and target != client and target:GetPos():DistToSqr(client:GetPos()) > 600 * 600) then
 					far[#far + 1] = target
 				end
 			end
 
 			if (#far > 0) then
 				net.Start("nwVoiceRadio")
-					net.WriteString(entry.sound)
+					net.WriteString(path)
+					net.WriteBool(bFirst == true)
 				net.Send(far)
 			end
+		end
+	end
+
+	-- one line, or a chain: each after the one before has ended (a short pause between)
+	function V.Play(client, entry, kind, listeners)
+		local delay = 0
+
+		for index, path in ipairs(entry.sounds or {entry.sound}) do
+			if (index == 1) then
+				Say(client, path, kind, listeners, true)
+			else
+				timer.Simple(delay, function()
+					Say(client, path, kind, listeners, false)
+				end)
+			end
+
+			local length = SoundDuration(path)
+
+			delay = delay + ((length and length > 0.05) and length or 0.8) + 0.08
 		end
 	end
 
@@ -123,6 +175,14 @@ end
 
 net.Receive("nwVoiceRadio", function()
 	local path = net.ReadString()
+	local first = net.ReadBool()
+
+	-- a chain: the click only before the first line
+	if (!first) then
+		LocalPlayer():EmitSound(path, 0, 100, 0.65)
+
+		return
+	end
 
 	-- the radio: a bit quieter, the click before it
 	surface.PlaySound("npc/metropolice/vo/on" .. math.random(1, 2) .. ".wav")
