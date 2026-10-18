@@ -16,6 +16,7 @@ ITEMS = {
     "factory_crate": "cargo-crate", "disinfectant": "spray", "toolkit": "toolbox",
     "nvg": "night-vision", "ration_bag": "light-backpack", "contraband": "swap-bag", "lockpick": "lockpicks",
     "license": "contract", "goods": "cardboard-box",
+    "grenade": "grenade", "breach_charge": "time-bomb", "stimdose": "syringe", "combine_lock": "padlock",
 }
 UI = {
     "radio": "radio", "broadcast": "broadcast", "skills": "chart-bar", "status": "activity-heartbeat",
