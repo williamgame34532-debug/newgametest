@@ -125,6 +125,7 @@ local FILES = {
 	"sh_rebels.lua",
 	"sh_schedule.lua",
 	"sh_fabricator.lua",
+	"sv_pain.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",

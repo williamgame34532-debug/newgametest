@@ -37,7 +37,7 @@ def glyphs(d, x, y, h, t, ch):
     return w
 
 im=Image.new('RGBA',(W,H),(0,0,0,0)); d=ImageDraw.Draw(im)
-h=H*0.38; t=h*0.085; gap=h*0.62
+h=H*0.38; t=h*0.095; gap=h*0.6
 word='NETWORK'
 # measure
 tmp=Image.new('RGBA',(10,10)); td=ImageDraw.Draw(tmp)
@@ -56,6 +56,8 @@ cx=left+total*0.66
 d.text((cx-lw/2,ly-H*0.06),label,font=small,fill=COL)
 lt=max(2,int(SS*1.5))
 d.rectangle([left,ly-lt/2,cx-lw/2-H*0.05,ly+lt/2],fill=COL)
+# a cyan tick where the top line starts
+d.rectangle([left,ly-lt*1.5,left+H*0.22,ly+lt*1.5],fill=CY)
 d.rectangle([cx+lw/2+H*0.05,ly-lt/2,W-H*0.03,ly+lt/2],fill=COL)
 # bottom: WORK IN PROGRESS, right, cyan accent
 sub=ImageFont.truetype(F+'Inter-SemiBold.otf',int(H*0.10))
@@ -66,6 +68,20 @@ by=H*0.80
 d.rectangle([W-H*0.03-sw-H*0.05,by-H*0.005,W-H*0.01,by+H*0.135],fill=(10,14,18,150))
 d.text((W-H*0.03-sw,by),s2,font=sub,fill=(242,246,250,255))
 d.rectangle([W-H*0.03-sw-H*0.24,by+H*0.055,W-H*0.03-sw-H*0.08,by+H*0.055+lt*2],fill=CY)
+# the letters a touch lighter at the top (a soft vertical gradient)
+import numpy as np
+from PIL import ImageFilter
+arr=np.asarray(im).astype(np.float32)
+grad=np.linspace(1.0,0.82,H)[:,None]
+white=(arr[...,0]>200)&(arr[...,2]>200)
+for c in range(3):
+    arr[...,c]=np.where(white,arr[...,c]*grad,arr[...,c])
+im=Image.fromarray(arr.clip(0,255).astype(np.uint8),'RGBA')
+# a soft dark shadow under everything: readable on bright scenes
+shadow=Image.new('RGBA',(W,H),(0,0,0,0))
+sa=im.split()[3].filter(ImageFilter.GaussianBlur(SS*6)).point(lambda v:int(v*0.55))
+shadow.putalpha(sa)
+im=Image.alpha_composite(shadow,im)
 im=im.resize((1024,256),Image.LANCZOS)
 # overall translucency like the reference
 a=im.split()[3].point(lambda v:int(v*0.88)); im.putalpha(a)

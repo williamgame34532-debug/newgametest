@@ -53,6 +53,9 @@ end
 
 -- --------------------------------------------------------------- damage --
 function GM:ScalePlayerDamage(client, hitgroup, damage)
+	-- where it hit: the cry of pain says it (sv_pain.lua)
+	client.nwLastHitgroup = hitgroup
+
 	if (hitgroup == HITGROUP_HEAD) then
 		local helmet = Protect(client, "head")
 
