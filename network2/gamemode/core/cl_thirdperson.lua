@@ -192,7 +192,8 @@ end
 local hiddenHead
 
 -- first person with a weapon in the hands (not the hands, not a pose): the view from the eyes of the model
--- (it follows the head with the steps and the aiming), the body and the legs not drawn - only the weapon
+-- (it follows the head with the steps and the aiming); the body above is not drawn, the legs below are
+-- (cl_legs.lua)
 local FREE = {nw_hands = true, gmod_camera = true}
 
 local function WeaponEyes(client)
@@ -207,12 +208,6 @@ local function WeaponEyes(client)
 end
 
 NW.weaponEyes = WeaponEyes
-
-hook.Add("ShouldDisableLegs", "nwWeaponEyes", function()
-	if (WeaponEyes(LocalPlayer())) then
-		return true
-	end
-end)
 
 local eyeOffset = Vector(0, 0, 0)
 
