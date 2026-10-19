@@ -477,6 +477,29 @@ hook.Add("NWCharacterUnloaded", "nwFreeApartments", GiveBack)
 -- Alliance their doors open on E anyway: the key press is caught here, the door unlocked and toggled.
 local BRUSH = {func_door = true, func_door_rotating = true}
 
+-- the registration of the Alliance doors: a scanning sweep runs down the one at the door - blue and the
+-- "registered" tone for the Alliance, red and the refusal for the others (cl_doorscan.lua draws it)
+util.AddNetworkString("nwDoorScan")
+
+local function Scan(door, client, bGranted)
+	if ((client.nwDoorScan or 0) > CurTime()) then
+		return
+	end
+
+	client.nwDoorScan = CurTime() + 1.2
+
+	net.Start("nwDoorScan")
+		net.WriteEntity(door)
+		net.WriteEntity(client)
+		net.WriteBool(bGranted)
+	net.SendPVS(door:GetPos())
+
+	door:EmitSound(bGranted and "npc/scanner/scanner_scan" .. math.random(1, 2) .. ".wav" or "npc/scanner/scanner_siren1.wav",
+		58, bGranted and 110 or 100, bGranted and 0.6 or 0.35)
+end
+
+D.Scan = Scan
+
 hook.Add("KeyPress", "nwAllianceDoors", function(client, key)
 	if (key != IN_USE or !client:Alive() or (client.nwDoorKey or 0) > CurTime()) then
 		return
@@ -492,9 +515,12 @@ hook.Add("KeyPress", "nwAllianceDoors", function(client, key)
 
 	if (!NW.zones.IsAlliance(client)) then
 		door:EmitSound("buttons/combine_button_locked.wav", 60)
+		Scan(door, client, false)
 
 		return
 	end
+
+	Scan(door, client, true)
 
 	local locked = door:GetInternalVariable("m_bLocked") == true
 
@@ -534,8 +560,12 @@ hook.Add("PlayerUse", "nwDoors", function(client, entity)
 			entity:EmitSound("buttons/combine_button_locked.wav", 60)
 		end
 
+		Scan(entity, client, false)
+
 		return false
 	end
+
+	Scan(entity, client, true)
 
 	if (entity:GetInternalVariable("m_bLocked") == true) then
 		for _, member in ipairs(D.Group(entity)) do

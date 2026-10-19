@@ -39,9 +39,14 @@ hook.Add("HUDPaintBackground", "nwVignette", function()
 		return
 	end
 
+	-- a little wider than the texture itself: drawn again a bit smaller over the first one
+	local sw, sh = ScrW(), ScrH()
+
 	surface.SetMaterial(VIGNETTE)
-	surface.SetDrawColor(255, 255, 255, 170)
-	surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
+	surface.SetDrawColor(255, 255, 255, 190)
+	surface.DrawTexturedRect(0, 0, sw, sh)
+	surface.SetDrawColor(255, 255, 255, 90)
+	surface.DrawTexturedRect(sw * 0.06, sh * 0.06, sw * 0.88, sh * 0.88)
 end)
 
 -- ----------------------------------------------------------- soft light (HDR) --

@@ -10,7 +10,7 @@ ENT.Category = "Network"
 ENT.Spawnable = true
 ENT.AdminOnly = true
 ENT.RenderGroup = RENDERGROUP_BOTH
-ENT.Model = "models/props_combine/combine_dispenser.mdl"
+ENT.Model = "models/hla_prop/fabricator.mdl"
 
 -- where a thing is printed: in front of the machine, at the middle of its height
 function ENT:PrintPoint()

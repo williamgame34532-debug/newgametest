@@ -64,7 +64,8 @@ hook.Add("ShouldCollide", "nwForcefield", function(a, b)
 		client, field = b, a
 	end
 
-	if (!field) then
+	-- not set up yet (the data tables come after the creation)
+	if (!field or !field.GetMode) then
 		return
 	end
 

@@ -49,7 +49,7 @@ function ES.ModelOnly(class, title, default)
 end
 
 ES.ModelOnly("nw_factory_terminal", "Терминал завода", "models/props_combine/combine_interface001.mdl")
-ES.ModelOnly("nw_fabricator", "Фабрикатор Альянса", "models/props_combine/combine_dispenser.mdl")
+ES.ModelOnly("nw_fabricator", "Фабрикатор Альянса", "models/hla_prop/fabricator.mdl")
 
 -- ------------------------------------------------------------- the factory --
 local function Physics(entity)

@@ -133,6 +133,7 @@ local FILES = {
 	"sv_appearance.lua",
 	"sh_footsteps.lua",
 	"sv_npcrelations.lua",
+	"cl_doorscan.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",
