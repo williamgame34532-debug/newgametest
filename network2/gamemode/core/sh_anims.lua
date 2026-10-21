@@ -174,16 +174,16 @@ NW.anim.metrocop = {
 		[ACT_LAND] = {ACT_RESET, ACT_RESET},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},
-	-- the stunstick (nw_stunstick, NW.anim.weaponHold): HL:A idles with the baton and the sprint with
-	-- it; raised fists keep the plain melee set above
+	-- the stunstick (nw_stunstick, NW.anim.weaponHold): HL:A idles with the baton, the walk
+	-- walk_hold_baton_angry and the run run_all; raised fists keep the plain melee set above
 	stunstick = {
 		[ACT_MP_STAND_IDLE] = {NW.anim.cpStickIdle, ACT_IDLE_ANGRY_MELEE},
 		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_PISTOL_LOW},
-		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK_ANGRY},
+		-- the walk and the run of the metrocop with the baton in the hand (both states)
+		[ACT_MP_WALK] = {{"walk_hold_baton_angry", ACT_WALK_ANGRY, ACT_WALK}, {"walk_hold_baton_angry", ACT_WALK_ANGRY,
+			ACT_WALK}},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
-		-- the run with the baton in the hand: the HL:A sprint, on a model without it the run of the
-		-- metrocop with the stick, never the empty-handed walk
-		[ACT_MP_RUN] = {{"nw_hla_sprint", ACT_RUN}, {"nw_hla_sprint", ACT_RUN}},
+		[ACT_MP_RUN] = {{"run_all", ACT_RUN}, {"run_all", ACT_RUN}},
 		[ACT_LAND] = {ACT_RESET, ACT_RESET},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},
