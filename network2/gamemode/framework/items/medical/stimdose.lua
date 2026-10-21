@@ -7,3 +7,4 @@ ITEM.model = "models/healthvial.mdl"
 ITEM.icon = "stimdose"
 ITEM.heal = 35
 ITEM.useSound = "items/medshot4.wav"
+ITEM.cure = "all"

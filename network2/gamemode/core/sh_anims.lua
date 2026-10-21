@@ -118,10 +118,12 @@ NW.anim.citizen_female = {
 -- nw_hla_* idles: HL:A motion capture (models/network/cp/nw_cp_anims.mdl on networkcp); other
 -- CP models do not have them and fall back to the stock activity (RepairSet).
 NW.anim.metrocop = {
+	-- empty hands: the plain walk and run of the metrocop in both states (no rifle aim with nothing in
+	-- the hands)
 	normal = {
-		[ACT_MP_STAND_IDLE] = {NW.anim.cpIdle, ACT_IDLE_ANGRY_SMG1},
-		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_SMG1_LOW},
-		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK_AIM_RIFLE},
+		[ACT_MP_STAND_IDLE] = {NW.anim.cpIdle, ACT_IDLE},
+		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_PISTOL_LOW},
+		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
 		[ACT_MP_RUN] = {ACT_RUN, ACT_RUN},
 		[ACT_LAND] = {ACT_RESET, ACT_RESET}
@@ -179,7 +181,9 @@ NW.anim.metrocop = {
 		[ACT_MP_CROUCH_IDLE] = {ACT_COVER_PISTOL_LOW, ACT_COVER_PISTOL_LOW},
 		[ACT_MP_WALK] = {ACT_WALK, ACT_WALK_ANGRY},
 		[ACT_MP_CROUCHWALK] = {ACT_WALK_CROUCH, ACT_WALK_CROUCH},
-		[ACT_MP_RUN] = {{"nw_hla_sprint"}, {"nw_hla_sprint"}},
+		-- the run with the baton in the hand: the HL:A sprint, on a model without it the run of the
+		-- metrocop with the stick, never the empty-handed walk
+		[ACT_MP_RUN] = {{"nw_hla_sprint", ACT_RUN}, {"nw_hla_sprint", ACT_RUN}},
 		[ACT_LAND] = {ACT_RESET, ACT_RESET},
 		attack = ACT_MELEE_ATTACK_SWING_GESTURE
 	},

@@ -18,6 +18,7 @@ ITEMS = {
     "license": "contract", "goods": "cardboard-box",
     "grenade": "grenade", "breach_charge": "time-bomb", "stimdose": "syringe", "combine_lock": "padlock",
     "deploy_manhack": "delivery-drone", "deploy_rollermine": "spiked-ball", "deploy_turret": "sentry-gun",
+    "splint": "knee-bandage", "tourniquet": "arm-bandage", "antidote": "vial", "export_parcel": "cardboard-box-closed",
 }
 UI = {
     "radio": "radio", "broadcast": "broadcast", "skills": "chart-bar", "status": "activity-heartbeat",
@@ -26,7 +27,8 @@ UI = {
     # status icons (cl_status.lua)
     "st_bleed": "droplet-half-2", "st_radiation": "radioactive", "st_stun": "bolt", "st_sick": "mood-sick",
     "st_wounded": "heart-broken", "st_tired": "zzz", "st_search": "search", "st_combat": "alert-triangle",
-    "st_broadcast": "broadcast",
+    "st_broadcast": "broadcast", "st_fracture": "bone", "st_pain": "mood-wrrr",
+    "treasury": "building-bank", "export": "truck-delivery",
     # skills (cl_skills.lua)
     "sk_strength": "barbell", "sk_endurance": "run", "sk_medicine": "stethoscope", "sk_engineering": "tool",
     "sk_stealth": "eye-off", "sk_persuasion": "message-circle", "trend": "trending-up",

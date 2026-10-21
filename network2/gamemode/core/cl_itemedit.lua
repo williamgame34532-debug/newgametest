@@ -58,7 +58,7 @@ local function EntryOf(id)
 	end
 
 	return {type = kind, name = item.name, description = item.description, model = item.model, icon = item.icon,
-		iconURL = item.iconURL, hunger = item.hunger, thirst = item.thirst, heal = item.heal, slot = item.slot,
+		iconURL = item.iconURL, hunger = item.hunger, thirst = item.thirst, heal = item.heal, cure = item.cure, slot = item.slot,
 		weapon = item.weapon, wearGroup = item.wear and item.wear.group, wearIndex = item.wear and item.wear.index,
 		protect = item.protect, gasmask = item.gasmask, bag = item.bag,
 		contents = item.contents and table.concat(item.contents, ", ") or nil, useVerb = item.useVerb,
@@ -358,8 +358,17 @@ function IE.Open()
 			Num("thirst", "Жажда +", 0, y, col * 0.3, 0, 100)
 			Text("leaves", "Остаётся после (ID)", col * 0.34, y, col * 0.3)
 		elseif (kind == "medical") then
-			Num("heal", "Здоровье +", 0, y, col * 0.3, 0, 100)
-			Text("leaves", "Остаётся после (ID)", col * 0.34, y, col * 0.3)
+			-- what it heals: a drop-down list (sh_medical.lua)
+			local cures = {}
+
+			for _, entry in ipairs(NW.medical.cures) do
+				cures[#cures + 1] = {entry[1], entry[2]}
+			end
+
+			edit.cure = edit.cure or "health"
+			Num("heal", "Здоровье +", 0, y, col * 0.18, 0, 100)
+			Choice("cure", "Что лечит", col * 0.21, y, col * 0.4, cures)
+			Text("leaves", "Остаётся после (ID)", col * 0.64, y, col * 0.36)
 		elseif (kind == "weapon") then
 			Choice("slot", "Слот", 0, y, col * 0.3, SLOTS_WEAPON)
 			Text("weapon", "Класс оружия (SWEP)", col * 0.34, y, col * 0.66)

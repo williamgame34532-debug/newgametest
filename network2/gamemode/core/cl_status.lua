@@ -370,7 +370,7 @@ local function Medical()
 		local cell = data and data.grid and data.grid[index]
 		local item = cell and I.Get(cell.id)
 
-		if (item and item.heal) then
+		if (NW.medical.IsMedical(item)) then
 			out[#out + 1] = {index = index, item = item}
 		end
 	end

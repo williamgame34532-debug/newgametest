@@ -363,6 +363,11 @@ if (SERVER) then
 				SO.SetTokens(client, SO.GetTokens(client) - entry.price)
 				table.remove(shop.stock, index)
 				shop.till = (shop.till or 0) + entry.price - cut
+
+				-- the tax goes into the treasury of the city (sh_exports.lua)
+				if (NW.exports and cut > 0) then
+					NW.exports.Deposit(cut, "налог с продажи")
+				end
 				INV.Changed(client)
 				shop:EmitSound("buttons/button17.wav", 60)
 

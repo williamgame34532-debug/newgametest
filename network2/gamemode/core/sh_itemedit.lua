@@ -30,7 +30,8 @@ IE.types = {
 	{id = "drink", name = "Напиток", category = "drink", base = "drink",
 		hint = "Выпивается: снимает жажду. Может оставлять пустую бутылку."},
 	{id = "medical", name = "Медицина", category = "medical", base = "medical",
-		hint = "Лечит: здоровье +. Видна на странице «Состояние» инвентаря."},
+		hint = "Лечит: здоровье + и одно из ранений (кровотечение, перелом, боль, отравление) или всё сразу. " ..
+			"Видна на странице «Состояние» инвентаря."},
 	{id = "weapon", name = "Оружие", category = "weapon", base = "weapon",
 		hint = "Кладётся в слот оружия и выдаёт SWEP (класс оружия, например weapon_pistol)."},
 	{id = "clothing", name = "Одежда", category = "clothing", base = "clothing",
@@ -57,7 +58,7 @@ end
 IE.fields = {
 	type = "string", name = "string", description = "string", model = "string", icon = "string", iconURL = "string",
 	useVerb = "string", useSound = "string", leaves = "string", slot = "string", weapon = "string",
-	wearGroup = "string", contents = "string",
+	wearGroup = "string", contents = "string", cure = "string",
 	hunger = "number", thirst = "number", heal = "number", protect = "number", bag = "number", wearIndex = "number",
 	price = "number", gasmask = "boolean"
 }
@@ -86,6 +87,10 @@ function IE.Sanitize(entry)
 
 	if (!IE.typeByID[out.type or ""]) then
 		out.type = "misc"
+	end
+
+	if (out.cure and NW.medical and !NW.medical.cureNames[out.cure]) then
+		out.cure = nil
 	end
 
 	if (out.iconURL and !string.match(out.iconURL, "^https?://")) then

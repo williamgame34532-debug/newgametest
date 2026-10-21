@@ -14,6 +14,10 @@ local breakEvery = CreateConVar("nw_breakdown_interval", "300", FCVAR_ARCHIVE, "
 local infestEvery = CreateConVar("nw_infestation_interval", "480", FCVAR_ARCHIVE,
 	"Как часто появляется очаг заражения (секунды)")
 local maxBroken = CreateConVar("nw_breakdown_max", "3", FCVAR_ARCHIVE, "Сколько поломок может висеть одновременно")
+local breakCooldown = CreateConVar("nw_breakdown_cooldown", "600", FCVAR_ARCHIVE,
+	"Сколько секунд после ремонта точка не ломается снова (если у точки не задан свой КД)")
+local breakSpread = CreateConVar("nw_breakdown_spread", "40", FCVAR_ARCHIVE,
+	"Разброс интервала поломок, % (0 — ровно по интервалу)")
 
 local function Notify(client, text)
 	NW.Notify(client, text)
@@ -118,11 +122,19 @@ hook.Add("NWFactionChanged", "nwCwu", function(client, faction)
 end)
 
 -- ------------------------------------------------------ breakdowns, outbreaks --
-local function Breakdowns(bBroken)
+-- the cooldown of a point after its repair: its own (the C menu) or the server's
+function CW.Cooldown(entity)
+	local own = entity.Conf and entity:Conf().cooldown or 0
+
+	return own > 0 and own or breakCooldown:GetFloat()
+end
+
+local function Breakdowns(bBroken, bReady)
 	local out = {}
 
 	for _, entity in ipairs(ents.FindByClass("nw_breakdown")) do
-		if (entity:GetBroken() == bBroken) then
+		if (entity:GetBroken() == bBroken and (!bReady or entity:GetBrokenSince() == 0 or
+			CurTime() - entity:GetBrokenSince() >= CW.Cooldown(entity))) then
 			out[#out + 1] = entity
 		end
 	end
@@ -130,14 +142,21 @@ local function Breakdowns(bBroken)
 	return out
 end
 
+-- after the interval is changed: the next breakdown counts from now
+cvars.AddChangeCallback("nw_breakdown_interval", function()
+	CW.nextBreak = nil
+end, "nwCwu")
+
 timer.Create("nwCwuBreakdowns", 15, 0, function()
 	local now = CurTime()
 
 	-- a breakdown
 	if (now >= (CW.nextBreak or now + 60)) then
-		CW.nextBreak = now + breakEvery:GetFloat() * math.Rand(0.6, 1.4)
+		local spread = math.Clamp(breakSpread:GetFloat(), 0, 90) / 100
 
-		local intact = Breakdowns(false)
+		CW.nextBreak = now + breakEvery:GetFloat() * math.Rand(1 - spread, 1 + spread)
+
+		local intact = Breakdowns(false, true)
 
 		if (#intact > 0 and #Breakdowns(true) < maxBroken:GetInt()) then
 			local entity = intact[math.random(#intact)]

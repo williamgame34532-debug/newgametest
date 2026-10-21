@@ -109,13 +109,14 @@ ES.Register("nw_breakdown", {
 		{id = "consume", name = "Инструмент расходуется", type = "bool"},
 		{id = "time", name = "Время ремонта, с (до навыка)", type = "number", min = 1, max = 120},
 		{id = "reward", name = "Оплата, ток. (0 — по классу ГСР)", type = "number", min = 0, max = 500},
-		{id = "cwuOnly", name = "Чинят только рабочие ГСР", type = "bool"}
+		{id = "cwuOnly", name = "Чинят только рабочие ГСР", type = "bool"},
+		{id = "cooldown", name = "КД после ремонта, с (0 — общий)", type = "number", min = 0, max = 86400}
 	},
 	Get = function(entity)
 		local conf = entity:Conf()
 
 		return {kind = entity:GetKind(), name = conf.name, model = entity.nwModel or "", tool = conf.tool,
-			consume = conf.consume, time = conf.time, reward = conf.reward, cwuOnly = conf.cwuOnly}
+			consume = conf.consume, time = conf.time, reward = conf.reward, cwuOnly = conf.cwuOnly, cooldown = conf.cooldown}
 	end,
 	Set = function(entity, values)
 		local model = string.Trim(values.model or "")
@@ -133,7 +134,7 @@ ES.Register("nw_breakdown", {
 		entity:SetKind(math.Clamp(math.floor(tonumber(values.kind) or 1), 1, #entity.Kinds))
 		entity:SetConf({name = tostring(values.name or ""), tool = tool,
 			consume = values.consume == true, time = tonumber(values.time) or 10, reward = tonumber(values.reward) or 0,
-			cwuOnly = values.cwuOnly != false})
+			cwuOnly = values.cwuOnly != false, cooldown = tonumber(values.cooldown) or 0})
 		entity.nwModel = model != "" and model or nil
 		entity:ApplyModel()
 	end

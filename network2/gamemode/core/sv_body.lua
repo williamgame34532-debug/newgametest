@@ -604,7 +604,7 @@ function SO.actions.heal(client, body)
 		local thing = inventory.grid[cell]
 		local data = thing and I.Get(thing.id)
 
-		if (data and data.heal) then
+		if (NW.medical.IsMedical(data)) then
 			index, item = cell, data
 
 			break
@@ -615,7 +615,7 @@ function SO.actions.heal(client, body)
 		return Notify(client, "Нечем лечить: нужны бинт, аптечка или таблетки")
 	end
 
-	if (victim:Health() >= victim:GetMaxHealth()) then
+	if (!NW.medical.Needs(victim, item)) then
 		return Notify(client, "Ранений нет")
 	end
 
@@ -629,9 +629,8 @@ function SO.actions.heal(client, body)
 		end
 
 		inventory.grid[index] = item.leaves and I.Get(item.leaves) and {id = item.leaves, data = {}} or nil
-		victim:SetHealth(math.min(victim:GetMaxHealth(), victim:Health() + math.Round(item.heal *
-			NW.skills.Factor(client, "medicine", 0.08))))
-		NW.skills.Add(client, "medicine", 10)
+		NW.medical.Treat(victim, item, client)
+		NW.skills.Add(client, "medicine", 6)
 		INV.Changed(client)
 		Notify(client, "Вы использовали: " .. item.name)
 	end, function()

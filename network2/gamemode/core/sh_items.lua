@@ -144,6 +144,10 @@ function I.Effects(item)
 		lines[#lines + 1] = "Здоровье +" .. item.heal
 	end
 
+	if (item.cure and item.cure != "health" and NW.medical) then
+		lines[#lines + 1] = "Лечит: " .. string.lower(NW.medical.cureNames[item.cure] or item.cure)
+	end
+
 	if (item.hunger) then
 		lines[#lines + 1] = "Сытость +" .. item.hunger
 	end

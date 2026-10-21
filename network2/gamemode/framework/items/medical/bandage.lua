@@ -5,3 +5,4 @@ ITEM.description = "Рулон чистого бинта. Остановит к�
 ITEM.model = "models/props_junk/garbage_newspaper001a.mdl"
 ITEM.heal = 15
 ITEM.useSound = "network2/use/bandage.wav"
+ITEM.cure = "bleed"

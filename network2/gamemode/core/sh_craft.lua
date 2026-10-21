@@ -35,7 +35,13 @@ CR.defaults = {
 	radio = {result = "radio", count = 1, ingredients = {{item = "unit_core", count = 1}, {item = "parts", count = 1}},
 		time = 12, station = "workbench", category = "Электроника", skill = "engineering", level = 4, xp = 10},
 	bandage = {result = "bandage", count = 1, ingredients = {{item = "water", count = 1}, {item = "bottle_empty",
-		count = 1}}, time = 6, station = "chem", category = "Медицина", skill = "medicine", level = 1, xp = 4}
+		count = 1}}, time = 6, station = "chem", category = "Медицина", skill = "medicine", level = 1, xp = 4},
+	splint = {result = "splint", count = 1, ingredients = {{item = "bandage", count = 1}, {item = "scrap", count = 1}},
+		time = 6, station = "workbench", category = "Медицина", skill = "medicine", level = 1, xp = 4},
+	tourniquet = {result = "tourniquet", count = 1, ingredients = {{item = "bandage", count = 1}, {item = "parts",
+		count = 1}}, time = 5, station = "workbench", category = "Медицина", skill = "medicine", level = 2, xp = 4},
+	antidote = {result = "antidote", count = 1, ingredients = {{item = "water", count = 1}, {item = "pills", count = 1}},
+		time = 10, station = "chem", category = "Медицина", skill = "medicine", level = 3, xp = 8}
 }
 
 function CR.Sanitize(recipe)

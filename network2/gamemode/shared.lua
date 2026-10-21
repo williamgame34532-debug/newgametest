@@ -134,6 +134,8 @@ local FILES = {
 	"sh_footsteps.lua",
 	"sv_npcrelations.lua",
 	"cl_doorscan.lua",
+	"sh_medical.lua",
+	"sh_exports.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",

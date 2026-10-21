@@ -679,18 +679,11 @@ local function Use(client, kind, key)
 		return false
 	end
 
-	if (item.heal) then
-		if (client:Health() >= client:GetMaxHealth()) then
-			Notice(client, "Вы и так здоровы")
+	-- the health and the injuries (sh_medical.lua)
+	if (NW.medical.IsMedical(item) and !NW.medical.Treat(client, item, client)) then
+		Notice(client, "Вы и так здоровы")
 
-			return false
-		end
-
-		-- Медицина: +8% a level (sh_skills.lua)
-		local heal = math.Round(item.heal * NW.skills.Factor(client, "medicine", 0.08))
-
-		client:SetHealth(math.min(client:GetMaxHealth(), client:Health() + heal))
-		NW.skills.Add(client, "medicine", 4)
+		return false
 	end
 
 	if (item.hunger) then

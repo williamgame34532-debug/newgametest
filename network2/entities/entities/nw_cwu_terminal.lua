@@ -15,5 +15,7 @@ ENT.TerminalSkin = 1
 ENT.TerminalKind = "cwu"
 
 function ENT:CanUse(client)
-	return client:GetFaction() == "cwu" or NW.zones.IsAlliance(client)
+	-- the city administration too: the state orders (sh_exports.lua)
+	return client:GetFaction() == "cwu" or NW.zones.IsAlliance(client) or client:GetNW2Bool("nwCityAdmin", false) or
+		client:IsAdmin()
 end

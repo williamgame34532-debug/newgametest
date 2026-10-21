@@ -116,7 +116,9 @@ if (SERVER) then
 			Load = function(entity, data)
 				entity:SetResin(math.Clamp(tonumber(data.resin) or 0, 0, NW.fabricator.max:GetInt()))
 
-				if (isstring(data.model) and util.IsValidModel(data.model)) then
+				-- the old default (the ration dispenser) saved with the map is not kept: the fabricator model
+				if (isstring(data.model) and util.IsValidModel(data.model) and
+					string.lower(data.model) != "models/props_combine/combine_dispenser.mdl") then
 					entity.nwModel = data.model
 					entity:SetModel(data.model)
 					entity:PhysicsInit(SOLID_VPHYSICS)

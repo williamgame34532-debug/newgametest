@@ -24,7 +24,8 @@ ENT.Kinds = {
 }
 
 -- the settings of a point (the C menu): what fixes it and how
-ENT.Defaults = {tool = "toolkit", consume = false, time = 10, reward = 0, name = "", cwuOnly = true}
+-- cooldown: seconds after a repair before the point may break again (0 - nw_breakdown_cooldown)
+ENT.Defaults = {tool = "toolkit", consume = false, time = 10, reward = 0, name = "", cwuOnly = true, cooldown = 0}
 
 function ENT:SetupDataTables()
 	self:NetworkVar("Bool", 0, "Broken")
@@ -62,6 +63,7 @@ if (SERVER) then
 
 		out.time = math.Clamp(out.time, 1, 120)
 		out.reward = math.Clamp(math.floor(out.reward), 0, 500)
+		out.cooldown = math.Clamp(math.floor(out.cooldown), 0, 86400)
 		out.name = string.sub(string.Trim(out.name), 1, 48)
 		self:SetNW2String("nwBreakName", out.name)
 		self:SetNW2String("nwBreakTool", out.tool)

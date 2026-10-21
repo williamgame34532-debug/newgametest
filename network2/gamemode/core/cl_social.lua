@@ -147,7 +147,7 @@ local function HasMedical()
 	for _, cell in pairs(data and data.grid or {}) do
 		local item = NW.items.Get(cell.id)
 
-		if (item and item.heal) then
+		if (NW.medical.IsMedical(item)) then
 			return true
 		end
 	end
