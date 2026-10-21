@@ -136,6 +136,7 @@ local FILES = {
 	"cl_doorscan.lua",
 	"sh_medical.lua",
 	"sh_exports.lua",
+	"sh_spawnitems.lua",
 	"sh_itemedit.lua",
 	"cl_itemedit.lua",
 	"sh_craft.lua",

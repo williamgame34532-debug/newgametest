@@ -57,6 +57,61 @@ hook.Add("NWModelApplied", "nwAppearance", function(client)
 	end)
 end)
 
+-- for the C menu (sh_spawnitems.lua): the same as the commands
+NW.appearance = NW.appearance or {}
+
+function NW.appearance.SetSkin(target, skin, admin)
+	local data = Data(target)
+
+	if (!data) then
+		return
+	end
+
+	data.lookSkin = math.Clamp(skin, 0, math.max(target:SkinCount() - 1, 0))
+	C.SaveData(target)
+	ApplyLook(target)
+
+	if (IsValid(admin)) then
+		NW.Notify(admin, target:Nick() .. ": скин " .. data.lookSkin)
+	end
+end
+
+function NW.appearance.SetGroup(target, index, value, admin)
+	local data = Data(target)
+
+	if (!data or index < 0 or index >= target:GetNumBodyGroups()) then
+		return
+	end
+
+	data.lookGroups = data.lookGroups or {}
+	data.lookGroups[target:GetBodygroupName(index)] = value
+	C.SaveData(target)
+	ApplyLook(target)
+
+	if (IsValid(admin)) then
+		NW.Notify(admin, target:Nick() .. ": " .. target:GetBodygroupName(index) .. " = " .. value)
+	end
+end
+
+function NW.appearance.Reset(target, admin)
+	local data = Data(target)
+
+	if (!data) then
+		return
+	end
+
+	data.lookSkin, data.lookGroups = nil, nil
+	C.SaveData(target)
+
+	if (target:Alive()) then
+		NW.models.Apply(target)
+	end
+
+	if (IsValid(admin)) then
+		NW.Notify(admin, target:Nick() .. ": вид по умолчанию")
+	end
+end
+
 local function Target(client, who)
 	local target = NW.FindPlayer(who)
 
