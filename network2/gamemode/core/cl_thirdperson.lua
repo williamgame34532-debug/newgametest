@@ -317,6 +317,38 @@ hook.Add("PlayerBindPress", "nwThirdPerson", function(client, bind, bPressed)
 	end
 end)
 
+-- the view model goes with the camera from the eyes (the same offset, or it stays behind the view and is not
+-- seen) and is carried low and aside on safety (sh_raise.lua)
+local lowered = 0
+
+function GM:CalcViewModelView(weapon, viewModel, oldPos, oldAng, pos, ang)
+	local newPos, newAng = self.BaseClass.CalcViewModelView(self, weapon, viewModel, oldPos, oldAng, pos, ang)
+	local client = LocalPlayer()
+
+	newPos, newAng = newPos or pos, newAng or ang
+
+	if (WeaponEyes(client)) then
+		newPos = newPos + eyeOffset
+	end
+
+	local bSafe = IsValid(client) and client.IsSafetyOn and client:IsSafetyOn() and !(IsValid(weapon) and
+		weapon.IsAlwaysRaised)
+
+	lowered = math.Approach(lowered, bSafe and 1 or 0, FrameTime() * 3.5)
+
+	if (lowered > 0) then
+		local ease = math.ease.InOutSine(lowered)
+		local base = Angle(newAng)
+
+		newAng = Angle(newAng)
+		newAng:RotateAroundAxis(base:Right(), -24 * ease)
+		newAng:RotateAroundAxis(base:Up(), 18 * ease)
+		newPos = newPos - base:Up() * 4 * ease + base:Right() * 2 * ease - base:Forward() * 2 * ease
+	end
+
+	return newPos, newAng
+end
+
 -- the third person camera needs no view model
 function GM:PreDrawViewModel(viewModel, client, weapon)
 	if (Active(LocalPlayer()) or InventoryWeight() > 0.001 or PoseEyes(LocalPlayer())) then

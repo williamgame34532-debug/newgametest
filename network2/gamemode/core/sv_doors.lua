@@ -115,6 +115,27 @@ local function Apply(door, data)
 	Changed()
 end
 
+-- the registrar of the Alliance doors (nw_door_register): the door (with its pair) becomes the Alliance's or
+-- loses its settings
+function D.SetAlliance(door, bAlliance)
+	if (bAlliance) then
+		local data = Read(door)
+
+		data.nwDoorName = (data.nwDoorName != "" and data.nwDoorKind == "alliance") and data.nwDoorName or "Альянс"
+		data.nwDoorKind = "alliance"
+		data.nwDoorMode, data.nwDoorPrice, data.nwDoorCapacity = "", 0, 1
+		data.nwDoorOwner, data.nwDoorOwnerName, data.nwDoorTenants = 0, "", ""
+		Apply(door, data)
+	else
+		for _, member in ipairs(D.Group(door)) do
+			Write(member, {})
+			member:Fire("Unlock")
+		end
+
+		Changed()
+	end
+end
+
 -- the terminal (later) and the buying: give the door to a character (nil - free it)
 function D.SetOwner(door, client)
 	local data = Read(door)

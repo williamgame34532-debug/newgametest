@@ -323,6 +323,14 @@ local function DoorItems(door)
 	-- a combine lock on the door: its mode (who opens it, the self-locking)
 	local lock = NW.LockOf and NW.LockOf(door)
 
+	if (IsValid(lock) and lock:CanOperate(LocalPlayer())) then
+		items[#items + 1] = {name = lock:GetLocked() and "Открыть замок" or "Запереть замок", icon = "lock",
+			hint = lock:GetLocked() and "Замок Альянса откроет дверь" or "Дверь закроется и запрётся",
+			run = function()
+				NW.LockToggle(lock)
+			end}
+	end
+
 	if (IsValid(lock) and (NW.zones.IsAlliance(LocalPlayer()) or LocalPlayer():IsAdmin())) then
 		items[#items + 1] = {name = "Режим замка", icon = "lock", hint = "Кто открывает и самозапирание",
 			run = function()

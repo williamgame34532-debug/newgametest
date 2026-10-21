@@ -5,7 +5,7 @@
 -- Tools, the physics gun, the camera and SWEPs with SWEP.IsAlwaysRaised have no safety. SWEP.HasSafety
 -- forces it on or off (the hands, nw_hands, have it: lowered they only carry and knock, raised
 -- they punch). The change is animated: the old stance fades into the new one, the view model
--- is drawn or put away. nw_safety 0 turns the whole system off (everything always up).
+-- comes up or is lowered (always seen). nw_safety 0 turns the whole system off (everything always up).
 
 local meta = FindMetaTable("Player")
 
@@ -93,10 +93,12 @@ if (SERVER) then
 		local weapon = self:GetActiveWeapon()
 
 		if (HasSafety(weapon)) then
-			-- the view model comes up / goes away
-			local action = bRaised and (weapon.RaiseActivity or ACT_VM_DRAW) or (weapon.LowerActivity or ACT_VM_HOLSTER)
+			-- the view model comes up; going on safety it is only lowered (cl_thirdperson.lua), never put away
+			local action = bRaised and (weapon.RaiseActivity or ACT_VM_DRAW) or weapon.LowerActivity
 
-			weapon:SendWeaponAnim(action)
+			if (action) then
+				weapon:SendWeaponAnim(action)
+			end
 		end
 
 		if (HasSafety(weapon) and !weapon.SafetySilent) then
@@ -179,25 +181,5 @@ hook.Add("StartCommand", "nwSafety", function(client, command)
 	end
 end)
 
-if (CLIENT) then
-	-- a weapon on safety is carried low: no view model in first person (after the put-away
-	-- animation has played)
-	hook.Add("PreDrawViewModel", "nwSafety", function(viewModel, client, weapon)
-		if (!IsValid(client)) then
-			return
-		end
-
-		local bSafe = client:IsSafetyOn()
-
-		if (client.nwViewSafe != bSafe or client.nwViewWeapon != weapon) then
-			-- put away right now unless the safety was just switched on this weapon
-			client.nwViewHideAt = (bSafe and client.nwViewWeapon == weapon) and CurTime() + 0.45 or CurTime()
-			client.nwViewSafe = bSafe
-			client.nwViewWeapon = weapon
-		end
-
-		if (bSafe and CurTime() >= (client.nwViewHideAt or 0)) then
-			return true
-		end
-	end)
-end
+-- a weapon on safety stays in the view model, lowered and turned aside (cl_thirdperson.lua,
+-- GM:CalcViewModelView): the hands and the weapon are always seen in first person

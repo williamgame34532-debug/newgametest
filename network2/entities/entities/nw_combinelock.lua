@@ -122,6 +122,7 @@ if (SERVER) then
 
 	util.AddNetworkString("nwLockMenu")
 	util.AddNetworkString("nwLockSet")
+	util.AddNetworkString("nwLockToggle")
 
 	function ENT:Initialize()
 		self:SetAccess(math.max(1, self:GetAccess()))
@@ -208,6 +209,11 @@ if (SERVER) then
 			return
 		end
 
+		self:Operate(client)
+	end
+
+	-- open / lock (E on the lock, or the menu of the lock and the wheel of the door)
+	function ENT:Operate(client)
 		if (!self:CanOperate(client)) then
 			return self:Refuse()
 		end
@@ -227,6 +233,18 @@ if (SERVER) then
 			end)
 		end
 	end
+
+	net.Receive("nwLockToggle", function(_, client)
+		local lock = net.ReadEntity()
+
+		if (!IsValid(lock) or lock:GetClass() != "nw_combinelock" or (lock.nextUse or 0) > CurTime() or
+			client:GetPos():DistToSqr(lock:GetPos()) > 200 * 200) then
+			return
+		end
+
+		lock.nextUse = CurTime() + 1.2
+		lock:Operate(client)
+	end)
 
 	net.Receive("nwLockSet", function(_, client)
 		local lock = net.ReadEntity()
@@ -326,6 +344,12 @@ local BLUE = Color(90, 150, 230)
 local GREEN = Color(110, 220, 150)
 local RED = Color(235, 80, 70)
 
+function NW.LockToggle(lock)
+	net.Start("nwLockToggle")
+		net.WriteEntity(lock)
+	net.SendToServer()
+end
+
 -- the settings: from the wheel of the door (hold E on the door → «Режим замка», cl_social.lua) or Shift + E
 function NW.LockMenu(lock)
 	if (!IsValid(lock)) then
@@ -346,6 +370,13 @@ function NW.LockMenu(lock)
 	gui.EnableScreenClicker(true)
 	menu.OnRemove = function()
 		gui.EnableScreenClicker(false)
+	end
+
+	if (lock:CanOperate(LocalPlayer())) then
+		menu:AddOption(lock:GetLocked() and "Открыть дверь" or "Запереть дверь", function()
+			NW.LockToggle(lock)
+		end):SetIcon(lock:GetLocked() and "icon16/lock_open.png" or "icon16/lock.png")
+		menu:AddSpacer()
 	end
 	local access = menu:AddSubMenu("Кто открывает")
 
