@@ -46,8 +46,6 @@ local function Fonts()
 	local function F(name, font, size, weight)
 		surface.CreateFont(name, {font = font, size = math.max(11, math.Round(h * size)), weight = weight,
 			extended = true, antialias = true})
-		surface.CreateFont(name .. "Glow", {font = font, size = math.max(11, math.Round(h * size)), weight = weight,
-			extended = true, antialias = true, blursize = 4})
 	end
 
 	-- JetBrains Mono (OFL, resource/fonts): a clean monospace of a terminal, Cyrillic included
@@ -168,7 +166,7 @@ end
 -- text on the visor: placed at (x, y) of the flat HUD, bent and tilted by the curve. The text is
 -- always drawn from (0, 0) to the right in its own space - the alignment moves the matrix instead:
 -- the 2D clipping of the engine cuts off what lies at negative coordinates before the matrix turns it
-local function Text(text, font, x, y, color, align, glow)
+local function Text(text, font, x, y, color, align)
 	local px, py, angle, scale = Curve(x, y)
 	local matrix = Matrix()
 
@@ -182,14 +180,10 @@ local function Text(text, font, x, y, color, align, glow)
 	matrix:Scale(Vector(scale, scale, 1))
 	matrix:Translate(Vector(shift, 0, 0))
 
+	-- no blurred glow under the text: a blurred font turned by the matrix shows as a dark plate on the screen
 	surface.DisableClipping(true)
 	cam.PushModelMatrix(matrix, true)
-		if (glow != false) then
-			draw.SimpleText(text, font .. "Glow", 0, 0, ColorAlpha(color, (color.a or 255) * 0.55), TEXT_ALIGN_LEFT,
-				TEXT_ALIGN_TOP)
-		end
-
-		draw.SimpleText(text, font, 2, 2, Color(0, 0, 0, (color.a or 255) * 0.75), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
+		draw.SimpleText(text, font, 1, 1, Color(0, 0, 0, (color.a or 255) * 0.45), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 		draw.SimpleText(text, font, 0, 0, color, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP)
 	cam.PopModelMatrix()
 	surface.DisableClipping(false)
