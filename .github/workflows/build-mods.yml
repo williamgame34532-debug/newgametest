@@ -1,0 +1,71 @@
+name: Build Minecraft mods
+
+on:
+  push:
+    paths:
+      - 'mods/**'
+      - '.github/workflows/build-mods.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    outputs:
+      mods: ${{ steps.list.outputs.mods }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          mods=$(find mods -mindepth 2 -maxdepth 2 -name build.gradle -printf '%h\n' | xargs -n1 basename | sort | jq -R . | jq -sc .)
+          echo "mods=$mods" >> "$GITHUB_OUTPUT"
+          echo "Mods: $mods"
+      - name: Forge versions for 1.21.1
+        run: curl -s https://maven.minecraftforge.net/net/minecraftforge/forge/maven-metadata.xml | grep -o '1\.21\.1-[0-9.]*' | tail -n 15
+
+  build:
+    needs: discover
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mod: ${{ fromJson(needs.discover.outputs.mods) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build ${{ matrix.mod }}
+        working-directory: mods/${{ matrix.mod }}
+        run: gradle build --stacktrace
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.mod }}
+          path: mods/${{ matrix.mod }}/build/libs/*.jar
+
+  release:
+    needs: build
+    if: always() && needs.build.result != 'cancelled'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: jars
+          merge-multiple: true
+      - run: ls -la jars || true
+      - name: Publish jars to the "mods-latest" release
+        if: hashFiles('jars/*.jar') != ''
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: mods-latest
+          name: Minecraft mods (latest build)
+          body: Automatically built Forge 1.21.1 jars from ${{ github.sha }} on ${{ github.ref_name }}. Drop them into your `mods` folder.
+          prerelease: true
+          make_latest: false
+          files: jars/*.jar

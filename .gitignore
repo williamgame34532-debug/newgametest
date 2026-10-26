@@ -1,0 +1,3 @@
+mods/*/build/
+mods/*/run/
+mods/*/.gradle/
