@@ -5,6 +5,10 @@ import com.williamgame.apiprobe.ApiProbe;
 import net.minecraft.client.KeyMapping;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.EntityRenderersEvent;
+import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
+import net.minecraft.client.DeltaTracker;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphics;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -32,5 +36,19 @@ public class ClientModEvents {
 
     @SubscribeEvent
     public static void setup(FMLClientSetupEvent event) {
+    }
+
+    // HUD layers: Forge 1.21.1 uses AddGuiOverlayLayersEvent (mod bus), not RenderGuiEvent.
+    @SubscribeEvent
+    public static void hud(AddGuiOverlayLayersEvent event) {
+        event.getLayeredDraw().add(ApiProbe.id("hud"), (GuiGraphics g, DeltaTracker delta) -> {
+            Minecraft mc = Minecraft.getInstance();
+            if (mc.player == null || mc.options.hideGui) return;
+            g.drawString(mc.font, "probe " + ClientHooks.value, 4, 4, 0xFFFFFF);
+            int w = g.guiWidth();
+            int h = g.guiHeight();
+            g.fillGradient(0, 0, w, h / 4, 0x66000000, 0x00000000);
+            float pt = delta.getGameTimeDeltaPartialTick(true);
+        });
     }
 }

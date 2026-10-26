@@ -20,6 +20,14 @@ Built jars land in `mods/dist/` and in the `mods-latest` GitHub release.
   sliders, edit boxes, key mappings, HUD via `RenderGuiEvent.Post`, fog/camera events
   (`ViewportEvent.*`), `RenderLevelStageEvent`, tick events (`TickEvent.*.Post`), sleep/wake events.
   Copy its patterns exactly when using these APIs; that is the single biggest way to avoid compile errors.
+- **Exact API signatures are available offline**: `mods/tools/api.sh class net.minecraft.world.item.SwordItem`,
+  `mods/tools/api.sh find 'regex'` (class names), `mods/tools/api.sh grep 'regex'` (members). This is a javap dump
+  (public+protected members) of the real Forge 1.21.1-52.1.20 jar with official mappings.
+  **Check every Minecraft/Forge class, constructor and method you use against it before writing the call.**
+  Do not guess an API from memory of other versions.
+- HUD overlays: `AddGuiOverlayLayersEvent` on the MOD bus, `event.getLayeredDraw().add(id, (GuiGraphics g, DeltaTracker d) -> ...)`
+  (`RenderGuiEvent` / `RegisterGuiOverlaysEvent` do not exist in this Forge). Tiers: `net.minecraftforge.common.ForgeTier`
+  or an anonymous `Tier` (`SimpleTier` does not exist).
   1.21.1 gotchas: `ResourceLocation.fromNamespaceAndPath` (constructor is private);
   `EntityModel.renderToBuffer(..., int color)` (ARGB int, not 4 floats); item NBT is gone and
   is replaced by data components (`DataComponents.CUSTOM_DATA` + `CustomData`, or register your own
