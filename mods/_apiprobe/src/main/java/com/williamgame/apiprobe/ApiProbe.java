@@ -60,9 +60,14 @@ public class ApiProbe {
             15, SoundEvents.ARMOR_EQUIP_NETHERITE, () -> Ingredient.of(Items.AMETHYST_SHARD),
             List.of(new ArmorMaterial.Layer(id("dream"))), 3.0F, 0.1F));
 
-    public static final Tier DREAM_TIER = new SimpleTier(
-            net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL, 2200, 9.0F, 4.0F, 18,
-            () -> Ingredient.of(Items.AMETHYST_SHARD));
+    public static final Tier DREAM_TIER = new Tier() {
+        @Override public int getUses() { return 2200; }
+        @Override public float getSpeed() { return 9.0F; }
+        @Override public float getAttackDamageBonus() { return 4.0F; }
+        @Override public net.minecraft.tags.TagKey<Block> getIncorrectBlocksForDrops() { return net.minecraft.tags.BlockTags.INCORRECT_FOR_NETHERITE_TOOL; }
+        @Override public int getEnchantmentValue() { return 18; }
+        @Override public Ingredient getRepairIngredient() { return Ingredient.of(Items.AMETHYST_SHARD); }
+    };
 
     public static final RegistryObject<Block> PAD = BLOCKS.register("pad",
             () -> new ProbeBlock(BlockBehaviour.Properties.of().strength(2.0F).sound(SoundType.AMETHYST).lightLevel(s -> 7)));

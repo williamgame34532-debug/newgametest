@@ -43,7 +43,39 @@ jobs:
           gradle-version: '8.10.2'
       - name: Build ${{ matrix.mod }}
         working-directory: mods/${{ matrix.mod }}
-        run: gradle build --stacktrace
+        run: |
+          set -o pipefail
+          gradle build 2>&1 | tee build.log
+      - name: Compiler errors summary
+        if: failure()
+        working-directory: mods/${{ matrix.mod }}
+        run: |
+          echo "==== COMPILER ERRORS (${{ matrix.mod }}) ===="
+          grep -E -A3 '\.java:[0-9]+: error:' build.log | head -n 400 || true
+          grep -E 'What went wrong' -A8 build.log | head -n 40 || true
+      - name: Export Forge/Minecraft API index (javap) to the branch
+        if: always() && matrix.mod == '_apiprobe'
+        run: |
+          JAR=$(find ~/.gradle/caches/forge_gradle/minecraft_user_repo -name 'forge-1.21.1-*_mapped_official_1.21.1.jar' | head -n1)
+          echo "jar: $JAR"
+          [ -n "$JAR" ] || exit 0
+          OUT=mods/_apiprobe/api-index
+          mkdir -p $OUT
+          unzip -Z1 "$JAR" | grep '\.class$' | grep -v '\$[0-9]' | sed 's/\.class$//; s#/#.#g' | sort > $OUT/classes.txt
+          wc -l $OUT/classes.txt
+          grep -E '^(net\.minecraft|net\.minecraftforge|com\.mojang)\.' $OUT/classes.txt > /tmp/cls.txt
+          split -l 400 /tmp/cls.txt /tmp/chunk_
+          : > /tmp/javap.txt
+          for c in /tmp/chunk_*; do javap -protected -cp "$JAR" $(cat $c) >> /tmp/javap.txt 2>/dev/null || true; done
+          gzip -9 -c /tmp/javap.txt > $OUT/javap-protected.txt.gz
+          ls -la $OUT
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add $OUT
+          if ! git diff --cached --quiet; then
+            git commit -m "API index for Forge 1.21.1 [skip ci]"
+            for i in 1 2 3 4; do git pull --rebase origin "${GITHUB_REF_NAME}" && git push && break; sleep 5; done
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.mod }}
