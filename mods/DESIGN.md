@@ -1,43 +1,211 @@
 # Mod pack design — Forge 1.21.1
 
 Five standalone Forge mods. Every mod lives in `mods/<modid>/` as its own Gradle project,
-built by `.github/workflows/build-mods.yml` (CI is the only place that can compile — the
-dev container cannot reach Forge/Mojang servers). Built jars land in `mods/dist/` and in the
-`mods-latest` GitHub release.
+built by `.github/workflows/build-mods.yml`. CI is the only place that can compile: the
+dev container cannot reach Forge/Mojang servers, so **you cannot run gradle locally**.
+Built jars land in `mods/dist/` and in the `mods-latest` GitHub release.
 
-Shared rules for all mods
-- Minecraft 1.21.1, Forge 52.1.x, Java 21, official (Mojang) mappings, package `com.williamgame.<modid>`.
-- Copy the build files from `mods/_template/` (build.gradle, settings.gradle, gradle.properties,
-  META-INF/mods.toml, pack.mcmeta) and change only the mod_* properties.
-- Must work on a dedicated server: no `net.minecraft.client` class may be loaded from common code.
-  Client-only code goes into a `client` package and is reached only via
-  `@Mod.EventBusSubscriber(value = Dist.CLIENT, ...)` classes or `DistExecutor`-free patterns
-  such as `if (FMLEnvironment.dist.isClient()) ClientHooks.x()` where ClientHooks lives in `client`.
-- Every multiplayer-relevant state lives on the server and is synced to clients with packets.
-- Both `en_us.json` and `ru_ru.json` lang files; all player-facing strings are translatable.
+## Shared rules for all mods
+
+- Minecraft 1.21.1, Forge 52.1.20, Java 21, official (Mojang) mappings, package `com.williamgame.<modid>`.
+- Copy `mods/_template/` (build.gradle, settings.gradle, gradle.properties, mods.toml, pack.mcmeta)
+  and change only the `mod_*` properties in gradle.properties.
+- **`mods/_apiprobe/` is a compiled, CI-verified reference** for Forge 1.21.1 APIs: registries
+  (items, blocks, block entities, entities, sounds, creative tabs, armor materials), `SimpleTier`,
+  `SwordItem.createAttributes`, `ArmorMaterial` holders, entity attributes, `EntityModel` +
+  `LayerDefinition` + `MobRenderer` + emissive `EyesLayer`, `AnimationState`, `ServerBossEvent`,
+  `SimpleChannel` networking (`ChannelBuilder`, `CustomPayloadEvent.Context`, `PacketDistributor`),
+  commands with arguments, `SavedData` with `HolderLookup.Provider`, `ForgeConfigSpec`,
+  block entity save/load, `BaseEntityBlock` with `MapCodec`, `useWithoutItem`, client screens,
+  sliders, edit boxes, key mappings, HUD via `RenderGuiEvent.Post`, fog/camera events
+  (`ViewportEvent.*`), `RenderLevelStageEvent`, tick events (`TickEvent.*.Post`), sleep/wake events.
+  Copy its patterns exactly when using these APIs; that is the single biggest way to avoid compile errors.
+  1.21.1 gotchas: `ResourceLocation.fromNamespaceAndPath` (constructor is private);
+  `EntityModel.renderToBuffer(..., int color)` (ARGB int, not 4 floats); item NBT is gone and
+  is replaced by data components (`DataComponents.CUSTOM_DATA` + `CustomData`, or register your own
+  `DataComponentType` via `DeferredRegister.create(Registries.DATA_COMPONENT_TYPE, MODID)`);
+  `Item.appendHoverText(ItemStack, Item.TooltipContext, List<Component>, TooltipFlag)`;
+  `Item.use(Level, Player, InteractionHand)` returns `InteractionResultHolder<ItemStack>`;
+  `Block.useWithoutItem` / `useItemOn` replace `use`; `defineSynchedData(SynchedEntityData.Builder)`;
+  `MobEffectInstance` takes `Holder<MobEffect>` (`MobEffects.X` are already holders);
+  `level.playSound(null, pos, SoundEvent, ...)` takes a `SoundEvent` (use `.get()` on RegistryObject);
+  `Attributes.X` are holders; enchantments are data-driven (avoid custom enchantments).
+- Must work on a **dedicated server**: no `net.minecraft.client.*` class may be referenced from
+  common code paths. Client-only code lives in the `client` package and is reached only from
+  `@Mod.EventBusSubscriber(value = Dist.CLIENT, ...)` classes or behind
+  `if (FMLEnvironment.dist.isClient()) client.ClientHooks.x()` (see `ProbeSyncPacket`).
+- All gameplay state lives on the server and is synced to clients with packets. Everything
+  must work with several players at once.
+- Lang files `assets/<modid>/lang/en_us.json` **and** `ru_ru.json`; every player-facing string is translatable.
+- Every item needs `assets/<modid>/models/item/<name>.json` and texture; every block needs a
+  blockstate, block model, item model, texture and a loot table at
+  `data/<modid>/loot_table/blocks/<name>.json` (1.21 uses singular folder names:
+  `loot_table`, `recipe`, `advancement`, `tags/item`, `tags/block`).
+  Recipes go in `data/<modid>/recipe/*.json` (1.21 format: result is `{"id": "...", "count": n}`).
+  Armor textures: `assets/<modid>/textures/models/armor/<material>_layer_1.png` and `_layer_2.png`.
+- Sounds: `assets/<modid>/sounds.json`. You may synthesize .ogg files: python3 + numpy are
+  installed (no scipy) and `ffmpeg` with `libvorbis` is available (write WAV with the `wave`
+  module, then `ffmpeg -i x.wav -c:a libvorbis -q:a 4 x.ogg`; mono for positional sounds).
+  Keep each under ~150 KB. Never leave a sounds.json entry pointing to a missing file.
 - Textures are generated by a Python/Pillow script kept in `mods/<modid>/tools/` and the
-  resulting PNGs are committed under `src/main/resources/assets/<modid>/textures/`.
-- A `README.md` in Russian per mod: what it does, commands, crafting, controls.
+  resulting PNGs are committed under `src/main/resources/assets/<modid>/textures/`. Make them good:
+  shading, highlights, outlines, palettes with 6+ tones, not flat noise. Entity textures must match
+  the UV layout of the model's `texOffs` boxes (write the generator to paint per-box UV faces).
+- A `README.md` in Russian per mod: what it does, commands, crafting, controls, multiplayer notes.
+- Do not run git. Only touch files inside your own `mods/<modid>/` folder.
 
-## 1. Echoes of Sleep (`echoesofsleep`)
-Everything you do by day is remembered. Sleeping turns that memory into a dream that
-leaks into the real world: after a night's sleep the world itself starts to distort,
-and the nightmares (Echoes) walk in it.
+---
 
-## 2. Hide & Hunt (`hideandhunt`)
-Map-maker toolkit for a hide-and-seek minigame with two sides (Hiders / Hunters):
-team join pads, a side-randomizer button block, spawn points set by command, a game
-master GUI, timers, HUD, end-of-round screen.
+## 1. Echoes of Sleep (`echoesofsleep`) — «Эхо Сна»
 
-## 3. Block Memory (`blockmemory`)
-Every block remembers who placed/broke it and when. A Memory Brush reads that history
-(including ghost replays of what used to stand there), and procedurally generated ruins
-of a fallen civilization hide lore fragments that assemble into a story codex.
+Concept: everything you do by day is remembered. Sleeping turns that memory into a dream that
+leaks into the real world. **After you sleep, the world itself starts to distort**, and the
+nightmares (Echoes) built from your own deeds walk in it.
 
-## 4. Symbiont (`symbiont`)
-Each player gets a small bonded creature that evolves according to their playstyle
-(Miner / Warrior / Farmer / Explorer branches), weakens if neglected and may leave.
+### Memory ("След")
+Per-player, server-side, persisted (player persistent data, copied on `PlayerEvent.Clone`):
+kills per entity type, deaths (last 8 positions), blocks placed/broken, time underground / in darkness,
+villagers hurt, nights without sleep, a ring buffer of the player's recent path (positions every ~2 s).
+`Dread` (0..100) is derived from it.
 
-## 5. Mod Critic (`modcritic`)
-In-game rating tool: rate each installed mod on several criteria, see weighted rankings
-with bar charts, aggregate votes from every player on a server, export results.
+### Sleeping → Distortion
+- When a night is skipped by sleeping (`SleepFinishedTimeEvent`), the dimension enters a
+  **Distortion** state stored in `SavedData`: level 1–3 (Unease / Warped / Nightmare), chosen from the
+  sleepers' combined Dread and from how many consecutive nights were slept without "cleansing".
+  It lasts most of the following day and fades out, with a scary wake-up moment (screen flash,
+  heartbeat, whisper of the player's name in chat).
+- **Multiplayer:** distortion is shared by everyone in that dimension; each sleeper contributes their
+  memory; Echoes made from player A can hunt player B; sleeping players are woken with a nightmare
+  message; the state is synced to all clients on login/dimension change; works with
+  vanilla `playersSleepingPercentage`.
+- Visual/audio distortion on clients, scaled by level: sky and fog tint shift (to bruise purple /
+  blood red), fog closing in, subtle camera roll sway, FOV breathing, vignette and grain overlay,
+  occasional "frame skip" flicker, whispers and footsteps behind the player, the HUD sometimes
+  showing wrong numbers for a moment.
+- World distortion on the server (always reverted, tracked in SavedData so nothing is lost on crash
+  or restart): grass near players temporarily turns into mod blocks such as **Ashen Grass**,
+  **Dreamrot** (fleshy pulsing block), **Weeping Leaves**; torches near players go out briefly;
+  doors creak open; at level 3 short "reality tears" — floating fragment blocks that hover then fall back.
+- Cleansing: killing Echoes and using the Dawn items lowers Dread; sleeping with high Dread raises the next level.
+
+### Monsters — scary, detailed, carefully animated
+Hand-written Java models with many parts (multi-segment limbs, ribs, jaws), procedural animation
+(unnatural joint bends, stop-motion jitter, head tilts), emissive eyes layer, custom AI:
+1. **Echo Doppelganger (Эхо-двойник)** — copy of a player (renders that player's skin, stretched
+   limbs, no face). Walks the player's recorded path from yesterday; when it sees you it freezes, tilts
+   its head, then sprints. Spawns from the player's death spots and recorded path during distortion.
+2. **Stitcher (Сборщик)** — tall creature sewn together from mobs the player killed; size/health scale
+   with kill count; moves in jerky stop-motion bursts; grabs and throws.
+3. **The Sleepless (Бессонник)** — 4 blocks tall, very thin, stands at the edge of view, cannot move
+   while any player looks at it (raycast + FOV check per player), teleports closer when unseen.
+   Spawns for players who haven't slept for 3+ nights.
+4. **Hollow Villager (Пустой житель)** — eyeless open-mouthed villager, whispers player names, appears
+   near villages the player harmed.
+5. **Deep Mother (Глубинная мать)** — boss: lives in walls underground; only giant arms emerge from
+   blocks; arena crumbles; boss bar.
+6. **The Dreamer (Тот, кто снится)** — final boss summoned with a Dream Totem at Nightmare level;
+   3 phases, summons the player's Echoes; drops Nightmare Heart.
+All have spawn eggs, sounds, loot.
+
+### Gear (better than diamond, to fight back)
+- Material **Dream Shard** (drops from nightmares + **Dream Shard Ore** generated via biome modifier),
+  **Nightmare Heart** (boss drop), **Dawn Ingot** (shard + gold + glowstone).
+- Armor sets with distinct, beautiful textures and full-set bonuses:
+  **Dreamcatcher** (night vision during distortion, Echoes glow), **Wakeful** (−30% damage from nightmares),
+  **Nightmare Eater** (heal on nightmare kill, dash on sneak+jump).
+- Weapons: **Dawn Blade** (x2 vs nightmares, blinds them), **Echo Scythe** (hit repeats as a ghost
+  slash 1 s later), **Lullaby Staff** (puts nightmares to sleep for 5 s, cooldown),
+  **Insomnia Lantern** (offhand, the Sleepless can't approach).
+- Crafting recipes for all of it, creative tab.
+
+Commands: `/echoes dread [player] [value]`, `/echoes distort <0-3>`, `/echoes info`.
+Config: spawn rates, distortion strength, world-block distortion on/off (for servers).
+
+---
+
+## 2. Hide & Hunt (`hideandhunt`) — «Прятки и Охота»
+
+Map-maker toolkit for a two-sided hide-and-seek minigame (Hiders / Hunters), for a friend's maps.
+
+- **Arena** settings stored in `SavedData` per world (a map can contain one arena; name it).
+- **Ways to join a side**, configurable per arena (`/hh joinmode <free|random|admin|pads>`):
+  - **Team pads** (blocks): Hider Pad / Hunter Pad — stepping on joins that side.
+  - **Join signs / buttons** (blocks): right-click to join a side.
+  - **Randomizer Button** (block): when pressed, shuffles every lobby player into sides
+    using configured ratio/limits (e.g. 1 hunter per 4 players), with a slot-machine style
+    animation on everyone's screen before the result.
+  - **Start Button** block, **Lobby Return** block.
+  - Admin assignment: `/hh team <player> <hiders|hunters|none>`.
+  - Per-side limits, min players, balance check.
+- **Spawns via commands**: `/hh setspawn <lobby|hiders|hunters|spectator> [pos]` (multiple spawns per
+  side allowed: `/hh addspawn`, `/hh clearspawns`), `/hh setbounds <pos1> <pos2>` (arena border,
+  leaving it warns then teleports back).
+- **Game flow**: lobby → countdown → hiding phase (hunters frozen + blinded at their spawn, big
+  countdown title) → hunt phase (boss bar timer, hunters tag hiders by hitting) → caught hiders become
+  spectators or hunters (`/hh mode <classic|infection>`) → end when time runs out or all caught →
+  results screen (winners, who caught whom, best hider time), fireworks, everyone back to lobby.
+- Settings: hide time, hunt time, hunter speed boost, hiders' glowing in the last 30 s, hint pings
+  (hiders emit a sound every N s), taunt key for hiders (bonus points), friendly fire off, keep inventory,
+  adventure mode during game, kit per side.
+- **Pretty UI**: Game Master Tablet item → GUI with tabs (Arena, Teams, Timers, Rules) to edit everything
+  without commands; HUD showing side, timer, hiders left, hunters; colored team name tags; titles and
+  sounds for every phase; scoreboard sidebar.
+- Commands: `/hh start|stop|reset|status|settings ...`.
+- Must work on a dedicated server with many players; operators only for admin commands/tablet.
+
+---
+
+## 3. Block Memory (`blockmemory`) — «Память блоков»
+
+Every block remembers. Archaeology and lore.
+
+- Server tracks block history: who placed/broke which block and when (per-chunk compact storage in
+  SavedData, capped, saved efficiently). Useful in multiplayer too (find who broke your wall).
+- **Memory Brush**: use on a block → shows its history (player, time ago, what was there before);
+  holding use on an area → **ghost replay**: translucent ghost blocks of what used to stand there
+  rendered client-side for a few seconds, with whisper particles.
+- **Echo Lens** (helmet-slot or offhand item): shows faint outlines of recently changed blocks.
+- **Ruins of the Forgotten**: worldgen feature (biome modifier + placed/configured feature) that builds
+  procedurally varied ruins of a fallen civilization: broken towers, archives, shrines with mod blocks
+  (Memory Stone, Faded Bricks, Whispering Pillar). Contains **Memory Fragments**.
+- **Memory Fragments** → read in the **Codex** GUI: the story of the civilization is assembled
+  piece by piece (24 fragments, 4 chapters); collecting a whole chapter unlocks a reward
+  (e.g. Recall Charm that teleports you to your last death, Archivist armor).
+- Per-player codex progress synced to the client.
+- Commands: `/memory inspect <pos>`, `/memory clear <radius>`, `/memory codex <player> unlockall`.
+
+---
+
+## 4. Symbiont (`symbiont`) — «Симбионт»
+
+Each player gets a small bonded creature.
+
+- On first join the player receives a **Symbiont Egg**; hatching creates a companion bound to that
+  player (multiplayer: one per player, others can't take it; it follows its owner across dimensions;
+  respawns at a Symbiont Nest if killed, with bond loss).
+- It gains **affinity XP** from the owner's playstyle: mining (Miner), fighting (Warrior),
+  farming/breeding (Farmer), travelling/exploring new chunks (Explorer).
+- **Evolution**: Hatchling → 3 stages per branch (12 forms), each a distinct custom model + texture and
+  abilities (Miner: highlights ores, auto-mines a vein; Warrior: fights alongside, taunts;
+  Farmer: bone-meals crops, feeds animals; Explorer: carries you briefly / glides, reveals structures).
+- **Bond**: feeding (its favourite food changes), petting (shift+right-click), and staying together
+  raise Bond; neglect (not feeding for days, letting it die) lowers it; at 0 it weakens, then
+  leaves forever, leaving a sad note.
+- **Status GUI** (key `K`): model preview, branch progress bars, bond hearts, abilities, name it.
+- Synced to clients; config for XP rates.
+
+---
+
+## 5. Mod Critic (`modcritic`) — «Критик модов»
+
+Lets the friend rate which mod is the most interesting.
+
+- Opens from a button on the title screen, the pause menu and key `N`, and command `/critic`.
+- Lists all installed mods (Forge `ModList`), with the four pack mods pinned to the top.
+- Criteria (each 1–10 with a slider plus star display): Idea, Atmosphere, Gameplay, Visuals,
+  Sound, Balance, Originality, Replayability, plus a free-text comment. Criteria weights are adjustable.
+- Results screen: weighted total, ranking, horizontal bar chart per criterion, best-in-category
+  badges ("Самый атмосферный" etc.), side-by-side comparison of two mods.
+- Saved locally to `config/modcritic/ratings.json`; export to `modcritic-results.md` and copy to clipboard.
+- **Multiplayer**: on a server with the mod, players submit their ratings; `/critic results` and the
+  results screen show per-player and server-average rankings (server stores them in SavedData).
