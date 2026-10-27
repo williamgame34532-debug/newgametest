@@ -293,13 +293,17 @@ public class DeepMother extends NightmareMonster {
         for (Player p : sl.players()) {
             if (!NightmareUtil.isValidVictim(p) || p.distanceToSqr(this) > 24 * 24) continue;
             for (int tries = 0; tries < 3; tries++) {
-                BlockPos base = p.blockPosition().offset(random.nextInt(9) - 4, 2, random.nextInt(9) - 4);
+                int dx = random.nextInt(9) - 4, dz = random.nextInt(9) - 4;
+                if (dx == 0 && dz == 0) continue; // never straight onto someone's head (suffocation trap)
+                BlockPos base = p.blockPosition().offset(dx, 2, dz);
                 for (int up = 0; up < 10; up++) {
                     BlockPos pos = base.above(up);
                     BlockState state = sl.getBlockState(pos);
                     if (state.isAir()) continue;
                     float hardness = state.getDestroySpeed(sl, pos);
-                    if (hardness >= 0 && hardness < 10 && !state.hasBlockEntity() && sl.getBlockState(pos.below()).isAir()) {
+                    // only plain full blocks: falling torches, doors, beds etc. would break or duplicate them
+                    if (hardness >= 0 && hardness < 10 && !state.hasBlockEntity() && state.isCollisionShapeFullBlock(sl, pos)
+                            && state.getFluidState().isEmpty() && sl.getBlockState(pos.below()).isAir()) {
                         FallingBlockEntity.fall(sl, pos, state);
                     }
                     break;
@@ -367,6 +371,10 @@ public class DeepMother extends NightmareMonster {
     public void readAdditionalSaveData(CompoundTag tag) {
         super.readAdditionalSaveData(tag);
         entityData.set(DATA_PHASE, Math.max(1, tag.getInt("Phase")));
+        // the state machine is not saved and restarts by emerging: drop the "submerged" flags that NBT kept
+        noPhysics = false;
+        setNoGravity(false);
+        setInvisible(false);
         if (hasCustomName()) bossEvent.setName(getDisplayName());
         if (getPhase() >= 2) bossEvent.setColor(BossEvent.BossBarColor.RED);
     }

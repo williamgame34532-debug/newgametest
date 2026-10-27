@@ -25,6 +25,10 @@ Built jars land in `mods/dist/` and in the `mods-latest` GitHub release.
   (public+protected members) of the real Forge 1.21.1-52.1.20 jar with official mappings.
   **Check every Minecraft/Forge class, constructor and method you use against it before writing the call.**
   Do not guess an API from memory of other versions.
+- **Armor materials (runtime ordering!)**: the `_apiprobe` DeferredRegister<ArmorMaterial> + `getHolder().get()` pattern
+  only compiles — at runtime the ARMOR_MATERIAL RegisterEvent fires AFTER items, so the holder is empty and it crashes.
+  Use the pattern from `mods/echoesofsleep` (`Registry.registerForHolder(BuiltInRegistries.ARMOR_MATERIAL, ...)` lazily
+  inside the item supplier, memoized), like vanilla does.
 - HUD overlays: `AddGuiOverlayLayersEvent` on the MOD bus, `event.getLayeredDraw().add(id, (GuiGraphics g, DeltaTracker d) -> ...)`
   (`RenderGuiEvent` / `RegisterGuiOverlaysEvent` do not exist in this Forge). Tiers: `net.minecraftforge.common.ForgeTier`
   or an anonymous `Tier` (`SimpleTier` does not exist).

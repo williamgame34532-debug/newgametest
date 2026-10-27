@@ -364,7 +364,14 @@ public final class DistortionManager {
             DistortionData.Entry e = en.getValue();
             if (!force && e.revertAt > time) continue;
             BlockPos pos = BlockPos.of(en.getKey());
-            if (!sl.isLoaded(pos)) continue;
+            if (!sl.isLoaded(pos)) {
+                // its chunk was cleaned when it unloaded; don't let entries of never-revisited chunks pile up
+                if (!force && time - e.revertAt > 24000L) {
+                    it.remove();
+                    changed = true;
+                }
+                continue;
+            }
             BlockState cur = sl.getBlockState(pos);
             boolean stillOurs = e.replacement.isAir() ? cur.isAir() : cur.is(e.replacement.getBlock());
             if (stillOurs) {
@@ -390,6 +397,7 @@ public final class DistortionManager {
     /**
      * A chunk is unloading: write the original blocks straight into it so the saved chunk is clean.
      * The entries are kept; when the chunk comes back they are simply dropped (block no longer ours).
+     * Entries of chunks nobody revisits are pruned by {@link #revertDue} a day after they were due.
      */
     @SubscribeEvent
     public static void onChunkUnload(ChunkEvent.Unload event) {

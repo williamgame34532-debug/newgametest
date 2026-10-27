@@ -21,6 +21,7 @@ import net.minecraft.tags.DamageTypeTags;
 import net.minecraft.util.Mth;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
+import net.minecraft.world.damagesource.DamageTypes;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.EntityType;
@@ -354,7 +355,7 @@ public class TheDreamer extends NightmareMonster {
     @Override
     public boolean hurt(DamageSource source, float amount) {
         if (transitionTicks > 0 && !source.is(DamageTypeTags.BYPASSES_INVULNERABILITY)) return false;
-        if (source.is(DamageTypeTags.IS_FALL) || source.is(DamageTypeTags.IS_DROWNING)) return false;
+        if (source.is(DamageTypeTags.IS_FALL) || source.is(DamageTypeTags.IS_DROWNING) || source.is(DamageTypes.IN_WALL)) return false;
         return super.hurt(source, amount);
     }
 

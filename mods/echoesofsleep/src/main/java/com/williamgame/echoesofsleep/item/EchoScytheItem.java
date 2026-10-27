@@ -19,13 +19,19 @@ import java.util.List;
 
 /** Echo Scythe: every hit is repeated one second later by a ghost of the slash. */
 public class EchoScytheItem extends SwordItem {
+    private static final String GHOST_KEY = "echoesofsleep_ghost_ready";
+
     public EchoScytheItem(Tier tier, Properties props) {
         super(tier, props);
     }
 
     @Override
     public boolean hurtEnemy(ItemStack stack, LivingEntity target, LivingEntity attacker) {
-        if (attacker instanceof Player player && target.level() instanceof ServerLevel sl) {
+        // at most one ghost slash per swing time: spam-clicking must not queue a full-damage echo per click
+        long now = attacker.level().getGameTime();
+        if (attacker instanceof Player player && target.level() instanceof ServerLevel sl
+                && now >= player.getPersistentData().getLong(GHOST_KEY)) {
+            player.getPersistentData().putLong(GHOST_KEY, now + 16);
             float damage = (float) player.getAttributeValue(Attributes.ATTACK_DAMAGE) * 0.8F;
             ServerScheduler.schedule(sl, 20, level -> {
                 if (!target.isAlive() || target.level() != level || !player.isAlive() || player.distanceToSqr(target) > 12 * 12) return;
