@@ -441,7 +441,6 @@ public final class GameManager {
             Fx.title(p, tr("title.you_are", e.getValue().displayName().withStyle(ChatFormatting.BOLD)),
                     tr(e.getValue() == Side.HUNTER ? "title.you_are.hunter_sub" : e.getValue() == Side.HIDER ? "title.you_are.hider_sub" : "title.you_are.spect_sub"),
                     5, 50, 15);
-            Fx.sound(p, ModRegistry.SND_RANDOM_REVEAL.get(), 1.0F, 1.0F);
         }
         announce(tr("msg.randomized", Component.literal(String.join(", ", hiders)).withStyle(ChatFormatting.GREEN),
                 Component.literal(String.join(", ", hunters)).withStyle(ChatFormatting.RED)));

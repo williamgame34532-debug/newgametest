@@ -19,7 +19,7 @@ jobs:
       - uses: actions/checkout@v4
       - id: list
         run: |
-          mods=$(find mods -mindepth 2 -maxdepth 2 -name build.gradle -printf '%h\n' | xargs -n1 basename | grep -v '^_template$' | sort | jq -R . | jq -sc .)
+          mods=$(for d in mods/*/; do [ -f "$d/build.gradle" ] && [ ! -f "$d/.ci-skip" ] && basename "$d"; done | grep -v '^_template$' | sort | jq -R . | jq -sc .)
           echo "mods=$mods" >> "$GITHUB_OUTPUT"
           echo "Mods: $mods"
       - name: Forge versions for 1.21.1
