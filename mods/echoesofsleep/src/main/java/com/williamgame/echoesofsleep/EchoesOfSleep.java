@@ -27,7 +27,6 @@ public class EchoesOfSleep {
         ModItems.ITEMS.register(modBus);
         ModEntities.ENTITIES.register(modBus);
         ModSounds.SOUNDS.register(modBus);
-        ModArmorMaterials.ARMOR_MATERIALS.register(modBus);
         ModTabs.TABS.register(modBus);
         modBus.addListener(ModEntities::attributes);
         context.registerConfig(ModConfig.Type.COMMON, Config.SPEC);

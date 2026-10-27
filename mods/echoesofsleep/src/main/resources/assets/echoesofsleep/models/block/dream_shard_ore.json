@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "echoesofsleep:block/dream_shard_ore"
+  }
+}

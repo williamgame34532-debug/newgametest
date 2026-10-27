@@ -360,8 +360,9 @@ public class TheDreamer extends NightmareMonster {
 
     @Override
     public void die(DamageSource source) {
+        boolean first = !dead && !isRemoved();
         super.die(source);
-        if (level() instanceof ServerLevel sl) {
+        if (first && level() instanceof ServerLevel sl) {
             DistortionManager.wakeUp(sl);
         }
     }

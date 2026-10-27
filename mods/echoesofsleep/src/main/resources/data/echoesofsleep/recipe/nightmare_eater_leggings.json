@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "DHD",
+    "D D",
+    "D D"
+  ],
+  "key": {
+    "D": {
+      "item": "echoesofsleep:dawn_ingot"
+    },
+    "H": {
+      "item": "echoesofsleep:nightmare_heart"
+    }
+  },
+  "result": {
+    "id": "echoesofsleep:nightmare_eater_leggings",
+    "count": 1
+  }
+}

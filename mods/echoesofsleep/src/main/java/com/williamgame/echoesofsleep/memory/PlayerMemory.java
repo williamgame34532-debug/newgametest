@@ -5,6 +5,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.util.Mth;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 
 import java.util.ArrayList;
@@ -229,7 +230,7 @@ public class PlayerMemory {
     }
 
     /** Copy everything to a respawned player. */
-    public static void copy(Player from, Player to) {
+    public static void copy(Entity from, Entity to) {
         CompoundTag src = from.getPersistentData().getCompound(KEY);
         to.getPersistentData().put(KEY, src.copy());
     }

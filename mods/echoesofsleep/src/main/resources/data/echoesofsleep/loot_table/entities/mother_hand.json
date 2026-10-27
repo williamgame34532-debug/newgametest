@@ -1,0 +1,5 @@
+{
+  "type": "minecraft:entity",
+  "random_sequence": "echoesofsleep:entities/mother_hand",
+  "pools": []
+}

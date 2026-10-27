@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:glass_bottle"
+    },
+    {
+      "item": "echoesofsleep:dream_shard"
+    },
+    {
+      "item": "minecraft:glowstone_dust"
+    },
+    {
+      "item": "minecraft:sunflower"
+    }
+  ],
+  "result": {
+    "id": "echoesofsleep:dawn_tincture",
+    "count": 1
+  }
+}

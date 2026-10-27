@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "SSN",
+    " B ",
+    "B  "
+  ],
+  "key": {
+    "S": {
+      "item": "echoesofsleep:dream_shard"
+    },
+    "N": {
+      "item": "echoesofsleep:nightmare_heart"
+    },
+    "B": {
+      "item": "minecraft:bone"
+    }
+  },
+  "result": {
+    "id": "echoesofsleep:echo_scythe",
+    "count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:blasting",
+  "category": "misc",
+  "ingredient": {
+    "item": "echoesofsleep:dream_shard_ore"
+  },
+  "result": {
+    "id": "echoesofsleep:dream_shard"
+  },
+  "experience": 1.0,
+  "cookingtime": 100
+}

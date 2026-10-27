@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "echoesofsleep:dream_shard"
+    },
+    {
+      "item": "echoesofsleep:dream_shard"
+    },
+    {
+      "item": "minecraft:gold_ingot"
+    },
+    {
+      "item": "minecraft:glowstone_dust"
+    }
+  ],
+  "result": {
+    "id": "echoesofsleep:dawn_ingot",
+    "count": 1
+  }
+}

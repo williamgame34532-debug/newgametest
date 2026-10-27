@@ -1,0 +1,17 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "equipment",
+  "pattern": [
+    "X X",
+    "X X"
+  ],
+  "key": {
+    "X": {
+      "item": "echoesofsleep:dream_shard"
+    }
+  },
+  "result": {
+    "id": "echoesofsleep:dreamcatcher_boots",
+    "count": 1
+  }
+}

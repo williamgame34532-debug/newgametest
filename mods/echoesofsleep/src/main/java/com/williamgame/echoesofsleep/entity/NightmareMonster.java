@@ -72,6 +72,11 @@ public abstract class NightmareMonster extends Monster {
         return false;
     }
 
+    /** Whether killing this counts as slaying an Echo (cleansing). Body parts such as the Mother's hands do not. */
+    public boolean countsAsEcho() {
+        return true;
+    }
+
     // ---- Lullaby stun --------------------------------------------------------------------------
     public void lullToSleep(int ticks) {
         if (isBoss()) ticks = ticks / 3;
@@ -97,6 +102,12 @@ public abstract class NightmareMonster extends Monster {
     @Override
     public void aiStep() {
         super.aiStep();
+        // counted here, not in customServerAiStep: the AI step is skipped entirely while immobile (asleep)
+        if (!level().isClientSide && stunTicks > 0) {
+            stunTicks--;
+            getNavigation().stop();
+            if (stunTicks == 0) entityData.set(DATA_STUNNED, false);
+        }
         if (level().isClientSide) {
             if (isStunned() && tickCount % 12 == 0) {
                 level().addParticle(ParticleTypes.NOTE, getX(), getY() + getBbHeight() + 0.3, getZ(), random.nextDouble(), 0.0, 0.0);
@@ -110,10 +121,6 @@ public abstract class NightmareMonster extends Monster {
     @Override
     protected void customServerAiStep() {
         super.customServerAiStep();
-        if (stunTicks > 0) {
-            stunTicks--;
-            if (stunTicks == 0) entityData.set(DATA_STUNNED, false);
-        }
         if (isBlinded() && getTarget() != null && random.nextInt(4) == 0) {
             setTarget(null);
         }
@@ -131,8 +138,9 @@ public abstract class NightmareMonster extends Monster {
 
     @Override
     public void die(DamageSource source) {
+        boolean first = !dead && !isRemoved();
         super.die(source);
-        if (level() instanceof ServerLevel sl) {
+        if (first && countsAsEcho() && level() instanceof ServerLevel sl) {
             // Cleansing: killing an Echo soothes the killer and the dreaming dimension.
             if (source.getEntity() instanceof ServerPlayer killer) {
                 PlayerMemory mem = PlayerMemory.of(killer);

@@ -1,0 +1,27 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " E ",
+    "SDS",
+    " O "
+  ],
+  "key": {
+    "E": {
+      "item": "minecraft:ender_eye"
+    },
+    "S": {
+      "item": "echoesofsleep:dream_shard"
+    },
+    "D": {
+      "item": "echoesofsleep:dawn_ingot"
+    },
+    "O": {
+      "item": "minecraft:crying_obsidian"
+    }
+  },
+  "result": {
+    "id": "echoesofsleep:dream_totem",
+    "count": 1
+  }
+}

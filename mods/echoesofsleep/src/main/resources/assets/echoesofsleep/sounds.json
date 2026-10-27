@@ -1,0 +1,277 @@
+{
+  "ambient.whisper": {
+    "subtitle": "subtitles.echoesofsleep.whisper",
+    "sounds": [
+      {
+        "name": "echoesofsleep:whisper1"
+      },
+      {
+        "name": "echoesofsleep:whisper2"
+      },
+      {
+        "name": "echoesofsleep:whisper3"
+      }
+    ]
+  },
+  "ambient.heartbeat": {
+    "subtitle": "subtitles.echoesofsleep.heartbeat",
+    "sounds": [
+      {
+        "name": "echoesofsleep:heartbeat"
+      }
+    ]
+  },
+  "ambient.drone": {
+    "subtitle": "subtitles.echoesofsleep.drone",
+    "sounds": [
+      {
+        "name": "echoesofsleep:drone"
+      }
+    ]
+  },
+  "ambient.footsteps": {
+    "subtitle": "subtitles.echoesofsleep.footsteps",
+    "sounds": [
+      {
+        "name": "echoesofsleep:footstep1"
+      },
+      {
+        "name": "echoesofsleep:footstep2"
+      }
+    ]
+  },
+  "event.wake_scream": {
+    "subtitle": "subtitles.echoesofsleep.wake_scream",
+    "sounds": [
+      {
+        "name": "echoesofsleep:scream"
+      }
+    ]
+  },
+  "event.glitch": {
+    "subtitle": "subtitles.echoesofsleep.glitch",
+    "sounds": [
+      {
+        "name": "echoesofsleep:glitch"
+      }
+    ]
+  },
+  "event.creak": {
+    "subtitle": "subtitles.echoesofsleep.creak",
+    "sounds": [
+      {
+        "name": "echoesofsleep:creak"
+      }
+    ]
+  },
+  "entity.echo_doppelganger.ambient": {
+    "subtitle": "subtitles.echoesofsleep.doppelganger_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:breath"
+      },
+      {
+        "name": "echoesofsleep:whisper2"
+      }
+    ]
+  },
+  "entity.echo_doppelganger.hurt": {
+    "subtitle": "subtitles.echoesofsleep.doppelganger_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:crack"
+      }
+    ]
+  },
+  "entity.echo_doppelganger.death": {
+    "subtitle": "subtitles.echoesofsleep.doppelganger_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:wail"
+      }
+    ]
+  },
+  "entity.echo_doppelganger.scream": {
+    "subtitle": "subtitles.echoesofsleep.doppelganger_scream",
+    "sounds": [
+      {
+        "name": "echoesofsleep:scream"
+      }
+    ]
+  },
+  "entity.stitcher.ambient": {
+    "subtitle": "subtitles.echoesofsleep.stitcher_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:groan"
+      }
+    ]
+  },
+  "entity.stitcher.hurt": {
+    "subtitle": "subtitles.echoesofsleep.stitcher_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:crack"
+      }
+    ]
+  },
+  "entity.stitcher.death": {
+    "subtitle": "subtitles.echoesofsleep.stitcher_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:wail"
+      }
+    ]
+  },
+  "entity.sleepless.ambient": {
+    "subtitle": "subtitles.echoesofsleep.sleepless_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:breath"
+      }
+    ]
+  },
+  "entity.sleepless.hurt": {
+    "subtitle": "subtitles.echoesofsleep.sleepless_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:crack"
+      }
+    ]
+  },
+  "entity.sleepless.death": {
+    "subtitle": "subtitles.echoesofsleep.sleepless_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:wail"
+      }
+    ]
+  },
+  "entity.sleepless.sting": {
+    "subtitle": "subtitles.echoesofsleep.sleepless_sting",
+    "sounds": [
+      {
+        "name": "echoesofsleep:sting"
+      }
+    ]
+  },
+  "entity.hollow_villager.ambient": {
+    "subtitle": "subtitles.echoesofsleep.hollow_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:whisper1"
+      },
+      {
+        "name": "echoesofsleep:whisper3"
+      }
+    ]
+  },
+  "entity.hollow_villager.hurt": {
+    "subtitle": "subtitles.echoesofsleep.hollow_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:groan"
+      }
+    ]
+  },
+  "entity.hollow_villager.death": {
+    "subtitle": "subtitles.echoesofsleep.hollow_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:wail"
+      }
+    ]
+  },
+  "entity.deep_mother.ambient": {
+    "subtitle": "subtitles.echoesofsleep.mother_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:groan"
+      },
+      {
+        "name": "echoesofsleep:rumble"
+      }
+    ]
+  },
+  "entity.deep_mother.hurt": {
+    "subtitle": "subtitles.echoesofsleep.mother_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:crack"
+      }
+    ]
+  },
+  "entity.deep_mother.death": {
+    "subtitle": "subtitles.echoesofsleep.mother_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:wail"
+      },
+      {
+        "name": "echoesofsleep:rumble"
+      }
+    ]
+  },
+  "entity.deep_mother.emerge": {
+    "subtitle": "subtitles.echoesofsleep.mother_emerge",
+    "sounds": [
+      {
+        "name": "echoesofsleep:rumble"
+      }
+    ]
+  },
+  "entity.the_dreamer.ambient": {
+    "subtitle": "subtitles.echoesofsleep.dreamer_ambient",
+    "sounds": [
+      {
+        "name": "echoesofsleep:drone"
+      },
+      {
+        "name": "echoesofsleep:breath"
+      }
+    ]
+  },
+  "entity.the_dreamer.hurt": {
+    "subtitle": "subtitles.echoesofsleep.dreamer_hurt",
+    "sounds": [
+      {
+        "name": "echoesofsleep:glitch"
+      }
+    ]
+  },
+  "entity.the_dreamer.death": {
+    "subtitle": "subtitles.echoesofsleep.dreamer_death",
+    "sounds": [
+      {
+        "name": "echoesofsleep:scream"
+      },
+      {
+        "name": "echoesofsleep:wail"
+      }
+    ]
+  },
+  "entity.the_dreamer.pulse": {
+    "subtitle": "subtitles.echoesofsleep.dreamer_pulse",
+    "sounds": [
+      {
+        "name": "echoesofsleep:pulse"
+      }
+    ]
+  },
+  "item.lullaby_staff.use": {
+    "subtitle": "subtitles.echoesofsleep.lullaby",
+    "sounds": [
+      {
+        "name": "echoesofsleep:lullaby"
+      }
+    ]
+  },
+  "item.echo_scythe.ghost_slash": {
+    "subtitle": "subtitles.echoesofsleep.ghost_slash",
+    "sounds": [
+      {
+        "name": "echoesofsleep:ghost_slash"
+      }
+    ]
+  }
+}

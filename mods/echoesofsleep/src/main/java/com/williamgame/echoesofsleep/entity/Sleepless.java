@@ -45,6 +45,8 @@ public class Sleepless extends NightmareMonster {
     private int idleTicks;
     private float frozenYRot;
     private boolean frozenInit;
+    /** Client-side animation clock: it only runs while nobody is looking. */
+    public float clientAnimTicks;
 
     public Sleepless(EntityType<? extends Monster> type, Level level) {
         super(type, level);
@@ -72,6 +74,14 @@ public class Sleepless extends NightmareMonster {
     @Override
     protected void registerGoals() {
         goalSelector.addGoal(0, new FloatGoal(this));
+    }
+
+    @Override
+    public void tick() {
+        super.tick();
+        if (level().isClientSide && !isWatched()) {
+            clientAnimTicks += 1.0F;
+        }
     }
 
     public boolean isWatched() {

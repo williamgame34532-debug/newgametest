@@ -2,6 +2,7 @@ package com.williamgame.echoesofsleep.registry;
 
 import com.williamgame.echoesofsleep.EchoesOfSleep;
 import com.williamgame.echoesofsleep.item.*;
+import net.minecraft.core.Holder;
 import net.minecraft.world.item.ArmorItem;
 import net.minecraft.world.item.ArmorMaterial;
 import net.minecraft.world.item.BlockItem;
@@ -16,6 +17,7 @@ import net.minecraftforge.registries.RegistryObject;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 public class ModItems {
     public static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, EchoesOfSleep.MODID);
@@ -49,18 +51,18 @@ public class ModItems {
             () -> new InsomniaLanternItem(new Item.Properties().stacksTo(1).rarity(Rarity.RARE))));
 
     // Armor
-    public static final RegistryObject<Item> DREAMCATCHER_HELMET = armor("dreamcatcher_helmet", ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.HELMET, 35, ArmorSet.DREAMCATCHER);
-    public static final RegistryObject<Item> DREAMCATCHER_CHESTPLATE = armor("dreamcatcher_chestplate", ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.CHESTPLATE, 35, ArmorSet.DREAMCATCHER);
-    public static final RegistryObject<Item> DREAMCATCHER_LEGGINGS = armor("dreamcatcher_leggings", ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.LEGGINGS, 35, ArmorSet.DREAMCATCHER);
-    public static final RegistryObject<Item> DREAMCATCHER_BOOTS = armor("dreamcatcher_boots", ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.BOOTS, 35, ArmorSet.DREAMCATCHER);
-    public static final RegistryObject<Item> WAKEFUL_HELMET = armor("wakeful_helmet", ModArmorMaterials.WAKEFUL, ArmorItem.Type.HELMET, 38, ArmorSet.WAKEFUL);
-    public static final RegistryObject<Item> WAKEFUL_CHESTPLATE = armor("wakeful_chestplate", ModArmorMaterials.WAKEFUL, ArmorItem.Type.CHESTPLATE, 38, ArmorSet.WAKEFUL);
-    public static final RegistryObject<Item> WAKEFUL_LEGGINGS = armor("wakeful_leggings", ModArmorMaterials.WAKEFUL, ArmorItem.Type.LEGGINGS, 38, ArmorSet.WAKEFUL);
-    public static final RegistryObject<Item> WAKEFUL_BOOTS = armor("wakeful_boots", ModArmorMaterials.WAKEFUL, ArmorItem.Type.BOOTS, 38, ArmorSet.WAKEFUL);
-    public static final RegistryObject<Item> NIGHTMARE_EATER_HELMET = armor("nightmare_eater_helmet", ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.HELMET, 40, ArmorSet.NIGHTMARE_EATER);
-    public static final RegistryObject<Item> NIGHTMARE_EATER_CHESTPLATE = armor("nightmare_eater_chestplate", ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.CHESTPLATE, 40, ArmorSet.NIGHTMARE_EATER);
-    public static final RegistryObject<Item> NIGHTMARE_EATER_LEGGINGS = armor("nightmare_eater_leggings", ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.LEGGINGS, 40, ArmorSet.NIGHTMARE_EATER);
-    public static final RegistryObject<Item> NIGHTMARE_EATER_BOOTS = armor("nightmare_eater_boots", ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.BOOTS, 40, ArmorSet.NIGHTMARE_EATER);
+    public static final RegistryObject<Item> DREAMCATCHER_HELMET = armor("dreamcatcher_helmet", () -> ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.HELMET, 35, ArmorSet.DREAMCATCHER);
+    public static final RegistryObject<Item> DREAMCATCHER_CHESTPLATE = armor("dreamcatcher_chestplate", () -> ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.CHESTPLATE, 35, ArmorSet.DREAMCATCHER);
+    public static final RegistryObject<Item> DREAMCATCHER_LEGGINGS = armor("dreamcatcher_leggings", () -> ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.LEGGINGS, 35, ArmorSet.DREAMCATCHER);
+    public static final RegistryObject<Item> DREAMCATCHER_BOOTS = armor("dreamcatcher_boots", () -> ModArmorMaterials.DREAMCATCHER, ArmorItem.Type.BOOTS, 35, ArmorSet.DREAMCATCHER);
+    public static final RegistryObject<Item> WAKEFUL_HELMET = armor("wakeful_helmet", () -> ModArmorMaterials.WAKEFUL, ArmorItem.Type.HELMET, 38, ArmorSet.WAKEFUL);
+    public static final RegistryObject<Item> WAKEFUL_CHESTPLATE = armor("wakeful_chestplate", () -> ModArmorMaterials.WAKEFUL, ArmorItem.Type.CHESTPLATE, 38, ArmorSet.WAKEFUL);
+    public static final RegistryObject<Item> WAKEFUL_LEGGINGS = armor("wakeful_leggings", () -> ModArmorMaterials.WAKEFUL, ArmorItem.Type.LEGGINGS, 38, ArmorSet.WAKEFUL);
+    public static final RegistryObject<Item> WAKEFUL_BOOTS = armor("wakeful_boots", () -> ModArmorMaterials.WAKEFUL, ArmorItem.Type.BOOTS, 38, ArmorSet.WAKEFUL);
+    public static final RegistryObject<Item> NIGHTMARE_EATER_HELMET = armor("nightmare_eater_helmet", () -> ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.HELMET, 40, ArmorSet.NIGHTMARE_EATER);
+    public static final RegistryObject<Item> NIGHTMARE_EATER_CHESTPLATE = armor("nightmare_eater_chestplate", () -> ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.CHESTPLATE, 40, ArmorSet.NIGHTMARE_EATER);
+    public static final RegistryObject<Item> NIGHTMARE_EATER_LEGGINGS = armor("nightmare_eater_leggings", () -> ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.LEGGINGS, 40, ArmorSet.NIGHTMARE_EATER);
+    public static final RegistryObject<Item> NIGHTMARE_EATER_BOOTS = armor("nightmare_eater_boots", () -> ModArmorMaterials.NIGHTMARE_EATER, ArmorItem.Type.BOOTS, 40, ArmorSet.NIGHTMARE_EATER);
 
     // Blocks
     public static final RegistryObject<Item> DREAM_SHARD_ORE = block("dream_shard_ore", ModBlocks.DREAM_SHARD_ORE);
@@ -88,9 +90,9 @@ public class ModItems {
         return obj;
     }
 
-    private static RegistryObject<Item> armor(String name, RegistryObject<ArmorMaterial> material, ArmorItem.Type type,
+    private static RegistryObject<Item> armor(String name, Supplier<Holder<ArmorMaterial>> material, ArmorItem.Type type,
                                               int durability, ArmorSet set) {
-        return add(ITEMS.register(name, () -> new DreamArmorItem(material.getHolder().get(), type,
+        return add(ITEMS.register(name, () -> new DreamArmorItem(material.get(), type,
                 new Item.Properties().durability(type.getDurability(durability)).rarity(Rarity.RARE), set)));
     }
 

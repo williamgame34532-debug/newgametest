@@ -54,6 +54,11 @@ public class MotherHand extends NightmareMonster {
     }
 
     @Override
+    public boolean countsAsEcho() {
+        return false;
+    }
+
+    @Override
     public boolean isPushable() {
         return false;
     }
