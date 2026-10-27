@@ -1,5 +1,6 @@
 package com.williamgame.hideandhunt.game;
 
+import com.williamgame.hideandhunt.HideAndHunt;
 import com.williamgame.hideandhunt.ModRegistry;
 import com.williamgame.hideandhunt.block.TeamPadBlock;
 import com.williamgame.hideandhunt.network.HHNetwork;
@@ -9,12 +10,16 @@ import com.williamgame.hideandhunt.network.StatePacket;
 import com.williamgame.hideandhunt.network.TabletDataPacket;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.ClickEvent;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerBossEvent;
 import net.minecraft.server.level.ServerLevel;
@@ -28,12 +33,16 @@ import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.ai.attributes.AttributeInstance;
+import net.minecraft.world.entity.ai.attributes.AttributeModifier;
+import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.GameType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -42,6 +51,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.UUID;
 
 /**
@@ -108,6 +119,16 @@ public final class GameManager {
     private boolean needEndCheck;
     private int fireworkBursts;
     private Side winner = Side.NONE;
+    /** Solo test round started with /hh start test: no hunters needed, no results, not counted. */
+    private boolean testMode;
+    private boolean lastHiderAnnounced;
+    private ResultsPacket lastResults;
+    /** Players looking at spawn/border markers (/hh show), until which tick. */
+    private final Map<UUID, Long> showUntil = new HashMap<>();
+    /** Players who were refused by a pad and are still standing on it (play the "no" sound only once). */
+    private final Set<UUID> padRefused = new HashSet<>();
+
+    private static final ResourceLocation FREEZE_ID = HideAndHunt.id("hunter_freeze");
 
     private GameManager(MinecraftServer server) {
         this.server = server;
@@ -278,6 +299,16 @@ public final class GameManager {
 
     /** Tries to put a player on a side. Returns true on success (or if already on that side). */
     public boolean join(ServerPlayer p, Side side, JoinVia via, boolean quietIfSame) {
+        return join(p, side, via, quietIfSame, false);
+    }
+
+    private void refuse(ServerPlayer p, Component msg, boolean quiet) {
+        Fx.actionBar(p, msg);
+        if (!quiet) Fx.sound(p, SoundEvents.VILLAGER_NO, 0.8F, 1.0F);
+    }
+
+    /** @param quietRefusal don't play the refusal sound (pads repeat the attempt while the player stands on them) */
+    public boolean join(ServerPlayer p, Side side, JoinVia via, boolean quietIfSame, boolean quietRefusal) {
         ArenaData d = data();
         Side current = d.sideOf(p.getUUID());
         if (current == side) {
@@ -285,12 +316,16 @@ public final class GameManager {
             return true;
         }
         if (phase != Phase.LOBBY) {
-            Fx.actionBar(p, tr("msg.game_running").withStyle(ChatFormatting.RED));
+            refuse(p, tr("msg.game_running").withStyle(ChatFormatting.RED), quietRefusal);
+            return false;
+        }
+        if (randomizerLock > 0) {
+            refuse(p, tr("msg.randomizer_busy").withStyle(ChatFormatting.GOLD), quietRefusal);
             return false;
         }
         GameSettings.JoinMode mode = d.settings.joinMode();
         if (via != JoinVia.ADMIN && mode == GameSettings.JoinMode.ADMIN) {
-            Fx.actionBar(p, joinMessageFor(mode).copy().withStyle(ChatFormatting.YELLOW));
+            refuse(p, joinMessageFor(mode).copy().withStyle(ChatFormatting.YELLOW), quietRefusal);
             return false;
         }
         if (via != JoinVia.ADMIN && side != Side.NONE && side != Side.SPECTATOR) {
@@ -300,34 +335,39 @@ public final class GameManager {
                 case RANDOM, ADMIN -> false;
             };
             if (!allowed) {
-                Fx.actionBar(p, joinMessageFor(mode).copy().withStyle(ChatFormatting.YELLOW));
+                refuse(p, joinMessageFor(mode).copy().withStyle(ChatFormatting.YELLOW), quietRefusal);
                 return false;
             }
             int max = d.settings.getInt(side == Side.HIDER ? GameSettings.MAX_HIDERS : GameSettings.MAX_HUNTERS);
             int count = countLobby(side);
             if (max > 0 && count >= max) {
-                Fx.actionBar(p, tr("msg.side_full", side.pluralName(), max).withStyle(ChatFormatting.RED));
-                Fx.sound(p, SoundEvents.VILLAGER_NO, 0.8F, 1.0F);
+                refuse(p, tr("msg.side_full", side.pluralName(), max).withStyle(ChatFormatting.RED), quietRefusal);
                 return false;
             }
             if (side == Side.HUNTER && d.settings.getBool(GameSettings.BALANCE_CHECK)) {
                 int n = Math.max(2, lobbyCandidates().size());
                 int fair = Math.max(1, (n + d.settings.getInt(GameSettings.HUNTER_RATIO) - 1) / Math.max(1, d.settings.getInt(GameSettings.HUNTER_RATIO)));
                 if (count >= fair) {
-                    Fx.actionBar(p, tr("msg.side_unbalanced", side.pluralName()).withStyle(ChatFormatting.RED));
-                    Fx.sound(p, SoundEvents.VILLAGER_NO, 0.8F, 1.0F);
+                    refuse(p, tr("msg.side_unbalanced", side.pluralName()).withStyle(ChatFormatting.RED), quietRefusal);
                     return false;
                 }
             }
         }
         d.setSide(p.getUUID(), side);
-        d.names.put(p.getUUID(), p.getGameProfile().getName());
+        d.rememberName(p.getUUID(), p.getGameProfile().getName());
         TeamDisplay.assign(server, d, p.getUUID(), p.getScoreboardName(), side);
         if (side == Side.NONE) {
             Fx.actionBar(p, tr("msg.left_side").withStyle(ChatFormatting.GRAY));
             Fx.sound(p, SoundEvents.UI_BUTTON_CLICK.value(), 0.6F, 0.8F);
         } else {
-            Fx.actionBar(p, tr("msg.joined", side.displayName().withStyle(ChatFormatting.BOLD)));
+            if (side == Side.SPECTATOR) {
+                Fx.actionBar(p, tr("msg.joined_spectator").withStyle(ChatFormatting.GRAY));
+            } else {
+                int hid = countLobby(Side.HIDER), hun = countLobby(Side.HUNTER);
+                Side other = side == Side.HIDER ? Side.HUNTER : Side.HIDER;
+                Fx.actionBar(p, tr("msg.joined", side.pluralName().withStyle(ChatFormatting.BOLD), side == Side.HIDER ? hid : hun,
+                        other.pluralName(), side == Side.HIDER ? hun : hid));
+            }
             Fx.sound(p, ModRegistry.SND_JOIN.get(), 1.0F, side == Side.HUNTER ? 0.8F : 1.2F);
             arenaLevel().sendParticles(ParticleTypes.HAPPY_VILLAGER, p.getX(), p.getY() + 1.0, p.getZ(), 12, 0.4, 0.6, 0.4, 0.0);
         }
@@ -337,9 +377,10 @@ public final class GameManager {
 
     public Component adminSetSide(UUID id, String name, Side side) {
         if (phase != Phase.LOBBY) return tr("msg.game_running").withStyle(ChatFormatting.RED);
+        if (randomizerLock > 0) return tr("msg.randomizer_busy");
         ArenaData d = data();
         d.setSide(id, side);
-        d.names.put(id, name);
+        d.rememberName(id, name);
         ServerPlayer p = player(id);
         if (p != null) {
             TeamDisplay.assign(server, d, id, p.getScoreboardName(), side);
@@ -363,6 +404,7 @@ public final class GameManager {
     }
 
     private void scanPads() {
+        Set<UUID> onPad = new HashSet<>();
         for (ServerPlayer p : server.getPlayerList().getPlayers()) {
             if (p.isSpectator()) continue;
             Level level = p.level();
@@ -373,6 +415,7 @@ public final class GameManager {
                 if (!(b instanceof TeamPadBlock)) continue;
             }
             TeamPadBlock pad = (TeamPadBlock) b;
+            onPad.add(p.getUUID());
             Long cd = padCooldown.get(p.getUUID());
             if (cd != null && cd > tick) continue;
             if (pad.type == TeamPadBlock.PadType.LOBBY) {
@@ -390,9 +433,11 @@ public final class GameManager {
             if (isParticipant(p)) continue;
             Side side = pad.type == TeamPadBlock.PadType.HIDER ? Side.HIDER : Side.HUNTER;
             if (data().sideOf(p.getUUID()) == side) continue;
-            boolean ok = join(p, side, JoinVia.PAD, true);
+            boolean ok = join(p, side, JoinVia.PAD, true, padRefused.contains(p.getUUID()));
+            if (!ok) padRefused.add(p.getUUID());
             padCooldown.put(p.getUUID(), tick + (ok ? 10 : 40));
         }
+        padRefused.retainAll(onPad);
     }
 
     // ================================================================== randomizer
@@ -413,9 +458,8 @@ public final class GameManager {
             ServerPlayer p = cands.get(i);
             Side s = i < h ? Side.HUNTER : Side.HIDER;
             if (s == Side.HIDER && maxHid > 0 && (i - h) >= maxHid) s = Side.SPECTATOR;
-            d.setSide(p.getUUID(), s);
-            d.names.put(p.getUUID(), p.getGameProfile().getName());
-            TeamDisplay.assign(server, d, p.getUUID(), p.getScoreboardName(), s);
+            // the result stays secret (no team colours / HUD change) until the reels stop: see revealRandomizer()
+            d.rememberName(p.getUUID(), p.getGameProfile().getName());
             pendingReveal.put(p.getUUID(), s);
         }
         // the list shown on screen is sorted by name so it doesn't give the result away
@@ -438,9 +482,12 @@ public final class GameManager {
     private void revealRandomizer() {
         if (pendingReveal == null) return;
         List<String> hiders = new ArrayList<>(), hunters = new ArrayList<>();
+        ArenaData d = data();
         for (Map.Entry<UUID, Side> e : pendingReveal.entrySet()) {
             ServerPlayer p = player(e.getKey());
-            String n = data().names.getOrDefault(e.getKey(), "?");
+            String n = d.names.getOrDefault(e.getKey(), "?");
+            d.setSide(e.getKey(), e.getValue());
+            if (p != null) TeamDisplay.assign(server, d, e.getKey(), p.getScoreboardName(), e.getValue());
             if (e.getValue() == Side.HIDER) hiders.add(n);
             else if (e.getValue() == Side.HUNTER) hunters.add(n);
             if (p == null) continue;
@@ -458,11 +505,31 @@ public final class GameManager {
 
     /** Returns null if the start was accepted (or deferred), otherwise an error message. */
     public Component tryStart(ServerPlayer by) {
+        return tryStart(by, false);
+    }
+
+    /** @param test solo test round: only {@code by} plays, as a hider; nothing is counted. */
+    public Component tryStart(ServerPlayer by, boolean test) {
         if (phase != Phase.LOBBY) return tr("msg.already_running");
         ArenaData d = data();
         GameSettings s = d.settings;
         if (d.hiderSpawns.isEmpty()) return tr("msg.need_hider_spawn");
         if (d.hunterSpawns.isEmpty()) return tr("msg.need_hunter_spawn");
+        if (test) {
+            if (by == null) return tr("msg.test_need_player");
+            if (randomizerLock > 0) return tr("msg.randomizer_busy");
+            participants.clear();
+            participants.put(by.getUUID(), new Participant(by.getUUID(), by.getGameProfile().getName(), Side.HIDER));
+            TeamDisplay.assign(server, d, by.getUUID(), by.getScoreboardName(), Side.HIDER);
+            testMode = true;
+            lastHiderAnnounced = false;
+            phase = Phase.COUNTDOWN;
+            phaseTotalTicks = phaseTicks = Math.min(5, s.getInt(GameSettings.COUNTDOWN)) * 20;
+            announce(tr("msg.test_starting", by.getDisplayName()).withStyle(ChatFormatting.AQUA));
+            syncAll();
+            return null;
+        }
+        testMode = false;
         if (randomizerLock > 0) {
             startAfterRandomizer = true;
             announce(tr("msg.start_after_randomizer").withStyle(ChatFormatting.YELLOW));
@@ -521,6 +588,7 @@ public final class GameManager {
         for (ServerPlayer p : hiders) addParticipant(p, Side.HIDER);
         for (ServerPlayer p : hunters) addParticipant(p, Side.HUNTER);
         randomizedSinceRound = false;
+        lastHiderAnnounced = false;
         phase = Phase.COUNTDOWN;
         phaseTotalTicks = phaseTicks = s.getInt(GameSettings.COUNTDOWN) * 20;
         announce(tr("msg.starting", s.getInt(GameSettings.COUNTDOWN), hiders.size(), hunters.size()).withStyle(ChatFormatting.GOLD));
@@ -531,7 +599,7 @@ public final class GameManager {
     private void addParticipant(ServerPlayer p, Side side) {
         ArenaData d = data();
         d.setSide(p.getUUID(), side);
-        d.names.put(p.getUUID(), p.getGameProfile().getName());
+        d.rememberName(p.getUUID(), p.getGameProfile().getName());
         TeamDisplay.assign(server, d, p.getUUID(), p.getScoreboardName(), side);
         participants.put(p.getUUID(), new Participant(p.getUUID(), p.getGameProfile().getName(), side));
     }
@@ -547,7 +615,9 @@ public final class GameManager {
             if (part.side == Side.HIDER) hid++;
             else hun++;
         }
-        if (hid == 0 || hun == 0 || hid + hun < settings().getInt(GameSettings.MIN_PLAYERS)) {
+        boolean notEnough = testMode ? hid == 0 : (hid == 0 || hun == 0 || hid + hun < settings().getInt(GameSettings.MIN_PLAYERS));
+        if (notEnough) {
+            testMode = false;
             announce(tr("msg.start_cancelled").withStyle(ChatFormatting.RED));
             participants.clear();
             phase = Phase.LOBBY;
@@ -573,7 +643,7 @@ public final class GameManager {
     private void beginHiding() {
         ArenaData d = data();
         GameSettings s = d.settings;
-        d.roundsPlayed++;
+        if (!testMode) d.roundsPlayed++;
         TeamDisplay.ensureTeams(server, s);
         List<SpawnPoint> hs = new ArrayList<>(d.hiderSpawns), ks = new ArrayList<>(d.hunterSpawns);
         Collections.shuffle(hs, random);
@@ -693,12 +763,29 @@ public final class GameManager {
             p.addEffect(new MobEffectInstance(MobEffects.BLINDNESS, 60, 0, false, false, true));
             p.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 60, 0, false, false, false));
         }
-        if (s.getBool(GameSettings.FREEZE_HUNTERS)) {
-            p.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 60, 9, false, false, true));
+        setFrozen(p, s.getBool(GameSettings.FREEZE_HUNTERS));
+    }
+
+    /**
+     * Freezes a player with transient attribute modifiers (speed and jump x0), which the client predicts smoothly,
+     * unlike teleporting. Transient modifiers are never saved, so a crash can't leave anyone frozen.
+     */
+    public static void setFrozen(ServerPlayer p, boolean frozen) {
+        AttributeInstance[] attrs = {p.getAttribute(Attributes.MOVEMENT_SPEED), p.getAttribute(Attributes.JUMP_STRENGTH)};
+        for (AttributeInstance a : attrs) {
+            if (a == null) continue;
+            if (frozen) {
+                if (!a.hasModifier(FREEZE_ID)) {
+                    a.addTransientModifier(new AttributeModifier(FREEZE_ID, -1.0, AttributeModifier.Operation.ADD_MULTIPLIED_TOTAL));
+                }
+            } else {
+                a.removeModifier(FREEZE_ID);
+            }
         }
     }
 
     private void applyHunterSpeed(ServerPlayer p) {
+        setFrozen(p, false);
         p.removeEffect(MobEffects.BLINDNESS);
         p.removeEffect(MobEffects.DARKNESS);
         p.removeEffect(MobEffects.MOVEMENT_SLOWDOWN);
@@ -716,7 +803,8 @@ public final class GameManager {
             if (part.side != Side.HUNTER) continue;
             ServerPlayer p = online(part);
             if (p == null || part.spawn == null || p.level() != level) continue;
-            if (freeze && part.spawn.distSqr(p.getX(), p.getY(), p.getZ()) > 0.09) {
+            // fallback only: the attribute freeze normally keeps them still (knock-back, water currents...)
+            if (freeze && part.spawn.distSqr(p.getX(), p.getY(), p.getZ()) > 1.0) {
                 p.connection.teleport(part.spawn.x(), part.spawn.y(), part.spawn.z(), p.getYRot(), p.getXRot());
             }
             if (tick % 20 == 0) applyHunterHold(p, false);
@@ -832,11 +920,34 @@ public final class GameManager {
             endRound(Side.HUNTER, tr("msg.reason_all_caught"));
             return true;
         }
-        if (huntersCount(true) == 0) {
+        if (!testMode && huntersCount(true) == 0) {
             endRound(Side.HIDER, tr("msg.reason_no_hunters"));
             return true;
         }
+        checkLastHider();
         return false;
+    }
+
+    /** "Last hider!" moment: announcement, title for everybody and (optionally) the last one starts glowing. */
+    private void checkLastHider() {
+        if (phase != Phase.HUNTING || testMode || lastHiderAnnounced || hidersTotal() < 2 || aliveHiders() != 1) return;
+        lastHiderAnnounced = true;
+        Participant last = null;
+        for (Participant part : participants.values()) if (part.side == Side.HIDER && !part.caught) last = part;
+        if (last == null) return;
+        ServerPlayer lp = online(last);
+        boolean glow = settings().getBool(GameSettings.LAST_HIDER_GLOW);
+        if (lp != null && glow) {
+            lp.addEffect(new MobEffectInstance(MobEffects.GLOWING, MobEffectInstance.INFINITE_DURATION, 0, false, false, true));
+        }
+        for (Participant part : participants.values()) {
+            ServerPlayer p = online(part);
+            if (p == null) continue;
+            Fx.title(p, tr("title.last_hider").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD),
+                    Component.literal(last.name).withStyle(ChatFormatting.GREEN), 3, 40, 10);
+            Fx.sound(p, SoundEvents.NOTE_BLOCK_PLING.value(), 1.0F, 0.7F);
+        }
+        announce(tr(glow ? "msg.last_hider_glow" : "msg.last_hider", last.name).withStyle(ChatFormatting.GOLD));
     }
 
     private void perSecondRoundChecks() {
@@ -906,6 +1017,7 @@ public final class GameManager {
         if (s.infection()) {
             part.side = Side.HUNTER;
             if (p != null) {
+                setFrozen(p, false);
                 TeamDisplay.assign(server, data(), part.id, p.getScoreboardName(), Side.HUNTER);
                 p.removeAllEffects();
                 if (inventorySandboxed(part.id)) {
@@ -919,6 +1031,7 @@ public final class GameManager {
         } else {
             part.side = Side.SPECTATOR;
             if (p != null) {
+                setFrozen(p, false);
                 TeamDisplay.assign(server, data(), part.id, p.getScoreboardName(), Side.SPECTATOR);
                 p.removeAllEffects();
                 p.setGameMode(GameType.SPECTATOR);
@@ -1021,18 +1134,43 @@ public final class GameManager {
             p.removeEffect(MobEffects.BLINDNESS);
             p.removeEffect(MobEffects.DARKNESS);
             p.removeEffect(MobEffects.MOVEMENT_SLOWDOWN);
+            setFrozen(p, false);
             boolean won = (part.startSide == win && (win == Side.HUNTER || !part.caught)) || (win == Side.HUNTER && part.side == Side.HUNTER);
             Fx.title(p, tr(won ? "title.victory" : "title.defeat").withStyle(won ? ChatFormatting.GOLD : ChatFormatting.DARK_RED, ChatFormatting.BOLD),
                     tr(win == Side.HIDER ? "title.hiders_win" : "title.hunters_win").withStyle(win.color), 5, 70, 20);
-            Fx.sound(p, won ? ModRegistry.SND_VICTORY.get() : SoundEvents.WITHER_DEATH, won ? 1.0F : 0.3F, 1.0F);
+            Fx.sound(p, won ? ModRegistry.SND_VICTORY.get() : ModRegistry.SND_DEFEAT.get(), won ? 1.0F : 0.8F, 1.0F);
         }
-        for (ServerPlayer p : arenaPlayers()) HHNetwork.sendTo(p, results);
+        if (testMode) {
+            announce(tr("msg.test_over").withStyle(ChatFormatting.AQUA));
+            syncAll();
+            return;
+        }
+        lastResults = results;
+        Component link = resultsLink();
+        for (ServerPlayer p : arenaPlayers()) {
+            HHNetwork.sendTo(p, results);
+            p.sendSystemMessage(link);
+        }
         announce(tr(win == Side.HIDER ? "msg.hiders_win" : "msg.hunters_win").withStyle(win.color, ChatFormatting.BOLD)
                 .append(Component.literal(" ")).append(reason.copy().withStyle(ChatFormatting.GRAY)));
         if (!results.bestHider().isEmpty()) announce(tr("msg.best_hider", results.bestHider(), clock(results.bestHiderSec())).withStyle(ChatFormatting.GREEN));
         if (!results.topHunter().isEmpty()) announce(tr("msg.top_hunter", results.topHunter(), results.topHunterCatches()).withStyle(ChatFormatting.RED));
         if (s.getBool(GameSettings.SIDEBAR)) TeamDisplay.updateSidebar(server, aliveHiders(), huntersCount(false), 0, caughtCount());
         syncAll();
+    }
+
+    /** Clickable chat line that re-opens the results screen. */
+    private static Component resultsLink() {
+        return prefixed(tr("msg.results_link").withStyle(style -> style.withColor(ChatFormatting.AQUA).withUnderlined(true)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hh results"))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT, tr("msg.results_link.hover")))));
+    }
+
+    /** /hh results: send the last round's results again. */
+    public boolean sendLastResults(ServerPlayer p) {
+        if (lastResults == null) return false;
+        HHNetwork.sendTo(p, lastResults.asReopen());
+        return true;
     }
 
     private int surviveSeconds(Participant p) {
@@ -1048,7 +1186,9 @@ public final class GameManager {
         for (Participant p : participants.values()) {
             boolean survived = p.startSide == Side.HIDER && !p.caught;
             int surv = surviveSeconds(p);
-            int pts = p.catches * 20 + p.tauntPoints + (p.startSide == Side.HIDER ? surv / 5 : 0) + (survived ? 25 : 0);
+            boolean winningHunter = winner == Side.HUNTER && p.side == Side.HUNTER;
+            int pts = p.catches * 20 + p.tauntPoints + (p.startSide == Side.HIDER ? surv / 5 : 0) + (survived ? 25 : 0)
+                    + (winningHunter ? 25 : 0);
             entries.add(new ResultsPacket.Entry(p.name, p.startSide.ordinal(), p.side.ordinal(), p.catches, surv, p.caughtBy,
                     pts, p.taunts, survived));
             if (p.startSide == Side.HIDER && surv > bestSec) {
@@ -1066,7 +1206,7 @@ public final class GameManager {
         }
         entries.sort((a, b) -> Integer.compare(b.points(), a.points()));
         return new ResultsPacket(winner.ordinal(), (int) Math.max(0, (roundEndTick - huntStartTick) / 20), settings().infection(),
-                entries, bestHider, Math.max(0, bestSec), topHunter, topCatches, mvp, data().name);
+                entries, bestHider, Math.max(0, bestSec), topHunter, topCatches, mvp, data().name, false);
     }
 
     private void tickEnding() {
@@ -1111,6 +1251,7 @@ public final class GameManager {
         participants.clear();
         outside.clear();
         pendingReturn.clear();
+        testMode = false;
         phase = Phase.LOBBY;
         phaseTicks = phaseTotalTicks = 0;
         d.setDirty();
@@ -1121,6 +1262,7 @@ public final class GameManager {
     private void restorePlayer(ServerPlayer p, boolean resetTeam) {
         ArenaData d = data();
         CompoundTag snap = d.snapshots.remove(p.getUUID());
+        setFrozen(p, false);
         if (snap != null) {
             PlayerSnapshot.restore(p, snap, !snap.getBoolean("keepInv"));
         } else {
@@ -1142,6 +1284,7 @@ public final class GameManager {
                 return false;
             case COUNTDOWN:
                 participants.clear();
+                testMode = false;
                 phase = Phase.LOBBY;
                 break;
             default:
@@ -1158,7 +1301,8 @@ public final class GameManager {
 
     public void onLogin(ServerPlayer p) {
         ArenaData d = data();
-        d.names.put(p.getUUID(), p.getGameProfile().getName());
+        setFrozen(p, false);
+        d.rememberName(p.getUUID(), p.getGameProfile().getName());
         Participant part = participants.get(p.getUUID());
         if (part != null && phase.inRound()) {
             part.online = true;
@@ -1185,6 +1329,8 @@ public final class GameManager {
 
     public void onLogout(ServerPlayer p) {
         padCooldown.remove(p.getUUID());
+        padRefused.remove(p.getUUID());
+        showUntil.remove(p.getUUID());
         outside.remove(p.getUUID());
         pendingReturn.remove(p.getUUID());
         // onlookers in the arena were added to the boss bar too; don't keep stale player references
@@ -1209,6 +1355,7 @@ public final class GameManager {
         // Give the player their own things back right now, so that the saved player file is clean even if
         // the server stops or the mod is removed before they come back.
         ArenaData d = data();
+        setFrozen(p, false);
         CompoundTag snap = d.snapshots.remove(p.getUUID());
         if (snap != null) {
             PlayerSnapshot.restore(p, snap, !snap.getBoolean("keepInv"));
@@ -1277,6 +1424,120 @@ public final class GameManager {
         }
         if (tick % 5 == 0) scanPads();
         if (tick % 10 == 0) syncAll();
+        if (tick % 10 == 0 && !showUntil.isEmpty()) tickMarkers();
+    }
+
+    // ================================================================== map-making markers (/hh show)
+
+    public void show(ServerPlayer p, int seconds) {
+        showUntil.put(p.getUUID(), tick + Math.max(1, seconds) * 20L);
+        ArenaData d = data();
+        if (p.level() != arenaLevel()) {
+            Fx.actionBar(p, tr("msg.show_other_dim", d.dimension).withStyle(ChatFormatting.YELLOW));
+        }
+    }
+
+    private void tickMarkers() {
+        ArenaData d = data();
+        ServerLevel level = arenaLevel();
+        java.util.Iterator<Map.Entry<UUID, Long>> it = showUntil.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<UUID, Long> e = it.next();
+            ServerPlayer p = player(e.getKey());
+            if (p == null || tick > e.getValue()) {
+                it.remove();
+                continue;
+            }
+            if (p.level() != level) continue;
+            marker(level, p, d.lobby, new Vector3f(1F, 1F, 1F));
+            marker(level, p, d.spectator, new Vector3f(0.6F, 0.6F, 0.65F));
+            for (SpawnPoint sp : d.hiderSpawns) marker(level, p, sp, new Vector3f(0.2F, 1F, 0.35F));
+            for (SpawnPoint sp : d.hunterSpawns) marker(level, p, sp, new Vector3f(1F, 0.2F, 0.15F));
+            if (d.hasBounds()) borderOutline(level, p, d);
+        }
+    }
+
+    /** A glowing column at the spawn plus three dots showing the view direction. */
+    private static void marker(ServerLevel level, ServerPlayer viewer, SpawnPoint sp, Vector3f color) {
+        if (sp == null) return;
+        DustParticleOptions dust = new DustParticleOptions(color, 1.2F);
+        for (int i = 0; i < 6; i++) {
+            level.sendParticles(viewer, dust, true, sp.x(), sp.y() + 0.1 + i * 0.4, sp.z(), 1, 0, 0, 0, 0);
+        }
+        double yaw = Math.toRadians(sp.yaw());
+        double dx = -Math.sin(yaw), dz = Math.cos(yaw);
+        DustParticleOptions dir = new DustParticleOptions(color, 0.7F);
+        for (int i = 1; i <= 3; i++) {
+            level.sendParticles(viewer, dir, true, sp.x() + dx * i * 0.35, sp.y() + 1.6, sp.z() + dz * i * 0.35, 1, 0, 0, 0, 0);
+        }
+    }
+
+    private static void borderOutline(ServerLevel level, ServerPlayer viewer, ArenaData d) {
+        double x0 = Math.min(d.cornerA.getX(), d.cornerB.getX()), x1 = Math.max(d.cornerA.getX(), d.cornerB.getX()) + 1;
+        double z0 = Math.min(d.cornerA.getZ(), d.cornerB.getZ()), z1 = Math.max(d.cornerA.getZ(), d.cornerB.getZ()) + 1;
+        double[] ys;
+        if (d.boundsUseHeight()) {
+            ys = new double[]{Math.min(d.cornerA.getY(), d.cornerB.getY()), Math.max(d.cornerA.getY(), d.cornerB.getY()) + 1};
+        } else {
+            ys = new double[]{viewer.getY() + 0.1, viewer.getY() + 2.0}; // "whole height": show it around the viewer
+        }
+        double perimeter = 2 * ((x1 - x0) + (z1 - z0));
+        double step = Math.max(1.0, perimeter / 240.0);
+        DustParticleOptions dust = new DustParticleOptions(new Vector3f(1F, 0.75F, 0.1F), 1.0F);
+        for (double y : ys) {
+            for (double x = x0; x <= x1; x += step) {
+                level.sendParticles(viewer, dust, true, x, y, z0, 1, 0, 0, 0, 0);
+                level.sendParticles(viewer, dust, true, x, y, z1, 1, 0, 0, 0, 0);
+            }
+            for (double z = z0; z <= z1; z += step) {
+                level.sendParticles(viewer, dust, true, x0, y, z, 1, 0, 0, 0, 0);
+                level.sendParticles(viewer, dust, true, x1, y, z, 1, 0, 0, 0, 0);
+            }
+        }
+        if (d.boundsUseHeight()) {
+            double[][] corners = {{x0, z0}, {x0, z1}, {x1, z0}, {x1, z1}};
+            for (double[] c : corners) {
+                for (double y = ys[0]; y <= ys[1]; y += Math.max(1.0, step)) {
+                    level.sendParticles(viewer, dust, true, c[0], y, c[1], 1, 0, 0, 0, 0);
+                }
+            }
+        }
+    }
+
+    /** /hh removespawn: {@code which} is a 1-based number or "nearest". */
+    public Component removeSpawn(ServerPlayer p, Side side, String which) {
+        ArenaData d = data();
+        List<SpawnPoint> list = side == Side.HUNTER ? d.hunterSpawns : d.hiderSpawns;
+        Component label = tr(side == Side.HUNTER ? "spawn.hunters" : "spawn.hiders");
+        if (list.isEmpty()) return tr("msg.no_spawn", label);
+        int idx = -1;
+        if ("nearest".equalsIgnoreCase(which)) {
+            if (p == null) return tr("msg.bad_value", "which", which);
+            double best = Double.MAX_VALUE;
+            for (int i = 0; i < list.size(); i++) {
+                double ds = list.get(i).distSqr(p.getX(), p.getY(), p.getZ());
+                if (ds < best) {
+                    best = ds;
+                    idx = i;
+                }
+            }
+        } else {
+            try {
+                idx = Integer.parseInt(which) - 1;
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        if (idx < 0 || idx >= list.size()) return tr("msg.bad_value", "#", which);
+        SpawnPoint removed = list.remove(idx);
+        d.setDirty();
+        return tr("msg.spawn_removed", label, idx + 1, removed.shortString(), list.size());
+    }
+
+    /** Border message with the box size; explains the "whole height" rule for flat corners. */
+    public static Component boundsMessage(ArenaData d) {
+        if (!d.hasBounds()) return tr("msg.bounds_partial");
+        return tr(d.boundsUseHeight() ? "msg.bounds_set" : "msg.bounds_set_flat",
+                d.cornerA.toShortString(), d.cornerB.toShortString(), d.boundsSizeText());
     }
 
     // ================================================================== client sync
@@ -1399,7 +1660,7 @@ public final class GameManager {
                     }
                 }
                 d.setDirty();
-                feedback = d.hasBounds() ? tr("msg.bounds_set", d.cornerA.toShortString(), d.cornerB.toShortString()) : tr("msg.bounds_partial");
+                feedback = boundsMessage(d);
             }
             case "team" -> {
                 Side side = Side.parse(value);
@@ -1429,6 +1690,11 @@ public final class GameManager {
                     case "tp_lobby" -> {
                         if (d.lobby != null) teleport(p, d.lobby);
                     }
+                    case "show" -> {
+                        show(p, 30);
+                        feedback = tr("msg.show_on", 30);
+                    }
+                    case "test" -> feedback = tryStart(p, true);
                     default -> {}
                 }
             }
@@ -1451,13 +1717,18 @@ public final class GameManager {
 
     /** which: lobby, spectator, hider_add, hunter_add, hider_set, hunter_set, hider_clear, hunter_clear. */
     public Component setSpawnHere(ServerPlayer p, String which) {
-        SpawnPoint sp = new SpawnPoint(p.getX(), p.getY(), p.getZ(), p.getYRot(), p.getXRot());
+        // snap to the block centre so players don't spawn half inside a wall
+        SpawnPoint sp = new SpawnPoint(Math.floor(p.getX()) + 0.5, p.getY(), Math.floor(p.getZ()) + 0.5, p.getYRot(), p.getXRot());
         return setSpawn(p.serverLevel(), sp, which);
     }
 
     public Component setSpawn(ServerLevel level, SpawnPoint sp, String which) {
         ArenaData d = data();
         String dim = level.dimension().location().toString();
+        if (phase != Phase.LOBBY && (which.equals("lobby") || !dim.equals(d.dimension))) {
+            // the arena dimension and the lobby are what everybody gets teleported to: don't move them mid-round
+            return tr("msg.locked_in_round").withStyle(ChatFormatting.RED);
+        }
         Component msg;
         switch (which) {
             case "lobby" -> {

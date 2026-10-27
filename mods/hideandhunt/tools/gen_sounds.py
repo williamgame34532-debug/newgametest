@@ -73,9 +73,19 @@ def save(name, x):
 x = tone(880, 0.18, 'rich', decay=22) + 0.4 * tone(1760, 0.18, 'sine', decay=30)
 save('countdown', x)
 
-# randomizer tick: tiny click
-x = tone(2400, 0.035, 'square', decay=120) + 0.3 * rng.standard_normal(int(SR * 0.035)) * np.exp(-200 * t_axis(0.035))
+# randomizer tick: soft woodblock knock (~1100 Hz body + short filtered noise transient)
+d = 0.07
+n = int(SR * d)
+x = tone(1100, d, 'sine', decay=60) + 0.35 * tone(1650, d, 'sine', decay=90)
+x += 0.25 * lowpass(rng.standard_normal(n), 0.3) * np.exp(-260 * t_axis(d))
 save('randomizer_tick', x)
+
+# randomizer pop: gentle "bloop" for each revealed name (rising sine, round attack)
+d = 0.16
+t = t_axis(d)
+freq = 520 + 380 * (t / d)
+x = tone(freq, d, 'sine', decay=14, attack=0.012) + 0.2 * tone(freq * 2, d, 'sine', decay=20, attack=0.012)
+save('randomizer_pop', x)
 
 # randomizer reveal: major chord "ding" with shimmer
 x = np.zeros(int(SR * 1.1))
@@ -134,6 +144,12 @@ x = np.zeros(int(SR * 0.3))
 place(x, tone(660, 0.14, 'rich', decay=14), 0)
 place(x, tone(990, 0.18, 'rich', decay=12), 0.08)
 save('join', x)
+
+# defeat: soft descending minor triad (C5 -> Ab4 -> F4), sine with a little warmth
+x = np.zeros(int(SR * 1.0))
+for i, f in enumerate([523.25, 415.30, 349.23]):
+    place(x, 0.8 * tone(f, 0.45, 'sine', decay=3.5, attack=0.02) + 0.15 * tone(f * 2, 0.45, 'sine', decay=5, attack=0.02), i * 0.2)
+save('defeat', x)
 
 # victory: fanfare arpeggio + chord
 x = np.zeros(int(SR * 1.8))

@@ -78,5 +78,21 @@
         "name": "hideandhunt:join"
       }
     ]
+  },
+  "defeat": {
+    "subtitle": "subtitles.hideandhunt.defeat",
+    "sounds": [
+      {
+        "name": "hideandhunt:defeat"
+      }
+    ]
+  },
+  "randomizer_pop": {
+    "subtitle": "subtitles.hideandhunt.randomizer_pop",
+    "sounds": [
+      {
+        "name": "hideandhunt:randomizer_pop"
+      }
+    ]
   }
 }

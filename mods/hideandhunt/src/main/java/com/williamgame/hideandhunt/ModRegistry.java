@@ -46,6 +46,8 @@ public final class ModRegistry {
     public static final RegistryObject<SoundEvent> SND_VICTORY = sound("victory");
     public static final RegistryObject<SoundEvent> SND_HINT = sound("hint_ping");
     public static final RegistryObject<SoundEvent> SND_JOIN = sound("join");
+    public static final RegistryObject<SoundEvent> SND_DEFEAT = sound("defeat");
+    public static final RegistryObject<SoundEvent> SND_RANDOM_POP = sound("randomizer_pop");
 
     private static RegistryObject<SoundEvent> sound(String name) {
         return SOUNDS.register(name, () -> SoundEvent.createVariableRangeEvent(HideAndHunt.id(name)));

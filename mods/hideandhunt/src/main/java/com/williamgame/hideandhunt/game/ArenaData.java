@@ -38,7 +38,7 @@ public class ArenaData extends SavedData {
     /** Lobby choices of sides (persisted so that a map can be prepared before players join). */
     public final Map<UUID, Side> sides = new LinkedHashMap<>();
     /** Last known names for the roster. */
-    public final Map<UUID, String> names = new HashMap<>();
+    public final Map<UUID, String> names = new LinkedHashMap<>();
     /** Player state saved at round start, restored when the round ends (or at next login after a crash). */
     public final Map<UUID, CompoundTag> snapshots = new HashMap<>();
     /** Scoreboard team the player had before we coloured them, restored later ("" = none). */
@@ -64,12 +64,44 @@ public class ArenaData extends SavedData {
         return cornerA != null && cornerB != null;
     }
 
+    /** Corners closer than this vertically (e.g. both clicked on the floor) mean "the whole height". */
+    public static final int MIN_BOUNDS_HEIGHT = 4;
+
+    public boolean boundsUseHeight() {
+        return hasBounds() && Math.abs(cornerA.getY() - cornerB.getY()) >= MIN_BOUNDS_HEIGHT;
+    }
+
     public boolean insideBounds(double x, double y, double z) {
         if (!hasBounds()) return true;
         double minX = Math.min(cornerA.getX(), cornerB.getX()) - 0.5, maxX = Math.max(cornerA.getX(), cornerB.getX()) + 1.5;
-        double minY = Math.min(cornerA.getY(), cornerB.getY()) - 1.0, maxY = Math.max(cornerA.getY(), cornerB.getY()) + 2.0;
         double minZ = Math.min(cornerA.getZ(), cornerB.getZ()) - 0.5, maxZ = Math.max(cornerA.getZ(), cornerB.getZ()) + 1.5;
-        return x >= minX && x <= maxX && y >= minY && y <= maxY && z >= minZ && z <= maxZ;
+        if (x < minX || x > maxX || z < minZ || z > maxZ) return false;
+        if (!boundsUseHeight()) return true;
+        double minY = Math.min(cornerA.getY(), cornerB.getY()) - 1.0, maxY = Math.max(cornerA.getY(), cornerB.getY()) + 2.0;
+        return y >= minY && y <= maxY;
+    }
+
+    /** "21 x 33" (whole height) or "21 x 12 x 33". */
+    public String boundsSizeText() {
+        if (!hasBounds()) return "-";
+        int dx = Math.abs(cornerA.getX() - cornerB.getX()) + 1;
+        int dy = Math.abs(cornerA.getY() - cornerB.getY()) + 1;
+        int dz = Math.abs(cornerA.getZ() - cornerB.getZ()) + 1;
+        return boundsUseHeight() ? dx + " x " + dy + " x " + dz : dx + " x " + dz;
+    }
+
+    /** Remembers a player's name for the roster; keeps the map bounded on busy servers. */
+    public void rememberName(UUID id, String name) {
+        names.remove(id); // re-insert so the map stays ordered from oldest to most recent
+        names.put(id, name);
+        if (names.size() > 500) {
+            java.util.Iterator<UUID> it = names.keySet().iterator();
+            while (it.hasNext() && names.size() > 400) {
+                UUID k = it.next();
+                if (!sides.containsKey(k) && !snapshots.containsKey(k) && !k.equals(id)) it.remove();
+            }
+        }
+        setDirty();
     }
 
     public Side sideOf(UUID id) {

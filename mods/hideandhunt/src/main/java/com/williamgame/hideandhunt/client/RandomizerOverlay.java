@@ -85,7 +85,7 @@ public final class RandomizerOverlay {
         int idx = (int) reelPos(t);
         if (idx != lastReelIndex && t <= spinEnd()) {
             lastReelIndex = idx;
-            float pitch = 0.8F + 0.8F * (1F - t / (float) spinEnd());
+            float pitch = 0.8F + 0.5F * (1F - t / (float) spinEnd()); // woodblock, capped at 1.3
             mc.getSoundManager().play(SimpleSoundInstance.forUI(ModRegistry.SND_RANDOM_TICK.get(), pitch, 0.5F));
         }
         if (!landed && t >= spinEnd()) {
@@ -94,7 +94,7 @@ public final class RandomizerOverlay {
         }
         while (revealedCount < active.names().size() && t >= revealAt(revealedCount)) {
             revealedCount++;
-            mc.getSoundManager().play(SimpleSoundInstance.forUI(ModRegistry.SND_RANDOM_TICK.get(), 1.6F, 0.35F));
+            mc.getSoundManager().play(SimpleSoundInstance.forUI(ModRegistry.SND_RANDOM_POP.get(), 0.9F + 0.03F * Math.min(10, revealedCount), 0.45F));
         }
     }
 
@@ -122,7 +122,7 @@ public final class RandomizerOverlay {
         int rows = (n + cols - 1) / cols;
         int listH = Math.min(rows, 10) * 12;
         int pw = cols == 2 ? 300 : 200;
-        int ph = 96 + listH;
+        int ph = 110 + listH;
         int px = sw / 2 - pw / 2;
         int py = Math.max(8, sh / 2 - ph / 2);
         UiDraw.panel(g, px, py, pw, ph, 0xFFFFC21A, alpha);
@@ -181,7 +181,8 @@ public final class RandomizerOverlay {
             int x = px + 8 + col * colW;
             int y = ly + row * 12;
             String name = active.names().get(i);
-            g.drawString(font, name, x + 2, y, UiDraw.withAlpha(0xFFE0E0E0, alpha), false);
+            boolean isMe = mc.player.getGameProfile().getName().equals(name);
+            if (isMe) g.fill(x, y - 2, x + colW - 2, y + 10, UiDraw.withAlpha(0x50FFD54A, alpha));
             Component res;
             int color;
             if (i < revealedCount) {
@@ -193,7 +194,22 @@ public final class RandomizerOverlay {
                 res = Component.literal(flip ? "███" : "? ? ?");
                 color = flip ? 0xFF555566 : 0xFFFFD54A;
             }
-            g.drawString(font, res, x + colW - 6 - font.width(res), y, UiDraw.withAlpha(color, alpha), false);
+            int resW = font.width(res);
+            String shownName = font.plainSubstrByWidth(name, colW - resW - 14);
+            if (shownName.length() < name.length() && shownName.length() > 1) shownName = shownName.substring(0, shownName.length() - 1) + "…";
+            g.drawString(font, shownName, x + 2, y, UiDraw.withAlpha(isMe ? 0xFFFFE680 : 0xFFE0E0E0, alpha), false);
+            g.drawString(font, res, x + colW - 6 - resW, y, UiDraw.withAlpha(color, alpha), false);
+        }
+        if (revealedCount >= n) {
+            int hid = 0, hun = 0;
+            for (int sd : active.sides()) {
+                if (sd == Side.HIDER.ordinal()) hid++;
+                else if (sd == Side.HUNTER.ordinal()) hun++;
+            }
+            Component sum = Component.translatable("hideandhunt.randomizer.summary",
+                    Component.literal(String.valueOf(hid)).withStyle(ChatFormatting.GREEN),
+                    Component.literal(String.valueOf(hun)).withStyle(ChatFormatting.RED));
+            g.drawCenteredString(font, sum, sw / 2, py + ph - 12, UiDraw.withAlpha(0xFFDDDDDD, alpha));
         }
         if (shown < n) {
             g.drawString(font, "+" + (n - shown), px + pw - 24, py + ph - 10, UiDraw.withAlpha(0xFF888888, alpha), false);

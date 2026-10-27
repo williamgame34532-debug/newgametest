@@ -1,6 +1,7 @@
 package com.williamgame.hideandhunt.command;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -22,7 +23,9 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.commands.arguments.coordinates.Vec3Argument;
 import net.minecraft.core.BlockPos;
+import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -101,10 +104,25 @@ public final class HHCommands {
                     gm(ctx).taunt(ctx.getSource().getPlayerOrException());
                     return 1;
                 }))
+                .then(Commands.literal("results").executes(ctx -> {
+                    ServerPlayer p = ctx.getSource().getPlayerOrException();
+                    return gm(ctx).sendLastResults(p) ? 1 : fail(ctx, tr("msg.no_results"));
+                }))
                 .then(admin("start").executes(ctx -> {
                     Component err = gm(ctx).tryStart(ctx.getSource().getPlayer());
                     return err != null ? fail(ctx, err) : ok(ctx, tr("msg.start_ok"), false);
-                }))
+                }).then(Commands.literal("test").executes(ctx -> {
+                    Component err = gm(ctx).tryStart(ctx.getSource().getPlayerOrException(), true);
+                    return err != null ? fail(ctx, err) : 1;
+                })))
+                .then(admin("show").executes(ctx -> show(ctx, 30))
+                        .then(Commands.argument("seconds", IntegerArgumentType.integer(1, 600))
+                                .executes(ctx -> show(ctx, IntegerArgumentType.getInteger(ctx, "seconds")))))
+                .then(admin("removespawn")
+                        .then(Commands.argument("kind", StringArgumentType.word()).suggests(MULTI_KINDS)
+                                .then(Commands.argument("which", StringArgumentType.word())
+                                        .suggests((c, b) -> SharedSuggestionProvider.suggest(List.of("nearest", "1", "2", "3"), b))
+                                        .executes(HHCommands::removeSpawn))))
                 .then(admin("stop").executes(ctx -> {
                     boolean stopped = gm(ctx).stop(tr("msg.stopped_by", ctx.getSource().getDisplayName()).withStyle(ChatFormatting.RED));
                     return stopped ? ok(ctx, tr("msg.stopped"), false) : fail(ctx, tr("msg.not_running"));
@@ -149,7 +167,9 @@ public final class HHCommands {
                 .then(admin("spawns").executes(HHCommands::listSpawns))
                 .then(admin("tp")
                         .then(Commands.argument("kind", StringArgumentType.word()).suggests(SPAWN_KINDS)
-                                .executes(HHCommands::tp)))
+                                .executes(ctx -> tp(ctx, 0))
+                                .then(Commands.argument("n", IntegerArgumentType.integer(1, 1000))
+                                        .executes(ctx -> tp(ctx, IntegerArgumentType.getInteger(ctx, "n"))))))
                 .then(admin("setbounds")
                         .then(Commands.argument("pos1", BlockPosArgument.blockPos())
                                 .then(Commands.argument("pos2", BlockPosArgument.blockPos())
@@ -160,7 +180,7 @@ public final class HHCommands {
                                             d.cornerA = a;
                                             d.cornerB = b;
                                             d.setDirty();
-                                            return ok(ctx, tr("msg.bounds_set", a.toShortString(), b.toShortString()), true);
+                                            return ok(ctx, GameManager.boundsMessage(d), true);
                                         }))))
                 .then(admin("clearbounds").executes(ctx -> {
                     ArenaData d = gm(ctx).data();
@@ -216,7 +236,8 @@ public final class HHCommands {
 
     private static int help(CommandContext<CommandSourceStack> ctx) {
         String[] keys = {"join", "leave", "taunt", "status", "start", "stop", "randomize", "reset", "team", "setspawn",
-                "addspawn", "clearspawns", "spawns", "tp", "setbounds", "clearbounds", "joinmode", "mode", "name", "settings", "kit", "tablet"};
+                "addspawn", "removespawn", "clearspawns", "spawns", "tp", "show", "setbounds", "clearbounds", "joinmode", "mode", "name",
+                "settings", "kit", "tablet", "results"};
         ctx.getSource().sendSuccess(() -> tr("help.header").withStyle(ChatFormatting.GOLD, ChatFormatting.BOLD), false);
         for (String k : keys) {
             ctx.getSource().sendSuccess(() -> Component.literal(" /hh " + k + " ").withStyle(ChatFormatting.YELLOW)
@@ -267,7 +288,10 @@ public final class HHCommands {
         CommandSourceStack src = ctx.getSource();
         Vec3 pos = withPos ? Vec3Argument.getVec3(ctx, "pos") : src.getPosition();
         Vec2 rot = src.getRotation();
-        SpawnPoint sp = new SpawnPoint(pos.x, pos.y, pos.z, rot.y, rot.x);
+        // typed coordinates are used as-is; "here" is snapped to the block centre
+        double x = withPos ? pos.x : Math.floor(pos.x) + 0.5;
+        double z = withPos ? pos.z : Math.floor(pos.z) + 0.5;
+        SpawnPoint sp = new SpawnPoint(x, pos.y, z, rot.y, rot.x);
         return ok(ctx, gm(ctx).setSpawn(src.getLevel(), sp, which), true);
     }
 
@@ -276,51 +300,82 @@ public final class HHCommands {
         ArenaData d = gm(ctx).data();
         Side side = Side.parse(kind);
         if ("all".equalsIgnoreCase(kind)) {
+            // lobby and spectator spawns are single points set with /hh setspawn: keep them
             d.hiderSpawns.clear();
             d.hunterSpawns.clear();
-            d.lobby = null;
-            d.spectator = null;
+            d.setDirty();
+            return ok(ctx, tr("msg.spawns_cleared_all"), true);
         } else if (side == Side.HIDER) d.hiderSpawns.clear();
         else if (side == Side.HUNTER) d.hunterSpawns.clear();
         else return fail(ctx, tr("msg.bad_value", "kind", kind));
         d.setDirty();
-        return ok(ctx, tr("msg.spawns_cleared", Component.literal(kind)), true);
+        return ok(ctx, tr("msg.spawns_cleared", tr(side == Side.HIDER ? "spawn.hiders" : "spawn.hunters")), true);
+    }
+
+    /** One clickable line: click = teleport there, hover = exact coordinates. */
+    private static Component spawnLine(Component label, SpawnPoint sp, String tpArgs) {
+        MutableComponent line = Component.literal(" ").append(label).append(": ");
+        if (sp == null) return line.append(Component.literal("-").withStyle(ChatFormatting.DARK_GRAY));
+        Component coords = Component.literal(sp.shortString()).withStyle(style -> style.withColor(ChatFormatting.AQUA).withUnderlined(true)
+                .withClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND, "/hh tp " + tpArgs))
+                .withHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                        tr("spawns.hover", String.format(java.util.Locale.ROOT, "%.2f %.2f %.2f", sp.x(), sp.y(), sp.z()),
+                                String.format(java.util.Locale.ROOT, "%.0f", sp.yaw())))));
+        return line.append(coords);
     }
 
     private static int listSpawns(CommandContext<CommandSourceStack> ctx) {
         ArenaData d = gm(ctx).data();
         CommandSourceStack src = ctx.getSource();
         src.sendSuccess(() -> tr("spawns.header", d.name, d.dimension).withStyle(ChatFormatting.GOLD), false);
-        src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.lobby")).append(": " + (d.lobby == null ? "-" : d.lobby.shortString())), false);
-        src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.spectator")).append(": " + (d.spectator == null ? "-" : d.spectator.shortString())), false);
+        src.sendSuccess(() -> spawnLine(tr("spawn.lobby"), d.lobby, "lobby"), false);
+        src.sendSuccess(() -> spawnLine(tr("spawn.spectator"), d.spectator, "spectator"), false);
         for (int i = 0; i < d.hiderSpawns.size(); i++) {
             int n = i + 1;
-            String s = d.hiderSpawns.get(i).shortString();
-            src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.hiders").withStyle(ChatFormatting.GREEN)).append(" #" + n + ": " + s), false);
+            SpawnPoint sp = d.hiderSpawns.get(i);
+            src.sendSuccess(() -> spawnLine(tr("spawn.hiders").withStyle(ChatFormatting.GREEN).append(" #" + n), sp, "hiders " + n), false);
         }
         for (int i = 0; i < d.hunterSpawns.size(); i++) {
             int n = i + 1;
-            String s = d.hunterSpawns.get(i).shortString();
-            src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.hunters").withStyle(ChatFormatting.RED)).append(" #" + n + ": " + s), false);
+            SpawnPoint sp = d.hunterSpawns.get(i);
+            src.sendSuccess(() -> spawnLine(tr("spawn.hunters").withStyle(ChatFormatting.RED).append(" #" + n), sp, "hunters " + n), false);
         }
-        String bounds = d.hasBounds() ? d.cornerA.toShortString() + " -> " + d.cornerB.toShortString() : "-";
-        src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.bounds")).append(": " + bounds), false);
+        Component bounds = d.hasBounds() ? GameManager.boundsMessage(d) : Component.literal("-");
+        src.sendSuccess(() -> Component.literal(" ").append(tr("spawn.bounds")).append(": ").append(bounds), false);
+        src.sendSuccess(() -> tr("spawns.tip").withStyle(ChatFormatting.DARK_GRAY, ChatFormatting.ITALIC), false);
         return 1;
     }
 
-    private static int tp(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+    private static int tp(CommandContext<CommandSourceStack> ctx, int n) throws CommandSyntaxException {
         ServerPlayer p = ctx.getSource().getPlayerOrException();
         ArenaData d = gm(ctx).data();
         String kind = StringArgumentType.getString(ctx, "kind");
         Side side = Side.parse(kind);
         SpawnPoint sp = null;
+        List<SpawnPoint> list = side == Side.HIDER ? d.hiderSpawns : side == Side.HUNTER ? d.hunterSpawns : null;
         if ("lobby".equalsIgnoreCase(kind)) sp = d.lobby;
         else if (side == Side.SPECTATOR) sp = d.spectator;
-        else if (side == Side.HIDER && !d.hiderSpawns.isEmpty()) sp = d.hiderSpawns.get(p.getRandom().nextInt(d.hiderSpawns.size()));
-        else if (side == Side.HUNTER && !d.hunterSpawns.isEmpty()) sp = d.hunterSpawns.get(p.getRandom().nextInt(d.hunterSpawns.size()));
-        if (sp == null) return fail(ctx, tr("msg.no_spawn", kind));
+        else if (list != null && !list.isEmpty()) {
+            if (n > 0 && n <= list.size()) sp = list.get(n - 1);
+            else if (n == 0) sp = list.get(p.getRandom().nextInt(list.size()));
+        }
+        if (sp == null) return fail(ctx, tr("msg.no_spawn", kind + (n > 0 ? " #" + n : "")));
         p.teleportTo(gm(ctx).arenaLevel(), sp.x(), sp.y(), sp.z(), sp.yaw(), sp.pitch());
         return 1;
+    }
+
+    private static int show(CommandContext<CommandSourceStack> ctx, int seconds) throws CommandSyntaxException {
+        ServerPlayer p = ctx.getSource().getPlayerOrException();
+        gm(ctx).show(p, seconds);
+        return ok(ctx, tr("msg.show_on", seconds), false);
+    }
+
+    private static int removeSpawn(CommandContext<CommandSourceStack> ctx) {
+        String kind = StringArgumentType.getString(ctx, "kind");
+        Side side = Side.parse(kind);
+        if (side != Side.HIDER && side != Side.HUNTER) return fail(ctx, tr("msg.bad_value", "kind", kind));
+        Component msg = gm(ctx).removeSpawn(ctx.getSource().getPlayer(), side, StringArgumentType.getString(ctx, "which"));
+        return ok(ctx, msg, true);
     }
 
     private static int listSettings(CommandContext<CommandSourceStack> ctx) {

@@ -64,6 +64,7 @@ public final class GameSettings {
     public static final String BLIND_HUNTERS = "blind_hunters";
     public static final String HIDE_NAMETAGS = "hide_nametags";
     public static final String SIDEBAR = "sidebar";
+    public static final String LAST_HIDER_GLOW = "last_hider_glow";
 
     public static final List<Def> DEFS;
     private static final Map<String, Def> BY_KEY = new LinkedHashMap<>();
@@ -87,7 +88,7 @@ public final class GameSettings {
         d.add(intDef(COUNTDOWN, Tab.TIMERS, 10, 3, 60, "s"));
         d.add(intDef(HIDE_TIME, Tab.TIMERS, 45, 5, 600, "s"));
         d.add(intDef(HUNT_TIME, Tab.TIMERS, 300, 30, 3600, "s"));
-        d.add(intDef(HINT_INTERVAL, Tab.TIMERS, 0, 0, 300, "s"));
+        d.add(intDef(HINT_INTERVAL, Tab.TIMERS, 60, 0, 300, "s"));
         d.add(intDef(GLOW_LAST, Tab.TIMERS, 30, 0, 600, "s"));
         d.add(intDef(TAUNT_COOLDOWN, Tab.TIMERS, 20, 3, 300, "s"));
         d.add(intDef(RESULTS_TIME, Tab.TIMERS, 10, 3, 60, "s"));
@@ -103,7 +104,8 @@ public final class GameSettings {
         d.add(bool(FREEZE_HUNTERS, Tab.RULES, true));
         d.add(bool(BLIND_HUNTERS, Tab.RULES, true));
         d.add(bool(HIDE_NAMETAGS, Tab.RULES, true));
-        d.add(bool(SIDEBAR, Tab.RULES, true));
+        d.add(bool(LAST_HIDER_GLOW, Tab.RULES, true));
+        d.add(bool(SIDEBAR, Tab.RULES, false));
         DEFS = Collections.unmodifiableList(d);
         for (Def def : DEFS) BY_KEY.put(def.key(), def);
     }

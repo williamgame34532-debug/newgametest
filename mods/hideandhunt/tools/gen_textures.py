@@ -61,6 +61,23 @@ ICONS = {
         ".##....##.",
         "...####...",
     ],
+    # small 7-wide variants authored for the 10x10 button caps (inner area 4..11)
+    'cap_cross': [
+        "..###..",
+        ".#...#.",
+        "#..#..#",
+        "#.###.#",
+        "#..#..#",
+        ".#...#.",
+        "..###..",
+    ],
+    'cap_eye': [
+        "..####..",
+        ".#.oo.#.",
+        "#.oooo.#",
+        ".#.oo.#.",
+        "..####..",
+    ],
     'cross': [
         "....#....",
         "..#####..",
@@ -120,11 +137,25 @@ ICONS = {
 }
 
 
-def draw_icon(img, name, cx, cy, color, shadow=None, accent=None):
+def draw_icon(img, name, cx, cy, color, shadow=None, accent=None, outline=None, clip=(0, 0, 16, 16)):
     rows = ICONS[name]
     h, w = len(rows), len(rows[0])
     x0, y0 = cx - w // 2, cy - h // 2
     px = img.load()
+    if outline is not None:
+        # 1px dark outline around every icon pixel (keeps light icons readable on bright caps)
+        for y, row in enumerate(rows):
+            for x, ch in enumerate(row):
+                if ch == '.':
+                    continue
+                for oy in (-1, 0, 1):
+                    for ox in (-1, 0, 1):
+                        tx, ty = x + ox, y + oy
+                        if 0 <= tx < w and 0 <= ty < h and rows[ty][tx] != '.':
+                            continue
+                        sx, sy = x0 + tx, y0 + ty
+                        if clip[0] <= sx < clip[2] and clip[1] <= sy < clip[3]:
+                            px[sx, sy] = outline
     for y, row in enumerate(rows):
         for x, ch in enumerate(row):
             if ch == '.':
@@ -280,15 +311,15 @@ def pedestal_top_bottom():
     b.save(os.path.join(BLOCK, 'pedestal_bottom.png'))
 
 
-def cap(color, icon, name, icon_color=(255, 255, 255, 255)):
+def cap(color, icon, name, icon_color=(255, 255, 255, 255), outline=None):
+    """Button face: authored inside the 10x10 area (3..12) that the model maps with UV 3..13."""
     pal = ramp(color)
     img = new()
     px = img.load()
-    # background (outside the used 3..13 area) just base colour
     for y in range(16):
         for x in range(16):
-            px[x, y] = pal[2]
-    # glossy dome in 3..12
+            px[x, y] = pal[2]  # outside the used area (never visible)
+    # glossy dome
     for y in range(3, 13):
         for x in range(3, 13):
             dx, dy = x - 7.5, y - 7.5
@@ -297,17 +328,21 @@ def cap(color, icon, name, icon_color=(255, 255, 255, 255)):
             c = mix(pal[3], pal[2], min(1, d))
             c = mix(c, pal[5], light * 0.8)
             px[x, y] = c
-    # rim
+    # own bevel: light top/left edge, dark bottom/right edge, corners blended
     for i in range(3, 13):
-        px[i, 3] = mix(px[i, 3], pal[6], 0.5)
-        px[3, i] = mix(px[3, i], pal[6], 0.4)
-        px[i, 12] = pal[1]
+        px[i, 3] = pal[6]
+        px[3, i] = pal[5]
+        px[i, 12] = pal[0]
         px[12, i] = pal[1]
+    px[3, 3] = shade(pal[6], 1.15)
+    px[12, 3] = pal[3]
+    px[3, 12] = pal[2]
+    px[12, 12] = pal[0]
     # specular highlight
     px[5, 5] = (255, 255, 255, 255)
     px[6, 5] = shade(pal[6], 1.2)
     px[5, 6] = shade(pal[6], 1.2)
-    draw_icon(img, icon, 8, 8, icon_color, shadow=pal[0])
+    draw_icon(img, icon, 8, 8, icon_color, shadow=None if outline else pal[0], accent=pal[0], outline=outline, clip=(4, 4, 12, 12))
     img.save(os.path.join(BLOCK, name + '_cap.png'))
 
     side = new()
@@ -372,10 +407,13 @@ if __name__ == '__main__':
     pad_top(PURPLE, 'house', 'lobby_pad')
     pad_bottom()
     pedestal_top_bottom()
-    for name, color, icon in [('hider_button', GREEN, 'eye'), ('hunter_button', RED, 'sword'),
+    for name, color, icon in [('hider_button', GREEN, 'cap_eye'), ('hunter_button', RED, 'cap_cross'),
                               ('leave_button', GREY, 'x'), ('randomizer_button', GOLD, 'question'),
                               ('start_button', CYAN, 'play')]:
         pedestal_side(color, name, 'question' if name == 'randomizer_button' else None)
-        cap(color, icon, name, icon_color=(70, 40, 0, 255) if name == 'randomizer_button' else (255, 255, 255, 255))
+        if name == 'randomizer_button':
+            cap(color, icon, name, icon_color=(255, 255, 255, 255), outline=(60, 34, 0, 255))
+        else:
+            cap(color, icon, name)
     tablet()
     print('textures written to', os.path.abspath(ROOT))

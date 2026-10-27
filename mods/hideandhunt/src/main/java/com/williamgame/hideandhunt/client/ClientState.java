@@ -16,10 +16,17 @@ public final class ClientState {
     public static long randomizerStart;
 
     public static ResultsPacket lastResults;
+    /** Client tick at which the pending results screen opens (0 = none). */
+    public static long resultsOpenAt;
+    /** Lowest pixel used by boss bars (measured from the boss bar render event, refreshed every tick). */
+    public static int bossBottom;
+    public static int bossBottomAccum;
+    public static long bossSeenTick;
 
     public static void reset() {
         state = StatePacket.hidden();
         randomizer = null;
         lastResults = null;
+        resultsOpenAt = 0;
     }
 }

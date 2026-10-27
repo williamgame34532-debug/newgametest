@@ -2,6 +2,7 @@ package com.williamgame.hideandhunt.game;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.numbers.FixedFormat;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.ServerScoreboard;
 import net.minecraft.world.scores.DisplaySlot;
@@ -114,20 +115,30 @@ public final class TeamDisplay {
         sb.setDisplayObjective(DisplaySlot.SIDEBAR, obj);
     }
 
+    /**
+     * Four fixed lines (scores 4..1 keep the order stable); the real value is shown with a fixed number format,
+     * so the time can be displayed as m:ss.
+     */
     public static void updateSidebar(MinecraftServer server, int hidersLeft, int hunters, int secondsLeft, int caught) {
         ServerScoreboard sb = server.getScoreboard();
         Objective obj = sb.getObjective(SIDEBAR);
         if (obj == null) return;
-        line(sb, obj, "hh_time", Component.translatable("hideandhunt.sidebar.time").withStyle(ChatFormatting.YELLOW), secondsLeft);
-        line(sb, obj, "hh_hiders", Component.translatable("hideandhunt.sidebar.hiders").withStyle(ChatFormatting.GREEN), hidersLeft);
-        line(sb, obj, "hh_hunters", Component.translatable("hideandhunt.sidebar.hunters").withStyle(ChatFormatting.RED), hunters);
-        line(sb, obj, "hh_caught", Component.translatable("hideandhunt.sidebar.caught").withStyle(ChatFormatting.GRAY), caught);
+        String time = String.format(java.util.Locale.ROOT, "%d:%02d", Math.max(0, secondsLeft) / 60, Math.max(0, secondsLeft) % 60);
+        line(sb, obj, "hh_time", Component.translatable("hideandhunt.sidebar.time").withStyle(ChatFormatting.YELLOW), 4,
+                Component.literal(time).withStyle(ChatFormatting.WHITE));
+        line(sb, obj, "hh_hiders", Component.translatable("hideandhunt.sidebar.hiders").withStyle(ChatFormatting.GREEN), 3,
+                Component.literal(String.valueOf(hidersLeft)).withStyle(ChatFormatting.GREEN));
+        line(sb, obj, "hh_hunters", Component.translatable("hideandhunt.sidebar.hunters").withStyle(ChatFormatting.RED), 2,
+                Component.literal(String.valueOf(hunters)).withStyle(ChatFormatting.RED));
+        line(sb, obj, "hh_caught", Component.translatable("hideandhunt.sidebar.caught").withStyle(ChatFormatting.GRAY), 1,
+                Component.literal(String.valueOf(caught)).withStyle(ChatFormatting.GRAY));
     }
 
-    private static void line(ServerScoreboard sb, Objective obj, String holder, Component display, int value) {
+    private static void line(ServerScoreboard sb, Objective obj, String holder, Component display, int order, Component value) {
         ScoreAccess a = sb.getOrCreatePlayerScore(ScoreHolder.forNameOnly(holder), obj);
-        a.set(value);
+        a.set(order);
         a.display(display);
+        a.numberFormatOverride(new FixedFormat(value));
     }
 
     public static void hideSidebar(MinecraftServer server, ArenaData data) {

@@ -10,7 +10,12 @@ import java.util.List;
 /** End-of-round results, opens the results screen on every participant's client. */
 public record ResultsPacket(int winner, int durationSec, boolean infection, List<Entry> entries,
                             String bestHider, int bestHiderSec, String topHunter, int topHunterCatches, String mvp,
-                            String arena) {
+                            String arena, boolean reopen) {
+
+    /** Same results, flagged to open the screen right away (requested with /hh results). */
+    public ResultsPacket asReopen() {
+        return new ResultsPacket(winner, durationSec, infection, entries, bestHider, bestHiderSec, topHunter, topHunterCatches, mvp, arena, true);
+    }
 
     /** startSide/endSide are Side ordinals. caughtBy is empty if the player survived. */
     public record Entry(String name, int startSide, int endSide, int catches, int surviveSec, String caughtBy,
@@ -38,6 +43,7 @@ public record ResultsPacket(int winner, int durationSec, boolean infection, List
         buf.writeVarInt(m.topHunterCatches);
         buf.writeUtf(m.mvp, 64);
         buf.writeUtf(m.arena, 64);
+        buf.writeBoolean(m.reopen);
     }
 
     public static ResultsPacket decode(FriendlyByteBuf buf) {
@@ -51,7 +57,7 @@ public record ResultsPacket(int winner, int durationSec, boolean infection, List
                     buf.readUtf(64), buf.readVarInt(), buf.readVarInt(), buf.readBoolean()));
         }
         return new ResultsPacket(winner, dur, inf, list, buf.readUtf(64), buf.readVarInt(), buf.readUtf(64), buf.readVarInt(),
-                buf.readUtf(64), buf.readUtf(64));
+                buf.readUtf(64), buf.readUtf(64), buf.readBoolean());
     }
 
     public static void handle(ResultsPacket m, CustomPayloadEvent.Context ctx) {

@@ -38,7 +38,8 @@ k('key.categories.hideandhunt', 'Hide & Hunt', 'Прятки и Охота')
 k('key.hideandhunt.taunt', 'Taunt (hiders)', 'Дразнилка (прячущиеся)')
 k('key.hideandhunt.results', 'Show last results', 'Показать последние результаты')
 
-for s, en, ru in [('countdown', 'Countdown beeps', 'Отсчёт'), ('hide_start', 'Hiding starts', 'Начало пряток'),
+for s, en, ru in [('countdown', 'Countdown beeps', 'Отсчёт'), ('defeat', 'Defeat', 'Поражение'),
+                  ('randomizer_pop', 'Randomizer: name revealed', 'Рандомайзер: имя открыто'), ('hide_start', 'Hiding starts', 'Начало пряток'),
                   ('hunt_start', 'Hunting horn', 'Охотничий рог'), ('caught', 'Hider caught', 'Прячущийся пойман'),
                   ('taunt', 'Hider taunts', 'Прячущийся дразнится'), ('randomizer_tick', 'Randomizer clicks', 'Рандомайзер щёлкает'),
                   ('randomizer_reveal', 'Randomizer reveal', 'Рандомайзер: результат'), ('victory', 'Victory fanfare', 'Победные фанфары'),
@@ -62,7 +63,7 @@ for ph, en, ru in [('lobby', 'Lobby', 'Лобби'), ('countdown', 'Starting', '
 
 # ---------------------------------------------------------------- settings
 S = [
-    ('join_mode', 'Join mode', 'Способ выбора команды', 'How players get a side.', 'Как игроки попадают в команду.'),
+    ('join_mode', 'Join mode', 'Выбор команды', 'How players get a side.', 'Как игроки попадают в команду.'),
     ('mode', 'Game mode', 'Режим игры', 'What happens to caught hiders.', 'Что происходит с пойманными.'),
     ('hunter_ratio', 'Hunter ratio', 'Соотношение охотников', '1 hunter per N players (used by the randomizer and auto-assign).',
      '1 охотник на N игроков (для рандомайзера и автораспределения).'),
@@ -77,7 +78,7 @@ S = [
      'Нельзя вступить в охотники, если их уже достаточно.'),
     ('reset_teams', 'Reset sides after round', 'Сброс команд после раунда', 'Everyone becomes unassigned when a round ends.',
      'После раунда все снова без команды.'),
-    ('buttons_op_only', 'Start/Random buttons: ops only', 'Кнопки старт/рандом: только опы', 'Only operators can use the Start and Randomizer buttons.',
+    ('buttons_op_only', 'Start/Random: ops only', 'Старт/рандом: только опы', 'Only operators can use the Start and Randomizer buttons.',
      'Кнопками «Старт» и «Рандомайзер» могут пользоваться только операторы.'),
     ('countdown', 'Countdown', 'Отсчёт', 'Seconds before the round begins.', 'Секунд до начала раунда.'),
     ('hide_time', 'Hide time', 'Время пряток', 'Seconds hiders have to hide while hunters are frozen.', 'Сколько секунд прячутся, пока охотники заморожены.'),
@@ -97,6 +98,8 @@ S = [
     ('freeze_hunters', 'Freeze hunters', 'Заморозка охотников', 'Hunters cannot move while hiders hide.', 'Охотники не могут двигаться, пока прячутся.'),
     ('blind_hunters', 'Blind hunters', 'Ослепление охотников', 'Hunters are blinded while hiders hide.', 'Охотники ослеплены, пока прячутся.'),
     ('hide_nametags', 'Hide hider name tags', 'Скрыть ники прячущихся', 'Hunters cannot see hiders\' name tags through walls.', 'Охотники не видят ники прячущихся.'),
+    ('last_hider_glow', 'Last hider glows', 'Последний светится', 'The last remaining hider starts glowing.',
+     'Последний оставшийся прячущийся начинает светиться.'),
     ('sidebar', 'Scoreboard sidebar', 'Боковая таблица', 'Show the round sidebar (time, hiders left, hunters).', 'Показывать боковую таблицу (время, осталось, охотники).'),
 ]
 for key, en, ru, den, dru in S:
@@ -107,7 +110,7 @@ for key, val, en, ru, den, dru in [
     ('join_mode', 'pads', 'Pads & buttons', 'Плиты и кнопки', 'Only the pads and join buttons on the map.', 'Только плиты и кнопки на карте.'),
     ('join_mode', 'random', 'Random', 'Случайно', 'Sides are only assigned by the Randomizer (Start runs it automatically).',
      'Команды назначает только рандомайзер (кнопка «Старт» запустит его сама).'),
-    ('join_mode', 'admin', 'Admin assigns', 'Назначает админ', 'Only operators assign sides (/hh team or the tablet).', 'Команды назначают только операторы (/hh team или планшет).'),
+    ('join_mode', 'admin', 'Admin assigns', 'Ведущий', 'Only operators assign sides (/hh team or the tablet).', 'Команды назначают только операторы (/hh team или планшет).'),
     ('mode', 'classic', 'Classic', 'Классика', 'Caught hiders become spectators.', 'Пойманные становятся зрителями.'),
     ('mode', 'infection', 'Infection', 'Заражение', 'Caught hiders become hunters.', 'Пойманные становятся охотниками.'),
 ]:
@@ -126,7 +129,8 @@ k(H + 'title.hunt_sub', 'Find %s hiders', 'Найди прячущихся: %s')
 k(H + 'title.released', 'Hunters released!', 'Охотники выпущены!')
 k(H + 'title.released_sub', 'Stay hidden...', 'Не высовывайся...')
 k(H + 'title.caught', 'CAUGHT!', 'ПОЙМАН!')
-k(H + 'title.caught_sub', 'You are now spectating', 'Теперь ты зритель')
+k(H + 'title.caught_sub', 'You can fly through walls — no hints!', 'Можно летать сквозь стены — не подсказывай!')
+k(H + 'title.last_hider', 'LAST HIDER!', 'ПОСЛЕДНИЙ ПРЯЧУЩИЙСЯ!')
 k(H + 'title.infected', 'INFECTED!', 'ЗАРАЖЁН!')
 k(H + 'title.infected_sub', 'Now you hunt them', 'Теперь ты охотник')
 k(H + 'title.victory', 'VICTORY!', 'ПОБЕДА!')
@@ -141,7 +145,7 @@ k(H + 'boss.hiding', 'Hiding — %s', 'Прятки — %s')
 k(H + 'boss.hunting', 'Hunt — %s — hiders left: %s', 'Охота — %s — осталось: %s')
 k(H + 'boss.hiders_win', 'The hiders win!', 'Победа прячущихся!')
 k(H + 'boss.hunters_win', 'The hunters win!', 'Победа охотников!')
-k(H + 'sidebar.time', 'Time left', 'Осталось секунд')
+k(H + 'sidebar.time', 'Time', 'Время')
 k(H + 'sidebar.hiders', 'Hiders left', 'Прячущихся')
 k(H + 'sidebar.hunters', 'Hunters', 'Охотников')
 k(H + 'sidebar.caught', 'Caught', 'Поймано')
@@ -156,10 +160,26 @@ M = [
     ('side_full', '%s are full (max %s)', '%s: мест нет (макс. %s)'),
     ('side_unbalanced', 'There are enough %s already', '%s уже достаточно'),
     ('left_side', 'You left your side', 'Ты покинул команду'),
-    ('joined', 'You joined: %s', 'Ты в команде: %s'),
+    ('joined', 'You joined: %s (%s) • %s: %s', 'Ты в команде: %s (%s) • %s: %s'),
+    ('joined_spectator', 'You will watch the next round', 'Следующий раунд ты смотришь'),
+    ('last_hider', '%s is the last hider!', '%s — последний прячущийся!'),
+    ('last_hider_glow', '%s is the last hider — and now glows!', '%s — последний прячущийся! Теперь он светится!'),
+    ('test_need_player', 'A test round must be started by a player', 'Тестовый раунд запускает игрок'),
+    ('test_starting', 'Test round for %s: you are the only hider, no hunters, nothing is counted', 'Тестовый раунд для %s: ты единственный прячущийся, охотников нет, ничего не засчитывается'),
+    ('test_over', 'Test round over', 'Тестовый раунд окончен'),
+    ('results_link', '[Show results]', '[Показать итоги]'),
+    ('results_link.hover', 'Open the results screen again', 'Снова открыть экран итогов'),
+    ('no_results', 'No round has finished yet', 'Ещё ни один раунд не закончился'),
+    ('show_on', 'Showing spawns and the border for %s s (only you see them)', 'Спавны и граница видны %s с (только тебе)'),
+    ('show_other_dim', 'The arena is in %s — go there to see the markers', 'Арена в измерении %s — перейди туда, чтобы увидеть метки'),
+    ('spawn_removed', '%s spawn #%s (%s) removed, %s left', 'Спавн «%s» №%s (%s) удалён, осталось %s'),
+    ('spawns_cleared_all', 'Hider and hunter spawns cleared (lobby and spectator spawns are kept)', 'Спавны прячущихся и охотников удалены (лобби и спавн зрителей остались)'),
+    ('locked_in_round', 'Can\'t move the lobby or the arena dimension during a round', 'Нельзя менять лобби и измерение арены во время раунда'),
+    ('bounds_set_flat', 'Arena border: %s -> %s (%s blocks, whole height: the corners are at about the same height)',
+     'Граница арены: %s -> %s (%s блоков, на всю высоту: углы примерно на одной высоте)'),
     ('assigned', 'The game master put you in: %s', 'Ведущий назначил тебя: %s'),
     ('no_lobby', 'The lobby spawn is not set (/hh setspawn lobby)', 'Спавн лобби не задан (/hh setspawn lobby)'),
-    ('randomizer_busy', 'The randomizer is already spinning', 'Рандомайзер уже крутится'),
+    ('randomizer_busy', 'Wait — the randomizer is spinning', 'Подожди — крутится рандомайзер'),
     ('randomizer_need', 'Need at least %s players in the lobby (now %s)', 'Нужно минимум %s игроков в лобби (сейчас %s)'),
     ('randomizing', '%s pulled the randomizer lever!', '%s дёрнул рычаг рандомайзера!'),
     ('randomized', 'Hiders: %s | Hunters: %s', 'Прячущиеся: %s | Охотники: %s'),
@@ -203,7 +223,7 @@ M = [
     ('bad_key', 'Unknown setting: %s', 'Неизвестная настройка: %s'),
     ('bad_side', 'Unknown side: %s (hiders, hunters, none, spectator)', 'Неизвестная команда: %s (hiders, hunters, none, spectator)'),
     ('renamed', 'Arena renamed to %s', 'Арена переименована: %s'),
-    ('bounds_set', 'Arena border set: %s -> %s', 'Граница арены: %s -> %s'),
+    ('bounds_set', 'Arena border: %s -> %s (%s blocks)', 'Граница арены: %s -> %s (%s блоков)'),
     ('bounds_partial', 'Border corner saved — set the other corner too', 'Угол границы сохранён — задай второй угол'),
     ('bounds_cleared', 'Arena border removed', 'Граница арены удалена'),
     ('stopped_by', 'The round was stopped by %s', 'Раунд остановил %s'),
@@ -233,6 +253,8 @@ k(H + 'spawn.spectator', 'Spectator spawn', 'Спавн зрителей')
 k(H + 'spawn.hiders', 'Hiders', 'Прячущиеся')
 k(H + 'spawn.hunters', 'Hunters', 'Охотники')
 k(H + 'spawn.bounds', 'Border', 'Граница')
+k(H + 'spawns.hover', 'Click to teleport\n%s, yaw %s', 'Нажми, чтобы телепортироваться\n%s, поворот %s')
+k(H + 'spawns.tip', 'Click coordinates to teleport. /hh show — see all spawns in the world', 'Нажми на координаты для телепорта. /hh show — увидеть спавны в мире')
 k(H + 'spawns.header', 'Spawns of "%s" (%s):', 'Спавны «%s» (%s):')
 k(H + 'settings.header', 'Settings (/hh settings <key> <value>):', 'Настройки (/hh settings <ключ> <значение>):')
 k(H + 'status.phase', 'Phase: %s  %s', 'Фаза: %s  %s')
@@ -248,16 +270,19 @@ for key, en, ru in [
     ('leave', '— leave your side', '— покинуть команду'),
     ('taunt', '— taunt (hiders, for points)', '— дразнилка (прячущиеся, за очки)'),
     ('status', '— arena status', '— состояние арены'),
-    ('start', '— start the round (op)', '— начать раунд (оп)'),
+    ('start', '[test] — start the round; "test" = solo test round (op)', '[test] — начать раунд; «test» — тестовый раунд в одиночку (оп)'),
+    ('show', '[seconds] — show spawns and the border with particles (op)', '[секунды] — показать спавны и границу частицами (оп)'),
+    ('removespawn', '<hiders|hunters> <#|nearest> — remove one spawn (op)', '<hiders|hunters> <№|nearest> — удалить один спавн (оп)'),
+    ('results', '— show the last results again', '— снова показать последние итоги'),
     ('stop', '— stop the round (op)', '— остановить раунд (оп)'),
     ('randomize', '— shuffle lobby players into sides (op)', '— случайно распределить игроков (оп)'),
     ('reset', '[teams|settings|arena] — reset (op)', '[teams|settings|arena] — сброс (оп)'),
     ('team', '<players> <side> — assign a side (op)', '<игроки> <команда> — назначить команду (оп)'),
     ('setspawn', '<lobby|hiders|hunters|spectator> [pos] — set a spawn (op)', '<lobby|hiders|hunters|spectator> [поз] — задать спавн (оп)'),
     ('addspawn', '<hiders|hunters> [pos] — add one more spawn (op)', '<hiders|hunters> [поз] — добавить ещё спавн (оп)'),
-    ('clearspawns', '<hiders|hunters|all> — remove spawns (op)', '<hiders|hunters|all> — удалить спавны (оп)'),
+    ('clearspawns', '<hiders|hunters|all> — remove spawns; lobby/spectator are kept (op)', '<hiders|hunters|all> — удалить спавны; лобби и зрители остаются (оп)'),
     ('spawns', '— list spawns (op)', '— список спавнов (оп)'),
-    ('tp', '<lobby|hiders|hunters|spectator> — teleport to a spawn (op)', '<lobby|hiders|hunters|spectator> — телепорт к спавну (оп)'),
+    ('tp', '<lobby|hiders|hunters|spectator> [#] — teleport to a spawn (op)', '<lobby|hiders|hunters|spectator> [№] — телепорт к спавну (оп)'),
     ('setbounds', '<pos1> <pos2> — arena border (op)', '<поз1> <поз2> — граница арены (оп)'),
     ('clearbounds', '— remove the border (op)', '— убрать границу (оп)'),
     ('joinmode', '<free|pads|random|admin> — how sides are chosen (op)', '<free|pads|random|admin> — способ выбора команды (оп)'),
@@ -274,7 +299,7 @@ k(H + 'hud.side', 'Side:', 'Команда:')
 k(H + 'hud.eliminated', 'Eliminated', 'Выбыл')
 k(H + 'hud.lobby_counts', 'Hiders %s  Hunters %s  Free %s', 'Прячутся %s  Охотники %s  Без %s')
 for jm, en, ru in [('free', 'Choose a side: pads, buttons, /hh join', 'Выбор: плиты, кнопки, /hh join'),
-                   ('pads', 'Choose a side with the pads/buttons', 'Выбор команды — плитами/кнопками'),
+                   ('pads', 'Choose a side with the pads/buttons', 'Выбор: плиты и кнопки'),
                    ('random', 'Sides are picked by the Randomizer', 'Команды выбирает рандомайзер'),
                    ('admin', 'The game master assigns sides', 'Команды назначает ведущий')]:
     k(H + 'hud.join.' + jm, en, ru)
@@ -292,6 +317,7 @@ k(H + 'randomizer.title', '? RANDOMIZER ?', '? РАНДОМАЙЗЕР ?')
 k(H + 'randomizer.you', 'You are: %s', 'Ты: %s')
 k(H + 'randomizer.watching', 'You are watching', 'Ты наблюдаешь')
 k(H + 'randomizer.spinning', 'Spinning...', 'Крутим...')
+k(H + 'randomizer.summary', 'Hiders: %s • Hunters: %s', 'Прячущихся: %s • Охотников: %s')
 
 # ---------------------------------------------------------------- results
 k(H + 'results.title', 'Round results', 'Итоги раунда')
@@ -304,8 +330,11 @@ k(H + 'results.mvp', 'MVP', 'MVP')
 k(H + 'results.catches_n', '%s caught', 'поймано: %s')
 k(H + 'results.infected', 'Infected', 'Заражён')
 k(H + 'results.left', '(left)', '(вышел)')
+k(H + 'results.you_won', 'You won!', 'Ты победил!')
+k(H + 'results.you_lost', 'You lost', 'Ты проиграл')
+k(H + 'results.taunts_hint', '\u266A = taunts', '\u266A = дразнилки')
 for c, en, ru in [('player', 'Player', 'Игрок'), ('role', 'Role', 'Роль'), ('catches', 'Caught', 'Поймал'),
-                  ('survived', 'Survived', 'Продержался'), ('caught_by', 'Caught by', 'Кем пойман'), ('points', 'Points', 'Очки')]:
+                  ('survived', 'Time', 'Время'), ('caught_by', 'Caught by', 'Кем пойман'), ('points', 'Points', 'Очки')]:
     k(H + 'results.col.' + c, en, ru)
 
 # ---------------------------------------------------------------- tablet GUI
@@ -331,13 +360,24 @@ for key, en, ru in [
     ('other_dim', '(other dimension)', '(другое измерение)'),
     ('side_btn.hider', 'Hide', 'Пряч'), ('side_btn.hunter', 'Hunt', 'Охот'), ('side_btn.none', '—', '—'), ('side_btn.spectator', 'Spec', 'Зрит'),
     ('side_btn.desc', 'Put into: %s', 'Назначить: %s'),
-    ('kit_hider_set', 'Hider kit = my inventory (%s)', 'Набор прячущихся = мой инв. (%s)'),
-    ('kit_hunter_set', 'Hunter kit = my inventory (%s)', 'Набор охотников = мой инв. (%s)'),
+    ('kit_hider_set', 'Hider kit \u2190 my inv. (%s)', 'Набор пряч. \u2190 мой инв. (%s)'),
+    ('kit_hunter_set', 'Hunter kit \u2190 my inv. (%s)', 'Набор охот. \u2190 мой инв. (%s)'),
     ('kit_set.desc', 'Copies your whole inventory (incl. armour) as the kit. Used when "Keep own inventory" is off.',
      'Копирует весь твой инвентарь (вместе с бронёй) как набор. Используется, если «Свой инвентарь» выключен.'),
     ('kit_hider_clear', 'Clear hider kit', 'Очистить набор прячущихся'), ('kit_hunter_clear', 'Clear hunter kit', 'Очистить набор охотников'),
     ('on', 'ON', 'ВКЛ'), ('off', 'Off', 'Выкл'), ('unlimited', 'Unlimited', 'Без лимита'),
     ('ratio', '1 per %s', '1 на %s'), ('speed_level', 'Level %s', 'Ур. %s'),
+    ('seconds', '%ss', '%s с'),
+    ('confirm', 'Sure? Click again', 'Точно? Ещё раз'), ('confirm.desc', 'Click twice to confirm', 'Нажми дважды для подтверждения'),
+    ('rmb_reset', 'Right-click: reset to default (%s)', 'ПКМ — сбросить (по умолч.: %s)'),
+    ('show', 'Show spawns (30 s)', 'Показать спавны (30 с)'),
+    ('show.desc', 'Particle markers at every spawn and along the border, visible only to you',
+     'Метки-частицы на всех спавнах и вдоль границы, видны только тебе'),
+    ('test', 'Solo test round', 'Тестовый раунд'),
+    ('test.desc', 'Play a round alone as a hider to check spawns and timers. Nothing is counted.',
+     'Сыграть раунд одному за прячущегося, чтобы проверить спавны и таймеры. Ничего не засчитывается.'),
+    ('bounds.desc', 'Corners are diagonal: one low, one high. If they are at about the same height, the border covers the whole height.',
+     'Углы по диагонали: один внизу, другой вверху. Если они примерно на одной высоте, граница действует на всю высоту.'),
 ]:
     k(G + key, en, ru)
 

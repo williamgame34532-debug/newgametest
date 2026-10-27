@@ -23,8 +23,12 @@ public final class ClientHooks {
 
     public static void onResults(ResultsPacket m) {
         ClientState.lastResults = m;
-        Minecraft mc = Minecraft.getInstance();
-        mc.setScreen(new ResultsScreen(m));
+        if (m.reopen()) {
+            Minecraft.getInstance().setScreen(new ResultsScreen(m));
+        } else {
+            // let the VICTORY title and the fireworks play first; the screen opens ~3 s later
+            ClientState.resultsOpenAt = ClientState.ticks + 60;
+        }
     }
 
     public static void onTabletData(CompoundTag data, boolean open) {
