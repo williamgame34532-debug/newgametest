@@ -23,7 +23,7 @@ import java.util.function.Supplier;
 public final class ModArmorMaterials {
     /** Dreamcatcher: night vision during a Distortion, nightmares glow. */
     public static final Holder<ArmorMaterial> DREAMCATCHER =
-            register("dreamcatcher", 3, 6, 8, 3, 18, 2.5F, 0.0F, () -> Ingredient.of(ModItems.DREAM_SHARD.get()));
+            register("dreamcatcher", 3, 6, 8, 3, 18, 2.0F, 0.0F, () -> Ingredient.of(ModItems.DREAM_SHARD.get()));
     /** Wakeful: -30% damage from nightmares. */
     public static final Holder<ArmorMaterial> WAKEFUL =
             register("wakeful", 3, 7, 8, 3, 15, 3.0F, 0.05F, () -> Ingredient.of(ModItems.DAWN_INGOT.get()));

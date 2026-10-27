@@ -13,7 +13,6 @@ import net.minecraft.util.RandomSource;
 public final class DistortionOverlay {
     private static final ResourceLocation VIGNETTE = EchoesOfSleep.id("textures/misc/dream_vignette.png");
     private static final ResourceLocation GRAIN = EchoesOfSleep.id("textures/misc/dream_grain.png");
-    private static final RandomSource RANDOM = RandomSource.create();
     private static final float[][] VIGNETTE_TINT = {{0, 0, 0}, {0.25F, 0.25F, 0.3F}, {0.35F, 0.08F, 0.45F}, {0.55F, 0.0F, 0.05F}};
 
     private DistortionOverlay() {
@@ -41,25 +40,29 @@ public final class DistortionOverlay {
             g.blit(VIGNETTE, 0, 0, 0.0F, 0.0F, w, h, w, h);
             // film grain, jumping every frame
             g.setColor(1.0F, 1.0F, 1.0F, Math.min(0.5F, k * 0.07F * lvl));
-            g.blit(GRAIN, 0, 0, RANDOM.nextInt(128), RANDOM.nextInt(128), w, h, 128, 128);
+            int gu = (int) ((ClientDistortion.clientTicks * 37L) % 128L), gv = (int) ((ClientDistortion.clientTicks * 53L) % 128L);
+            g.blit(GRAIN, 0, 0, gu, gv, w, h, 128, 128);
             g.setColor(1.0F, 1.0F, 1.0F, 1.0F);
         }
 
-        // frame-skip glitch: black frames, torn horizontal bands
+        // frame-skip glitch: one or two black frames chosen per client tick, torn bands that change per tick
         if (ClientDistortion.glitchTicks > 0) {
-            if (RANDOM.nextInt(3) == 0) {
-                g.fill(0, 0, w, h, 0xF0000000);
+            boolean soft = ClientDistortion.reduceFlashing();
+            if (ClientDistortion.blackFrameNow()) {
+                g.fill(0, 0, w, h, 0xB0000000);
             } else {
-                int bands = 3 + RANDOM.nextInt(5);
+                RandomSource bandRandom = RandomSource.create(ClientDistortion.clientTicks * 31L + 7L);
+                int bands = 3 + bandRandom.nextInt(5);
                 for (int i = 0; i < bands; i++) {
-                    int y = RANDOM.nextInt(h);
-                    int bh = 1 + RANDOM.nextInt(Math.max(1, h / 30));
-                    int off = RANDOM.nextInt(40) - 20;
-                    int color = switch (RANDOM.nextInt(3)) {
+                    int y = bandRandom.nextInt(h);
+                    int bh = 1 + bandRandom.nextInt(Math.max(1, h / 30));
+                    int off = bandRandom.nextInt(40) - 20;
+                    int color = switch (bandRandom.nextInt(3)) {
                         case 0 -> 0x55FF0030;
                         case 1 -> 0x5500FFD0;
                         default -> 0x66000000;
                     };
+                    if (soft) color = (color & 0x00FFFFFF) | 0x22000000;
                     g.fill(Math.max(0, off), y, Math.min(w, w + off), y + bh, color);
                 }
             }
@@ -74,7 +77,7 @@ public final class DistortionOverlay {
                 case 3 -> "13";
                 default -> "666";
             };
-            int x = (w - mc.font.width(fake)) / 2 + (RANDOM.nextInt(5) == 0 ? RANDOM.nextInt(3) - 1 : 0);
+            int x = (w - mc.font.width(fake)) / 2 + ((ClientDistortion.clientTicks % 5 == 0) ? 1 : 0);
             int y = h - 31 - 4;
             g.fill(x - 3, y - 2, x + mc.font.width(fake) + 3, y + 10, 0xFF000000);
             g.drawString(mc.font, fake, x + 1, y, 0x000000, false);
@@ -87,7 +90,8 @@ public final class DistortionOverlay {
         // wake-up / pulse flash
         if (ClientDistortion.flashTicks > 0 && ClientDistortion.flashMax > 0) {
             float a = (float) ClientDistortion.flashTicks / ClientDistortion.flashMax;
-            int alpha = (int) (Math.min(1.0F, a * a * 1.2F) * 255.0F);
+            float maxAlpha = ClientDistortion.reduceFlashing() ? 0.3F : 1.0F;
+            int alpha = (int) (Math.min(maxAlpha, a * a * 1.2F * maxAlpha) * 255.0F);
             g.fill(0, 0, w, h, (alpha << 24) | (ClientDistortion.flashColor & 0xFFFFFF));
         }
 

@@ -3,13 +3,40 @@
     "subtitle": "subtitles.echoesofsleep.whisper",
     "sounds": [
       {
-        "name": "echoesofsleep:whisper1"
+        "name": "echoesofsleep:whisper1",
+        "pitch": 0.85
       },
       {
-        "name": "echoesofsleep:whisper2"
+        "name": "echoesofsleep:whisper1",
+        "pitch": 1.0
       },
       {
-        "name": "echoesofsleep:whisper3"
+        "name": "echoesofsleep:whisper1",
+        "pitch": 1.15
+      },
+      {
+        "name": "echoesofsleep:whisper2",
+        "pitch": 0.85
+      },
+      {
+        "name": "echoesofsleep:whisper2",
+        "pitch": 1.0
+      },
+      {
+        "name": "echoesofsleep:whisper2",
+        "pitch": 1.15
+      },
+      {
+        "name": "echoesofsleep:whisper3",
+        "pitch": 0.85
+      },
+      {
+        "name": "echoesofsleep:whisper3",
+        "pitch": 1.0
+      },
+      {
+        "name": "echoesofsleep:whisper3",
+        "pitch": 1.15
       }
     ]
   },
@@ -33,10 +60,28 @@
     "subtitle": "subtitles.echoesofsleep.footsteps",
     "sounds": [
       {
-        "name": "echoesofsleep:footstep1"
+        "name": "echoesofsleep:footstep1",
+        "pitch": 0.85
       },
       {
-        "name": "echoesofsleep:footstep2"
+        "name": "echoesofsleep:footstep1",
+        "pitch": 1.0
+      },
+      {
+        "name": "echoesofsleep:footstep1",
+        "pitch": 1.15
+      },
+      {
+        "name": "echoesofsleep:footstep2",
+        "pitch": 0.85
+      },
+      {
+        "name": "echoesofsleep:footstep2",
+        "pitch": 1.0
+      },
+      {
+        "name": "echoesofsleep:footstep2",
+        "pitch": 1.15
       }
     ]
   },
@@ -68,10 +113,20 @@
     "subtitle": "subtitles.echoesofsleep.doppelganger_ambient",
     "sounds": [
       {
-        "name": "echoesofsleep:breath"
+        "name": "echoesofsleep:breath",
+        "pitch": 0.9
       },
       {
-        "name": "echoesofsleep:whisper2"
+        "name": "echoesofsleep:breath",
+        "pitch": 1.0
+      },
+      {
+        "name": "echoesofsleep:whisper2",
+        "pitch": 0.9
+      },
+      {
+        "name": "echoesofsleep:whisper2",
+        "pitch": 1.0
       }
     ]
   },
@@ -79,7 +134,7 @@
     "subtitle": "subtitles.echoesofsleep.doppelganger_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:crack"
+        "name": "echoesofsleep:gasp"
       }
     ]
   },
@@ -87,7 +142,7 @@
     "subtitle": "subtitles.echoesofsleep.doppelganger_death",
     "sounds": [
       {
-        "name": "echoesofsleep:wail"
+        "name": "echoesofsleep:reverse_swell"
       }
     ]
   },
@@ -111,7 +166,7 @@
     "subtitle": "subtitles.echoesofsleep.stitcher_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:crack"
+        "name": "echoesofsleep:wet_tear"
       }
     ]
   },
@@ -119,7 +174,7 @@
     "subtitle": "subtitles.echoesofsleep.stitcher_death",
     "sounds": [
       {
-        "name": "echoesofsleep:wail"
+        "name": "echoesofsleep:flesh_fall"
       }
     ]
   },
@@ -135,7 +190,7 @@
     "subtitle": "subtitles.echoesofsleep.sleepless_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:crack"
+        "name": "echoesofsleep:bone_snap"
       }
     ]
   },
@@ -143,7 +198,7 @@
     "subtitle": "subtitles.echoesofsleep.sleepless_death",
     "sounds": [
       {
-        "name": "echoesofsleep:wail"
+        "name": "echoesofsleep:bone_death"
       }
     ]
   },
@@ -159,10 +214,20 @@
     "subtitle": "subtitles.echoesofsleep.hollow_ambient",
     "sounds": [
       {
-        "name": "echoesofsleep:whisper1"
+        "name": "echoesofsleep:whisper1",
+        "pitch": 0.7
       },
       {
-        "name": "echoesofsleep:whisper3"
+        "name": "echoesofsleep:whisper1",
+        "pitch": 0.8
+      },
+      {
+        "name": "echoesofsleep:whisper3",
+        "pitch": 0.7
+      },
+      {
+        "name": "echoesofsleep:whisper3",
+        "pitch": 0.8
       }
     ]
   },
@@ -170,7 +235,7 @@
     "subtitle": "subtitles.echoesofsleep.hollow_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:groan"
+        "name": "echoesofsleep:hollow_moan"
       }
     ]
   },
@@ -178,7 +243,7 @@
     "subtitle": "subtitles.echoesofsleep.hollow_death",
     "sounds": [
       {
-        "name": "echoesofsleep:wail"
+        "name": "echoesofsleep:hollow_death"
       }
     ]
   },
@@ -197,7 +262,7 @@
     "subtitle": "subtitles.echoesofsleep.mother_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:crack"
+        "name": "echoesofsleep:mother_roar"
       }
     ]
   },
@@ -235,7 +300,7 @@
     "subtitle": "subtitles.echoesofsleep.dreamer_hurt",
     "sounds": [
       {
-        "name": "echoesofsleep:glitch"
+        "name": "echoesofsleep:choir_hit"
       }
     ]
   },
@@ -243,10 +308,7 @@
     "subtitle": "subtitles.echoesofsleep.dreamer_death",
     "sounds": [
       {
-        "name": "echoesofsleep:scream"
-      },
-      {
-        "name": "echoesofsleep:wail"
+        "name": "echoesofsleep:choir_death"
       }
     ]
   },

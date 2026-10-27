@@ -31,7 +31,7 @@ public class ModEntities {
             () -> EntityType.Builder.of(MotherHand::new, MobCategory.MONSTER).sized(1.3F, 3.2F).eyeHeight(2.8F)
                     .fireImmune().noSave().clientTrackingRange(10).build(EchoesOfSleep.id("mother_hand").toString()));
     public static final RegistryObject<EntityType<TheDreamer>> THE_DREAMER = ENTITIES.register("the_dreamer",
-            () -> EntityType.Builder.of(TheDreamer::new, MobCategory.MONSTER).sized(1.4F, 3.8F).eyeHeight(3.3F)
+            () -> EntityType.Builder.of(TheDreamer::new, MobCategory.MONSTER).sized(2.1F, 5.7F).eyeHeight(4.95F)
                     .fireImmune().clientTrackingRange(16).build(EchoesOfSleep.id("the_dreamer").toString()));
     public static final RegistryObject<EntityType<RealityFragment>> REALITY_FRAGMENT = ENTITIES.register("reality_fragment",
             () -> EntityType.Builder.<RealityFragment>of(RealityFragment::new, MobCategory.MISC).sized(0.98F, 0.98F)

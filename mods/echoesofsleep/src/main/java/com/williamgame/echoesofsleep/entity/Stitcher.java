@@ -236,7 +236,7 @@ public class Stitcher extends NightmareMonster {
                 }
             }
             if (moving) {
-                mob.getNavigation().moveTo(target, 1.45);
+                mob.getNavigation().moveTo(target, 1.3);
                 mob.getLookControl().setLookAt(target, 30.0F, 30.0F);
             } else {
                 mob.getLookControl().setLookAt(target.getX() + (mob.getRandom().nextDouble() - 0.5) * 3.0,

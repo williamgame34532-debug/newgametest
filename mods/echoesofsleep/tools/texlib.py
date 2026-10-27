@@ -133,28 +133,42 @@ def check_overlaps(boxes, tw, th):
 
 
 # ---------------------------------------------------------------------------- face shading
-def shade_face(cv, rect, pal, rng, face, base=0.55, noise=0.35, ao=0.18, grad=0.12, cell=None):
+SIDES = ('front', 'back', 'left', 'right')
+
+
+def shade_face(cv, rect, pal, rng, face, base=0.55, noise=0.12, ao=None, grad=0.3, cell=None, rim=0.75,
+               top=None, bottom=None):
+    """Paint one box face: low-amplitude noise over a strong top-light / bottom-dark gradient, a lit top face,
+    a dark underside, slightly darker side faces, and a 1px darker rim so every box reads as a solid form.
+    If top/bottom are given they override base+grad (value at the top row / bottom row of side faces)."""
     x0, y0, w, h = rect
     if w <= 0 or h <= 0:
         return
     n = fbm(w, h, rng, cells=(max(2, (cell or max(w, h) / 3)), 2, 1)) if (w > 1 or h > 1) else np.full((h, w), 0.5)
+    t_val = top if top is not None else base + grad * 0.5
+    b_val = bottom if bottom is not None else base - grad * 0.5
     for y in range(h):
         for x in range(w):
-            v = base + (n[y, x] - 0.5) * noise * 2
-            edge = min(x, y, w - 1 - x, h - 1 - y)
-            if edge == 0:
-                v -= ao
-            elif edge == 1:
-                v -= ao * 0.35
-            if face in ('front', 'back', 'left', 'right') and h > 1:
-                v += grad * (0.5 - y / (h - 1))
-            if face == 'top':
-                v += 0.08
-            if face == 'bottom':
-                v -= 0.18
+            if face in SIDES:
+                f = y / (h - 1) if h > 1 else 0.5
+                v = t_val + (b_val - t_val) * f
+            elif face == 'top':
+                v = t_val + 0.12
+            else:
+                v = b_val - 0.22
             if face in ('left', 'right'):
-                v -= 0.05
-            cv.put(x0 + x, y0 + y, pal.pick(v, x0 + x, y0 + y))
+                v -= 0.06
+            v += (n[y, x] - 0.5) * noise * 2
+            cv.put(x0 + x, y0 + y, pal.pick(v, x0 + x, y0 + y, 0.35))
+            if min(x, y, w - 1 - x, h - 1 - y) == 0 and (w > 2 and h > 2):
+                cv.darken(x0 + x, y0 + y, rim)
+
+
+def lighten(cv, x, y, f):
+    x, y = int(x), int(y)
+    if 0 <= x < cv.w and 0 <= y < cv.h and cv.a[y, x, 3]:
+        c = cv.a[y, x, 0:3].astype(float)
+        cv.a[y, x, 0:3] = (c + (255 - c) * f).clip(0, 255).astype(np.uint8)
 
 
 def veins(cv, rect, color, count, rng, length=(4, 12), alpha=0.55):
@@ -181,26 +195,40 @@ def veins(cv, rect, color, count, rng, length=(4, 12), alpha=0.55):
                         cv.blend(fx, fy, color, alpha * 0.7)
 
 
-THREAD = (176, 158, 126)
+THREAD = (239, 226, 192)
+CUT = (12, 6, 6)
+INFLAMED = (150, 40, 36)
 
 
-def stitches_h(cv, x0, x1, y, thread=THREAD, rng=None, spacing=3):
-    """A horizontal sewn seam: a dark cut with pale thread crossing it."""
+def stitches_h(cv, x0, x1, y, thread=THREAD, rng=None, spacing=3, inflame=True):
+    """A horizontal sewn seam: 1px black cut, cream thread crossing it, inflamed red skin along it."""
+    if inflame:
+        for x in range(x0, x1):
+            cv.blend(x, y - 2, INFLAMED, 0.25)
+            cv.blend(x, y + 2, INFLAMED, 0.25)
+            cv.blend(x, y - 1, INFLAMED, 0.45)
+            cv.blend(x, y + 1, INFLAMED, 0.45)
     for x in range(x0, x1):
-        cv.darken(x, y, 0.4)
+        cv.put(x, y, CUT)
     for x in range(x0 + 1, x1 - 1, spacing):
         cv.put(x, y - 1, thread)
-        cv.put(x, y + 1, tuple(int(c * 0.75) for c in thread))
-        cv.darken(x + 1, y + 1, 0.7)
+        cv.put(x, y + 1, tuple(int(c * 0.8) for c in thread))
+        cv.put(x, y, tuple(int(c * 0.9) for c in thread))
 
 
-def stitches_v(cv, x, y0, y1, thread=THREAD, spacing=3):
+def stitches_v(cv, x, y0, y1, thread=THREAD, spacing=3, inflame=True):
+    if inflame:
+        for y in range(y0, y1):
+            cv.blend(x - 2, y, INFLAMED, 0.25)
+            cv.blend(x + 2, y, INFLAMED, 0.25)
+            cv.blend(x - 1, y, INFLAMED, 0.45)
+            cv.blend(x + 1, y, INFLAMED, 0.45)
     for y in range(y0, y1):
-        cv.darken(x, y, 0.4)
+        cv.put(x, y, CUT)
     for y in range(y0 + 1, y1 - 1, spacing):
         cv.put(x - 1, y, thread)
-        cv.put(x + 1, y, tuple(int(c * 0.75) for c in thread))
-        cv.darken(x + 1, y + 1, 0.7)
+        cv.put(x + 1, y, tuple(int(c * 0.8) for c in thread))
+        cv.put(x, y, tuple(int(c * 0.9) for c in thread))
 
 
 def cracks(cv, rect, color, count, rng, alpha=0.8):

@@ -19,6 +19,7 @@ public class HollowVillagerModel extends NightmareModel<HollowVillager> {
     private final ModelPart head;
     private final ModelPart nose;
     private final ModelPart jaw;
+    private final ModelPart neck;
     private final ModelPart body;
     private final ModelPart robe;
     private final ModelPart rightArm;
@@ -33,6 +34,7 @@ public class HollowVillagerModel extends NightmareModel<HollowVillager> {
         this.head = root.getChild("head");
         this.nose = root.getChild("head").getChild("nose");
         this.jaw = root.getChild("head").getChild("jaw");
+        this.neck = root.getChild("neck");
         this.body = root.getChild("body");
         this.robe = root.getChild("body").getChild("robe");
         this.rightArm = root.getChild("right_arm");
@@ -50,9 +52,11 @@ public class HollowVillagerModel extends NightmareModel<HollowVillager> {
         PartDefinition head = root.addOrReplaceChild("head", CubeListBuilder.create()
                 .texOffs(28, 0).addBox(-4.0F, -10.0F, -4.0F, 8.0F, 8.0F, 8.0F), PartPose.offset(0.0F, 0.0F, 0.0F));
         PartDefinition nose = head.addOrReplaceChild("nose", CubeListBuilder.create()
-                .texOffs(8, 34).addBox(-1.0F, -1.0F, -2.0F, 2.0F, 4.0F, 2.0F), PartPose.offset(0.0F, -4.0F, -4.0F));
+                .texOffs(56, 40).addBox(-1.0F, -1.0F, -2.0F, 2.0F, 4.0F, 2.0F), PartPose.offset(0.0F, -4.0F, -4.0F));
         PartDefinition jaw = head.addOrReplaceChild("jaw", CubeListBuilder.create()
                 .texOffs(0, 47).addBox(-4.0F, 0.0F, -7.5F, 8.0F, 3.0F, 8.0F), PartPose.offsetAndRotation(0.0F, -2.0F, 3.5F, 0.55F, 0.0F, 0.0F));
+        PartDefinition neck = root.addOrReplaceChild("neck", CubeListBuilder.create()
+                .texOffs(8, 34).addBox(-2.0F, -2.5F, -2.0F, 4.0F, 3.0F, 4.0F), PartPose.offset(0.0F, 0.0F, 0.0F));
         PartDefinition body = root.addOrReplaceChild("body", CubeListBuilder.create()
                 .texOffs(0, 0).addBox(-4.0F, 0.0F, -3.0F, 8.0F, 12.0F, 6.0F), PartPose.offset(0.0F, 0.0F, 0.0F));
         PartDefinition robe = body.addOrReplaceChild("robe", CubeListBuilder.create()

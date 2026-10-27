@@ -153,17 +153,17 @@ public class DeepMotherModel extends NightmareModel<DeepMother> {
         PartDefinition jaw = head.addOrReplaceChild("jaw", CubeListBuilder.create()
                 .texOffs(0, 34).addBox(-5.0F, 0.0F, -11.0F, 10.0F, 4.0F, 10.0F), PartPose.offsetAndRotation(0.0F, -1.0F, 4.0F, 0.5F, 0.0F, 0.0F));
         PartDefinition hair0 = head.addOrReplaceChild("hair_0", CubeListBuilder.create()
-                .texOffs(196, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 22.0F, 2.0F), PartPose.offset(-5.0F, -12.0F, -6.0F));
+                .texOffs(196, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 22.0F, 2.0F), PartPose.offset(-6.5F, -12.0F, -3.0F));
         PartDefinition hair1 = head.addOrReplaceChild("hair_1", CubeListBuilder.create()
-                .texOffs(248, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 19.0F, 2.0F), PartPose.offset(-2.0F, -12.0F, 4.0F));
+                .texOffs(248, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 19.0F, 2.0F), PartPose.offset(-2.0F, -12.0F, 4.5F));
         PartDefinition hair2 = head.addOrReplaceChild("hair_2", CubeListBuilder.create()
-                .texOffs(172, 25).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 16.0F, 2.0F), PartPose.offset(2.0F, -12.0F, 4.0F));
+                .texOffs(172, 25).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 16.0F, 2.0F), PartPose.offset(2.0F, -12.0F, 4.5F));
         PartDefinition hair3 = head.addOrReplaceChild("hair_3", CubeListBuilder.create()
-                .texOffs(204, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 22.0F, 2.0F), PartPose.offset(5.0F, -12.0F, -6.0F));
+                .texOffs(204, 0).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 22.0F, 2.0F), PartPose.offset(6.5F, -12.0F, -3.0F));
         PartDefinition hair4 = head.addOrReplaceChild("hair_4", CubeListBuilder.create()
-                .texOffs(248, 21).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 19.0F, 2.0F), PartPose.offset(-5.5F, -12.0F, 0.0F));
+                .texOffs(248, 21).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 19.0F, 2.0F), PartPose.offset(-6.5F, -12.0F, 2.0F));
         PartDefinition hair5 = head.addOrReplaceChild("hair_5", CubeListBuilder.create()
-                .texOffs(180, 25).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 16.0F, 2.0F), PartPose.offset(5.5F, -12.0F, 1.0F));
+                .texOffs(180, 25).addBox(-1.0F, 0.0F, -1.0F, 2.0F, 16.0F, 2.0F), PartPose.offset(6.5F, -12.0F, 1.5F));
         PartDefinition rightArm = shoulders.addOrReplaceChild("right_arm", CubeListBuilder.create()
                 .texOffs(0, 0).addBox(-3.0F, -2.0F, -3.0F, 6.0F, 28.0F, 6.0F), PartPose.offsetAndRotation(-15.0F, 0.0F, 0.0F, -0.4F, 0.0F, 0.25F));
         PartDefinition rightForearm = rightArm.addOrReplaceChild("right_forearm", CubeListBuilder.create()

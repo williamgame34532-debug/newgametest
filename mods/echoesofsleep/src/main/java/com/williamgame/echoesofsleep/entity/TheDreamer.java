@@ -253,7 +253,7 @@ public class TheDreamer extends NightmareMonster {
                     setDeltaMovement(getDeltaMovement().scale(0.5));
                 } else {
                     setDeltaMovement(to.normalize().scale(0.9));
-                    if (distanceTo(target) < 3.2) {
+                    if (distanceTo(target) < 4.2) {
                         target.hurt(damageSources().mobAttack(this), (float) getAttributeValue(Attributes.ATTACK_DAMAGE));
                         target.addEffect(new MobEffectInstance(MobEffects.WITHER, 60, 1), this);
                         castTicks = 0;

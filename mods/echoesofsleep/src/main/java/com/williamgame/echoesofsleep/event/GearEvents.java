@@ -34,8 +34,10 @@ public final class GearEvents {
             if (DistortionData.get(sl).isActive()) {
                 sp.addEffect(new MobEffectInstance(MobEffects.NIGHT_VISION, 260, 0, true, false, true));
             }
-            for (NightmareMonster m : sl.getEntitiesOfClass(NightmareMonster.class, new AABB(sp.blockPosition()).inflate(32))) {
-                m.addEffect(new MobEffectInstance(MobEffects.GLOWING, 40, 0, true, false));
+            // only the nightmares that are hunting the wearer light up (Glowing is visible to everyone, so keep it tight)
+            for (NightmareMonster m : sl.getEntitiesOfClass(NightmareMonster.class, new AABB(sp.blockPosition()).inflate(16),
+                    n -> n.getTarget() == sp)) {
+                m.addEffect(new MobEffectInstance(MobEffects.GLOWING, 25, 0, true, false));
             }
         }
     }

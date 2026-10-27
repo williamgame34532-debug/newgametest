@@ -3,6 +3,7 @@ package com.williamgame.echoesofsleep.entity;
 import com.williamgame.echoesofsleep.memory.PlayerMemory;
 import com.williamgame.echoesofsleep.registry.ModSounds;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.syncher.EntityDataAccessor;
 import net.minecraft.network.syncher.EntityDataSerializers;
@@ -41,11 +42,15 @@ public class EchoDoppelganger extends NightmareMonster {
     public static final byte STATE_WANDER = 0;
     public static final byte STATE_STARE = 1;
     public static final byte STATE_HUNT = 2;
+    /** Hunt speed multiplier: fast and frightening, but a sprinting player can still get away. */
+    public static final double HUNT_SPEED = 1.35;
     private static final EntityDataAccessor<Byte> DATA_STATE = SynchedEntityData.defineId(EchoDoppelganger.class, EntityDataSerializers.BYTE);
 
     private final List<BlockPos> path = new ArrayList<>();
     private int pathIndex;
     private int pathDirection = 1;
+    /** Level-1 echoes only watch: they never hunt, and dissolve when someone comes close. */
+    private boolean tensionOnly;
 
     /** Client-side: tick at which the current state started (for animation). */
     public int clientStateStart;
@@ -77,6 +82,24 @@ public class EchoDoppelganger extends NightmareMonster {
         if (DATA_STATE.equals(key)) {
             clientStateStart = tickCount;
         }
+    }
+
+    public void setTensionOnly(boolean tensionOnly) {
+        this.tensionOnly = tensionOnly;
+    }
+
+    public boolean isTensionOnly() {
+        return tensionOnly;
+    }
+
+    /** Fades away like a dream you just woke from. */
+    void dissolve() {
+        if (level() instanceof ServerLevel sl) {
+            sl.sendParticles(ParticleTypes.LARGE_SMOKE, getX(), getY() + 1.1, getZ(), 30, 0.25, 0.8, 0.25, 0.02);
+            sl.sendParticles(ParticleTypes.ASH, getX(), getY() + 1.1, getZ(), 40, 0.4, 0.9, 0.4, 0.01);
+            sl.playSound(null, getX(), getY(), getZ(), ModSounds.WHISPER.get(), SoundSource.HOSTILE, 0.8F, 0.6F);
+        }
+        discard();
     }
 
     public byte getState() {
@@ -124,6 +147,10 @@ public class EchoDoppelganger extends NightmareMonster {
     @Override
     public boolean hurt(DamageSource source, float amount) {
         boolean hurt = super.hurt(source, amount);
+        if (hurt && !level().isClientSide && tensionOnly && isAlive()) {
+            dissolve();
+            return true;
+        }
         if (hurt && !level().isClientSide && source.getEntity() instanceof Player p && NightmareUtil.isValidVictim(p)
                 && getState() == STATE_WANDER) {
             setTarget(p);
@@ -168,6 +195,7 @@ public class EchoDoppelganger extends NightmareMonster {
         for (int i = 0; i < arr.length; i++) arr[i] = path.get(i).asLong();
         tag.putLongArray("EchoPath", arr);
         tag.putInt("EchoPathIndex", pathIndex);
+        tag.putBoolean("TensionOnly", tensionOnly);
     }
 
     @Override
@@ -176,6 +204,7 @@ public class EchoDoppelganger extends NightmareMonster {
         path.clear();
         for (long l : tag.getLongArray("EchoPath")) path.add(BlockPos.of(l));
         pathIndex = Math.min(tag.getInt("EchoPathIndex"), Math.max(0, path.size() - 1));
+        tensionOnly = tag.getBoolean("TensionOnly");
     }
 
     /** Wander the remembered path -> freeze and stare when noticed -> sprint. */
@@ -238,7 +267,18 @@ public class EchoDoppelganger extends NightmareMonster {
             return best;
         }
 
+        private boolean someoneClose(double radius) {
+            for (Player p : mob.level().players()) {
+                if (NightmareUtil.isValidVictim(p) && p.distanceToSqr(mob) < radius * radius) return true;
+            }
+            return false;
+        }
+
         private void tickWander() {
+            if (mob.tensionOnly && mob.tickCount % 5 == 0 && someoneClose(6.0)) {
+                mob.dissolve();
+                return;
+            }
             if (mob.tickCount % 5 == 0) {
                 Player seen = findWatcher();
                 if (seen != null) {
@@ -280,6 +320,15 @@ public class EchoDoppelganger extends NightmareMonster {
                 return;
             }
             mob.getLookControl().setLookAt(victim, 6.0F, 6.0F);
+            if (mob.tensionOnly) {
+                // it only watches. Come closer and it is gone; walk away and it goes back to its path
+                if (someoneClose(6.0)) {
+                    mob.dissolve();
+                } else if (victim.distanceToSqr(mob) > 34 * 34) {
+                    mob.setState(STATE_WANDER);
+                }
+                return;
+            }
             if (--stareTicks <= 0) {
                 mob.setTarget(victim);
                 mob.setState(STATE_HUNT);
@@ -313,7 +362,7 @@ public class EchoDoppelganger extends NightmareMonster {
             }
             mob.getLookControl().setLookAt(victim, 30.0F, 30.0F);
             if (mob.tickCount % 4 == 0 || mob.getNavigation().isDone()) {
-                mob.getNavigation().moveTo(victim, 1.75);
+                mob.getNavigation().moveTo(victim, HUNT_SPEED);
             }
             double reach = mob.getBbWidth() * 2.0F * mob.getBbWidth() * 2.0F + victim.getBbWidth() + 1.2;
             if (d <= reach && attackCooldown <= 0) {

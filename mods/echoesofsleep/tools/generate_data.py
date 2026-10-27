@@ -146,7 +146,7 @@ ARMOR = {'helmet': ['XXX', 'X X'], 'chestplate': ['X X', 'XXX', 'XXX'], 'legging
 for piece, pat in ARMOR.items():
     shaped(f'dreamcatcher_{piece}', pat, {'X': m('dream_shard')}, m(f'dreamcatcher_{piece}'), cat='equipment')
     shaped(f'wakeful_{piece}', pat, {'X': m('dawn_ingot')}, m(f'wakeful_{piece}'), cat='equipment')
-EATER = {'helmet': ['DHD', 'D D'], 'chestplate': ['D D', 'DHD', 'DDD'], 'leggings': ['DHD', 'D D', 'D D'], 'boots': ['D D', 'H H']}
+EATER = {'helmet': ['DHD', 'D D'], 'chestplate': ['D D', 'DHD', 'DDD'], 'leggings': ['DHD', 'D D', 'D D'], 'boots': ['D D', 'DHD']}
 for piece, pat in EATER.items():
     shaped(f'nightmare_eater_{piece}', pat, {'D': m('dawn_ingot'), 'H': m('nightmare_heart')}, m(f'nightmare_eater_{piece}'), cat='equipment')
 
@@ -175,16 +175,16 @@ for piece, tname in (('helmet', 'head_armor'), ('chestplate', 'chest_armor'), ('
 
 # ---------------------------------------------------------------- worldgen
 w(f'{D}/worldgen/configured_feature/dream_shard_ore.json', {'type': 'minecraft:ore', 'config': {
-    'size': 6, 'discard_chance_on_air_exposure': 0.2, 'targets': [
+    'size': 4, 'discard_chance_on_air_exposure': 0.5, 'targets': [
         {'target': {'predicate_type': 'minecraft:tag_match', 'tag': 'minecraft:stone_ore_replaceables'},
          'state': {'Name': m('dream_shard_ore')}},
         {'target': {'predicate_type': 'minecraft:tag_match', 'tag': 'minecraft:deepslate_ore_replaceables'},
          'state': {'Name': m('deepslate_dream_shard_ore')}}]}})
 w(f'{D}/worldgen/placed_feature/dream_shard_ore.json', {'feature': m('dream_shard_ore'), 'placement': [
-    {'type': 'minecraft:count', 'count': 5},
+    {'type': 'minecraft:count', 'count': 2},
     {'type': 'minecraft:in_square'},
     {'type': 'minecraft:height_range', 'height': {'type': 'minecraft:trapezoid',
-                                                  'min_inclusive': {'above_bottom': 0}, 'max_inclusive': {'absolute': 40}}},
+                                                  'min_inclusive': {'above_bottom': 0}, 'max_inclusive': {'absolute': 0}}},
     {'type': 'minecraft:biome'}]})
 w(f'{D}/forge/biome_modifier/add_dream_shard_ore.json', {'type': 'forge:add_features', 'biomes': '#minecraft:is_overworld',
                                                          'features': m('dream_shard_ore'), 'step': 'underground_ores'})
@@ -201,35 +201,41 @@ def snd(files, subtitle, stream=False, **kw):
     return {'subtitle': 'subtitles.%s.%s' % (MOD, subtitle), 'sounds': sounds}
 
 
+def varied(files, subtitle, pitches=(0.85, 1.0, 1.15)):
+    """Every file at three pitches, so repeated whispers and footsteps never sound identical."""
+    sounds = [{'name': m(f), 'pitch': p} for f in files for p in pitches]
+    return {'subtitle': 'subtitles.%s.%s' % (MOD, subtitle), 'sounds': sounds}
+
+
 SOUNDS = {
-    'ambient.whisper': snd(['whisper1', 'whisper2', 'whisper3'], 'whisper'),
+    'ambient.whisper': varied(['whisper1', 'whisper2', 'whisper3'], 'whisper'),
     'ambient.heartbeat': snd(['heartbeat'], 'heartbeat'),
     'ambient.drone': snd(['drone'], 'drone'),
-    'ambient.footsteps': snd(['footstep1', 'footstep2'], 'footsteps'),
+    'ambient.footsteps': varied(['footstep1', 'footstep2'], 'footsteps'),
     'event.wake_scream': snd(['scream'], 'wake_scream'),
     'event.glitch': snd(['glitch'], 'glitch'),
     'event.creak': snd(['creak'], 'creak'),
-    'entity.echo_doppelganger.ambient': snd(['breath', 'whisper2'], 'doppelganger_ambient'),
-    'entity.echo_doppelganger.hurt': snd(['crack'], 'doppelganger_hurt'),
-    'entity.echo_doppelganger.death': snd(['wail'], 'doppelganger_death'),
+    'entity.echo_doppelganger.ambient': varied(['breath', 'whisper2'], 'doppelganger_ambient', (0.9, 1.0)),
+    'entity.echo_doppelganger.hurt': snd(['gasp'], 'doppelganger_hurt'),
+    'entity.echo_doppelganger.death': snd(['reverse_swell'], 'doppelganger_death'),
     'entity.echo_doppelganger.scream': snd(['scream'], 'doppelganger_scream'),
     'entity.stitcher.ambient': snd(['groan'], 'stitcher_ambient'),
-    'entity.stitcher.hurt': snd(['crack'], 'stitcher_hurt'),
-    'entity.stitcher.death': snd(['wail'], 'stitcher_death'),
+    'entity.stitcher.hurt': snd(['wet_tear'], 'stitcher_hurt'),
+    'entity.stitcher.death': snd(['flesh_fall'], 'stitcher_death'),
     'entity.sleepless.ambient': snd(['breath'], 'sleepless_ambient'),
-    'entity.sleepless.hurt': snd(['crack'], 'sleepless_hurt'),
-    'entity.sleepless.death': snd(['wail'], 'sleepless_death'),
+    'entity.sleepless.hurt': snd(['bone_snap'], 'sleepless_hurt'),
+    'entity.sleepless.death': snd(['bone_death'], 'sleepless_death'),
     'entity.sleepless.sting': snd(['sting'], 'sleepless_sting'),
-    'entity.hollow_villager.ambient': snd(['whisper1', 'whisper3'], 'hollow_ambient'),
-    'entity.hollow_villager.hurt': snd(['groan'], 'hollow_hurt'),
-    'entity.hollow_villager.death': snd(['wail'], 'hollow_death'),
+    'entity.hollow_villager.ambient': varied(['whisper1', 'whisper3'], 'hollow_ambient', (0.7, 0.8)),
+    'entity.hollow_villager.hurt': snd(['hollow_moan'], 'hollow_hurt'),
+    'entity.hollow_villager.death': snd(['hollow_death'], 'hollow_death'),
     'entity.deep_mother.ambient': snd(['groan', 'rumble'], 'mother_ambient'),
-    'entity.deep_mother.hurt': snd(['crack'], 'mother_hurt'),
+    'entity.deep_mother.hurt': snd(['mother_roar'], 'mother_hurt'),
     'entity.deep_mother.death': snd(['wail', 'rumble'], 'mother_death'),
     'entity.deep_mother.emerge': snd(['rumble'], 'mother_emerge'),
     'entity.the_dreamer.ambient': snd(['drone', 'breath'], 'dreamer_ambient'),
-    'entity.the_dreamer.hurt': snd(['glitch'], 'dreamer_hurt'),
-    'entity.the_dreamer.death': snd(['scream', 'wail'], 'dreamer_death'),
+    'entity.the_dreamer.hurt': snd(['choir_hit'], 'dreamer_hurt'),
+    'entity.the_dreamer.death': snd(['choir_death'], 'dreamer_death'),
     'entity.the_dreamer.pulse': snd(['pulse'], 'dreamer_pulse'),
     'item.lullaby_staff.use': snd(['lullaby'], 'lullaby'),
     'item.echo_scythe.ghost_slash': snd(['ghost_slash'], 'ghost_slash'),

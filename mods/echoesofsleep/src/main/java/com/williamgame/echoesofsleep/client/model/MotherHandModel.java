@@ -64,9 +64,10 @@ public class MotherHandModel extends NightmareModel<MotherHand> {
         PartDefinition forearm = root.addOrReplaceChild("forearm", CubeListBuilder.create()
                 .texOffs(0, 0).addBox(-4.0F, -24.0F, -4.0F, 8.0F, 24.0F, 8.0F), PartPose.offset(0.0F, 24.0F, 0.0F));
         PartDefinition spurs = forearm.addOrReplaceChild("spurs", CubeListBuilder.create()
-                .texOffs(122, 0).addBox(-5.0F, -2.0F, -1.0F, 1.0F, 4.0F, 2.0F)
-                .texOffs(44, 12).addBox(4.0F, -8.0F, -1.0F, 1.0F, 3.0F, 2.0F)
-                .texOffs(50, 12).addBox(-1.0F, 4.0F, -5.0F, 2.0F, 3.0F, 1.0F), PartPose.offset(0.0F, -14.0F, 0.0F));
+                .texOffs(118, 10).addBox(-6.0F, -3.0F, -1.0F, 2.0F, 5.0F, 2.0F)
+                .texOffs(32, 12).addBox(4.0F, -9.0F, -1.0F, 2.0F, 4.0F, 2.0F)
+                .texOffs(40, 12).addBox(-1.0F, 3.0F, -6.0F, 2.0F, 4.0F, 2.0F)
+                .texOffs(118, 17).addBox(-1.0F, -6.0F, 4.0F, 2.0F, 3.0F, 2.0F), PartPose.offset(0.0F, -14.0F, 0.0F));
         PartDefinition wrist = forearm.addOrReplaceChild("wrist", CubeListBuilder.create()
                 .texOffs(70, 0).addBox(-3.5F, -3.0F, -3.5F, 7.0F, 3.0F, 7.0F), PartPose.offset(0.0F, -23.5F, 0.0F));
         PartDefinition palm = wrist.addOrReplaceChild("palm", CubeListBuilder.create()
@@ -76,29 +77,29 @@ public class MotherHandModel extends NightmareModel<MotherHand> {
         PartDefinition finger0Mid = finger0.addOrReplaceChild("finger_0_mid", CubeListBuilder.create()
                 .texOffs(78, 10).addBox(-1.0F, -6.0F, -1.0F, 2.0F, 6.0F, 2.0F), PartPose.offsetAndRotation(0.0F, -7.5F, 0.0F, 0.45F, 0.0F, 0.0F));
         PartDefinition finger0Tip = finger0Mid.addOrReplaceChild("finger_0_tip", CubeListBuilder.create()
-                .texOffs(122, 6).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
+                .texOffs(122, 0).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
         PartDefinition finger1 = palm.addOrReplaceChild("finger_1", CubeListBuilder.create()
                 .texOffs(106, 0).addBox(-1.0F, -8.0F, -1.0F, 2.0F, 8.0F, 2.0F), PartPose.offsetAndRotation(-1.34F, -4.0F, -1.7F, 0.35F, 0.0F, -0.1F));
         PartDefinition finger1Mid = finger1.addOrReplaceChild("finger_1_mid", CubeListBuilder.create()
                 .texOffs(86, 10).addBox(-1.0F, -6.0F, -1.0F, 2.0F, 6.0F, 2.0F), PartPose.offsetAndRotation(0.0F, -7.5F, 0.0F, 0.45F, 0.0F, 0.0F));
         PartDefinition finger1Tip = finger1Mid.addOrReplaceChild("finger_1_tip", CubeListBuilder.create()
-                .texOffs(118, 10).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
+                .texOffs(48, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
         PartDefinition finger2 = palm.addOrReplaceChild("finger_2", CubeListBuilder.create()
                 .texOffs(114, 0).addBox(-1.0F, -8.0F, -1.0F, 2.0F, 8.0F, 2.0F), PartPose.offsetAndRotation(1.32F, -4.0F, -1.7F, 0.35F, 0.0F, 0.1F));
         PartDefinition finger2Mid = finger2.addOrReplaceChild("finger_2_mid", CubeListBuilder.create()
                 .texOffs(94, 10).addBox(-1.0F, -6.0F, -1.0F, 2.0F, 6.0F, 2.0F), PartPose.offsetAndRotation(0.0F, -7.5F, 0.0F, 0.45F, 0.0F, 0.0F));
         PartDefinition finger2Tip = finger2Mid.addOrReplaceChild("finger_2_tip", CubeListBuilder.create()
-                .texOffs(32, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
+                .texOffs(52, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
         PartDefinition finger3 = palm.addOrReplaceChild("finger_3", CubeListBuilder.create()
                 .texOffs(70, 10).addBox(-1.0F, -8.0F, -1.0F, 2.0F, 8.0F, 2.0F), PartPose.offsetAndRotation(3.98F, -4.0F, -1.1F, 0.35F, 0.0F, 0.3F));
         PartDefinition finger3Mid = finger3.addOrReplaceChild("finger_3_mid", CubeListBuilder.create()
                 .texOffs(102, 10).addBox(-1.0F, -6.0F, -1.0F, 2.0F, 6.0F, 2.0F), PartPose.offsetAndRotation(0.0F, -7.5F, 0.0F, 0.45F, 0.0F, 0.0F));
         PartDefinition finger3Tip = finger3Mid.addOrReplaceChild("finger_3_tip", CubeListBuilder.create()
-                .texOffs(36, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
+                .texOffs(56, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.5F, 0.0F, 0.0F));
         PartDefinition thumb = palm.addOrReplaceChild("thumb", CubeListBuilder.create()
                 .texOffs(110, 10).addBox(-1.0F, -6.0F, -1.0F, 2.0F, 6.0F, 2.0F), PartPose.offsetAndRotation(5.5F, -2.0F, -1.0F, 0.3F, 0.0F, 1.0F));
         PartDefinition thumbTip = thumb.addOrReplaceChild("thumb_tip", CubeListBuilder.create()
-                .texOffs(40, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.4F, 0.0F, 0.0F));
+                .texOffs(60, 12).addBox(-0.5F, -5.0F, -0.5F, 1.0F, 5.0F, 1.0F), PartPose.offsetAndRotation(0.0F, -5.5F, 0.0F, 0.4F, 0.0F, 0.0F));
         return LayerDefinition.create(mesh, 128, 128);
     }
 

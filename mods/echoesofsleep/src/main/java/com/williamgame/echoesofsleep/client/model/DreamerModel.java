@@ -328,7 +328,7 @@ public class DreamerModel extends NightmareModel<TheDreamer> {
         }
 
         // the eye: a slit in phase 1, half open in phase 2, wide and darting in phase 3
-        float open = phase == 1 ? 0.12F + Math.max(0.0F, twitch(age, 10.0F, seed, 0.8F)) * 0.5F : phase == 2 ? 0.65F : 1.0F;
+        float open = phase == 1 ? 0.3F + Math.max(0.0F, twitch(age, 10.0F, seed, 0.8F)) * 0.5F : phase == 2 ? 0.65F : 1.0F;
         if (cast != TheDreamer.CAST_NONE) open = Math.max(open, 0.85F * cp);
         lidTop.xRot += open * 1.35F;
         lidBottom.xRot -= open * 1.35F;

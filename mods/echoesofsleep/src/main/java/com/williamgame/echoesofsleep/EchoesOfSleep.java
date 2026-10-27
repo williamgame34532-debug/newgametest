@@ -30,6 +30,7 @@ public class EchoesOfSleep {
         ModTabs.TABS.register(modBus);
         modBus.addListener(ModEntities::attributes);
         context.registerConfig(ModConfig.Type.COMMON, Config.SPEC);
+        context.registerConfig(ModConfig.Type.CLIENT, ClientConfig.SPEC);
         ModNetwork.register();
         MinecraftForge.EVENT_BUS.register(CommonEvents.class);
         MinecraftForge.EVENT_BUS.register(GearEvents.class);

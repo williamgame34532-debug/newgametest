@@ -215,11 +215,11 @@ public class Sleepless extends NightmareMonster {
         entityData.set(DATA_REACHING, true);
         prey.hurt(damageSources().mobAttack(this), (float) getAttributeValue(Attributes.ATTACK_DAMAGE));
         prey.addEffect(new MobEffectInstance(MobEffects.DARKNESS, 120, 0), this);
-        prey.addEffect(new MobEffectInstance(MobEffects.CONFUSION, 120, 0), this);
         prey.addEffect(new MobEffectInstance(MobEffects.MOVEMENT_SLOWDOWN, 60, 1), this);
         sl.playSound(null, getX(), getY(), getZ(), ModSounds.SLEEPLESS_STING.get(), SoundSource.HOSTILE, 2.0F, 0.7F);
         if (prey instanceof ServerPlayer sp) {
             ModNetwork.sendTo(sp, new FxPacket(FxPacket.GLITCH, 1.0F));
+            ModNetwork.sendTo(sp, new FxPacket(FxPacket.HEARTBEAT, 1.0F));
         }
         // then it is gone again... somewhere behind the treeline
         relocateNear(sl, prey, 24.0, 36.0);

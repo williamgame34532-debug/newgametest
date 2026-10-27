@@ -21,6 +21,8 @@ public final class ClientDistortion {
     public static int flashTicks, flashMax;
     public static int flashColor = 0xFFFFFF;
     public static int glitchTicks;
+    /** Client tick range [blackStart, blackEnd) during which one or two black "skipped" frames are shown. */
+    public static long blackStart, blackEnd;
     public static int wrongNumberTicks;
     public static float shake;
     private static int heartbeats;
@@ -38,6 +40,21 @@ public final class ClientDistortion {
     }
 
     /** 0..1 intensity of the current Distortion (fade in / out), times the user's visual strength. */
+    public static boolean reduceFlashing() {
+        return com.williamgame.echoesofsleep.ClientConfig.REDUCE_FLASHING.get();
+    }
+
+    /** Starts a glitch: N ticks of torn bands, with at most 1-2 black frames picked per client tick (never per render frame). */
+    static void startGlitch(int ticks, RandomSource r) {
+        glitchTicks = Math.max(glitchTicks, ticks);
+        blackStart = clientTicks + 1 + r.nextInt(Math.max(1, ticks - 2));
+        blackEnd = blackStart + 1 + r.nextInt(2);
+    }
+
+    public static boolean blackFrameNow() {
+        return glitchTicks > 0 && clientTicks >= blackStart && clientTicks < blackEnd && !reduceFlashing();
+    }
+
     public static float intensity() {
         return DistortionData.intensity(level, ticksLeft, totalTicks) * strength();
     }
@@ -83,7 +100,7 @@ public final class ClientDistortion {
             whisperBehind(player, 0.6F * k);
         }
         if (level >= 3 && r.nextInt(1200) == 0) {
-            glitchTicks = 3 + r.nextInt(4);
+            startGlitch(3 + r.nextInt(4), r);
         }
         if (level >= 3 && r.nextInt(1500) == 0) {
             heartbeats = 4;
@@ -123,7 +140,7 @@ public final class ClientDistortion {
     }
 
     static void glitch(LocalPlayer player, float strength) {
-        glitchTicks = 5 + (int) (strength * 6);
+        startGlitch(5 + (int) (strength * 6), player.getRandom());
         wrongNumberTicks = 70;
         shake = Math.max(shake, 0.4F * strength);
         play(player, ModSounds.GLITCH.get(), player.position().add(0, 1, 0), 0.6F, 0.8F + player.getRandom().nextFloat() * 0.4F);

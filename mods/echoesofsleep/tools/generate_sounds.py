@@ -267,6 +267,129 @@ def ghost_slash():
     return reverb(sweep + chord, 1.2, 0.5)
 
 
+# ------------------------------------------------------------------------------------------- per-monster voices
+def gasp():
+    """Doppelganger hurt: a sharp, reversed intake of breath - human, but wrong."""
+    x = t(0.6)
+    n = band(rng.standard_normal(len(x)), 600, 3200)
+    e = np.clip(x / 0.45, 0, 1) ** 3 * (x < 0.48) + np.exp(-(x - 0.48) * 40) * (x >= 0.48)
+    tone = np.sin(2 * np.pi * (300 + 200 * x) * x) * 0.2 * e
+    return reverb(n * e + tone, 0.5, 0.3)
+
+
+def reverse_swell():
+    """Doppelganger death: a whisper played backwards swelling into a cut."""
+    w = whisper(77, 1.6)[::-1]
+    w *= np.linspace(0.2, 1.0, len(w)) ** 2
+    return np.concatenate([w, np.zeros(int(0.05 * SR))])
+
+
+def wet_tear():
+    """Stitcher hurt: stitches ripping out of wet flesh."""
+    x = t(0.5)
+    out = np.zeros_like(x)
+    for k in range(7):
+        s0 = int((0.02 + k * 0.04 + rng.uniform(0, 0.02)) * SR)
+        seg = int(0.03 * SR)
+        rip = band(rng.standard_normal(seg), 900, 5000) * np.exp(-np.arange(seg) / SR * 120)
+        out[s0:s0 + seg] += rip[:len(out[s0:s0 + seg])] * rng.uniform(0.5, 1.0)
+    squelch = band(rng.standard_normal(len(x)), 150, 700) * np.exp(-x * 9) * (0.6 + 0.4 * np.sin(2 * np.pi * 31 * x))
+    return reverb(out + squelch * 0.8, 0.4, 0.2)
+
+
+def flesh_fall():
+    """Stitcher death: it comes apart - tearing, then a heavy wet collapse."""
+    a = wet_tear()
+    x = t(1.4)
+    thud = lowpass(rng.standard_normal(len(x)), 140) * np.exp(-np.clip(x - 0.5, 0, None) * 7) * (x > 0.5) * 2.5
+    slop = band(rng.standard_normal(len(x)), 200, 900) * np.exp(-np.clip(x - 0.55, 0, None) * 5) * (x > 0.55)
+    out = thud + slop
+    out[:len(a)] += a[:len(out)]
+    return reverb(out, 0.9, 0.3)
+
+
+def bone_snap():
+    """Sleepless hurt: a long bone snapping."""
+    x = t(0.4)
+    out = np.zeros_like(x)
+    for st, amp in ((0.0, 1.0), (0.012, 0.8), (0.03, 0.5)):
+        s0 = int(st * SR)
+        seg = int(0.015 * SR)
+        click = band(rng.standard_normal(seg), 2500, 9000) * np.exp(-np.arange(seg) / SR * 400)
+        out[s0:s0 + seg] += click * amp
+    out += np.sin(2 * np.pi * 180 * x) * np.exp(-x * 60) * 0.5
+    return reverb(out, 0.6, 0.35)
+
+
+def bone_death():
+    """Sleepless death: a slow creak of an enormous body folding, a chain of snaps."""
+    c = creak()
+    x = t(1.8)
+    out = np.zeros_like(x)
+    out[:len(c)] += c[:len(out)] * 0.8
+    for k in range(5):
+        b = bone_snap()
+        s0 = int((0.5 + k * 0.22) * SR)
+        out[s0:s0 + len(b)] += b[:len(out[s0:s0 + len(b)])] * (1.0 - k * 0.12)
+    return out
+
+
+def hollow_moan(dur=0.9, f0=170, fall=40):
+    """Hollow Villager hurt: a villager's 'hmm', hollowed out and pitched wrong."""
+    x = t(dur)
+    f = f0 - fall * x / dur + 4 * np.sin(2 * np.pi * 6 * x)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    saw = 2 * ((ph / (2 * np.pi)) % 1) - 1
+    v = band(saw, 250, 600) + band(saw, 900, 1300) * 0.4
+    v += band(rng.standard_normal(len(x)), 400, 1800) * 0.25
+    return reverb(np.tanh(v * 2) * env(len(x), 0.03, 0.3), 1.0, 0.45)
+
+
+def hollow_death():
+    return hollow_moan(2.0, 190, 120)
+
+
+def mother_roar():
+    """Deep Mother hurt: a cavernous roar with stone grinding under it."""
+    x = t(1.3)
+    f = 55 + 25 * np.exp(-x * 2)
+    ph = 2 * np.pi * np.cumsum(f) / SR
+    saw = 2 * ((ph / (2 * np.pi)) % 1) - 1
+    v = band(saw, 80, 500) + band(rng.standard_normal(len(x)), 100, 900) * 0.6
+    v *= 0.6 + 0.4 * np.abs(np.sin(2 * np.pi * 23 * x))
+    grind = band(rng.standard_normal(len(x)), 1500, 4000) * 0.15 * (0.5 + 0.5 * np.sin(2 * np.pi * 7 * x))
+    return reverb(np.tanh(v * 2.5) * env(len(x), 0.05, 0.5) + grind, 1.8, 0.45)
+
+
+def choir(dur, notes, shimmer=0.0):
+    x = t(dur)
+    out = np.zeros_like(x)
+    for k, n in enumerate(notes):
+        f = 440 * 2 ** ((n - 69) / 12)
+        for det in (-0.006, 0.0, 0.007):  # several voices per note
+            ff = f * (1 + det) * (1 + 0.004 * np.sin(2 * np.pi * (5 + k) * x))
+            ph = 2 * np.pi * np.cumsum(ff) / SR
+            voice = np.sin(ph) + 0.3 * np.sin(2 * ph) + 0.12 * np.sin(3 * ph)
+            out += band(voice, 200, 2600) * 0.3
+    out += band(rng.standard_normal(len(x)), 2000, 6000) * shimmer
+    return out
+
+
+def choir_hit():
+    """Dreamer hurt: a dissonant choir chord, struck."""
+    x = t(0.9)
+    c = choir(0.9, [57, 60, 63, 68], 0.05) * np.exp(-x * 4)
+    return reverb(c * env(len(x), 0.005, 0.2), 1.6, 0.5)
+
+
+def choir_death():
+    """Dreamer death: a huge choir swelling, collapsing into silence."""
+    x = t(3.2)
+    c = choir(3.2, [45, 52, 57, 60, 63, 64], 0.08)
+    e = np.clip(x / 2.0, 0, 1) ** 2 * np.exp(-np.clip(x - 2.2, 0, None) * 4)
+    return reverb(np.tanh(c * e * 1.5), 2.5, 0.5)
+
+
 def run():
     save('whisper1', whisper(1))
     save('whisper2', whisper(2, 1.8))
@@ -287,6 +410,17 @@ def run():
     save('pulse', pulse())
     save('lullaby', lullaby())
     save('ghost_slash', ghost_slash())
+    save('gasp', gasp())
+    save('reverse_swell', reverse_swell())
+    save('wet_tear', wet_tear())
+    save('flesh_fall', flesh_fall())
+    save('bone_snap', bone_snap())
+    save('bone_death', bone_death())
+    save('hollow_moan', hollow_moan())
+    save('hollow_death', hollow_death())
+    save('mother_roar', mother_roar())
+    save('choir_hit', choir_hit())
+    save('choir_death', choir_death())
 
 
 if __name__ == '__main__':

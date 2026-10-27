@@ -6,7 +6,6 @@ import com.williamgame.echoesofsleep.client.renderer.*;
 import com.williamgame.echoesofsleep.entity.HollowVillager;
 import com.williamgame.echoesofsleep.entity.Sleepless;
 import com.williamgame.echoesofsleep.entity.Stitcher;
-import com.williamgame.echoesofsleep.entity.TheDreamer;
 import com.williamgame.echoesofsleep.registry.ModEntities;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.AddGuiOverlayLayersEvent;
@@ -41,8 +40,7 @@ public final class ClientModEvents {
                 ctx -> new NightmareRenderer<HollowVillager, HollowVillagerModel>(ctx, new HollowVillagerModel(ctx.bakeLayer(HollowVillagerModel.LAYER)), 0.5F, "hollow_villager"));
         event.registerEntityRenderer(ModEntities.DEEP_MOTHER.get(), DeepMotherRenderer::new);
         event.registerEntityRenderer(ModEntities.MOTHER_HAND.get(), MotherHandRenderer::new);
-        event.registerEntityRenderer(ModEntities.THE_DREAMER.get(),
-                ctx -> new NightmareRenderer<TheDreamer, DreamerModel>(ctx, new DreamerModel(ctx.bakeLayer(DreamerModel.LAYER)), 1.2F, "the_dreamer"));
+        event.registerEntityRenderer(ModEntities.THE_DREAMER.get(), DreamerRenderer::new);
         event.registerEntityRenderer(ModEntities.REALITY_FRAGMENT.get(), RealityFragmentRenderer::new);
     }
 

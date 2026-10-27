@@ -8,6 +8,7 @@ import com.williamgame.echoesofsleep.network.FxPacket;
 import com.williamgame.echoesofsleep.network.ModNetwork;
 import com.williamgame.echoesofsleep.registry.ModBlocks;
 import com.williamgame.echoesofsleep.registry.ModEntities;
+import com.williamgame.echoesofsleep.registry.ModItems;
 import com.williamgame.echoesofsleep.registry.ModSounds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
@@ -91,6 +92,13 @@ public final class DistortionManager {
         float avg = sum / sleepers.size();
         float score = avg * 0.6F + max * 0.4F + (sleepers.size() - 1) * 6.0F + (data.consecutiveNights - 1) * 14.0F;
         int level = score >= 55 ? 3 : score >= 25 ? 2 : 1;
+        // the deterministic road to the final boss: fall asleep holding a Dream Totem and the dream goes all the way down
+        for (ServerPlayer p : sleepers) {
+            if (p.getInventory().contains(stack -> stack.is(ModItems.DREAM_TOTEM.get()))) {
+                level = 3;
+                p.sendSystemMessage(Component.translatable("message.echoesofsleep.totem.dream").withStyle(ChatFormatting.DARK_RED, ChatFormatting.ITALIC));
+            }
+        }
         start(sl, level, Config.DISTORTION_DURATION.get());
 
         // the wake-up moment
@@ -473,7 +481,9 @@ public final class DistortionManager {
         }
 
         if (nightmaresNear(sl, p) >= Config.MAX_NIGHTMARES_PER_PLAYER.get()) return;
-        if (r.nextFloat() > 0.09F * lvl * inten * rate) return;
+        // level 1 is tension only: rare watchers. Real hunts start at level 2.
+        float chance = lvl >= 3 ? 0.15F : lvl == 2 ? 0.08F : 0.03F;
+        if (r.nextFloat() > chance * inten * rate) return;
 
         // Echoes made from player A can hunt player B
         List<ServerPlayer> all = sl.players();
@@ -483,7 +493,7 @@ public final class DistortionManager {
 
         int wDoppel = 4;
         int wStitch = lvl >= 2 && mem.hostileKills() >= 10 ? 3 : 0;
-        int wHollow = mem.villagersHurt() > 0 && (sl.isVillage(p.blockPosition()) || lvl >= 3) ? 3 : 0;
+        int wHollow = lvl >= 2 && mem.villagersHurt() > 0 && (sl.isVillage(p.blockPosition()) || lvl >= 3) ? 3 : 0;
         int roll = r.nextInt(wDoppel + wStitch + wHollow);
 
         NightmareMonster mob;
@@ -503,6 +513,7 @@ public final class DistortionManager {
             }
             if (spot == null) spot = hiddenSpot(sl, dg.getType(), p, 18, 34);
             dg.setPath(path);
+            dg.setTensionOnly(lvl <= 1);
             mob = dg;
         } else if (roll < wDoppel + wStitch) {
             Stitcher st = ModEntities.STITCHER.get().create(sl);

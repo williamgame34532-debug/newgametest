@@ -69,8 +69,8 @@ DESC = {
     'dawn_ingot': ('Forged from a dream and the first light of morning.', 'Выкован из сна и первого утреннего света.'),
     'nightmare_heart': ('It is still beating. Not in your rhythm.', 'Оно всё ещё бьётся. Не в твоём ритме.'),
     'dawn_tincture': ('Drink: Dread -30, clears darkness from your eyes.', 'Выпить: Страх -30, снимает тьму с глаз.'),
-    'dream_totem': ('Use on the ground during a Nightmare (level 3) to summon The Dreamer.',
-                    'Используй на земле во время Кошмара (3 уровень), чтобы призвать Того, кто снится.'),
+    'dream_totem': ('Sleep with it in your inventory to dream all the way down (Nightmare). Use it on the ground during a Nightmare to summon The Dreamer.',
+                    'Усни с ним в инвентаре — и сон уйдёт до самого дна (Кошмар). Используй на земле во время Кошмара, чтобы призвать Того, кто снится.'),
     'dawn_blade': ('Double damage to nightmares. Its light blinds them.', 'Двойной урон кошмарам. Его свет ослепляет их.'),
     'echo_scythe': ('Every hit is repeated a second later by a ghostly slash.', 'Каждый удар через секунду повторяет призрачный взмах.'),
     'lullaby_staff': ('Use: nightmares within 10 blocks fall asleep for 5 s (15 s cooldown).',
@@ -107,6 +107,8 @@ add(f'message.{P}.dreamer_slain', 'The Dreamer is gone. For the first time in ni
     'Того, кто снится, больше нет. Впервые за много ночей ты чувствуешь, что проснулся.')
 add(f'message.{P}.totem.not_deep', 'The dream is not deep enough. It needs the Nightmare.',
     'Сон недостаточно глубок. Нужен Кошмар.')
+add(f'message.{P}.totem.dream', 'The totem in your pack grows warm. You are dreaming deeper than ever before...',
+    'Тотем в сумке теплеет. Ты погружаешься в сон глубже, чем когда-либо...')
 add(f'message.{P}.totem.already', 'It is already here.', 'Оно уже здесь.')
 add(f'message.{P}.tincture', 'Morning light washes over you. Dread: %s', 'Утренний свет омывает тебя. Страх: %s')
 add(f'message.{P}.lullaby.none', 'The lullaby echoes into empty dark.', 'Колыбельная растворяется в пустой тьме.')

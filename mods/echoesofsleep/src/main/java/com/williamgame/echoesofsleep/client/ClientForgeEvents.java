@@ -1,7 +1,18 @@
 package com.williamgame.echoesofsleep.client;
 
 import com.williamgame.echoesofsleep.EchoesOfSleep;
+import com.mojang.blaze3d.systems.RenderSystem;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.VertexSorting;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
+import net.minecraftforge.client.event.RenderLevelStageEvent;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 import net.minecraft.client.renderer.FogRenderer;
 import net.minecraft.util.Mth;
 import net.minecraftforge.api.distmarker.Dist;
@@ -36,6 +47,54 @@ public final class ClientForgeEvents {
 
     private static int lvl() {
         return Mth.clamp(ClientDistortion.level, 0, 3);
+    }
+
+    // sky tint per level (RGB 0..255) and maximum opacity: ashen dusk, bruise purple, blood red
+    private static final int[][] SKY = {{0, 0, 0, 0}, {60, 60, 72, 70}, {70, 14, 96, 120}, {120, 0, 12, 165}};
+
+    /**
+     * Tints and darkens the sky itself: right after the sky is drawn (and before any terrain), a full-screen
+     * translucent quad is blended over it. Terrain is drawn afterwards on top, so only the sky changes colour.
+     */
+    @SubscribeEvent
+    public static void skyTint(RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_SKY) return;
+        float k = Math.min(1.0F, ClientDistortion.intensity());
+        int l = lvl();
+        if (k <= 0.0F || l <= 0) return;
+        float breathe = 0.85F + 0.15F * Mth.sin(ClientDistortion.clientTicks * 0.03F);
+        int alpha = (int) (SKY[l][3] * k * breathe);
+        if (alpha <= 0) return;
+
+        RenderSystem.backupProjectionMatrix();
+        RenderSystem.setProjectionMatrix(new Matrix4f(), VertexSorting.ORTHOGRAPHIC_Z);
+        Matrix4fStack modelView = RenderSystem.getModelViewStack();
+        modelView.pushMatrix();
+        modelView.identity();
+        RenderSystem.applyModelViewMatrix();
+        RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
+        RenderSystem.disableCull();
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShader(GameRenderer::getPositionColorShader);
+
+        BufferBuilder buffer = Tesselator.getInstance().begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.POSITION_COLOR);
+        int r = SKY[l][0], gr = SKY[l][1], b = SKY[l][2];
+        // a little darker towards the zenith
+        buffer.addVertex(-1.0F, -1.0F, 0.0F).setColor(r, gr, b, alpha * 2 / 3);
+        buffer.addVertex(1.0F, -1.0F, 0.0F).setColor(r, gr, b, alpha * 2 / 3);
+        buffer.addVertex(1.0F, 1.0F, 0.0F).setColor(r / 2, gr / 2, b / 2, alpha);
+        buffer.addVertex(-1.0F, 1.0F, 0.0F).setColor(r / 2, gr / 2, b / 2, alpha);
+        BufferUploader.drawWithShader(buffer.buildOrThrow());
+
+        RenderSystem.disableBlend();
+        RenderSystem.enableCull();
+        RenderSystem.depthMask(true);
+        RenderSystem.enableDepthTest();
+        modelView.popMatrix();
+        RenderSystem.applyModelViewMatrix();
+        RenderSystem.restoreProjectionMatrix();
     }
 
     @SubscribeEvent
