@@ -288,6 +288,10 @@ public final class GameManager {
             return false;
         }
         GameSettings.JoinMode mode = d.settings.joinMode();
+        if (via != JoinVia.ADMIN && mode == GameSettings.JoinMode.ADMIN) {
+            Fx.actionBar(p, joinMessageFor(mode).copy().withStyle(ChatFormatting.YELLOW));
+            return false;
+        }
         if (via != JoinVia.ADMIN && side != Side.NONE && side != Side.SPECTATOR) {
             boolean allowed = switch (mode) {
                 case FREE -> true;
@@ -721,6 +725,7 @@ public final class GameManager {
                 }
             }
             perSecondRoundChecks();
+            if (phase != Phase.HIDING) return;
         }
         if (--phaseTicks <= 0) beginHunting();
     }

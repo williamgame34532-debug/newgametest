@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "hideandhunt:item/game_master_tablet"
+  }
+}

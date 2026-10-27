@@ -1,0 +1,10 @@
+{
+  "parent": "hideandhunt:block/pedestal_up",
+  "textures": {
+    "cap": "hideandhunt:block/leave_button_cap",
+    "cap_side": "hideandhunt:block/leave_button_cap_side",
+    "side": "hideandhunt:block/leave_button_side",
+    "top": "hideandhunt:block/pedestal_top",
+    "bottom": "hideandhunt:block/pedestal_bottom"
+  }
+}

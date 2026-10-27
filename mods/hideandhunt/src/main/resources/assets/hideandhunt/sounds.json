@@ -1,0 +1,82 @@
+{
+  "countdown": {
+    "subtitle": "subtitles.hideandhunt.countdown",
+    "sounds": [
+      {
+        "name": "hideandhunt:countdown"
+      }
+    ]
+  },
+  "hide_start": {
+    "subtitle": "subtitles.hideandhunt.hide_start",
+    "sounds": [
+      {
+        "name": "hideandhunt:hide_start"
+      }
+    ]
+  },
+  "hunt_start": {
+    "subtitle": "subtitles.hideandhunt.hunt_start",
+    "sounds": [
+      {
+        "name": "hideandhunt:hunt_start"
+      }
+    ]
+  },
+  "caught": {
+    "subtitle": "subtitles.hideandhunt.caught",
+    "sounds": [
+      {
+        "name": "hideandhunt:caught"
+      }
+    ]
+  },
+  "taunt": {
+    "subtitle": "subtitles.hideandhunt.taunt",
+    "sounds": [
+      {
+        "name": "hideandhunt:taunt"
+      }
+    ]
+  },
+  "randomizer_tick": {
+    "subtitle": "subtitles.hideandhunt.randomizer_tick",
+    "sounds": [
+      {
+        "name": "hideandhunt:randomizer_tick"
+      }
+    ]
+  },
+  "randomizer_reveal": {
+    "subtitle": "subtitles.hideandhunt.randomizer_reveal",
+    "sounds": [
+      {
+        "name": "hideandhunt:randomizer_reveal"
+      }
+    ]
+  },
+  "victory": {
+    "subtitle": "subtitles.hideandhunt.victory",
+    "sounds": [
+      {
+        "name": "hideandhunt:victory"
+      }
+    ]
+  },
+  "hint_ping": {
+    "subtitle": "subtitles.hideandhunt.hint_ping",
+    "sounds": [
+      {
+        "name": "hideandhunt:hint_ping"
+      }
+    ]
+  },
+  "join": {
+    "subtitle": "subtitles.hideandhunt.join",
+    "sounds": [
+      {
+        "name": "hideandhunt:join"
+      }
+    ]
+  }
+}

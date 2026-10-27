@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "hideandhunt:block/randomizer_button"
+    },
+    "powered=true": {
+      "model": "hideandhunt:block/randomizer_button_pressed"
+    }
+  }
+}

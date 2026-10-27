@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "hideandhunt:block/hider_button"
+    },
+    "powered=true": {
+      "model": "hideandhunt:block/hider_button_pressed"
+    }
+  }
+}

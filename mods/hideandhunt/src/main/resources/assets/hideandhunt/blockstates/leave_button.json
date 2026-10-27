@@ -1,0 +1,10 @@
+{
+  "variants": {
+    "powered=false": {
+      "model": "hideandhunt:block/leave_button"
+    },
+    "powered=true": {
+      "model": "hideandhunt:block/leave_button_pressed"
+    }
+  }
+}

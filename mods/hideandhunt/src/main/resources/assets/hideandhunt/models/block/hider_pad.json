@@ -1,0 +1,8 @@
+{
+  "parent": "hideandhunt:block/pad_template",
+  "textures": {
+    "top": "hideandhunt:block/hider_pad_top",
+    "side": "hideandhunt:block/hider_pad_side",
+    "bottom": "hideandhunt:block/pad_bottom"
+  }
+}
