@@ -19,6 +19,9 @@ public final class PlayerSnapshot {
     public static CompoundTag capture(ServerPlayer p) {
         CompoundTag t = new CompoundTag();
         t.put("inv", p.getInventory().save(new ListTag()));
+        // ender chest too: during a round the player could move their own items between it and the
+        // (wiped) round inventory, or stash kit items in it
+        t.put("ender", p.getEnderChestInventory().createTag(p.registryAccess()));
         t.putInt("gamemode", p.gameMode.getGameModeForPlayer().getId());
         t.putFloat("health", p.getHealth());
         t.putInt("food", p.getFoodData().getFoodLevel());
@@ -40,10 +43,16 @@ public final class PlayerSnapshot {
      * If {@code lobby} is null the player is also teleported back to where they were when the round started.
      */
     public static void restore(ServerPlayer p, CompoundTag t, boolean restoreInventory) {
+        // put the cursor stack / 2x2 crafting grid back into the inventory first so they are wiped with it
+        // (otherwise closing the screen later would hand round items out on top of the restored inventory)
+        if (!p.hasDisconnected()) p.closeContainer();
         if (restoreInventory && t.contains("inv")) {
             p.getInventory().clearContent();
             p.getInventory().load(t.getList("inv", Tag.TAG_COMPOUND));
             p.getInventory().setChanged();
+        }
+        if (restoreInventory && t.contains("ender")) {
+            p.getEnderChestInventory().fromTag(t.getList("ender", Tag.TAG_COMPOUND), p.registryAccess());
         }
         p.removeAllEffects();
         ListTag effects = t.getList("effects", Tag.TAG_COMPOUND);

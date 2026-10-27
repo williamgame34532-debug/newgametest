@@ -24,6 +24,7 @@ import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.BossEvent;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.damagesource.DamageTypes;
+import net.minecraft.world.effect.MobEffectCategory;
 import net.minecraft.world.effect.MobEffectInstance;
 import net.minecraft.world.effect.MobEffects;
 import net.minecraft.world.entity.Entity;
@@ -356,6 +357,7 @@ public final class GameManager {
         }
         d.sides.clear();
         d.setDirty();
+        TeamDisplay.removeEmptyTeams(server);
         randomizedSinceRound = false;
         syncAll();
     }
@@ -611,13 +613,17 @@ public final class GameManager {
     private void prepare(ServerPlayer p, Participant part) {
         ArenaData d = data();
         GameSettings s = d.settings;
-        boolean keepInv = s.getBool(GameSettings.KEEP_INVENTORY);
+        // close any open screen first: the cursor stack and the 2x2 crafting grid are not part of the
+        // inventory, so they must go back into it before the snapshot is taken (or they'd be wiped)
+        p.closeContainer();
         if (!d.snapshots.containsKey(part.id)) {
             CompoundTag snap = PlayerSnapshot.capture(p);
-            snap.putBoolean("keepInv", keepInv);
+            snap.putBoolean("keepInv", s.getBool(GameSettings.KEEP_INVENTORY));
             d.snapshots.put(part.id, snap);
             d.setDirty();
         }
+        // the snapshot decides, so changing keep_inventory mid-round can never wipe an unsaved inventory
+        boolean wipe = inventorySandboxed(part.id);
         p.stopRiding();
         p.removeAllEffects();
         p.setHealth(p.getMaxHealth());
@@ -626,12 +632,11 @@ public final class GameManager {
         p.clearFire();
         p.resetFallDistance();
         p.setGlowingTag(false);
-        p.closeContainer();
         if (part.side == Side.SPECTATOR) {
             p.setGameMode(GameType.SPECTATOR);
         } else {
             p.setGameMode(s.getBool(GameSettings.ADVENTURE) ? GameType.ADVENTURE : GameType.SURVIVAL);
-            if (!keepInv) {
+            if (wipe) {
                 p.getInventory().clearContent();
                 giveKit(p, part.side);
             }
@@ -642,6 +647,15 @@ public final class GameManager {
             if (phase == Phase.HIDING || phase == Phase.COUNTDOWN) applyHunterHold(p, true);
             else applyHunterSpeed(p);
         }
+    }
+
+    /**
+     * True if this player's inventory was saved at round start and will be replaced by the snapshot at the end,
+     * i.e. it may be cleared / refilled with kits during the round without losing anything.
+     */
+    public boolean inventorySandboxed(UUID id) {
+        CompoundTag snap = data().snapshots.get(id);
+        return snap != null && !snap.getBoolean("keepInv");
     }
 
     private void giveKit(ServerPlayer p, Side side) {
@@ -697,10 +711,11 @@ public final class GameManager {
     private void tickHiding() {
         GameSettings s = settings();
         boolean freeze = s.getBool(GameSettings.FREEZE_HUNTERS);
+        ServerLevel level = arenaLevel();
         for (Participant part : participants.values()) {
             if (part.side != Side.HUNTER) continue;
             ServerPlayer p = online(part);
-            if (p == null || part.spawn == null) continue;
+            if (p == null || part.spawn == null || p.level() != level) continue;
             if (freeze && part.spawn.distSqr(p.getX(), p.getY(), p.getZ()) > 0.09) {
                 p.connection.teleport(part.spawn.x(), part.spawn.y(), part.spawn.z(), p.getYRot(), p.getXRot());
             }
@@ -893,7 +908,7 @@ public final class GameManager {
             if (p != null) {
                 TeamDisplay.assign(server, data(), part.id, p.getScoreboardName(), Side.HUNTER);
                 p.removeAllEffects();
-                if (!s.getBool(GameSettings.KEEP_INVENTORY)) {
+                if (inventorySandboxed(part.id)) {
                     p.getInventory().clearContent();
                     giveKit(p, Side.HUNTER);
                 }
@@ -941,8 +956,14 @@ public final class GameManager {
         p.setHealth(p.getMaxHealth());
         p.clearFire();
         p.resetFallDistance();
+        p.setAirSupply(p.getMaxAirSupply());
+        // drop harmful effects (poison, wither...) so the rescued player doesn't die again right away
+        for (MobEffectInstance e : new ArrayList<>(p.getActiveEffects())) {
+            if (e.getEffect().value().getCategory() == MobEffectCategory.HARMFUL) p.removeEffect(e.getEffect());
+        }
         Entity killer = source.getEntity();
         if (killer instanceof ServerPlayer kp && tryCatch(kp, p)) {
+            if (source.is(DamageTypes.FELL_OUT_OF_WORLD) && !p.isSpectator()) teleport(p, spawnOf(part));
             return true;
         }
         teleport(p, spawnOf(part));
@@ -1086,6 +1107,7 @@ public final class GameManager {
             bossBar = null;
         }
         TeamDisplay.hideSidebar(server, d);
+        TeamDisplay.removeEmptyTeams(server);
         participants.clear();
         outside.clear();
         pendingReturn.clear();
@@ -1164,6 +1186,9 @@ public final class GameManager {
     public void onLogout(ServerPlayer p) {
         padCooldown.remove(p.getUUID());
         outside.remove(p.getUUID());
+        pendingReturn.remove(p.getUUID());
+        // onlookers in the arena were added to the boss bar too; don't keep stale player references
+        if (bossBar != null) bossBar.removePlayer(p);
         Participant part = participants.get(p.getUUID());
         if (part == null) return;
         if (phase == Phase.COUNTDOWN) {
@@ -1172,7 +1197,6 @@ public final class GameManager {
         }
         if (!phase.inRound()) return;
         part.online = false;
-        if (bossBar != null) bossBar.removePlayer(p);
         if ((phase == Phase.HIDING || phase == Phase.HUNTING) && part.side == Side.HIDER && !part.caught) {
             part.caught = true;
             part.caughtBy = "";
@@ -1216,6 +1240,11 @@ public final class GameManager {
 
     public void tick() {
         tick++;
+        if (tick == 1) {
+            // a crash mid-round leaves our sidebar objective (and maybe empty teams) in scoreboard.dat
+            TeamDisplay.hideSidebar(server, data());
+            TeamDisplay.removeEmptyTeams(server);
+        }
         if (randomizerLock > 0) randomizerLock--;
         if (revealTicks > 0 && --revealTicks == 0) revealRandomizer();
         if (startAfterRandomizer && randomizerLock == 0) {
@@ -1253,29 +1282,36 @@ public final class GameManager {
     // ================================================================== client sync
 
     public void syncAll() {
-        for (ServerPlayer p : server.getPlayerList().getPlayers()) syncTo(p);
+        // lobby counts are the same for everybody: compute them once instead of once per player (O(n^2))
+        int[] counts = lobbyCounts();
+        for (ServerPlayer p : server.getPlayerList().getPlayers()) HHNetwork.sendTo(p, buildState(p, counts));
     }
 
     public void syncTo(ServerPlayer p) {
-        HHNetwork.sendTo(p, buildState(p));
+        HHNetwork.sendTo(p, buildState(p, null));
     }
 
-    private StatePacket buildState(ServerPlayer p) {
+    private int[] lobbyCounts() {
+        int[] c = new int[3];
+        if (phase == Phase.LOBBY || phase == Phase.COUNTDOWN) {
+            ArenaData d = data();
+            for (ServerPlayer p : lobbyCandidates()) {
+                Side s = d.sideOf(p.getUUID());
+                c[s == Side.HIDER ? 0 : s == Side.HUNTER ? 1 : 2]++;
+            }
+        }
+        return c;
+    }
+
+    private StatePacket buildState(ServerPlayer p, int[] counts) {
         ArenaData d = data();
         Participant part = participants.get(p.getUUID());
         boolean inArena = p.level() == arenaLevel();
         boolean configured = d.lobby != null || !d.hiderSpawns.isEmpty() || !d.hunterSpawns.isEmpty();
         boolean visible = part != null || (inArena && configured) || (inArena && phase != Phase.LOBBY);
         if (!visible) return StatePacket.hidden();
-        int lh = 0, lk = 0, ln = 0;
-        if (phase == Phase.LOBBY || phase == Phase.COUNTDOWN) {
-            for (ServerPlayer c : lobbyCandidates()) {
-                Side s = d.sideOf(c.getUUID());
-                if (s == Side.HIDER) lh++;
-                else if (s == Side.HUNTER) lk++;
-                else ln++;
-            }
-        }
+        if (counts == null) counts = lobbyCounts();
+        int lh = counts[0], lk = counts[1], ln = counts[2];
         Side side = part != null ? part.side : d.sideOf(p.getUUID());
         int tauntCd = 0;
         if (part != null) {

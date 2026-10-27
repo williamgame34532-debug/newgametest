@@ -2,8 +2,8 @@ package com.williamgame.hideandhunt.event;
 
 import com.williamgame.hideandhunt.command.HHCommands;
 import com.williamgame.hideandhunt.game.GameManager;
-import com.williamgame.hideandhunt.game.GameSettings;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.entity.item.ItemTossEvent;
@@ -13,6 +13,7 @@ import net.minecraftforge.event.entity.player.AttackEntityEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.event.server.ServerStoppingEvent;
+import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 /** Forge-bus handlers (registered in the mod constructor). All server side. */
@@ -77,7 +78,8 @@ public final class ServerEvents {
         }
     }
 
-    @SubscribeEvent
+    /** HIGHEST: a rescued participant must not be seen as dead by other mods' death handlers (graves, stats...). */
+    @SubscribeEvent(priority = EventPriority.HIGHEST)
     public static void onDeath(LivingDeathEvent event) {
         if (event.getEntity() instanceof ServerPlayer sp) {
             if (GameManager.get(sp.server).onPlayerDeath(sp, event.getSource())) {
@@ -86,14 +88,22 @@ public final class ServerEvents {
         }
     }
 
-    /** Kit items can't be thrown away during a round (they are given back instead of being lost). */
+    /**
+     * Kit items can't be thrown away during a round: they are put back into the inventory instead
+     * (the round inventory is wiped and replaced by the snapshot at the end anyway).
+     * Not a dupe: in Forge 1.21.1 {@code ForgeHooks.onPlayerTossEvent} has already removed the stack from the
+     * inventory and, when the event is cancelled, simply never spawns the ItemEntity (the item is destroyed).
+     * If the inventory can't take everything back, only the remainder is dropped so nothing is lost either.
+     */
     @SubscribeEvent
     public static void onToss(ItemTossEvent event) {
         if (event.getPlayer() instanceof ServerPlayer sp) {
             GameManager gm = GameManager.get(sp.server);
-            if (gm.inRound(sp) && !gm.settings().getBool(GameSettings.KEEP_INVENTORY)) {
-                sp.getInventory().add(event.getEntity().getItem().copy());
-                event.setCanceled(true);
+            if (gm.inRound(sp) && gm.inventorySandboxed(sp.getUUID())) {
+                ItemStack rest = event.getEntity().getItem().copy();
+                sp.getInventory().add(rest);
+                if (rest.isEmpty()) event.setCanceled(true);
+                else event.getEntity().setItem(rest);
             }
         }
     }

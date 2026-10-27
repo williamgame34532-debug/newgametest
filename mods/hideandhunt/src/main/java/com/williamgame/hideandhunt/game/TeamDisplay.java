@@ -73,14 +73,25 @@ public final class TeamDisplay {
             data.setDirty();
             return;
         }
-        ensureTeams(server, data.settings);
+        String target = side == Side.HIDER ? TEAM_HIDERS : side == Side.HUNTER ? TEAM_HUNTERS : TEAM_SPECT;
+        // every team setter broadcasts a packet to all players, so only (re)configure when a team is missing;
+        // settings changes call ensureTeams directly
+        if (sb.getPlayerTeam(target) == null) ensureTeams(server, data.settings);
         if (!data.prevTeams.containsKey(id)) {
             data.prevTeams.put(id, current != null && !ours(current.getName()) ? current.getName() : "");
             data.setDirty();
         }
-        String target = side == Side.HIDER ? TEAM_HIDERS : side == Side.HUNTER ? TEAM_HUNTERS : TEAM_SPECT;
         if (current != null && current.getName().equals(target)) return;
         sb.addPlayerToTeam(name, sb.getPlayerTeam(target));
+    }
+
+    /** Removes our coloured teams once nobody is in them, so no empty teams are left behind after a game. */
+    public static void removeEmptyTeams(MinecraftServer server) {
+        ServerScoreboard sb = server.getScoreboard();
+        for (String name : new String[]{TEAM_HIDERS, TEAM_HUNTERS, TEAM_SPECT}) {
+            PlayerTeam t = sb.getPlayerTeam(name);
+            if (t != null && t.getPlayers().isEmpty()) sb.removePlayerTeam(t);
+        }
     }
 
     // ---------------------------------------------------------------- sidebar
