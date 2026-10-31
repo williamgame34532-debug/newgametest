@@ -33,6 +33,7 @@ end
 
 ---------------------------------------------------------------------------------------------------
 local glowSprite = Material('sprites/light_glow02_add')
+local holoMat = Material('cf_rework/holo/hologram')
 local wire = Material('models/wireframe')
 local beamMat = Material('trails/laser')
 
@@ -128,6 +129,30 @@ function ENT:DrawItem(pose, st, item)
 	end
 end
 
+-- item hologram over the grille (as on the reference): scanline fill + bright wire edges,
+-- slowly turning; in the menu it shows the item under the cursor
+function ENT:DrawHologram(pose, item, deploy)
+	if not item or deploy < 0.9 then return end
+	local m = self:ClientModel('holo', item.model)
+	if not IsValid(m) then return end
+	local c = C.Rig.HoloPoint(pose)
+	local center = self:LocalToWorld(Vector(c[1], c[2], c[3]))
+	local ang = self:LocalToWorldAngles(Angle(0, (CurTime() * 30) % 360, 0))
+	local scale = math.Clamp(11 / math.max(m:GetModelRadius() or 8, 1), 0.4, 1.6)
+	placeModel(m, center, ang, scale)
+	local flicker = 0.85 + 0.15 * math.sin(CurTime() * 23) * math.sin(CurTime() * 7)
+	render.MaterialOverride(holoMat)
+	render.SetColorModulation(0.25 * flicker, 0.9 * flicker, 1.0 * flicker)
+	m:DrawModel()
+	render.MaterialOverride(wire)
+	render.SetColorModulation(0.35, 0.95, 1.0)
+	render.SetBlend(0.5 * flicker)
+	m:DrawModel()
+	render.SetBlend(1)
+	render.SetColorModulation(1, 1, 1)
+	render.MaterialOverride()
+end
+
 function ENT:ScreenContext(st, cursor)
 	local p = self:GetOperator()
 	local viewer = LocalPlayer()
@@ -177,6 +202,17 @@ function ENT:Draw()
 	if st == S.DEPOSIT or (self.Feed and self.Feed.n > 0 and C.Chan(self, 'tray') > 0.01) then self:DrawCartridges(pose) end
 
 	if st == S.PRINT or st == S.DONE then self:DrawItem(pose, st, item) end
+
+	-- hologram: hovered row in the menu, the chosen item while loading and printing
+	local holo
+	if st == S.DEPOSIT or st == S.PRINT then holo = item
+	elseif st == S.MENU then
+		local cur = C.FocusCursor(self)
+		if not cur then local x, y = C.HitScreen(self, LocalPlayer(), pose) cur = x and {x, y} end
+		local b = cur and C.Layout.ButtonAt(st, self:GetTab(), cur[1], cur[2])
+		if b and b.id == 'select' then holo = C.Items[b.arg] end
+	end
+	self:DrawHologram(pose, holo, deploy)
 
 	-- display
 	if deploy > 0.6 and dist < 420 * 420 then

@@ -45,7 +45,7 @@ function R.Pose(s)
 	-- grille rises out of the roof behind the screen (the model's own folded rods stay inside)
 	local g = span(d, 0.20, 0.70)
 	out.rods = M.ident()
-	out.grille = M.mul(M.T(-7.5, -10.0, 43.0 - 23.5 * (1 - g)), M.RY(-6 * g))
+	out.grille = M.mul(M.T(-7.5, -10.0, 43.0 - 35.0 * (1 - g)), M.RY(-6 * g))
 
 	-- eyestalk out of the iris hatch: lower tube, upper tube, then the head comes alive
 	local e1 = span(d, 0.00, 0.28)
@@ -95,6 +95,12 @@ end
 -- where the weapon rests (entity space)
 function R.WeaponPoint(pose)
 	local x, y, z = M.point(pose.cage, R.WEAPON[1], R.WEAPON[2], R.WEAPON[3])
+	return {x, y, z}
+end
+
+-- where the item hologram floats: in front of the upper half of the grille (entity space)
+function R.HoloPoint(pose)
+	local x, y, z = M.point(pose.grille, 3.2, 0, (C.Geo.GRILLE_H or 32) * 0.7)
 	return {x, y, z}
 end
 

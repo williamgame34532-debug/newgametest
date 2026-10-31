@@ -120,6 +120,10 @@ if state.get('item'):
     wp = L.eval('CFRework.Rig.WeaponPoint')(pose)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(wp[1], wp[2], wp[3]))
     ob = bpy.context.active_object; ob.scale = (9, 3, 3); ob.data.materials.append(MATS['red'])
+if state.get('holo'):
+    hp = L.eval('CFRework.Rig.HoloPoint')(pose)
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(hp[1], hp[2], hp[3]))
+    ob = bpy.context.active_object; ob.scale = (3, 12, 4); ob.data.materials.append(MATS['glow'])
 # emulate Source back-face culling: back faces are fully transparent
 for m in bpy.data.materials:
     if not m.use_nodes or m.name == 'ui': continue
