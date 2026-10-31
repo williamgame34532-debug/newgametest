@@ -19,11 +19,12 @@ local function unlit(name, color, additive)
 		['$basetexture'] = 'vgui/white', ['$color'] = color, ['$additive'] = additive and 1 or 0,
 	})
 end
+-- plain white base tinted by $color2: pale brushed posts and bright rods like the reference
 P.MAT = {
-	metal = lit('metal3', 'models/cf_rework/socket', '[0.35 0.38 0.42]', 0.15),
-	steel = lit('steel3', 'models/cf_rework/socket', '[0.9 0.95 1.0]', 0.5),
-	brass = lit('brass3', 'models/cf_rework/socket', '[1.55 1.4 1.15]', 0.6),
-	silver = lit('silver3', 'models/cf_rework/socket', '[1.9 1.95 2.0]', 0.6),
+	metal = lit('metal4', 'vgui/white', '[0.10 0.11 0.12]', 0.2),
+	steel = lit('steel4', 'vgui/white', '[0.32 0.34 0.37]', 0.5),
+	brass = lit('brass4', 'vgui/white', '[0.56 0.53 0.47]', 0.7),
+	silver = lit('silver4', 'vgui/white', '[0.80 0.82 0.85]', 0.9),
 	dark = unlit('dark3', '[0.02 0.025 0.03]'),
 	screen = unlit('screen3', '[0.02 0.11 0.15]'),
 	glow = unlit('glow3', '[0.25 0.85 1.0]'),

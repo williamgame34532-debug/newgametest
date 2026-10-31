@@ -16,6 +16,7 @@ end
 -- own class names, so a separately installed combine_fabricator addon can never replace them
 CFRework.FabClass = 'hla_fabricator'
 CFRework.ResinClass = 'hla_resin'
+CFRework.HintHook = 'HLAFabricatorHints'
 for _, f in ipairs(HLA.FabFiles.client) do
 	if SERVER then AddCSLuaFile('fabricator/' .. f) else include('fabricator/' .. f) end
 end

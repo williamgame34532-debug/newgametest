@@ -298,6 +298,21 @@ function P.head(b)
 	b:pop()
 end
 
+-- Grille behind the screen, as on the reference screenshots: a pale frame with a stepped cap and
+-- thin bright rods you can see through. Origin = bottom centre; rods run up (Z), spread along Y.
+function P.grille(b)
+	b:cbox('brass', 'z', -1.1, -14.4, 1.1, -12.9, 0, 22.0, 0.35)
+	b:cbox('brass', 'z', -1.1, 12.9, 1.1, 14.4, 0, 22.0, 0.35)
+	b:cbox('brass', 'y', -1.5, 20.4, 1.5, 22.6, -15.0, 15.0, 0.5)
+	b:cbox('brass', 'y', -1.1, 22.6, 1.1, 23.8, -11.5, 11.5, 0.4)
+	b:box('metal', -0.4, -8.0, 23.8, 0.4, 8.0, 24.3)
+	b:cbox('brass', 'y', -1.3, 0, 1.3, 1.6, -14.4, 14.4, 0.35)
+	for i = 0, 29 do
+		local y = -12.6 + i * (25.2 / 29)
+		b:cyl('silver', 'z', 0.2, y, 0.21, 1.6, 20.4, 6)
+	end
+end
+
 -- Cyan ring lights at the mouths of the five upper resin cells (entity space; moves with 'cells').
 G.CELLS = {}
 for row, z in ipairs({36.2, 32.6}) do

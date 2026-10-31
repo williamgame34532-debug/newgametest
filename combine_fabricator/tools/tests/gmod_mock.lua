@@ -133,3 +133,6 @@ ents = {
 	FindByClass = function(c) local o = {} for _, e in ipairs(ENTS) do if e.class == c then o[#o + 1] = e end end return o end,
 }
 function AddCSLuaFile() end
+
+bit = bit or require('bit')
+function math.random(a, b) return a or 1 end

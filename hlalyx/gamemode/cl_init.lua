@@ -2,7 +2,7 @@ include('shared.lua')
 include('cl_hud.lua')
 
 local H = HLA.Hud
-local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true}
+local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
 
 function GM:HUDShouldDraw(name)
 	if HIDE[name] then return false end
@@ -11,6 +11,46 @@ end
 
 -- HL:A shows pickups on its own counters, not in a pickup list
 function GM:HUDDrawPickupHistory() end
+
+-- the standard weapon list is hidden, so weapons switch instantly: wheel cycles, 1..6 pick
+-- (the active one is highlighted among the icons on the right of the HUD)
+local function ordered(p)
+	local list = p:GetWeapons()
+	table.sort(list, function(a, b)
+		local sa, sb = a:GetSlot(), b:GetSlot()
+		if sa ~= sb then return sa < sb end
+		return a:GetSlotPos() < b:GetSlotPos()
+	end)
+	return list
+end
+
+hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
+	if not pressed or (CFRework and CFRework.FocusEnt and CFRework.FocusEnt()) then return end
+	local list = ordered(p)
+	if #list == 0 then return end
+	local cur = p:GetActiveWeapon()
+	local idx = 1
+	for i, w in ipairs(list) do if w == cur then idx = i end end
+	local pick
+	if bind == 'invnext' then pick = list[idx % #list + 1]
+	elseif bind == 'invprev' then pick = list[(idx - 2) % #list + 1]
+	else
+		local n = tonumber(bind:match('^slot(%d)$'))
+		if n then
+			for _, w in ipairs(list) do if w:GetSlot() == n - 1 then pick = w break end end
+			if not pick then return true end
+		end
+	end
+	if pick then
+		input.SelectWeapon(pick)
+		surface.PlaySound('common/wpn_hudoff.wav')
+		return true
+	end
+end)
+
+-- an old standalone combine_fabricator addon draws its own resin box: not in this gamemode
+hook.Add('InitPostEntity', 'HLARemoveAddonHud', function() hook.Remove('HUDPaint', 'CFReworkHints') end)
+timer.Simple(5, function() hook.Remove('HUDPaint', 'CFReworkHints') end)
 
 HLA.HudScale = CreateClientConVar('hla_hud_scale', '0.66', true, false, 'HUD size (0.4 .. 1.2)')
 

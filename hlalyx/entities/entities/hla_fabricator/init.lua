@@ -88,9 +88,9 @@ function ENT:Interact(p, x, y, part)
 		local b = C.Layout.ButtonAt(st, self:GetTab(), x, y)
 		if not b then return end
 		self:SetStatusText('')
-		self:EmitSound('buttons/lightswitch2.wav', 45, 125)
+		self:EmitSound(C.ClickSounds and C.ClickSounds[math.random(1, 2)] or 'buttons/lightswitch2.wav', 50, 100)
 		if b.id == 'exit' then
-			if st == S.DEPOSIT then self:EndSession(true) end
+			-- leaving the screen keeps the order: the resin is loaded into the cells by hand
 			C.SetFocus(p, nil)
 			return
 		end

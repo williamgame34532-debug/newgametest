@@ -17,6 +17,8 @@ net.Receive('cf_rework_focus', function()
 		if not IsValid(F.ent) then F.cursor = {C.Layout.W * 0.5, C.Layout.H * 0.45} end
 		F.ent = e
 	else
+		-- the click that left the screen must not become a shot: hold fire until the button is up
+		if IsValid(F.ent) then F.holdFire = true end
 		F.ent = nil
 	end
 end)
@@ -32,11 +34,21 @@ hook.Add('InputMouseApply', 'CFReworkFocus', function(cmd, x, y)
 	return true
 end)
 
--- no walking/shooting while at the screen; E stays (resin feed), LMB becomes a click
+-- no walking/shooting while at the screen; LMB becomes a click
 local wasDown = false
 hook.Add('CreateMove', 'CFReworkFocus', function(cmd)
 	local e = C.FocusEnt()
-	if not e then wasDown = false return end
+	if not e then
+		wasDown = false
+		if F.holdFire then
+			if bit.band(cmd:GetButtons(), bit.bor(IN_ATTACK, IN_ATTACK2)) ~= 0 then
+				cmd:SetButtons(bit.band(cmd:GetButtons(), bit.bnot(bit.bor(IN_ATTACK, IN_ATTACK2))))
+			else
+				F.holdFire = nil
+			end
+		end
+		return
+	end
 	local down = bit.band(cmd:GetButtons(), IN_ATTACK) ~= 0
 	if down and not wasDown then
 		net.Start('cf_rework_press')
@@ -67,12 +79,6 @@ local function target(e, eye)
 	else
 		local dist = 25
 		look = center
-		if st == S.DEPOSIT then
-			-- frame the screen and the resin magazine below it
-			local cells = C.CellsCenter(e, pose)
-			look = LerpVector(0.4, center, cells)
-			dist = 33
-		end
 		-- the camera drifts toward the cursor: lower-left on the screen moves it lower-left
 		pos = look + normal * dist + right * (u * 4.5) + down * (v * 3.2)
 		look = look + right * (u * W * 0.22) + down * (v * H * 0.22)
@@ -105,6 +111,19 @@ end)
 
 hook.Add('PreDrawViewModel', 'CFReworkFocus', function()
 	if F.blend > 0 then return true end
+end)
+
+-- soft click when the cursor moves onto another button
+local lastHover
+hook.Add('Think', 'CFReworkFocusHover', function()
+	local e = C.FocusEnt()
+	if not e then lastHover = nil return end
+	local b = C.Layout.ButtonAt(e:GetStage(), e:GetTab(), F.cursor[1], F.cursor[2])
+	local key = b and (b.id .. (b.arg or '')) or nil
+	if key and key ~= lastHover then
+		surface.PlaySound(C.ClickSounds[math.random(3, 4)])
+	end
+	lastHover = key
 end)
 
 -- cursor for the screen drawing (pixel space), or nil when this entity is not focused

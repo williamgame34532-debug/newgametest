@@ -24,14 +24,15 @@ print('stage', e:GetStage(), 'cost', e:GetCost())
 aimButton(q, button(S.DEPOSIT, 1, 'cancel')) RunHook('KeyPress', q, IN_USE) T = T + 0.3
 print('other player ->', e:GetStatusText(), 'focused', q.CFFocus ~= nil)
 -- feed 5, then cancel
-step(0.8) p.keys[IN_USE] = true step(2.3) p.keys[IN_USE] = nil
+press(p, button(S.DEPOSIT, 1, 'exit')) step(0.8) aimAt(p, C.CellsCenter(e, C.PoseOf(e))) p.keys[IN_USE] = true step(2.3) p.keys[IN_USE] = nil
 print('paid', e:GetPaid(), 'balance', C.Balance(p))
+aimButton(p, button(S.DEPOSIT, 1, 'cancel')) RunHook('KeyPress', p, IN_USE)
 press(p, button(S.DEPOSIT, 1, 'cancel'))
 print('after cancel: stage', e:GetStage(), 'balance', C.Balance(p))
 -- order again, feed 3, walk away
 step(1)
 press(p, button(S.MENU, 2, 'select', 6))
-step(0.8) p.keys[IN_USE] = true step(1.2) p.keys[IN_USE] = nil
+press(p, button(S.DEPOSIT, 1, 'exit')) step(0.8) aimAt(p, C.CellsCenter(e, C.PoseOf(e))) p.keys[IN_USE] = true step(1.2) p.keys[IN_USE] = nil
 print('paid', e:GetPaid(), 'balance', C.Balance(p))
 p.pos = Vector(900, 0, 0) step(1)
 print('after leaving: stage', e:GetStage(), 'balance', C.Balance(p), 'focus dropped', p.CFFocus == nil)

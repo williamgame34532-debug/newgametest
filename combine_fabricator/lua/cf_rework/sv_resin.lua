@@ -59,6 +59,7 @@ function C.SetFocus(p, e)
 	if not IsValid(p) then return end
 	e = IsValid(e) and e or nil
 	if p.CFFocus == e then return end
+	if not e then p.CFNoFireUntil = CurTime() + 0.35 end
 	p.CFFocus = e
 	net.Start('cf_rework_focus')
 	net.WriteEntity(e or NULL)
@@ -80,15 +81,17 @@ local function target(p)
 	end
 end
 
+-- no shooting while at a screen and for a moment after leaving it
+hook.Add('StartCommand', 'CFReworkFocus', function(p, cmd)
+	if IsValid(p.CFFocus) or (p.CFNoFireUntil or 0) > CurTime() then
+		cmd:SetButtons(bit.band(cmd:GetButtons(), bit.bnot(bit.bor(IN_ATTACK, IN_ATTACK2))))
+	end
+end)
+
 hook.Add('KeyPress', 'CFReworkUse', function(p, key)
 	if key ~= IN_USE or not p:Alive() or (p.CFReworkNextUse or 0) > CurTime() then return end
-	local f = p.CFFocus
-	if IsValid(f) then
-		-- in focus E feeds the magazine (the camera frames the cells)
-		p.CFReworkNextUse = CurTime() + 0.1
-		f:Interact(p, nil, nil, 'cells')
-		return
-	end
+	-- at the screen E does nothing: resin goes into the cells by hand, after «ЗАВЕРШИТЬ»
+	if IsValid(p.CFFocus) then return end
 	local e, x, y, part = target(p)
 	if not e then return end
 	p.CFReworkNextUse = CurTime() + 0.2
@@ -117,7 +120,7 @@ end)
 hook.Add('PlayerDeath', 'CFReworkFocus', function(p) C.SetFocus(p, nil) end)
 
 function C.AimedPart(e, p)
-	if C.Focused(p, e) then return 'cells' end
+	if C.Focused(p, e) then return nil end
 	return C.HitPart(e, p, C.PoseOf(e))
 end
 

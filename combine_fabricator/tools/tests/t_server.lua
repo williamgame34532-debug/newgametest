@@ -35,8 +35,11 @@ NetSend('cf_rework_press', p, b.x + b.w / 2, b.y + b.h / 2)
 show('after selecting row 1')
 step(1.0)
 
--- hold E (focus mode: E feeds without aiming)
-p.aim = Vector(0, 0, 1)
+-- «ЗАВЕРШИТЬ», then load the cells by hand
+NetSend('cf_rework_press', p, C.Layout.EXIT.x + 10, C.Layout.EXIT.y + 10)
+print('after ЗАВЕРШИТЬ: focus', p.CFFocus, 'stage still', e:GetStage(), 'no-fire guard', (p.CFNoFireUntil or 0) > T)
+T = T + 0.3
+aimAt(C.CellsCenter(e, C.PoseOf(e)))
 p.keys[IN_USE] = true
 step(2.5)
 p.keys[IN_USE] = nil

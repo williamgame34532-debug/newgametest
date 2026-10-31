@@ -88,13 +88,13 @@ def mkmat(name, col, emit=0.0, rough=0.5, metal=0.4):
     b.inputs['Base Color'].default_value = col; b.inputs['Roughness'].default_value = rough; b.inputs['Metallic'].default_value = metal
     if emit: b.inputs['Emission Color'].default_value = col; b.inputs['Emission Strength'].default_value = emit
     return m
-MATS = {'metal': mkmat('metal', (0.075, 0.085, 0.095, 1)), 'steel': mkmat('steel', (0.2, 0.215, 0.23, 1), rough=.35, metal=.7),
-        'brass': mkmat('brass', (0.40, 0.36, 0.30, 1), rough=.35, metal=.85), 'silver': mkmat('silver', (.62, .64, .66, 1), rough=.3, metal=.9),
+MATS = {'metal': mkmat('metal', (0.10, 0.11, 0.12, 1)), 'steel': mkmat('steel', (0.2, 0.215, 0.23, 1), rough=.35, metal=.7),
+        'brass': mkmat('brass', (0.56, 0.53, 0.47, 1), rough=.35, metal=.6), 'silver': mkmat('silver', (.80, .82, .85, 1), rough=.25, metal=.8),
         'dark': mkmat('dark', (0.01, 0.012, 0.014, 1), rough=.8, metal=0), 'glow': mkmat('glow', (0.18, 0.85, 0.95, 1), emit=6),
         'white': mkmat('white', (0.9, 0.97, 1, 1), emit=10), 'red': mkmat('red', (1, 0.08, 0.05, 1), emit=8),
         'screen': mkmat('screen', (0.01, 0.025, 0.03, 1), rough=.2, metal=0)}
 for name in geo.keys():
-    if os.environ.get('NOBUILT'): continue
+    if os.environ.get('NOBUILT') or pose[name] is None: continue
     mats = geo[name]
     for mname in list(mats.keys()):
         lst = mats[mname]; n = len(lst) // 8

@@ -271,7 +271,7 @@ end
 
 ---------------------------------------------------------------------------------------------------
 -- hints at the crosshair and the HL:A-style resin counter near a station
-hook.Add('HUDPaint', 'CFReworkHints', function()
+hook.Add('HUDPaint', C.HintHook or 'CFReworkHints', function()
 	local p = LocalPlayer()
 	if not IsValid(p) then return end
 	local near

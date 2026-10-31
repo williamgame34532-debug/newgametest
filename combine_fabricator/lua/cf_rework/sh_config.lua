@@ -61,4 +61,8 @@ C.State = {
 }
 
 -- Animation channels: seconds for a full 0..1 travel
+-- UI click sounds (shared so the server can play them on presses)
+C.ClickSounds = {'combine_fabricator/ui/click_01.mp3', 'combine_fabricator/ui/click_02.mp3',
+	'combine_fabricator/ui/click_03.mp3', 'combine_fabricator/ui/click_04.mp3'}
+
 C.Channels = {deploy = 2.6, cradle = 1.6, tray = 0.7, pull = 1.0}

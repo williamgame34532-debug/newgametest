@@ -42,9 +42,10 @@ function R.Pose(s)
 	out.cells = M.T(2.2 * tray - R.PITCH * (s.feedSlot or 0), 0, 4.0 * cells + 1.2 * tray + 3.6 * (s.feedRow or 0))
 	out.cellglow = out.cells
 
-	-- grille rods rise from under the magazine to stand behind the screen
+	-- grille rises out of the roof behind the screen (the model's own folded rods stay inside)
 	local g = span(d, 0.20, 0.70)
-	out.rods = M.T(-1.5 * g, 0, 31.0 * g)
+	out.rods = M.ident()
+	out.grille = M.mul(M.T(-7.5, -10.0, 43.0 - 23.5 * (1 - g)), M.RY(-6 * g))
 
 	-- eyestalk out of the iris hatch: lower tube, upper tube, then the head comes alive
 	local e1 = span(d, 0.00, 0.28)

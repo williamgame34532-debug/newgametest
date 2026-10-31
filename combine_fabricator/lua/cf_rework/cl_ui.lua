@@ -195,7 +195,7 @@ function UI.Deposit(D, ctx)
 		D.outline(x, 268, 22, 22, on and COL.bar or COL.lineDim, 2)
 		if on then D.rect(x + 5, 273, 12, 12, COL.bar) end
 	end
-	D.text('УДЕРЖИВАЙТЕ E  —  ВНЕСТИ СМОЛУ', 'cfr_xs', cx, 312, COL.textDim, 1, 1)
+	D.text('«ЗАВЕРШИТЬ», ЗАТЕМ ДЕРЖИТЕ E НА ЯЧЕЙКАХ', 'cfr_xs', cx, 312, COL.textDim, 1, 1)
 	D.rect(176, 382, 6, 6, COL.red)
 	D.rect(190, 382, 6, 6, COL.red)
 	button(D, Lay.Buttons(S.DEPOSIT)[1], 'ОТМЕНА', isHover(ctx, 'cancel'))
