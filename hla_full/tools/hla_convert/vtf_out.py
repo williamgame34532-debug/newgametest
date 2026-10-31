@@ -32,6 +32,16 @@ def write(path, img, alpha=None, normal=False, max_size=2048):
         w, h = max(1, w // 2), max(1, h // 2)
     if (w, h) != img.size:
         img = img.resize((w, h), Image.LANCZOS)
+    if normal:
+        # Source 2 normal maps keep only X/Y (R/G); Source 1 needs Z in blue -> rebuild it
+        import numpy as np
+        a = np.asarray(img).astype(np.float32) / 255.0
+        x, y = a[..., 0] * 2 - 1, a[..., 1] * 2 - 1
+        z = np.sqrt(np.clip(1 - x * x - y * y, 0, 1))
+        a[..., 2] = z * 0.5 + 0.5
+        a[..., 3] = 1
+        img = Image.fromarray((np.clip(a, 0, 1) * 255 + 0.5).astype(np.uint8), 'RGBA')
+        alpha = False
     if alpha is None:
         alpha = img.getchannel('A').getextrema()[0] < 250
     fmt = 'DXT5' if alpha else 'DXT1'

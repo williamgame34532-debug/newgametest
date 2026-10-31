@@ -100,8 +100,7 @@ def convert_material(root, ref, content, matdir):
              '\t"$color2" "[%.3f %.3f %.3f]"' % (c[0] * 3, c[1] * 3, c[2] * 3), '\t"$additive" "1"', '\t"$nocull" "1"', '\t"$model" "1"', '}']
     else:
         glass = 'glass' in shader
-        col = texture(root, tex.get('g_tColor'), out_dir, name + '_color', alpha=True if glass else False,
-                      ao=None if glass else find(root, tex.get('g_tAmbientOcclusion') or ''))
+        col = texture(root, tex.get('g_tColor'), out_dir, name + '_color', alpha=True if glass else False)
         nrm = texture(root, tex.get('g_tNormal'), out_dir, name + '_normal', alpha=False, normal=True)
         L = ['"VertexLitGeneric"', '{', '\t"$basetexture" "%s"' % (base + col if col else 'vgui/white')]
         if nrm:

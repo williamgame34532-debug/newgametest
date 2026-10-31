@@ -45,7 +45,7 @@ def read(path):
                 v = L[i + 1 + k].split()
                 n = int(v[9])
                 links = [(int(v[10 + 2 * j]), float(v[11 + 2 * j])) for j in range(n)]
-                vs.append((np.array([float(x) for x in v[1:4]]), links))
+                vs.append((np.array([float(x) for x in v[1:4]]), links, (float(v[7]), float(v[8]))))
             tris.append((mat, vs))
             i += 4
     return parents, frames, tris
@@ -69,16 +69,21 @@ def posed(ref, anim, f):
     pose = globals_(parents, af[min(f, len(af) - 1)] if anim else rf[0])
     S = [pose[i] @ np.linalg.inv(bind[i]) for i in range(len(parents))]
     verts, faces, mats = [], [], []
+    uvs = []
     for mat, vs in tris:
         base = len(verts)
-        for p, links in vs:
+        for p, links, uv in vs:
+            uvs.append(uv)
             q = np.zeros(3)
             for b, w in links:
                 q += w * (S[b] @ np.append(p, 1))[:3]
             verts.append(q)
         faces.append((base, base + 1, base + 2))
         mats.append(mat)
-    return verts, faces, mats
+    return verts, faces, mats, uvs
+
+
+TEXDIR = None
 
 
 def main(argv):
@@ -88,6 +93,9 @@ def main(argv):
     for a in argv[1:]:
         if a.startswith('--cam'):
             cam = a.split(' ', 1)[1] if ' ' in a else None
+        elif a.startswith('tex='):
+            global TEXDIR
+            TEXDIR = a[4:]
         elif a.startswith('cam='):
             cam = a[4:]
         else:
@@ -98,10 +106,13 @@ def main(argv):
     allv = []
     for j in jobs:
         ref, anim, f = j.split('|')
-        v, fcs, mats = posed(ref, anim or None, int(f))
+        v, fcs, mats, uvs = posed(ref, anim or None, int(f))
         allv += v
         me = bpy.data.meshes.new('m')
         me.from_pydata([tuple(x) for x in v], [], fcs)
+        uvl = me.uv_layers.new()
+        for li, uv in enumerate(uvs):
+            uvl.data[li].uv = uv
         for mname in sorted(set(mats)):
             if mname not in palette:
                 h = (hash(mname) % 1000) / 1000.0
@@ -109,6 +120,11 @@ def main(argv):
                 m.use_nodes = True
                 import colorsys
                 m.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = colorsys.hsv_to_rgb(h, 0.35, 0.85) + (1,)
+                import os
+                tex = os.path.join(TEXDIR, mname + '.png') if TEXDIR else None
+                if tex and os.path.exists(tex):
+                    n = m.node_tree.nodes.new('ShaderNodeTexImage'); n.image = bpy.data.images.load(tex)
+                    m.node_tree.links.new(n.outputs['Color'], m.node_tree.nodes['Principled BSDF'].inputs['Base Color'])
                 palette[mname] = m
             me.materials.append(palette[mname])
         idx = {m.name: i for i, m in enumerate(me.materials)}

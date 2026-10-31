@@ -8,6 +8,6 @@
 	"$phongexponent" "20"
 	"$phongfresnelranges" "[0.3 0.6 1]"
 	"$selfillum" "1"
-	"$selfillumtint" "[0.365 0.732 0.000]"
+	"$selfillumtint" "[0.827 1.661 0.000]"
 	"$selfillummask" "models/hla/health_station/guage_internals_illum"
 }

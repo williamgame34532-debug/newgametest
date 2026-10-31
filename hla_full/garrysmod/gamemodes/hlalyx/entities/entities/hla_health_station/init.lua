@@ -75,7 +75,12 @@ function ENT:Initialize()
 	self:SetSolid(SOLID_VPHYSICS)
 	local ph = self:GetPhysicsObject()
 	if IsValid(ph) then ph:EnableMotion(false) end
-	self:ResetSequence(self:LookupSequence('idle'))
+	-- the case: 'deploy' opens the lid (needles out, the hand grip drops) — frame 0 is the closed station.
+	-- Think drives it: open while someone heals, closed otherwise
+	self:ResetSequence(self:LookupSequence('deploy'))
+	self:SetPlaybackRate(0)
+	self:SetCycle(0)
+	self.OpenF = 0
 	self.Internals = part(self, 'charger_internals', 'idle_retracted')
 	self.Pad = part(self, 'charger_pad', 'rest')
 	self:SetGauge(part(self, 'charger_gauge', 'drained'))
@@ -113,8 +118,6 @@ function ENT:AcceptItem(p, id)
 	self:SetHasVial(true)
 	self:SetCharge(ST.VialHP)
 	anim(v, 'health_vial_deploy_anim', idle)
-	self:ResetSequence(self:LookupSequence('deploy'))
-	self:SetCycle(0)
 	self:UpdateGauge()
 	self:EmitSound(SND .. 'combine_health_station_powerup_01.wav', 65)
 	self:EmitSound(rnd(BREATH), 55)
@@ -141,7 +144,6 @@ function ENT:Eject(p)
 	local ph = d:GetPhysicsObject()
 	if IsValid(ph) then ph:Wake() ph:SetVelocity(self:GetForward() * 60 + Vector(0, 0, 40)) end
 	SafeRemoveEntityDelayed(d, 20)
-	self:ResetSequence(self:LookupSequence('idle'))
 	self:UpdateGauge()
 	self:EmitSound(rnd(SLIDES), 60)
 end
@@ -192,7 +194,15 @@ local function aimsAt(p, self)
 end
 ENT.AimedBy = aimsAt
 
+local OPEN_TIME = 1.6 -- seconds to open or close the case (deploy is 3.3 s in HL:A)
+
 function ENT:Think()
+	local want = IsValid(self:GetHealer()) and 1 or 0
+	if self.OpenF ~= want then
+		self.OpenF = math.Approach(self.OpenF or 0, want, FrameTime() / OPEN_TIME)
+		self:SetPlaybackRate(0)
+		self:SetCycle(self.OpenF)
+	end
 	local p = self:GetHealer()
 	if IsValid(p) then
 		if not p:Alive() or not p:KeyDown(IN_USE) or not aimsAt(p, self) or p:Health() >= p:GetMaxHealth() or self:GetCharge() <= 0 then

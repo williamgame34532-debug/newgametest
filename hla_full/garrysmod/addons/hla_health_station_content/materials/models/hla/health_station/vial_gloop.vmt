@@ -2,7 +2,7 @@
 {
 	"$basetexture" "models/hla/health_station/vial_gloop_color"
 	"$translucent" "1"
-	"$alpha" "0.55"
+	"$alpha" "0.2"
 	"$color2" "[1.6 2.2 0.6]"
 	"$selfillum" "1"
 	"$selfillumtint" "[0.35 0.6 0.08]"
