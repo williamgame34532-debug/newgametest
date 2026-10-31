@@ -15,5 +15,7 @@ end
 for _, path in ipairs({'models/cf_rework', 'materials/cf_rework', 'materials/models/cf_rework', 'sound/combine_fabricator', 'materials/hla', 'sound/hla'}) do
 	sendFolder(path)
 end
+-- the ported HL:A monitor shader (only our file, not the game's own shaders)
+if file.Exists('shaders/fxc/hla_monitor_ps30.vcs', 'GAME') then resource.AddSingleFile('shaders/fxc/hla_monitor_ps30.vcs') end
 resource.AddFile('resource/fonts/RobotoCondensed-Regular.ttf')
 resource.AddFile('resource/fonts/RobotoCondensed-Bold.ttf')

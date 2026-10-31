@@ -7,7 +7,7 @@ DeriveGamemode('sandbox')
 HLA = HLA or {}
 HLA.FabFiles = {
 	shared = {'sh_math.lua', 'sh_config.lua', 'sh_layout.lua', 'sh_station.lua'},
-	client = {'cl_ui.lua', 'cl_focus.lua'},
+	client = {'cl_ui.lua', 'cl_focus.lua', 'cl_monitor.lua'},
 }
 for _, f in ipairs(HLA.FabFiles.shared) do
 	if SERVER then AddCSLuaFile('fabricator/' .. f) end

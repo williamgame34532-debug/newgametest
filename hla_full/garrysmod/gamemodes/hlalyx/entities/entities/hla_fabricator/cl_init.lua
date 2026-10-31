@@ -284,9 +284,14 @@ function ENT:Draw()
 				local x, y = C.HitScreen(self, LocalPlayer())
 				cur = x and {x, y}
 			end
-			cam.Start3D2D(origin + normal * 0.03, right:AngleEx(normal), scale)
-				C.UI.Draw(D, self:ScreenContext(st, cur))
-			cam.End3D2D()
+			local ctx = self:ScreenContext(st, cur)
+			local pos3, ang3 = origin + normal * 0.03, right:AngleEx(normal)
+			-- HL:A monitor shader (if compiled), otherwise the plain screen
+			if not (C.Monitor and C.Monitor.Draw(pos3, ang3, scale, function() C.UI.Draw(D, ctx) end)) then
+				cam.Start3D2D(pos3, ang3, scale)
+					C.UI.Draw(D, ctx)
+				cam.End3D2D()
+			end
 		end
 	end
 end

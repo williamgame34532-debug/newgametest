@@ -1,0 +1,29 @@
+ИЗМЕНЕНИЯ 5.7 — ШЕЙДЕРЫ HL:A (поверх 5.5 + 5.6, пути сохранены)
+
+ДЕКОМПИЛЯЦИЯ ШЕЙДЕРОВ HL:A — tools/hla_convert/vcs_decompile.py
+  .vcs (Source 2, PC) -> LZMA-блоки -> DXBC (Shader Model 5) -> SPIR-V (vkd3d) -> HLSL (spirv-cross).
+  Linux/WSL: apt install vkd3d-compiler spirv-cross
+    python tools/hla_convert/vpk.py shaders_pc_dir.vpk extract "shaders/vfx/vr_monitor_pc_50_*" out
+    python tools/hla_convert/vcs_decompile.py out/shaders/vfx/vr_monitor_pc_50_ps.vcs dec
+  Проверено на вашем shaders_pc_003.vpk: vr_monitor (128 программ), vr_panorama (40),
+  vr_energy_field (66) — все разобраны в HLSL. Имена констант в DXBC вырезаны Valve
+  (cbN[i], tN); список имён параметров шейдера пишется в names.txt.
+
+ПОРТ «vr_monitor» (вид экранов HL:A) В GARRY'S MOD
+  Почему не «как есть»: шейдеры HL:A — DX11/Vulkan SM5 (+геометрические), GMod — DirectX 9, SM3.
+  Поэтому логика переписана по декомпилированному коду под ps_3_0:
+    дрожание строк с расслоением R/G/B, редкий срыв кадра (vsync), сканлайны, тон, виньетка,
+    плёночное зерно с мерцающим контрастом.
+  shadersrc/hla_monitor_ps30.hlsl   исходник (проверен компилятором glslang в режиме HLSL/DX9)
+  shadersrc/build_shaders.bat        сборка в shaders/fxc/hla_monitor_ps30.vcs (Windows, инструменты
+                                     GMod shader guide: github.com/meetric1/gmod_shader_guide)
+  garrysmod/addons/hla_fabricator_content/materials/hla/monitor/{scanlines,grain,jitter}.vtf
+                                     текстуры эффекта (tools/monitor_textures.py)
+  garrysmod/gamemodes/hlalyx/gamemode/fabricator/cl_monitor.lua   интерфейс -> render target ->
+                                     шейдер -> панель станции; без .vcs экран рисуется как раньше;
+                                     выключить: hla_monitor_fx 0
+  + правки: entities/hla_fabricator/cl_init.lua, gamemode/shared.lua, gamemode/init.lua
+  Предпросмотр того же расчёта: tools/monitor_preview.py (numpy-двойник шейдера).
+
+НЕ ПРОВЕРЕНО: компиляция .vcs (нужен Windows) и вид в игре. Текстуры эффекта — свои;
+оригинальные из HL:A (сканлайны/зерно/виньетка монитора) лежат в pak01_*.vpk — vpk.py их достанет.
