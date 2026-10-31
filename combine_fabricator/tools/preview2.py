@@ -116,6 +116,10 @@ if ui:
     nt.links.new(em.outputs[0], nt.nodes['Material Output'].inputs['Surface']); me.materials.append(m)
     sc.collection.objects.link(bpy.data.objects.new('ui', me))
 
+if state.get('item'):
+    wp = L.eval('CFRework.Rig.WeaponPoint')(pose)
+    bpy.ops.mesh.primitive_cube_add(size=1, location=(wp[1], wp[2], wp[3]))
+    ob = bpy.context.active_object; ob.scale = (9, 3, 3); ob.data.materials.append(MATS['red'])
 # emulate Source back-face culling: back faces are fully transparent
 for m in bpy.data.materials:
     if not m.use_nodes or m.name == 'ui': continue

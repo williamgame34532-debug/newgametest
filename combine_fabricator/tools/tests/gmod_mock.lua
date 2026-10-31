@@ -57,7 +57,11 @@ timer = {Simple = function(d, fn) TIMERS[#TIMERS + 1] = {T + d, fn} end}
 function RunTimers()
 	for i = #TIMERS, 1, -1 do local t = TIMERS[i] if T >= t[1] then table.remove(TIMERS, i) t[2]() end end
 end
-net = {Receive = function() end}
+NETS = {} NETQ = {}
+net = {Receive = function(n, fn) NETS[n] = fn end, Start = function() end, WriteEntity = function() end,
+	WriteFloat = function() end, WriteBool = function() end, Send = function() end,
+	ReadFloat = function() return table.remove(NETQ, 1) end, ReadBool = function() return table.remove(NETQ, 1) end}
+function NetSend(name, p, ...) NETQ = {...} NETS[name](0, p) end
 concommand = {Add = function() end}
 FILES = {}
 file = {CreateDir = function() end, Read = function(p) return FILES[p] end, Write = function(p, s) FILES[p] = s end}

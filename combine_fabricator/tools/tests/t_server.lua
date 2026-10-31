@@ -29,18 +29,21 @@ aimAt(origin + right * ((b.x + b.w / 2) * scale) + down * ((b.y + b.h / 2) * sca
 local x, y = C.HitScreen(e, p)
 print('screen hit px', x and math.floor(x), y and math.floor(y), 'button', b.id, b.arg)
 RunHook('KeyPress', p, IN_USE)
+print('focused', p.CFFocus == e)
+T = T + 0.3
+NetSend('cf_rework_press', p, b.x + b.w / 2, b.y + b.h / 2)
 show('after selecting row 1')
 step(1.0)
 
--- hold E on the cells
-aimAt(C.CellsCenter(e, C.PoseOf(e)))
-print('aimed part', C.HitPart(e, p))
+-- hold E (focus mode: E feeds without aiming)
+p.aim = Vector(0, 0, 1)
 p.keys[IN_USE] = true
 step(2.5)
 p.keys[IN_USE] = nil
 show('after feeding')
 step(C.PrintTime * 0.5) show('printing')
 step(C.PrintTime * 0.5 + 2) show('after print')
+print('focus released at DONE', p.CFFocus == nil)
 
 aimAt(C.ItemPoint(e, C.PoseOf(e)))
 print('aimed part', C.HitPart(e, p))

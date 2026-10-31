@@ -121,6 +121,11 @@ local function isHover(ctx, id, arg)
 	return h and h.id == id and (arg == nil or h.arg == arg)
 end
 
+function UI.Exit(D, ctx)
+	local E = Lay.EXIT
+	button(D, {x = E.x, y = E.y, w = E.w, h = E.h}, 'ЗАВЕРШИТЬ', isHover(ctx, 'exit'))
+end
+
 function UI.Menu(D, ctx)
 	frame(D, ctx, C.Upper(C.Categories[ctx.tab] or ''))
 	D.text('НАИМЕНОВАНИЕ', 'cfr_xs', 52, 58, COL.textDim)
@@ -158,8 +163,9 @@ function UI.Menu(D, ctx)
 	summary(D, shown)
 	if not shown then
 		D.text('НАВЕДИТЕ НА ПОЗИЦИЮ', 'cfr_s', Lay.SUMMARY.x, Lay.SUMMARY.y + 20, COL.textDim)
-		D.text('И НАЖМИТЕ E', 'cfr_s', Lay.SUMMARY.x, Lay.SUMMARY.y + 42, COL.textDim)
+		D.text('И НАЖМИТЕ ЛКМ', 'cfr_s', Lay.SUMMARY.x, Lay.SUMMARY.y + 42, COL.textDim)
 	end
+	UI.Exit(D, ctx)
 end
 
 local function panel(D)
@@ -189,10 +195,11 @@ function UI.Deposit(D, ctx)
 		D.outline(x, 268, 22, 22, on and COL.bar or COL.lineDim, 2)
 		if on then D.rect(x + 5, 273, 12, 12, COL.bar) end
 	end
-	D.text('E ПО ЯЧЕЙКЕ  —  ВНЕСТИ СМОЛУ', 'cfr_xs', cx, 312, COL.textDim, 1, 1)
+	D.text('УДЕРЖИВАЙТЕ E  —  ВНЕСТИ СМОЛУ', 'cfr_xs', cx, 312, COL.textDim, 1, 1)
 	D.rect(176, 382, 6, 6, COL.red)
 	D.rect(190, 382, 6, 6, COL.red)
 	button(D, Lay.Buttons(S.DEPOSIT)[1], 'ОТМЕНА', isHover(ctx, 'cancel'))
+	UI.Exit(D, ctx)
 	summary(D, item)
 end
 

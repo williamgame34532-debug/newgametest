@@ -4,6 +4,7 @@ ENT.PrintName = 'Combine Resin'
 ENT.Category = 'Half-Life: Alyx'
 ENT.Spawnable = true
 ENT.RenderGroup = RENDERGROUP_BOTH
+ENT.IsCombineResin = true
 
 function ENT:SpawnFunction(p, tr, class)
 	if not tr.Hit then return end

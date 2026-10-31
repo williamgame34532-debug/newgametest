@@ -16,7 +16,7 @@ for rotated in (False, True):
       function ErrorNoHalt(s) print('ERROR', s) end
       util.GetModelMeshes = function() return SRC end
     ''')
-    for f in ('sh_math', 'sh_config', 'sh_layout', 'sh_geometry', 'sh_rig', 'sh_station', 'cl_partmap', 'cl_ui', 'cl_parts'):
+    for f in ('sh_math', 'sh_config', 'sh_layout', 'sh_geometry', 'sh_rig', 'sh_station', 'cl_partmap', 'cl_ui', 'cl_parts', 'cl_focus'):
         L.execute(open(A + 'cf_rework/%s.lua' % f, encoding='utf-8').read())
     mk = L.eval('function(x,y,z) return Vector(x,y,z) end')
     src = []

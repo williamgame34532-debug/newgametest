@@ -55,6 +55,27 @@ function ENT:CanOrder(p, item)
 	return true
 end
 
+-- E on the display: take the camera to the screen (one player at a time while a session runs)
+function ENT:RequestFocus(p)
+	local st = self:GetStage()
+	if st == S.DORMANT or C.Chan(self, 'deploy') < 0.95 then return end
+	local op = self:GetOperator()
+	if IsValid(op) and op ~= p then self:Notify(p, 'ТЕРМИНАЛ ЗАНЯТ') return end
+	for _, v in ipairs(player.GetAll()) do
+		if v ~= p and v.CFFocus == self then self:Notify(p, 'ТЕРМИНАЛ ЗАНЯТ') return end
+	end
+	if st == S.DONE then return end -- the item is taken from the chamber by hand
+	self.LastAction = CurTime()
+	C.SetFocus(p, self)
+	self:EmitSound('buttons/lightswitch2.wav', 45, 140)
+end
+
+function ENT:ReleaseFocus()
+	for _, v in ipairs(player.GetAll()) do
+		if v.CFFocus == self then C.SetFocus(v, nil) end
+	end
+end
+
 function ENT:Interact(p, x, y, part)
 	if not IsValid(p) or not p:Alive() then return end
 	local st = self:GetStage()
@@ -68,6 +89,11 @@ function ENT:Interact(p, x, y, part)
 		if not b then return end
 		self:SetStatusText('')
 		self:EmitSound('buttons/lightswitch2.wav', 45, 125)
+		if b.id == 'exit' then
+			if st == S.DEPOSIT then self:EndSession(true) end
+			C.SetFocus(p, nil)
+			return
+		end
 		if st == S.MENU then
 			if b.id == 'tab' then
 				self:SetTab(b.arg)
@@ -131,6 +157,8 @@ function ENT:StartPrint()
 end
 
 function ENT:FinishPrint()
+	-- give the camera back: the item is collected by reaching into the open chamber
+	self:ReleaseFocus()
 	self:StopSound(SND .. 'combine_3d_printer_upgrading_01.wav')
 	self:SetPhase(S.DONE)
 	self:SetChannel('cradle', 1)
@@ -224,6 +252,12 @@ function ENT:Think()
 		local gone = not IsValid(p) or not p:Alive() or p:GetPos():DistToSqr(self:GetPos()) > C.LeaveRadius * C.LeaveRadius
 		if gone or now - (self.LastAction or now) > C.IdleTimeout then self:EndSession(true) st = self:GetStage() end
 	end
+	-- focus watchdog
+	for _, v in ipairs(player.GetAll()) do
+		if v.CFFocus == self and (not v:Alive() or v:GetPos():DistToSqr(self:GetPos()) > C.LeaveRadius * C.LeaveRadius or st == S.DORMANT) then
+			C.SetFocus(v, nil)
+		end
+	end
 
 	-- hold E on the cells to keep feeding resin
 	if st == S.DEPOSIT then
@@ -247,6 +281,7 @@ function ENT:Think()
 end
 
 function ENT:OnRemove()
+	self:ReleaseFocus()
 	if self.OrderID then self:EndSession(true) end
 	self:StopSound(SND .. 'combine_3d_printer_upgrading_01.wav')
 end

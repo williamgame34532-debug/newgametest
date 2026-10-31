@@ -1,6 +1,6 @@
 -- Combine Fabricator loader
 local shared = {'sh_math.lua', 'sh_config.lua', 'sh_layout.lua', 'sh_geometry.lua', 'sh_rig.lua', 'sh_station.lua'}
-local client = {'cl_partmap.lua', 'cl_ui.lua', 'cl_parts.lua'}
+local client = {'cl_partmap.lua', 'cl_ui.lua', 'cl_parts.lua', 'cl_focus.lua'}
 
 for _, f in ipairs(shared) do
 	if SERVER then AddCSLuaFile('cf_rework/' .. f) end

@@ -12,6 +12,7 @@ Lay.TAB = {x = 40, y = 352, w = 194, h = 38, gap = 9}
 Lay.SUMMARY = {x = 684, y = 62, w = 306}
 Lay.PANEL = {x = 24, y = 84, w = 624, h = 252}
 Lay.CANCEL = {x = 498, y = 360, w = 150, h = 48}
+Lay.EXIT = {x = 840, y = 384, w = 150, h = 44}
 Lay.BOTTOM = 440
 
 function Lay.Buttons(stage, tab)
@@ -26,8 +27,10 @@ function Lay.Buttons(stage, tab)
 		for i = 1, #C.Categories do
 			b[#b + 1] = {id = 'tab', arg = i, x = T.x + (i - 1) * (T.w + T.gap), y = T.y, w = T.w, h = T.h}
 		end
+		b[#b + 1] = {id = 'exit', x = Lay.EXIT.x, y = Lay.EXIT.y, w = Lay.EXIT.w, h = Lay.EXIT.h}
 	elseif stage == S.DEPOSIT then
 		b[1] = {id = 'cancel', x = Lay.CANCEL.x, y = Lay.CANCEL.y, w = Lay.CANCEL.w, h = Lay.CANCEL.h}
+		b[2] = {id = 'exit', x = Lay.EXIT.x, y = Lay.EXIT.y, w = Lay.EXIT.w, h = Lay.EXIT.h}
 	end
 	return b
 end

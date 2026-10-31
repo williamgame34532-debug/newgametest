@@ -322,11 +322,13 @@ function P.ribglow(b)
 	end
 end
 
--- Dark niches behind the panels that open (entity space, static).
-function P.niches(b)
-	b:niche('dark', -0.5, -21.0, 27.5, 16.5, -1.8, 40.0, {'z+', 'x+'})     -- under the roof lid (cells)
-	b:niche('dark', 3.0, -3.2, 19.2, 19.8, 22.8, 39.6, {'x+'})             -- behind the logo panel (cage)
-	b:box('dark', 3.0, -3.2, 39.6, 17.0, 22.8, 39.8)                       -- its ceiling, seen from above too
+-- Dark niches behind the panels that open (entity space, static; drawn only while open).
+function P.niche_lid(b)
+	b:niche('dark', -0.5, -21.0, 27.5, 16.5, -1.8, 40.0, {'z+', 'x+'})
+end
+function P.niche_cage(b)
+	b:niche('dark', 3.0, -3.2, 19.2, 19.6, 22.8, 39.0, {'x+'})
+	b:box('dark', 3.0, -3.2, 39.0, 13.0, 22.8, 39.2)
 end
 
 local cache

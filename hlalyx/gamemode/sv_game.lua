@@ -22,7 +22,7 @@ end)
 
 local function dropResin(pos, n)
 	for i = 1, n do
-		local e = ents.Create('sent_cf_resin')
+		local e = ents.Create(C.ResinClass)
 		if not IsValid(e) then return end
 		e:SetPos(pos + Vector(math.Rand(-8, 8), math.Rand(-8, 8), 16 + i * 4))
 		e:Spawn()
@@ -47,7 +47,7 @@ local function savePath() return 'hlalyx/stations_' .. game.GetMap() .. '.txt' e
 
 local function saveStations()
 	local list = {}
-	for _, e in ipairs(ents.FindByClass('sent_combine_fabricator')) do
+	for _, e in ipairs(ents.FindByClass(C.FabClass)) do
 		local p, a = e:GetPos(), e:GetAngles()
 		list[#list + 1] = {p.x, p.y, p.z, a.p, a.y, a.r}
 	end
@@ -59,7 +59,7 @@ end
 local function loadStations()
 	local data = util.JSONToTable(file.Read(savePath(), 'DATA') or '') or {}
 	for _, s in ipairs(data) do
-		local e = ents.Create('sent_combine_fabricator')
+		local e = ents.Create(C.FabClass)
 		if IsValid(e) then
 			e:SetPos(Vector(s[1], s[2], s[3])) e:SetAngles(Angle(s[4], s[5], s[6]))
 			e:Spawn() e:Activate()

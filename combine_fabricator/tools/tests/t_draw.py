@@ -33,7 +33,7 @@ function VectorRand() return Vector(0.1, 0.2, 0.3) end
 function ScrW() return 1920 end function ScrH() return 1080 end
 net = {Start = function() end, SendToServer = function() end, Receive = function() end}
 ''')
-for f in ('sh_math', 'sh_config', 'sh_layout', 'sh_geometry', 'sh_rig', 'sh_station', 'cl_partmap', 'cl_ui', 'cl_parts'):
+for f in ('sh_math', 'sh_config', 'sh_layout', 'sh_geometry', 'sh_rig', 'sh_station', 'cl_partmap', 'cl_ui', 'cl_parts', 'cl_focus'):
     L.execute(open(A + 'cf_rework/%s.lua' % f, encoding='utf-8').read())
 r = srcmdl.load('/tmp/u/fab/combine_fabricator/models/cf_rework/station.mdl'); V = r['verts']
 mk = L.eval('function(x,y,z) return Vector(x,y,z) end'); src = []

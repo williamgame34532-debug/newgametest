@@ -9,6 +9,9 @@ def dims(c): return [c['hi'][k] - c['lo'][k] for k in range(3)]
 parts = {}
 # rib cage (weapon cradle): everything hidden around the X-axis cylinder at Y~6.5 Z~33
 parts['cage'] = [c['id'] for c in C if hidden(c) and inbox(c, -8, 18, -1.5, 15.5, 22, 42.5)]
+# front cap of the chamber (everything of the cage in front of X 12.9): opens when the item is ready
+parts['cagedoor'] = [i for i in parts['cage'] if C[i]['lo'][0] >= 12.9]
+parts['cage'] = [i for i in parts['cage'] if C[i]['lo'][0] < 12.9]
 # resin cells: the 2x5 tube magazine and its end plates
 parts['cells'] = [c['id'] for c in C if hidden(c) and inbox(c, -3.6, 16, -19.6, 0.4, 30.5, 40.5)
                   and not (dims(c)[1] > 15 and dims(c)[2] < 2)]  # skip the flat frame on top

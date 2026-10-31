@@ -44,15 +44,33 @@ hook.Add('PlayerInitialSpawn', 'CFReworkLoadBalance', function(p)
 end)
 
 hook.Add('PlayerDisconnected', 'CFReworkDisconnect', function(p)
-	for _, e in ipairs(ents.FindByClass('sent_combine_fabricator')) do
+	for _, e in ipairs(ents.FindByClass(C.FabClass)) do
 		if e:GetOperator() == p then e:EndSession(true) end
 	end
 end)
 
+---------------------------------------------------------------------------------------------------
+-- Focus mode: pressing E on a display puts the player's camera in front of it (client side);
+-- the mouse drives a cursor on the screen, LMB clicks, E feeds resin, «ЗАВЕРШИТЬ» leaves.
+util.AddNetworkString('cf_rework_focus')
+util.AddNetworkString('cf_rework_press')
+
+function C.SetFocus(p, e)
+	if not IsValid(p) then return end
+	e = IsValid(e) and e or nil
+	if p.CFFocus == e then return end
+	p.CFFocus = e
+	net.Start('cf_rework_focus')
+	net.WriteEntity(e or NULL)
+	net.Send(p)
+end
+
+function C.Focused(p, e) return IsValid(p) and p.CFFocus ~= nil and p.CFFocus == e end
+
 -- What a player is aiming at on a nearby fabricator: screen pixel or a physical part
 local function target(p)
 	for _, e in ipairs(ents.FindInSphere(p:EyePos(), C.UseRange + 60)) do
-		if e:GetClass() == 'sent_combine_fabricator' then
+		if e.IsCombineFabricator then
 			local pose = C.PoseOf(e)
 			local x, y = C.HitScreen(e, p, pose)
 			if x then return e, x, y end
@@ -64,24 +82,42 @@ end
 
 hook.Add('KeyPress', 'CFReworkUse', function(p, key)
 	if key ~= IN_USE or not p:Alive() or (p.CFReworkNextUse or 0) > CurTime() then return end
+	local f = p.CFFocus
+	if IsValid(f) then
+		-- in focus E feeds the magazine (the camera frames the cells)
+		p.CFReworkNextUse = CurTime() + 0.1
+		f:Interact(p, nil, nil, 'cells')
+		return
+	end
 	local e, x, y, part = target(p)
 	if not e then return end
 	p.CFReworkNextUse = CurTime() + 0.2
-	e:Interact(p, x, y, part)
+	if x then
+		e:RequestFocus(p)
+	else
+		e:Interact(p, nil, nil, part)
+	end
 end)
 
--- left click on the display (sent by the client only when the crosshair is on a screen;
--- the server recomputes the aim itself)
-util.AddNetworkString('cf_rework_click')
-net.Receive('cf_rework_click', function(_, p)
-	if not IsValid(p) or not p:Alive() or (p.CFReworkNextUse or 0) > CurTime() then return end
-	local e, x, y = target(p)
-	if not e or not x then return end
-	p.CFReworkNextUse = CurTime() + 0.2
+net.Receive('cf_rework_press', function(_, p)
+	local x, y = net.ReadFloat(), net.ReadFloat()
+	local e = p.CFFocus
+	if not IsValid(e) or not p:Alive() or (p.CFReworkNextUse or 0) > CurTime() then return end
+	if p:GetPos():DistToSqr(e:GetPos()) > C.LeaveRadius * C.LeaveRadius then C.SetFocus(p, nil) return end
+	if x < 0 or y < 0 or x > C.Layout.W or y > C.Layout.H then return end
+	p.CFReworkNextUse = CurTime() + 0.15
 	e:Interact(p, x, y, nil)
 end)
 
+net.Receive('cf_rework_focus', function(_, p)
+	-- client asks to leave focus (e.g. pressed Esc-like key); entering is server-driven only
+	if net.ReadBool() == false then C.SetFocus(p, nil) end
+end)
+
+hook.Add('PlayerDeath', 'CFReworkFocus', function(p) C.SetFocus(p, nil) end)
+
 function C.AimedPart(e, p)
+	if C.Focused(p, e) then return 'cells' end
 	return C.HitPart(e, p, C.PoseOf(e))
 end
 

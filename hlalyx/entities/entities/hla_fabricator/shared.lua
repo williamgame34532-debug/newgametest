@@ -5,6 +5,7 @@ ENT.Category = 'Half-Life: Alyx'
 ENT.Spawnable = true
 ENT.AdminOnly = false
 ENT.RenderGroup = RENDERGROUP_BOTH
+ENT.IsCombineFabricator = true
 
 function ENT:SetupDataTables()
 	self:NetworkVar('Int', 0, 'Stage')

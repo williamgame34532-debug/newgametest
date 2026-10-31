@@ -6,6 +6,9 @@ C.Model = 'models/cf_rework/station.mdl'
 C.ResinModel = 'models/cf_rework/resin_pickup.mdl'         -- resin lying in the world
 C.CartridgeModel = 'models/cf_rework/resin_cartridge.mdl'  -- resin cartridge loaded into a cell
 
+C.FabClass = 'sent_combine_fabricator' -- the gamemode uses its own class names
+C.ResinClass = 'sent_cf_resin'
+
 C.WakeRadius = 170      -- the station wakes up when a living player is this close
 C.UseRange = 110        -- max eye distance for the screen / cells / chamber
 C.LeaveRadius = 260     -- operator further than this -> session ends, resin refunded

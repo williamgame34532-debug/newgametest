@@ -34,7 +34,7 @@ end
 ---------------------------------------------------------------------------------------------------
 local glowSprite = Material('sprites/light_glow02_add')
 local wire = Material('models/wireframe')
-local beamMat = Material('cable/blue_elec')
+local beamMat = Material('trails/laser')
 
 function ENT:Initialize()
 	self:SetRenderBounds(Vector(-40, -60, -2), Vector(60, 62, 80))
@@ -72,7 +72,7 @@ function ENT:UpdateLook()
 	local want = {0, 0}
 	if IsValid(target) then
 		local R = C.Rig.HATCH
-		local head = Vector(R[1], R[2], R[3] + 21)
+		local head = Vector(R[1], R[2], R[3] + 17)
 		local loc = self:WorldToLocal(target:EyePos()) - head
 		local a = loc:Angle()
 		want = {math.Clamp(math.NormalizeAngle(a.p), -35, 35), math.Clamp(math.NormalizeAngle(a.y), -70, 70)}
@@ -120,7 +120,7 @@ function ENT:DrawItem(pose, st, item)
 		-- scanning line at the print height
 		local right = self:GetForward() * 9
 		render.SetMaterial(beamMat)
-		render.DrawBeam(zcut - right, zcut + right, 1.2, CurTime() * 3, CurTime() * 3 + 1, Color(90, 230, 255))
+		render.DrawBeam(zcut - right, zcut + right, 0.8, 0, 1, Color(90, 230, 255, 220))
 	elseif st == S.DONE then
 		local bob = math.sin(CurTime() * 2) * 0.3
 		placeModel(m, center + self:GetUp() * bob, ang, scale)
@@ -178,20 +178,17 @@ function ENT:Draw()
 
 	if st == S.PRINT or st == S.DONE then self:DrawItem(pose, st, item) end
 
-	if st == S.PRINT then
-		-- the eye scans the chamber
-		local target = C.ItemPoint(self, pose) + VectorRand() * 2.5
-		render.SetMaterial(beamMat)
-		render.DrawBeam(lens, target, 0.6, CurTime() * 4, CurTime() * 4 + 1, Color(80, 220, 255, 200))
-	end
-
 	-- display
 	if deploy > 0.6 and dist < 420 * 420 then
 		local origin, right, down, normal, ang, scale = C.ScreenWorld(self, pose)
 		if (EyePos() - origin):Dot(normal) > 0 then
-			local x, y = C.HitScreen(self, LocalPlayer(), pose)
+			local cur = C.FocusCursor(self)
+			if not cur then
+				local x, y = C.HitScreen(self, LocalPlayer(), pose)
+				cur = x and {x, y}
+			end
 			cam.Start3D2D(origin + normal * 0.02, ang, scale)
-				C.UI.Draw(D, self:ScreenContext(st, x and {x, y}))
+				C.UI.Draw(D, self:ScreenContext(st, cur))
 			cam.End3D2D()
 		end
 	end
@@ -273,39 +270,29 @@ function ENT:Think()
 end
 
 ---------------------------------------------------------------------------------------------------
--- left click on a display is forwarded to the server (it recomputes the aim itself)
-hook.Add('PlayerBindPress', 'CFReworkScreenClick', function(p, bind, pressed)
-	if not pressed or bind ~= '+attack' then return end
-	for _, e in ipairs(ents.FindInSphere(p:EyePos(), C.UseRange + 60)) do
-		if e:GetClass() == 'sent_combine_fabricator' and C.HitScreen(e, p) then
-			net.Start('cf_rework_click') net.SendToServer()
-			return true
-		end
-	end
-end)
-
 -- hints at the crosshair and the HL:A-style resin counter near a station
 hook.Add('HUDPaint', 'CFReworkHints', function()
 	local p = LocalPlayer()
 	if not IsValid(p) then return end
 	local near
 	for _, e in ipairs(ents.FindInSphere(p:EyePos(), 220)) do
-		if e:GetClass() == 'sent_combine_fabricator' then near = e break end
+		if e.IsCombineFabricator then near = e break end
 	end
-	if not near then return end
+	if not near or C.FocusEnt() then return end
 	local amber = Color(255, 196, 70)
 	-- the Half-Life: Alyx gamemode shows resin on its own HUD
-	if not (GAMEMODE and GAMEMODE.IsHLA) then
+	if not (HLA and HLA.Hud) then
 	draw.RoundedBox(0, 40, ScrH() - 150, 170, 44, Color(20, 16, 6, 150))
 	draw.SimpleText('СМОЛА', 'cfr_m', 56, ScrH() - 128, amber, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	draw.SimpleText(p:GetNWInt('cf_resin', 0), 'cfr_l', 196, ScrH() - 128, amber, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	end
 
 	local st = near:GetStage()
-	if near:GetOperator() ~= p then return end
+	if st ~= S.MENU and near:GetOperator() ~= p then return end
 	local part = C.HitPart(near, p)
 	local text
-	if st == S.DEPOSIT and part == 'cells' then text = 'E — ВНЕСТИ СМОЛУ (удерживайте)'
+	if st == S.MENU and C.HitScreen(near, p) then text = 'E — ВОЙТИ В ТЕРМИНАЛ'
+	elseif st == S.DEPOSIT and part == 'cells' then text = 'E — ВНЕСТИ СМОЛУ (удерживайте)'
 	elseif st == S.DONE and part == 'chamber' then text = 'E — ЗАБРАТЬ ПРЕДМЕТ' end
 	if text then
 		draw.SimpleTextOutlined(text, 'cfr_m', ScrW() / 2, ScrH() * 0.6, Color(170, 240, 250), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 180))
