@@ -25,7 +25,7 @@ function Mesh() return {BuildFromTriangles = function() end, Draw = rec('MeshDra
 function Matrix(t) local m = {t = t} setmetatable(m, {__mul = function(a, b) return a end}) return m end
 function ClientsideModel(p) return {IsValid = function() return true end, SetNoDraw = function() end, SetModelScale = function() end,
 	SetAngles = function() end, SetPos = function() end, SetupBones = function() end, DrawModel = rec('ItemDraw'),
-	OBBCenter = function() return Vector() end, GetModelRadius = function() return 8 end, Remove = function() end} end
+	OBBCenter = function() return Vector() end, GetModelRadius = function() return 8 end, GetModelBounds = function() return Vector(-2,-2,-6), Vector(2,2,6) end, Remove = function() end} end
 function LocalToWorld(v) return v end
 function ParticleEmitter() return nil end
 function DynamicLight() return nil end
