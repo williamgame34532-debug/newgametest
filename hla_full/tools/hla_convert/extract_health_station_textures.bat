@@ -1,7 +1,7 @@
 @echo off
 chcp 65001 >nul
 rem Pulls ONLY the health station textures out of Half-Life: Alyx (a few MB, not whole archives).
-rem Run it from tools\hla_convert (next to vpk.py). Needs Python 3 with lz4 (pip install lz4).
+rem Run it from tools\hla_convert (next to vpk.py). Needs Python 3 (python.org, tick "Add to PATH").
 rem The result is the folder hs_textures next to this file: zip it and send it.
 set "HLA="
 for %%G in ("C:\Program Files (x86)\Steam\steamapps\common\Half-Life Alyx\game\hlvr" "D:\SteamLibrary\steamapps\common\Half-Life Alyx\game\hlvr" "E:\SteamLibrary\steamapps\common\Half-Life Alyx\game\hlvr" "D:\Steam\steamapps\common\Half-Life Alyx\game\hlvr" "F:\SteamLibrary\steamapps\common\Half-Life Alyx\game\hlvr") do (

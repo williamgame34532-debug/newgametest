@@ -4,9 +4,7 @@ rem Compiles the Half-Life: Alyx health station parts and the larva vial for Gar
 rem puts them into garrysmod\addons\hla_health_station_content\models\hla\health_station.
 rem This folder must hold the subfolders charger, charger_gauge, ... each with its .qc, ref_00.smd, phys.smd and anims\.
 set "GMOD="
-rem Finds Garry's Mod by itself: the folder this file sits in (if it is inside GarrysMod), then the usual Steam libraries.
-for %%D in ("%~dp0.") do set "HERE=%%~fD"
-echo %HERE% | findstr /i "\\GarrysMod\\" >nul && for /f "delims=" %%P in ('powershell -NoProfile -Command "$p='%HERE%'; $i=$p.ToLower().IndexOf('\garrysmod\'); $p.Substring(0,$i+10)"') do set "GMOD=%%P"
+rem Finds Garry's Mod in the usual Steam libraries. If it is elsewhere, put its folder here instead: set "GMOD=X:\...\GarrysMod"
 for %%G in ("C:\Program Files (x86)\Steam\steamapps\common\GarrysMod" "D:\SteamLibrary\steamapps\common\GarrysMod" "E:\SteamLibrary\steamapps\common\GarrysMod" "D:\Steam\steamapps\common\GarrysMod" "F:\SteamLibrary\steamapps\common\GarrysMod") do (
 	if not defined GMOD if exist "%%~G\bin\studiomdl.exe" set "GMOD=%%~G"
 )
