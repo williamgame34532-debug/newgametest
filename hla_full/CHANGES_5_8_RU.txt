@@ -1,0 +1,18 @@
+ИЗМЕНЕНИЯ 5.8 — ГОТОВЫЙ СКОМПИЛИРОВАННЫЙ ШЕЙДЕР (поверх 5.7, пути сохранены)
+
+garrysmod/addons/hla_fabricator_content/shaders/fxc/hla_monitor_ps30.vcs   ГОТОВ, ничего собирать не нужно
+garrysmod/gamemodes/hlalyx/gamemode/fabricator/cl_monitor.lua            срыв кадра и мерцание контраста
+                                                                         считаются в Lua (c3.y, c3.z)
+shadersrc/hla_monitor_ps30.hlsl   исходник (sin/step вынесены в Lua; без #include)
+shadersrc/hlslc.c, hlslc.exe       компилятор-обёртка над d3dcompiler_47 (HLSL -> байткод ps_3_0)
+shadersrc/pack_vcs.py              упаковка байткода в .vcs Source (версия 6), с проверкой чтением
+shadersrc/build_shaders.bat        пересборка на Windows (если поменяете .hlsl)
+
+КАК СОБРАНО
+  Linux: Wine 9.0, его d3dcompiler_47 (vkd3d-shader) -> ps_3_0, 140 инструкций (лимит 512),
+  8 выборок текстур; константы c0..c3, текстуры s0..s3 — как задаёт cl_monitor.lua
+  (проверено дизассемблером). Затем pack_vcs.py: одна статическая и одна динамическая
+  комбинация, блок без сжатия, конец потока 0xFFFFFFFF.
+
+НЕ ПРОВЕРЕНО: загрузка .vcs самим GMod и вид в игре. Если экран станет чёрным или эффекта нет —
+выключите hla_monitor_fx 0 и пришлите консоль (ошибки шейдера там видны).

@@ -12,9 +12,9 @@
 // c0 = time, jitter speed, vsync jump scale, film grain strength
 // c1 = red shift, green shift, blue shift, scanline tiling (lines across the height / texture size)
 // c2 = tint r, g, b, vignette strength
-// c3 = scanline scroll speed, unused, unused, unused
+// c3 = scanline scroll speed, vsync roll (already scaled, per frame), contrast (per frame), unused
+// (per-frame values come from Lua: the same for every pixel, and cheaper there)
 
-#include "common_ps_fxc.h"
 
 sampler BaseTexture  : register(s0);
 sampler ScanlineTex  : register(s1);
@@ -31,8 +31,6 @@ struct PS_INPUT
 	float2 uv : TEXCOORD0;
 };
 
-float hash(float n) { return frac(sin(n) * 43758.5453); }
-
 float4 main(PS_INPUT i) : COLOR
 {
 	float t = C0.x;
@@ -46,12 +44,10 @@ float4 main(PS_INPUT i) : COLOR
 	jit.z = tex2D(JitterTex, float2(jy, 0.625)).g + 1.0;
 
 	// vsync jump (HL:A: g_tVSyncControl at y*0.02 + time*0.25, centred on 0.5): a rare short roll
-	float slot = floor(t * 0.25 * 8.0);
-	float roll = step(0.93, hash(slot)) * (frac(t * 2.0) - 0.5);
-	float vs = roll * C0.z;
+	float vs = C3.y;
 
 	float3 shift = jit * C1.xyz * 0.01 + vs;
-	float k = 1.0 + roll * C0.z;
+	float k = 1.0 + vs;
 	float3 col;
 	col.r = tex2D(BaseTexture, uv + float2(shift.r * k, vs)).r;
 	col.g = tex2D(BaseTexture, uv + float2(shift.g * k, vs)).g;
@@ -67,7 +63,7 @@ float4 main(PS_INPUT i) : COLOR
 	col *= vig;
 
 	// film grain with flickering contrast (HL:A: grain*strength*contrast + 0.5, multiplied in)
-	float contrast = 0.75 + 0.25 * sin(t * 13.0) * sin(t * 3.7);
+	float contrast = C3.z;
 	float grain = tex2D(GrainTex, uv + t * float2(19.2, 7.1)).g - 0.5;
 	col *= grain * C0.w * contrast * 2.0 + 1.0;
 

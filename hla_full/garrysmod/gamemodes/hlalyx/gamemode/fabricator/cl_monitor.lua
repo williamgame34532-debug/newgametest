@@ -61,6 +61,12 @@ function MON.Draw(pos, ang, scale, paint)
 	matFX:SetFloat('$c2_x', MON.Tint[1]) matFX:SetFloat('$c2_y', MON.Tint[2]) matFX:SetFloat('$c2_z', MON.Tint[3])
 	matFX:SetFloat('$c2_w', MON.Vignette)
 	matFX:SetFloat('$c3_x', MON.ScanScroll)
+	-- per-frame values (same for every pixel): a rare short vertical roll and flickering contrast
+	local slot = math.floor(t * 2)
+	local rnd = (math.sin(slot * 12.9898) * 43758.5453) % 1
+	local roll = rnd > 0.93 and ((t * 2) % 1 - 0.5) * MON.VSyncJump or 0
+	matFX:SetFloat('$c3_y', roll)
+	matFX:SetFloat('$c3_z', 0.75 + 0.25 * math.sin(t * 13) * math.sin(t * 3.7))
 	render.PushRenderTarget(rtFX)
 		render.SetMaterial(matFX)
 		render.DrawScreenQuad()
