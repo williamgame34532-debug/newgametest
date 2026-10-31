@@ -1,0 +1,11 @@
+Lua parse and mechanics: PASS
+Hatch mesh surface-area conservation: PASS
+Animation endpoint and reversal tests: PASS
+MDL/VVD/VTX checksum consistency: PASS
+Material texture dependencies: PASS
+Garry's Mod runtime test: NOT RUN
+Performance in Garry's Mod: NOT MEASURED
+Frame-by-frame match to reference video: NOT VERIFIED
+Centered screen and symmetric slots: PASS
+Front-facing screen normal and per-slot ray hits: PASS
+Obsolete console model and textures removed: PASS

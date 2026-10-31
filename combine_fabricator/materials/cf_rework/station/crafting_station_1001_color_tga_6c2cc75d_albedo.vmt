@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+ "$basetexture" "cf_rework/station/crafting_station_1001_color_tga_6c2cc75d_albedo"
+ "$surfaceprop" "metal"
+ "$model" "1"
+ "$phong" "1"
+ "$phongboost" "0.02"
+ "$phongexponent" "12"
+ "$color2" "[0.20 0.22 0.24]"
+}

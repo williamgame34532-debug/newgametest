@@ -1,0 +1,12 @@
+{
+  "title": "Combine Fabricator \u2014 3D2D Rework",
+  "type": "entity",
+  "tags": [
+    "roleplay",
+    "build"
+  ],
+  "ignore": [
+    "*.md",
+    "resource/fonts/OFL.txt"
+  ]
+}

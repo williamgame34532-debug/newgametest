@@ -1,0 +1,1 @@
+"VertexLitGeneric" { "$basetexture" "models/cf_rework/socket" "$phong" "1" "$phongboost" "0.04" "$phongexponent" "12" }
