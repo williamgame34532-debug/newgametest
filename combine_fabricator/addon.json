@@ -1,5 +1,5 @@
 {
-  "title": "Combine Fabricator \u2014 3D2D Rework",
+  "title": "Combine Fabricator (HL:A)",
   "type": "entity",
   "tags": [
     "roleplay",
@@ -7,6 +7,9 @@
   ],
   "ignore": [
     "*.md",
+    "*.py",
+    "tools/*",
+    "previews/*",
     "resource/fonts/OFL.txt"
   ]
 }

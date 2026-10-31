@@ -1,136 +1,312 @@
-include('shared.lua') include('cl_screen.lua') include('cl_mechanism.lua')
-local C=CFRework local S=C.State
-local glow=Material('sprites/light_glow02_add') local socketmat=Material('models/cf_rework/socket')
-local wire=Material('models/wireframe')
-local sleeve
-local function socketMesh()
- if sleeve then return sleeve end
- local tris={}
- local function vertex(p,n,u,v) return {pos=p,normal=n,u=u,v=v} end
- local function quad(a,b,c,d,n)
-  for _,v in ipairs({vertex(a,n,0,0),vertex(b,n,1,0),vertex(c,n,1,1),vertex(a,n,0,0),vertex(c,n,1,1),vertex(d,n,0,1)}) do tris[#tris+1]=v end
- end
- for i=0,47 do
-  local a=i*math.pi/24 local b=(i+1)*math.pi/24
-  local function pt(r,z,t) return Vector(math.cos(t)*r,math.sin(t)*r,z) end
-  local n=Vector(math.cos((a+b)/2),math.sin((a+b)/2),0)
-  quad(pt(2.25,-1,a),pt(2.25,-1,b),pt(2.25,3,b),pt(2.25,3,a),n)
-  quad(pt(1.65,-1,b),pt(1.65,-1,a),pt(1.65,3,a),pt(1.65,3,b),-n)
-  quad(pt(1.65,-1,a),pt(1.65,-1,b),pt(2.25,-1,b),pt(2.25,-1,a),Vector(0,0,-1))
-  quad(pt(2.25,3,a),pt(2.25,3,b),pt(1.65,3,b),pt(1.65,3,a),Vector(0,0,1))
- end
- sleeve=Mesh() sleeve:BuildFromTriangles(tris) return sleeve
+include('shared.lua')
+
+local C = CFRework
+local S = C.State
+local M = C.M
+
+---------------------------------------------------------------------------------------------------
+-- fonts and the draw adapter for cl_ui.lua
+local FONTS = {cfr_hdr = {26, 700}, cfr_xs = {14, 500}, cfr_xxs = {11, 500}, cfr_s = {17, 700},
+	cfr_m = {22, 700}, cfr_row = {21, 700}, cfr_l = {32, 700}, cfr_num = {42, 700}}
+for name, f in pairs(FONTS) do
+	surface.CreateFont(name, {font = 'Roboto Condensed', size = f[1], weight = f[2], extended = true, antialias = true})
 end
+
+local function col(c) return c[1], c[2], c[3], c[4] or 255 end
+local XA = {[0] = TEXT_ALIGN_LEFT, [1] = TEXT_ALIGN_CENTER, [2] = TEXT_ALIGN_RIGHT}
+local YA = {[0] = TEXT_ALIGN_TOP, [1] = TEXT_ALIGN_CENTER, [2] = TEXT_ALIGN_BOTTOM}
+local D = {}
+function D.rect(x, y, w, h, c) surface.SetDrawColor(col(c)) surface.DrawRect(x, y, w, h) end
+function D.outline(x, y, w, h, c, t) surface.SetDrawColor(col(c)) surface.DrawOutlinedRect(x, y, w, h, t or 1) end
+function D.line(x1, y1, x2, y2, c) surface.SetDrawColor(col(c)) surface.DrawLine(x1, y1, x2, y2) end
+function D.poly(pts, c)
+	local p = {}
+	for i, v in ipairs(pts) do p[i] = {x = v[1], y = v[2]} end
+	draw.NoTexture()
+	surface.SetDrawColor(col(c))
+	surface.DrawPoly(p)
+end
+function D.size(s, font) surface.SetFont(font) return surface.GetTextSize(s) end
+function D.text(s, font, x, y, c, ax, ay)
+	draw.SimpleText(s, font, x, y, Color(col(c)), XA[ax or 0], YA[ay or 0])
+end
+
+---------------------------------------------------------------------------------------------------
+local glowSprite = Material('sprites/light_glow02_add')
+local wire = Material('models/wireframe')
+local beamMat = Material('cable/blue_elec')
+
 function ENT:Initialize()
- self.CFModels={} self.CFSlotLerp={0,0,0,0} self.CFSlotPull={} self.CFSlotFilled={}
- self:SetRenderBounds(Vector(-55,-100,-5),Vector(55,65,100))
+	self:SetRenderBounds(Vector(-40, -60, -2), Vector(60, 62, 80))
+	self.Models = {}
+	self.Look = {0, 0}
+	C.Parts.Prepare()
 end
-function ENT:ClientModel(key,path)
- self.CFModels=self.CFModels or {}
- local m=self.CFModels[key]
- if not IsValid(m) then m=ClientsideModel(path,RENDERGROUP_OPAQUE) if not IsValid(m) then return end m:SetNoDraw(true) self.CFModels[key]=m end
- return m
+
+function ENT:ClientModel(key, path)
+	local m = self.Models[key]
+	if IsValid(m) and m.Path == path then return m end
+	if IsValid(m) then m:Remove() end
+	m = ClientsideModel(path, RENDERGROUP_OPAQUE)
+	if not IsValid(m) then return end
+	m:SetNoDraw(true)
+	m.Path = path
+	self.Models[key] = m
+	return m
 end
+
 function ENT:OnRemove()
- for _,m in pairs(self.CFModels or {}) do if IsValid(m) then m:Remove() end end
+	for _, m in pairs(self.Models or {}) do if IsValid(m) then m:Remove() end end
 end
+
+-- eye head aims at the operator, else at the closest player
+function ENT:UpdateLook()
+	local target = self:GetOperator()
+	if not IsValid(target) then
+		local best
+		for _, p in ipairs(player.GetAll()) do
+			local d = p:GetPos():DistToSqr(self:GetPos())
+			if p:Alive() and d < 300 * 300 and (not best or d < best) then best, target = d, p end
+		end
+	end
+	local want = {0, 0}
+	if IsValid(target) then
+		local R = C.Rig.HATCH
+		local head = Vector(R[1], R[2], R[3] + 21)
+		local loc = self:WorldToLocal(target:EyePos()) - head
+		local a = loc:Angle()
+		want = {math.Clamp(math.NormalizeAngle(a.p), -35, 35), math.Clamp(math.NormalizeAngle(a.y), -70, 70)}
+	end
+	local k = math.min(FrameTime() * 4, 1)
+	self.Look[1] = Lerp(k, self.Look[1], want[1])
+	self.Look[2] = Lerp(k, self.Look[2], want[2])
+end
+
+local function placeModel(m, center, ang, scale)
+	m:SetModelScale(scale, 0)
+	m:SetAngles(ang)
+	m:SetPos(center)
+	m:SetupBones()
+	local off = LocalToWorld(m:OBBCenter() * scale, angle_zero, vector_origin, ang)
+	m:SetPos(center - off)
+end
+
+function ENT:DrawItem(pose, st, item)
+	if not item then return end
+	local m = self:ClientModel('item', item.model)
+	if not IsValid(m) then return end
+	local center = C.ItemPoint(self, pose)
+	local ang = self:LocalToWorldAngles(Angle(0, 0, 0))
+	local size = m:GetModelRadius() or 8
+	local scale = math.Clamp(9 / math.max(size, 1), 0.4, 1.3)
+	if st == S.PRINT then
+		-- the item materialises inside the rib chamber from the bottom up
+		local f = math.Clamp((CurTime() - self:GetStageStarted()) / math.max(0.1, self:GetStageUntil() - self:GetStageStarted()), 0, 1)
+		placeModel(m, center, ang, scale)
+		render.MaterialOverride(wire)
+		render.SetColorModulation(0.2, 0.85, 1)
+		render.SetBlend(0.35 + 0.25 * math.sin(CurTime() * 12))
+		m:DrawModel()
+		render.SetBlend(1)
+		render.SetColorModulation(1, 1, 1)
+		render.MaterialOverride()
+		local up = self:GetUp()
+		local zcut = center + up * (-6 + 12 * f)
+		local prev = render.EnableClipping(true)
+		render.PushCustomClipPlane(-up, (-up):Dot(zcut))
+		m:DrawModel()
+		render.PopCustomClipPlane()
+		render.EnableClipping(prev)
+		-- scanning line at the print height
+		local right = self:GetForward() * 9
+		render.SetMaterial(beamMat)
+		render.DrawBeam(zcut - right, zcut + right, 1.2, CurTime() * 3, CurTime() * 3 + 1, Color(90, 230, 255))
+	elseif st == S.DONE then
+		local bob = math.sin(CurTime() * 2) * 0.3
+		placeModel(m, center + self:GetUp() * bob, ang, scale)
+		m:DrawModel()
+	end
+end
+
+-- wireframe hologram of the chosen item floating over the grille (reference: hologram above the rods)
+function ENT:DrawHologram(pose, item)
+	if not item then return end
+	local m = self:ClientModel('holo', item.model)
+	if not IsValid(m) then return end
+	local x, y, z = M.point(pose.rods, -5.4, -10.7, 26)
+	local center = self:LocalToWorld(Vector(x + 1.5, y, z))
+	local ang = self:LocalToWorldAngles(Angle(0, CurTime() * 25 % 360, 0))
+	placeModel(m, center, ang, math.Clamp(10 / math.max(m:GetModelRadius() or 8, 1), 0.4, 1.5))
+	render.MaterialOverride(wire)
+	render.SetColorModulation(0.25, 0.9, 1)
+	render.SetBlend(0.55)
+	m:DrawModel()
+	render.SetBlend(1)
+	render.SetColorModulation(1, 1, 1)
+	render.MaterialOverride()
+end
+
+function ENT:ScreenContext(st, cursor)
+	local p = self:GetOperator()
+	local viewer = LocalPlayer()
+	local owner = IsValid(p) and p or viewer
+	local f = math.Clamp((CurTime() - self:GetStageStarted()) / math.max(0.1, self:GetStageUntil() - self:GetStageStarted()), 0, 1)
+	local ctx = {
+		stage = st, t = CurTime(), tab = self:GetTab(), sel = self:GetSelection(),
+		resin = owner:GetNWInt('cf_resin', 0), paid = self:GetPaid(), cost = self:GetCost(),
+		printFrac = f, status = self:GetStatusText(), boot = math.Clamp((C.Chan(self, 'deploy') - 0.6) / 0.4, 0, 1),
+	}
+	if IsValid(p) and p ~= viewer and st > S.MENU then ctx.busy = string.sub(p:Nick(), 1, 32) end
+	if cursor then
+		ctx.cursor = cursor
+		ctx.hover = C.Layout.ButtonAt(st, self:GetTab(), cursor[1], cursor[2])
+	end
+	return ctx
+end
+
 function ENT:Draw()
- local open=C.Motion(self)
- self:DrawAnimatedShell(open)
- local d=EyePos():DistToSqr(self:GetPos()) if d>1600*1600 then return end
- if open<.01 then return end
- self:DrawMechanism(open)
- if d>700*700 then return end
- local state=self:GetStage() local mask=self:GetSlotMask()
- for i,slot in ipairs(C.Slots) do
-  local v=C.SlotPosition(self,i)
-  local filled=bit.band(mask,2^(i-1))~=0 local previous=self.CFSlotLerp[i] or 0
-  self.CFSlotLerp[i]=Lerp(math.min(FrameTime()*10,1),previous,filled and 1 or 0)
-  local a=self:LocalToWorldAngles(C.CartridgeAng) local pos=self:LocalToWorld(v)
-  local matrix=Matrix() matrix:SetTranslation(pos) matrix:SetAngles(a)
-  render.SetMaterial(socketmat) cam.PushModelMatrix(matrix) socketMesh():Draw() cam.PopModelMatrix()
-  if self.CFSlotLerp[i]>.01 then
-   local m=self:ClientModel('resin'..i,C.CartridgeModel)
-   if IsValid(m) then local drain=self:GetBatchDrainAt()
-    if filled and not self.CFSlotFilled[i] then self.CFSlotPull[i]=0 end
-    local pull=drain>0 and C.Ease((CurTime()-(drain-.55))/.55)*9 or (filled and 0 or (self.CFSlotPull[i] or 0))
-    self.CFSlotPull[i]=pull
-    m:SetPos(self:LocalToWorld(v+Vector(5-self.CFSlotLerp[i]*3-pull,0,0))) m:SetAngles(a) m:SetupBones() m:DrawModel() end
-  end
-  self.CFSlotFilled[i]=filled
-  render.SetMaterial(glow) render.DrawSprite(self:LocalToWorld(v+Vector(1.2,0,2.7)),.7,.7,filled and Color(93,244,233) or Color(43,90,95))
- end
- if d<500*500 then
-  local item=C.Items[self:GetSelection()]
-  if item and state>=S.CATALOG then
-   if self.CFPreviewPath~=item.model then
-    if self.CFModels and IsValid(self.CFModels.preview) then self.CFModels.preview:Remove() self.CFModels.preview=nil end
-    self.CFPreviewPath=item.model
-   end
-   local m=self:ClientModel('preview',item.model)
-   if IsValid(m) then
-    local center=self:LocalToWorld(Vector(15,0,66))
-    m:SetModelScale(.65,0) m:SetAngles(self:LocalToWorldAngles(Angle(0,CurTime()*18,0)))
-    m:SetPos(center) m:SetupBones()
-    local localCenter=m:OBBCenter() local offset=LocalToWorld(localCenter*.65,angle_zero,vector_origin,m:GetAngles())
-    m:SetPos(center-offset)
-    local printed=state==S.PRINT and math.Clamp((CurTime()-self:GetStageStarted())/4.5,0,1) or 0
-    if state~=S.DONE then render.MaterialOverride(wire) render.SetColorModulation(.2,.65,.68) end
-    render.SetBlend(state==S.DONE and 1 or (state==S.PRINT and .2+printed*.5 or .18))
-    m:DrawModel() render.SetBlend(1) render.SetColorModulation(1,1,1) render.MaterialOverride()
-    if state==S.PRINT then
-     local up=self:GetUp() local scan=self:LocalToWorld(Vector(15,0,57+printed*19))
-     local previousClip=render.EnableClipping(true)
-     render.PushCustomClipPlane(-up,(-up):Dot(scan))
-     m:DrawModel()
-     render.PopCustomClipPlane() render.EnableClipping(previousClip)
-     render.SetMaterial(glow) render.DrawSprite(center,7,7,Color(55,220,225,110))
-     local z=58+((CurTime()-self:GetStageStarted())*8)%19
-     render.SetMaterial(wire) render.DrawBeam(self:LocalToWorld(Vector(15,-10,z)),self:LocalToWorld(Vector(15,10,z)),.15,0,1,Color(77,240,245,160))
-    end
-   end
-  end
- end
- if d>420*420 or C.Panel(self)<.05 then return end
- local pos,ang=C.ScreenTransform(self) if (EyePos()-pos):Dot(ang:Up())<=0 then return end
- local x,y=C.HitScreen(self,LocalPlayer())
- cam.Start3D2D(pos,ang,C.ScreenScale) self:PaintFabricatorScreen(x,y) cam.End3D2D()
+	local dist = EyePos():DistToSqr(self:GetPos())
+	self:UpdateLook()
+	local pose = C.PoseOf(self, CurTime(), self.Look)
+	local st = self:GetStage()
+	local deploy = C.Chan(self, 'deploy')
+	local item = C.Items[self:GetSelection()]
+
+	-- strip brightness: dim when dormant, cells bright while loading, ribs pulse while printing
+	local glow = {all = 0.25 + 0.75 * deploy}
+	if st == S.DEPOSIT then glow.cellglow = 0.6 + 0.4 * math.abs(math.sin(CurTime() * 4)) end
+	if st == S.PRINT then glow.ribglow = 0.6 + 0.4 * math.abs(math.sin(CurTime() * 9)) end
+
+	if dist > 2500 * 2500 or not C.Parts.Draw(self, pose, glow) then
+		self:DrawModel()
+		return
+	end
+	if dist > 900 * 900 then return end
+
+	-- eye lens halo
+	local h = pose.head
+	local lx, ly, lz = M.point(h, 1.0, 0, 0)
+	local lens = self:LocalToWorld(Vector(lx, ly, lz))
+	render.SetMaterial(glowSprite)
+	render.DrawSprite(lens, 4 * deploy + 0.5, 4 * deploy + 0.5, deploy > 0.5 and Color(60, 220, 255) or Color(255, 40, 30))
+
+	-- filled resin cells glow
+	if st == S.DEPOSIT then
+		local filled = self:GetPaid() % 10
+		if self:GetPaid() > 0 and filled == 0 then filled = 10 end
+		for i = 1, math.min(filled, 10) do
+			local c = C.Rig.CellPoint(pose, i)
+			render.DrawSprite(self:LocalToWorld(Vector(c[1], c[2] - 0.3, c[3])), 3.2, 3.2, Color(80, 230, 255, 200))
+		end
+		self:DrawResinFeed(pose)
+	end
+
+	if st == S.PRINT or st == S.DONE then self:DrawItem(pose, st, item) end
+	if (st == S.DEPOSIT or st == S.PRINT) and deploy > 0.9 then self:DrawHologram(pose, item) end
+
+	if st == S.PRINT then
+		-- the eye scans the chamber
+		local target = C.ItemPoint(self, pose) + VectorRand() * 2.5
+		render.SetMaterial(beamMat)
+		render.DrawBeam(lens, target, 0.6, CurTime() * 4, CurTime() * 4 + 1, Color(80, 220, 255, 200))
+	end
+
+	-- display
+	if deploy > 0.6 and dist < 420 * 420 then
+		local origin, right, down, normal, ang, scale = C.ScreenWorld(self, pose)
+		if (EyePos() - origin):Dot(normal) > 0 then
+			local x, y = C.HitScreen(self, LocalPlayer(), pose)
+			cam.Start3D2D(origin + normal * 0.02, ang, scale)
+				C.UI.Draw(D, self:ScreenContext(st, x and {x, y}))
+			cam.End3D2D()
+		end
+	end
 end
-hook.Add('PlayerBindPress','CFReworkScreenClick',function(p,bind,pressed)
- if not pressed or bind~='+attack' then return end
- for _,e in ipairs(ents.FindInSphere(p:EyePos(),180)) do
-  if e:GetClass()=='sent_combine_fabricator' then
-   local x,y=C.HitScreen(e,p)
-   if x then net.Start('cf_rework_click') net.WriteEntity(e) net.SendToServer() return true end
-  end
- end
-end)
-hook.Add('HUDPaint','CFReworkSlotHint',function()
- local p=LocalPlayer() if not IsValid(p) then return end
- for _,e in ipairs(ents.FindInSphere(p:EyePos(),150)) do
-  if e:GetClass()=='sent_combine_fabricator' and e:GetStage()==S.DEPOSIT and e:GetOperator()==p then
-   local i=C.HitSlot(e,p)
-   if i then
-    local filled=bit.band(e:GetSlotMask(),2^(i-1))~=0
-    draw.SimpleTextOutlined(filled and 'ЯЧЕЙКА '..i..' ЗАПОЛНЕНА' or 'E — ВСТАВИТЬ СМОЛУ В ЯЧЕЙКУ '..i,'CFRText',ScrW()/2,ScrH()*.64,Color(172,243,238),TEXT_ALIGN_CENTER,TEXT_ALIGN_CENTER,1,Color(0,0,0,160))
-   end
-  end
- end
-end)
+
+-- resin pucks sliding into the cells as they are paid
+function ENT:DrawResinFeed(pose)
+	local paid = self:GetPaid()
+	if paid ~= self.LastPaid then
+		if self.LastPaid and paid > self.LastPaid then self.FeedAt = CurTime() self.FeedCell = ((paid - 1) % 10) + 1 end
+		self.LastPaid = paid
+	end
+	if not self.FeedAt then return end
+	local f = (CurTime() - self.FeedAt) / 0.35
+	if f > 1 then self.FeedAt = nil return end
+	local m = self:ClientModel('puck', C.ResinModel)
+	if not IsValid(m) then return end
+	local c = C.Rig.CellPoint(pose, self.FeedCell)
+	local from = Vector(c[1] + 10, c[2] - 12, c[3] + 6)
+	local to = Vector(c[1], c[2] + 2, c[3])
+	local p = LerpVector(M.smooth(f), from, to)
+	m:SetModelScale(0.6, 0)
+	m:SetPos(self:LocalToWorld(p))
+	m:SetAngles(self:LocalToWorldAngles(Angle(90, 90, 0)))
+	m:SetupBones()
+	m:DrawModel()
+end
 
 function ENT:Think()
- if self:GetStage()~=S.PRINT or EyePos():DistToSqr(self:GetPos())>450*450 then return end
- local elapsed=CurTime()-self:GetStageStarted()
- if elapsed<.65 or elapsed>3.8 or (self.CFNextParticle or 0)>CurTime() then return end
- self.CFNextParticle=CurTime()+.22
- local origin=self:LocalToWorld(Vector(19,0,52))
- local emitter=ParticleEmitter(origin,false)
- if not emitter then return end
- local p=emitter:Add('particle/particle_smokegrenade',origin)
- if p then
-  p:SetVelocity(self:GetUp()*7+self:GetRight()*3) p:SetDieTime(.8) p:SetStartAlpha(28) p:SetEndAlpha(0)
-  p:SetStartSize(1) p:SetEndSize(4) p:SetRoll(math.Rand(-1,1)) p:SetRollDelta(.15)
-  p:SetColor(93,116,118) p:SetAirResistance(20) p:SetLighting(true) p:SetCollide(false)
- end
- emitter:Finish()
+	if self:GetStage() ~= S.PRINT or EyePos():DistToSqr(self:GetPos()) > 500 * 500 then return end
+	if (self.NextSpark or 0) > CurTime() then return end
+	self.NextSpark = CurTime() + 0.12
+	local pose = C.PoseOf(self, CurTime(), self.Look)
+	local origin = C.ItemPoint(self, pose)
+	local em = ParticleEmitter(origin, false)
+	if not em then return end
+	for i = 1, 3 do
+		local p = em:Add('effects/spark', origin + VectorRand() * 4)
+		if p then
+			p:SetVelocity(VectorRand() * 30 + self:GetUp() * 15)
+			p:SetDieTime(0.35)
+			p:SetStartAlpha(255) p:SetEndAlpha(0)
+			p:SetStartSize(0.6) p:SetEndSize(0)
+			p:SetStartLength(1.5) p:SetEndLength(0)
+			p:SetColor(120, 230, 255)
+			p:SetGravity(Vector(0, 0, -200))
+		end
+	end
+	em:Finish()
+	local dl = DynamicLight(self:EntIndex())
+	if dl then
+		dl.pos = origin dl.r = 60 dl.g = 200 dl.b = 255 dl.brightness = 1.5
+		dl.decay = 600 dl.size = 120 dl.dietime = CurTime() + 0.2
+	end
 end
+
+---------------------------------------------------------------------------------------------------
+-- left click on a display is forwarded to the server (it recomputes the aim itself)
+hook.Add('PlayerBindPress', 'CFReworkScreenClick', function(p, bind, pressed)
+	if not pressed or bind ~= '+attack' then return end
+	for _, e in ipairs(ents.FindInSphere(p:EyePos(), C.UseRange + 60)) do
+		if e:GetClass() == 'sent_combine_fabricator' and C.HitScreen(e, p) then
+			net.Start('cf_rework_click') net.SendToServer()
+			return true
+		end
+	end
+end)
+
+-- hints at the crosshair and the HL:A-style resin counter near a station
+hook.Add('HUDPaint', 'CFReworkHints', function()
+	local p = LocalPlayer()
+	if not IsValid(p) then return end
+	local near
+	for _, e in ipairs(ents.FindInSphere(p:EyePos(), 220)) do
+		if e:GetClass() == 'sent_combine_fabricator' then near = e break end
+	end
+	if not near then return end
+	local amber = Color(255, 196, 70)
+	draw.RoundedBox(0, 40, ScrH() - 150, 170, 44, Color(20, 16, 6, 150))
+	draw.SimpleText('СМОЛА', 'cfr_m', 56, ScrH() - 128, amber, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	draw.SimpleText(p:GetNWInt('cf_resin', 0), 'cfr_l', 196, ScrH() - 128, amber, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+
+	local st = near:GetStage()
+	if near:GetOperator() ~= p then return end
+	local part = C.HitPart(near, p)
+	local text
+	if st == S.DEPOSIT and part == 'cells' then text = 'E — ВНЕСТИ СМОЛУ (удерживайте)'
+	elseif st == S.DONE and part == 'chamber' then text = 'E — ЗАБРАТЬ ПРЕДМЕТ' end
+	if text then
+		draw.SimpleTextOutlined(text, 'cfr_m', ScrW() / 2, ScrH() * 0.6, Color(170, 240, 250), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 180))
+	end
+end)
