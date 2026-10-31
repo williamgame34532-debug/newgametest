@@ -34,10 +34,11 @@ function C.Moving(ent, t)
 	return false
 end
 
-function C.PoseOf(ent, t, look)
+function C.PoseOf(ent, t, look, feed)
 	local s = {}
 	for _, name in ipairs(CHANNELS) do s[name] = C.Chan(ent, name, t) end
 	if look then s.lookP, s.lookY = look[1], look[2] end
+	if feed then s.feedSlot, s.feedRow = feed.feedSlot, feed.feedRow end
 	return C.Rig.Pose(s)
 end
 

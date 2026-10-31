@@ -3,14 +3,15 @@ CFRework = CFRework or {}
 local C = CFRework
 
 C.Model = 'models/cf_rework/station.mdl'
-C.ResinModel = 'models/cf_rework/resin_pickup.mdl'
+C.ResinModel = 'models/cf_rework/resin_pickup.mdl'         -- resin lying in the world
+C.CartridgeModel = 'models/cf_rework/resin_cartridge.mdl'  -- resin cartridge loaded into a cell
 
 C.WakeRadius = 170      -- the station wakes up when a living player is this close
 C.UseRange = 110        -- max eye distance for the screen / cells / chamber
 C.LeaveRadius = 260     -- operator further than this -> session ends, resin refunded
 C.IdleTimeout = 120     -- seconds without interaction -> session ends
 C.PrintTime = 5.0       -- seconds the chamber prints
-C.FeedInterval = 0.22   -- one resin per this many seconds while E is held on the cells
+C.FeedInterval = 0.45   -- one resin cartridge per this many seconds while E is held on the cells
 C.MaxResin = 1000000
 
 C.Categories = {'МЕДИЦИНА', 'ОРУЖИЕ', 'БОЕПРИПАСЫ'}

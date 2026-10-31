@@ -128,24 +128,6 @@ function ENT:DrawItem(pose, st, item)
 	end
 end
 
--- wireframe hologram of the chosen item floating over the grille (reference: hologram above the rods)
-function ENT:DrawHologram(pose, item)
-	if not item then return end
-	local m = self:ClientModel('holo', item.model)
-	if not IsValid(m) then return end
-	local x, y, z = M.point(pose.rods, -5.4, -10.7, 26)
-	local center = self:LocalToWorld(Vector(x + 1.5, y, z))
-	local ang = self:LocalToWorldAngles(Angle(0, CurTime() * 25 % 360, 0))
-	placeModel(m, center, ang, math.Clamp(10 / math.max(m:GetModelRadius() or 8, 1), 0.4, 1.5))
-	render.MaterialOverride(wire)
-	render.SetColorModulation(0.25, 0.9, 1)
-	render.SetBlend(0.55)
-	m:DrawModel()
-	render.SetBlend(1)
-	render.SetColorModulation(1, 1, 1)
-	render.MaterialOverride()
-end
-
 function ENT:ScreenContext(st, cursor)
 	local p = self:GetOperator()
 	local viewer = LocalPlayer()
@@ -167,8 +149,9 @@ end
 function ENT:Draw()
 	local dist = EyePos():DistToSqr(self:GetPos())
 	self:UpdateLook()
-	local pose = C.PoseOf(self, CurTime(), self.Look)
 	local st = self:GetStage()
+	self:UpdateFeed(st)
+	local pose = C.PoseOf(self, CurTime(), self.Look, self.Feed)
 	local deploy = C.Chan(self, 'deploy')
 	local item = C.Items[self:GetSelection()]
 
@@ -190,19 +173,10 @@ function ENT:Draw()
 	render.SetMaterial(glowSprite)
 	render.DrawSprite(lens, 4 * deploy + 0.5, 4 * deploy + 0.5, deploy > 0.5 and Color(60, 220, 255) or Color(255, 40, 30))
 
-	-- filled resin cells glow
-	if st == S.DEPOSIT then
-		local filled = self:GetPaid() % 10
-		if self:GetPaid() > 0 and filled == 0 then filled = 10 end
-		for i = 1, math.min(filled, 10) do
-			local c = C.Rig.CellPoint(pose, i)
-			render.DrawSprite(self:LocalToWorld(Vector(c[1], c[2] - 0.3, c[3])), 3.2, 3.2, Color(80, 230, 255, 200))
-		end
-		self:DrawResinFeed(pose)
-	end
+	-- loaded resin cartridges sit in their tubes and travel with the magazine
+	if st == S.DEPOSIT or (self.Feed and self.Feed.n > 0 and C.Chan(self, 'tray') > 0.01) then self:DrawCartridges(pose) end
 
 	if st == S.PRINT or st == S.DONE then self:DrawItem(pose, st, item) end
-	if (st == S.DEPOSIT or st == S.PRINT) and deploy > 0.9 then self:DrawHologram(pose, item) end
 
 	if st == S.PRINT then
 		-- the eye scans the chamber
@@ -223,34 +197,58 @@ function ENT:Draw()
 	end
 end
 
--- resin pucks sliding into the cells as they are paid
-function ENT:DrawResinFeed(pose)
-	local paid = self:GetPaid()
-	if paid ~= self.LastPaid then
-		if self.LastPaid and paid > self.LastPaid then self.FeedAt = CurTime() self.FeedCell = ((paid - 1) % 10) + 1 end
-		self.LastPaid = paid
+-- magazine feed: every loaded cartridge steps the magazine back one tube, a new empty tube
+-- arrives at the feed port; after five the lower row is lifted up, after ten the magazine is emptied
+function ENT:UpdateFeed(st)
+	local f = self.Feed
+	if not f then f = {slot = 0, row = 0, n = 0, insertAt = 0} self.Feed = f end
+	local paid = (st == S.DEPOSIT) and self:GetPaid() or 0
+	if paid ~= f.paid then
+		if f.paid and paid > f.paid then f.insertAt = CurTime() end
+		f.paid = paid
 	end
-	if not self.FeedAt then return end
-	local f = (CurTime() - self.FeedAt) / 0.35
-	if f > 1 then self.FeedAt = nil return end
-	local m = self:ClientModel('puck', C.ResinModel)
+	local n = paid % 10
+	if paid > 0 and n == 0 then n = 10 end
+	-- the newest cartridge slides in first, then the magazine steps
+	local inserting = CurTime() - f.insertAt < 0.3
+	local shown = inserting and math.max(n - 1, 0) or n
+	f.n = n
+	local slot = (shown >= 10) and 4 or (shown % 5)
+	local row = (shown >= 5) and 1 or 0
+	local k = math.min(FrameTime() * 9, 1)
+	f.slot = Lerp(k, f.slot, slot)
+	f.row = Lerp(k, f.row, row)
+	f.feedSlot, f.feedRow = f.slot, f.row
+end
+
+function ENT:DrawCartridges(pose)
+	local f = self.Feed
+	if not f or f.n <= 0 then return end
+	local m = self:ClientModel('cartridge', C.CartridgeModel)
 	if not IsValid(m) then return end
-	local c = C.Rig.CellPoint(pose, self.FeedCell)
-	local from = Vector(c[1] + 10, c[2] - 12, c[3] + 6)
-	local to = Vector(c[1], c[2] + 2, c[3])
-	local p = LerpVector(M.smooth(f), from, to)
-	m:SetModelScale(0.6, 0)
-	m:SetPos(self:LocalToWorld(p))
-	m:SetAngles(self:LocalToWorldAngles(Angle(90, 90, 0)))
-	m:SetupBones()
-	m:DrawModel()
+	local clipped, prev = C.Parts.PushClip(self, 'cells')
+	local ang = self:LocalToWorldAngles(Angle(0, 0, -90)) -- model axis (Z) along the tubes (Y)
+	for i = 1, f.n do
+		local c = C.Rig.CellPoint(pose, i)
+		local depth = 5.6
+		if i == f.n then
+			local t = math.Clamp((CurTime() - f.insertAt) / 0.3, 0, 1)
+			depth = Lerp(M.smooth(t), -6, 5.6)
+		end
+		m:SetModelScale(0.95, 0)
+		m:SetPos(self:LocalToWorld(Vector(c[1], c[2] + depth, c[3])))
+		m:SetAngles(ang)
+		m:SetupBones()
+		m:DrawModel()
+	end
+	C.Parts.PopClip(clipped, prev)
 end
 
 function ENT:Think()
 	if self:GetStage() ~= S.PRINT or EyePos():DistToSqr(self:GetPos()) > 500 * 500 then return end
 	if (self.NextSpark or 0) > CurTime() then return end
 	self.NextSpark = CurTime() + 0.12
-	local pose = C.PoseOf(self, CurTime(), self.Look)
+	local pose = C.PoseOf(self, CurTime(), self.Look, self.Feed)
 	local origin = C.ItemPoint(self, pose)
 	local em = ParticleEmitter(origin, false)
 	if not em then return end
@@ -296,9 +294,12 @@ hook.Add('HUDPaint', 'CFReworkHints', function()
 	end
 	if not near then return end
 	local amber = Color(255, 196, 70)
+	-- the Half-Life: Alyx gamemode shows resin on its own HUD
+	if not (GAMEMODE and GAMEMODE.IsHLA) then
 	draw.RoundedBox(0, 40, ScrH() - 150, 170, 44, Color(20, 16, 6, 150))
 	draw.SimpleText('СМОЛА', 'cfr_m', 56, ScrH() - 128, amber, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	draw.SimpleText(p:GetNWInt('cf_resin', 0), 'cfr_l', 196, ScrH() - 128, amber, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	end
 
 	local st = near:GetStage()
 	if near:GetOperator() ~= p then return end

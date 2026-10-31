@@ -211,8 +211,28 @@ local function beginLighting(pos)
 	render.ResetModelLighting(0.05, 0.05, 0.05)
 	for i, d in ipairs(DIRS) do
 		local c = render.ComputeLighting(pos, d)
-		render.SetModelLighting(i - 1, c.x, c.y, c.z)
+		render.SetModelLighting(i - 1, math.max(c.x, 0.07), math.max(c.y, 0.075), math.max(c.z, 0.08))
 	end
+end
+
+-- parts that are cut by a plane (entity space: keep where dot(n, p) > d): the resin magazine
+-- steps back into the hull while loading and must not poke out of the rear wall
+P.CLIP = {cells = {Vector(1, 0, 0), -9.5}, cellglow = {Vector(1, 0, 0), -9.5}}
+
+function P.PushClip(ent, name)
+	local c = P.CLIP[name]
+	if not c then return false end
+	local n = ent:LocalToWorld(c[1]) - ent:GetPos()
+	local p = ent:LocalToWorld(c[1] * c[2])
+	local prev = render.EnableClipping(true)
+	render.PushCustomClipPlane(n, n:Dot(p))
+	return true, prev
+end
+
+function P.PopClip(clipped, prev)
+	if not clipped then return end
+	render.PopCustomClipPlane()
+	render.EnableClipping(prev)
 end
 
 local function drawList(list, world)
@@ -231,7 +251,11 @@ function P.Draw(ent, pose, glow)
 	beginLighting(ent:WorldSpaceCenter() + ent:GetUp() * 12)
 	drawList(hull.hull or {}, base)
 	for name, list in pairs(hull) do
-		if name ~= 'hull' and pose[name] then drawList(list, base * toMatrix(pose[name])) end
+		if name ~= 'hull' and pose[name] then
+			local c, prev = P.PushClip(ent, name)
+			drawList(list, base * toMatrix(pose[name]))
+			P.PopClip(c, prev)
+		end
 	end
 	for name, list in pairs(built) do
 		local m = pose[name]
@@ -254,7 +278,9 @@ function P.Draw(ent, pose, glow)
 					local k = (e.mat == 'red') and 1 or (istable(glow) and (glow[name] or glow.all or 1) or glow)
 					render.SetColorModulation(k, k, k)
 					render.SetMaterial(P.MAT[e.mat])
+					local c, prev = P.PushClip(ent, name)
 					e.mesh:Draw()
+					P.PopClip(c, prev)
 				end
 			end
 			cam.PopModelMatrix()

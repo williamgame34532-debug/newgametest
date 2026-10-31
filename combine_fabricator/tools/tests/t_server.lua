@@ -36,7 +36,7 @@ step(1.0)
 aimAt(C.CellsCenter(e, C.PoseOf(e)))
 print('aimed part', C.HitPart(e, p))
 p.keys[IN_USE] = true
-step(1.5)
+step(2.5)
 p.keys[IN_USE] = nil
 show('after feeding')
 step(C.PrintTime * 0.5) show('printing')

@@ -18,8 +18,9 @@ C.Rig = R
 local span, overshoot, lerp = M.span, M.overshoot, M.lerp
 
 -- Mount points (entity space), measured on orthographic renders of station.mdl
-R.HATCH = {14, -34, 43.6}      -- iris hatch on the left roof: eyestalk
+R.HATCH = {-4.1, -33.7, 37.4}  -- iris hatch over the eye cone inside the hull
 R.HINGE = {3.0, -10.0, 44.2}   -- screen hinge, above the resin magazine
+R.PITCH = 3.5                  -- tube pitch of the resin magazine
 R.CAGE_AXIS = {6.57, 33.27}    -- Y, Z of the rib cage axis (runs along X)
 R.CAGE_OUT = 17.0              -- how far the cage slides out of the front
 R.WEAPON = {7.0, 6.57, 31.6}   -- where a weapon rests inside the cage (cage closed, entity space)
@@ -35,7 +36,9 @@ function R.Pose(s)
 	-- resin magazine lifts into view under the screen; slides toward the player for loading
 	local cells = span(d, 0.30, 0.62)
 	local tray = span(s.tray or 0, 0, 1)
-	out.cells = M.T(2.2 * tray, 0, 4.0 * cells + 1.2 * tray)
+	-- feed: the magazine steps back one tube per loaded cartridge (feedSlot 0..4, animated),
+	-- feedRow 0..1 lifts the lower row to the feed port after the upper five are full
+	out.cells = M.T(2.2 * tray - R.PITCH * (s.feedSlot or 0), 0, 4.0 * cells + 1.2 * tray + 3.6 * (s.feedRow or 0))
 	out.cellglow = out.cells
 
 	-- grille rods rise from under the magazine to stand behind the screen

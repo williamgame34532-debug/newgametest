@@ -1,0 +1,26 @@
+"hlalyx"
+{
+	"base"		"sandbox"
+	"title"		"Half-Life: Alyx"
+	"maps"		""
+	"menusystem"	"1"
+	"settings"
+	{
+		1
+		{
+			"name"		"hla_resin_drop_chance"
+			"text"		"Шанс выпадения смолы с NPC"
+			"help"		"0..1"
+			"type"		"Numeric"
+			"default"	"0.6"
+		}
+		2
+		{
+			"name"		"hla_start_resin"
+			"text"		"Смола у нового игрока"
+			"help"		"Сколько смолы выдаётся при первом входе"
+			"type"		"Numeric"
+			"default"	"10"
+		}
+	}
+}

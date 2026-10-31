@@ -14,7 +14,7 @@ parts['cells'] = [c['id'] for c in C if hidden(c) and inbox(c, -3.6, 16, -19.6, 
                   and not (dims(c)[1] > 15 and dims(c)[2] < 2)]  # skip the flat frame on top
 # grille rods: tall thin vertical members under the cells
 parts['rods'] = [c['id'] for c in C if hidden(c) and inbox(c, -13, 4, -19.5, -1, 14, 31.5)
-                 and dims(c)[2] > 7 and dims(c)[0] < 2.5]
+                 and dims(c)[2] > 7 and dims(c)[0] < 2.5 and dims(c)[1] < 3]  # rods only, not the backing plate
 # front logo panel that covers the cage
 parts['logo'] = [92]
 # roof panel above the cells
