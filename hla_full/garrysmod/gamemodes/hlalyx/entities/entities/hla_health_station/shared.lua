@@ -8,6 +8,7 @@ ENT.Spawnable = true
 ENT.AdminOnly = true
 ENT.RenderGroup = RENDERGROUP_BOTH
 ENT.IsHealthStation = true
+ENT.AutomaticFrameAdvance = true
 
 HLA = HLA or {}
 HLA.Station = HLA.Station or {
@@ -22,6 +23,7 @@ function ENT:SetupDataTables()
 	self:NetworkVar('Float', 0, 'Charge')
 	self:NetworkVar('Entity', 0, 'Healer')
 	self:NetworkVar('Entity', 1, 'Gauge')
+	self:NetworkVar('Entity', 2, 'Vial')
 end
 
 function ENT:CanTakeVial() return not self:GetHasVial() end
@@ -34,4 +36,10 @@ function ENT:VialSlot()
 	if not id or id <= 0 then return end
 	local a = g:GetAttachment(id)
 	if a then return a.Pos, a.Ang end
+end
+
+-- frozen sequences (gauge level, vial flush): prop_dynamic animates on the client, so the client sets the frame
+function ENT:Levels()
+	local f = 1 - self:GetCharge() / HLA.Station.VialHP
+	return f, IsValid(self:GetHealer()) or self:GetCharge() <= 0
 end

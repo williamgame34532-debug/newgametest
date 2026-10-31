@@ -4,7 +4,16 @@ local holo = Material('cf_rework/holo/hologram')
 local glow = Material('sprites/light_glow02_add')
 
 function ENT:Initialize()
-	self:SetRenderBounds(Vector(-4, -16, -20), Vector(20, 14, 24))
+	self:SetRenderBounds(Vector(-4, -20, -25), Vector(25, 18, 30))
+end
+
+function ENT:Think()
+	if not self:GetHasVial() then return end
+	local f, draining = self:Levels()
+	local g = self:GetGauge()
+	if IsValid(g) and g:GetSequence() == g:LookupSequence('idle_full') then g:SetCycle(math.Clamp(f, 0, 0.995)) end
+	local v = self:GetVial()
+	if IsValid(v) and draining and v:GetSequence() == v:LookupSequence('health_vial_larva_flush_anim') then v:SetCycle(math.Clamp(f, 0, 0.995)) end
 end
 
 function ENT:OnRemove()

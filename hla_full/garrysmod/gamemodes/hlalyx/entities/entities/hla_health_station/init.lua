@@ -11,14 +11,21 @@ local PAIN = {'health_station_grub_pain_01.mp3', 'health_station_grub_pain_02.mp
 local BREATH = {'health_station_grub_breath_01.mp3', 'health_station_grub_breath_02.mp3', 'health_station_grub_breath_03.mp3', 'health_station_grub_breath_04.mp3'}
 local SLIDES = {'combine_tech_long_slide_sm_01.wav', 'combine_tech_long_slide_sm_02.wav', 'combine_tech_long_slide_sm_03.wav'}
 
+-- always on a wall: aimed at the floor or the ceiling -> the wall straight ahead
 function ENT:SpawnFunction(p, tr, class)
 	if not tr.Hit then return end
+	if math.abs(tr.HitNormal.z) > 0.3 then
+		local fwd = Angle(0, p:EyeAngles().y, 0):Forward()
+		tr = util.TraceLine({start = p:EyePos(), endpos = p:EyePos() + fwd * 400, filter = p, mask = MASK_SOLID_BRUSHONLY})
+		if not tr.Hit or math.abs(tr.HitNormal.z) > 0.3 then
+			p:ChatPrint('Станцию нужно ставить на стену: посмотри на стену.')
+			return
+		end
+	end
+	local n = Vector(tr.HitNormal.x, tr.HitNormal.y, 0):GetNormalized()
 	local e = ents.Create(class)
-	local n = tr.HitNormal
-	local ang = (math.abs(n.z) > 0.7) and Angle(0, p:EyeAngles().y + 180, 0) or n:Angle()
-	ang.p = 0
-	e:SetPos(tr.HitPos + n * 1.6 + (math.abs(n.z) > 0.7 and Vector(0, 0, 50) or vector_origin))
-	e:SetAngles(ang)
+	e:SetPos(tr.HitPos + n * 2)   -- the back of the case is at x = -1.6 (x1.25 scale)
+	e:SetAngles(n:Angle())
 	e:Spawn()
 	e:Activate()
 	return e
@@ -30,7 +37,7 @@ local function part(self, name, seq)
 	m:SetPos(self:GetPos())
 	m:SetAngles(self:GetAngles())
 	m:SetParent(self)
-	m:SetKeyValue('DefaultAnim', seq or '')
+	m:SetKeyValue('DefaultAnim', seq)
 	m:Spawn()
 	m:SetSolid(SOLID_NONE)
 	m:DrawShadow(false)
@@ -38,10 +45,22 @@ local function part(self, name, seq)
 	return m
 end
 
-local function anim(m, seq, after)
+-- one-shot animation, then hold a stop pose (a one-frame looping sequence from the QC)
+local function anim(m, seq, hold)
 	if not IsValid(m) then return end
-	if after then m:Fire('SetDefaultAnimation', after) end
+	m:Fire('SetDefaultAnimation', hold)
 	m:Fire('SetAnimation', seq)
+	m:Fire('SetPlaybackRate', '1')
+end
+
+-- a sequence frozen at a given point (gauge level, vial flush)
+local function freeze(m, seq, f)
+	if not IsValid(m) then return end
+	local id = m:LookupSequence(seq)
+	if not id or id < 0 then return end
+	if m:GetSequence() ~= id then m:ResetSequence(id) end
+	m:SetPlaybackRate(0)
+	m:SetCycle(math.Clamp(f, 0, 0.995))
 end
 
 function ENT:Initialize()
@@ -57,9 +76,20 @@ function ENT:Initialize()
 	local ph = self:GetPhysicsObject()
 	if IsValid(ph) then ph:EnableMotion(false) end
 	self:ResetSequence(self:LookupSequence('idle'))
-	self.Internals = part(self, 'charger_internals', 'idle_retracted')
-	self.Pad = part(self, 'charger_pad', 'retract')
-	self:SetGauge(part(self, 'charger_gauge', 'empty'))
+	self.Internals = part(self, 'charger_internals', 'rest')
+	self.Pad = part(self, 'charger_pad', 'rest')
+	self:SetGauge(part(self, 'charger_gauge', 'drained'))
+end
+
+function ENT:UpdateGauge()
+	local g = self:GetGauge()
+	if not IsValid(g) then return end
+	if not self:GetHasVial() then
+		if g:GetSequence() ~= g:LookupSequence('drained') then g:ResetSequence(g:LookupSequence('drained')) end
+		return
+	end
+	-- idle_full runs from full (frame 0) to empty (last frame): the level of the vial
+	freeze(g, 'idle_full', 1 - self:GetCharge() / ST.VialHP)
 end
 
 -- from the inventory (sv_inventory.lua 'place')
@@ -68,7 +98,8 @@ function ENT:AcceptItem(p, id)
 	local g = self:GetGauge()
 	local v = ents.Create('prop_dynamic')
 	v:SetModel(ST.Dir .. 'health_vial.mdl')
-	v:SetKeyValue('DefaultAnim', 'health_vial_larva_idle_' .. math.random(1, 7) .. '_anim')
+	local idle = 'health_vial_larva_idle_' .. math.random(1, 7) .. '_anim'
+	v:SetKeyValue('DefaultAnim', idle)
 	v:Spawn()
 	v:SetSolid(SOLID_NONE)
 	local att = IsValid(g) and g:LookupAttachment('health_vial_attach') or 0
@@ -77,11 +108,14 @@ function ENT:AcceptItem(p, id)
 	v:SetLocalAngles(angle_zero)
 	self:DeleteOnRemove(v)
 	self.Vial = v
+	self:SetVial(v)
+	self.VialIdle = idle
 	self:SetHasVial(true)
 	self:SetCharge(ST.VialHP)
-	anim(v, 'health_vial_deploy_anim', 'health_vial_larva_idle_' .. math.random(1, 7) .. '_anim')
-	anim(self, 'deploy')
-	anim(g, 'idle_full', 'idle_full')
+	anim(v, 'health_vial_deploy_anim', idle)
+	self:ResetSequence(self:LookupSequence('deploy'))
+	self:SetCycle(0)
+	self:UpdateGauge()
 	self:EmitSound(SND .. 'combine_health_station_powerup_01.wav', 65)
 	self:EmitSound(rnd(BREATH), 55)
 	return true
@@ -96,49 +130,57 @@ function ENT:Eject(p)
 	self.Vial = nil
 	self:SetHasVial(false)
 	self:SetCharge(0)
-	-- the empty vial drops out and breaks away later
+	-- the empty vial drops out and goes away later
 	local d = ents.Create('prop_physics')
 	d:SetModel(ST.Dir .. 'health_vial.mdl')
 	d:SetPos(pos + self:GetForward() * 3)
 	d:SetAngles(ang)
 	d:Spawn()
 	d:SetCollisionGroup(COLLISION_GROUP_DEBRIS)
-	d:Fire('SetAnimation', 'health_vial_larva_flush_finished_idle')
+	freeze(d, 'health_vial_larva_flush_finished_idle', 0)
 	local ph = d:GetPhysicsObject()
 	if IsValid(ph) then ph:Wake() ph:SetVelocity(self:GetForward() * 60 + Vector(0, 0, 40)) end
 	SafeRemoveEntityDelayed(d, 20)
-	anim(self:GetGauge(), 'empty', 'empty')
+	self:ResetSequence(self:LookupSequence('idle'))
+	self:UpdateGauge()
 	self:EmitSound(rnd(SLIDES), 60)
 end
 
+-- holding E: needles prepare and pump (internals), the hand pad steps out, the larva is drained
 function ENT:StartHeal(p)
 	if IsValid(self:GetHealer()) or not self:GetHasVial() or self:GetCharge() <= 0 then return end
 	if p:Health() >= p:GetMaxHealth() then return end
 	self:SetHealer(p)
 	self.HealAcc = 0
-	anim(self, 'prepare_inject', 'inject_loop')
+	self.HealSerial = (self.HealSerial or 0) + 1
+	local serial = self.HealSerial
 	anim(self.Internals, 'prepare_inject', 'inject_loop')
-	anim(self.Pad, 'step01', 'step02')
-	anim(self:GetGauge(), 'charging', 'charging')
+	anim(self.Pad, 'step01', 'extended')
+	timer.Simple(0.7, function()
+		if IsValid(self) and self.HealSerial == serial and IsValid(self:GetHealer()) then anim(self.Pad, 'step02', 'extended') end
+	end)
 	self:EmitSound(rnd(NEEDLES), 65)
 	self:EmitSound(rnd(PAIN), 60)
 	self.Loop = self.Loop or CreateSound(self, SND .. 'health_station_healing_lp_01.wav')
 	self.Loop:Play()
 	self.NextPain = CurTime() + 1.5
-	if IsValid(self.Vial) then self.Vial:Fire('SetAnimation', 'health_vial_larva_flush_anim') self.Vial:Fire('SetPlaybackRate', '0') end
+	freeze(self.Vial, 'health_vial_larva_flush_anim', 1 - self:GetCharge() / ST.VialHP)
 end
 
 function ENT:StopHeal()
-	if not IsValid(self:GetHealer()) and not self.Loop then return end
+	if not IsValid(self:GetHealer()) then return end
+	self.HealSerial = (self.HealSerial or 0) + 1
 	self:SetHealer(NULL)
 	if self.Loop then self.Loop:Stop() end
-	anim(self, 'retract', 'idle')
-	anim(self.Internals, 'retract', 'idle_retracted')
-	anim(self.Pad, 'retract', 'retract')
-	anim(self:GetGauge(), self:GetCharge() > 0 and 'idle_full' or 'empty', self:GetCharge() > 0 and 'idle_full' or 'empty')
+	anim(self.Internals, 'retract', 'rest')
+	anim(self.Pad, 'retract', 'rest')
+	self:UpdateGauge()
+	if not IsValid(self.Vial) then return end
 	if self:GetCharge() <= 0 then
 		self:EmitSound(SND .. 'health_station_grub_flush_01.mp3', 62)
-		if IsValid(self.Vial) then self.Vial:Fire('SetDefaultAnimation', 'health_vial_larva_flush_finished_idle') self.Vial:Fire('SetAnimation', 'health_vial_larva_flush_finished_idle') end
+		anim(self.Vial, 'health_vial_larva_flush_finished_idle', 'health_vial_larva_flush_finished_idle')
+	else
+		anim(self.Vial, self.VialIdle or 'health_vial_larva_idle_1_anim', self.VialIdle or 'health_vial_larva_idle_1_anim')
 	end
 end
 
@@ -165,7 +207,8 @@ function ENT:Think()
 				p:SetHealth(p:Health() + whole)
 				self:SetCharge(math.max(0, self:GetCharge() - whole))
 			end
-			if IsValid(self.Vial) then self.Vial:SetCycle(1 - self:GetCharge() / ST.VialHP) end
+			freeze(self.Vial, 'health_vial_larva_flush_anim', 1 - self:GetCharge() / ST.VialHP)
+			self:UpdateGauge()
 			if CurTime() > (self.NextPain or 0) then
 				self.NextPain = CurTime() + math.Rand(1.2, 2.2)
 				self:EmitSound(rnd(PAIN), 55)

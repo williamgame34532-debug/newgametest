@@ -10,6 +10,9 @@ function ENT:Initialize()
 	self:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 	local ph = self:GetPhysicsObject()
 	if IsValid(ph) then ph:Wake() end
+	-- the larva moves inside its vial
+	local idle = self:LookupSequence('health_vial_larva_idle_' .. math.random(1, 7) .. '_anim')
+	if idle and idle >= 0 then self:ResetSequence(idle) end
 end
 
 -- glass items clink when they hit something

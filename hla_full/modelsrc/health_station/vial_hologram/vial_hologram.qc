@@ -2,6 +2,7 @@
 $modelname "hla/health_station/vial_hologram.mdl"
 $cdmaterials "models/hla/health_station/"
 $staticprop
+$scale 1.25
 $surfaceprop "metal"
 
 $model "part00" "ref_00.smd"

@@ -1,6 +1,7 @@
 // combine_health_charger_internals.vmdl_c, converted from Half-Life: Alyx (tools/hla_convert/vmdl_to_qc.py)
 $modelname "hla/health_station/charger_internals.mdl"
 $cdmaterials "models/hla/health_station/"
+$scale 1.25
 $surfaceprop "metal"
 
 $model "part00" "ref_00.smd"
@@ -28,3 +29,6 @@ $sequence "idle_retracted" "anims/idle_retracted.smd" fps 30
 $sequence "idle_deployed_base" "anims/idle_deployed_base.smd" fps 30
 $sequence "idle_deployed" "anims/idle_deployed.smd" fps 30 loop
 $sequence "idle_retracted_noblend" "anims/idle_retracted_noblend.smd" fps 30
+// stop poses: one frame of an animation, so prop_dynamic holds it instead of replaying the animation
+$sequence "rest" "anims/retract.smd" frame 25 25 fps 30 loop
+$sequence "armed" "anims/prepare_inject.smd" frame 30 30 fps 30 loop

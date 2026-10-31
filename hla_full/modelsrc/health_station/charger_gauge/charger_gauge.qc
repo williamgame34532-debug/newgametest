@@ -1,6 +1,7 @@
 // combine_health_charger_guage.vmdl_c, converted from Half-Life: Alyx (tools/hla_convert/vmdl_to_qc.py)
 $modelname "hla/health_station/charger_gauge.mdl"
 $cdmaterials "models/hla/health_station/"
+$scale 1.25
 $surfaceprop "metal"
 
 $model "part00" "ref_00.smd"
@@ -25,3 +26,6 @@ $sequence "explode_pull" "anims/explode_pull.smd" fps 30
 $sequence "explode_tickle" "anims/explode_tickle.smd" fps 30
 $sequence "explode_expand" "anims/explode_expand.smd" fps 30
 $sequence "idle_hacking" "anims/idle_hacking.smd" fps 30 loop
+// stop poses: one frame of an animation, so prop_dynamic holds it instead of replaying the animation
+$sequence "full" "anims/idle_full.smd" frame 0 0 fps 30 loop
+$sequence "drained" "anims/idle_full.smd" frame 100 100 fps 30 loop

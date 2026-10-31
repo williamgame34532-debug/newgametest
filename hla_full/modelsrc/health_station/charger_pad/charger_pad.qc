@@ -1,6 +1,7 @@
 // combine_health_charger_vr_pad.vmdl_c, converted from Half-Life: Alyx (tools/hla_convert/vmdl_to_qc.py)
 $modelname "hla/health_station/charger_pad.mdl"
 $cdmaterials "models/hla/health_station/"
+$scale 1.25
 $surfaceprop "metal"
 
 $model "part00" "ref_00.smd"
@@ -17,3 +18,6 @@ $sequence "combine_health_charger_vr_pad_anim" "anims/combine_health_charger_vr_
 $sequence "step01" "anims/step01.smd" fps 30
 $sequence "step02" "anims/step02.smd" fps 30
 $sequence "retract" "anims/retract.smd" fps 30
+// stop poses: one frame of an animation, so prop_dynamic holds it instead of replaying the animation
+$sequence "rest" "anims/retract.smd" frame 50 50 fps 30 loop
+$sequence "extended" "anims/step02.smd" frame 20 20 fps 30 loop
