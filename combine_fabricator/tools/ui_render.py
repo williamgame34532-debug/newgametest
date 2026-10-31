@@ -5,9 +5,9 @@ from PIL import Image, ImageDraw, ImageFont
 from lupa import luajit21
 ADDON = '/home/user/newgametest/combine_fabricator/'
 out, ctx = sys.argv[1], json.loads(sys.argv[2])
-FONT = ADDON + 'resource/fonts/RobotoCondensed-%s.ttf'
+FONT = '/home/user/newgametest/hla_fabricator_content/resource/fonts/RobotoCondensed-%s.ttf'
 SIZES = {'cfr_hdr': (26, 'Bold'), 'cfr_xs': (14, 'Regular'), 'cfr_xxs': (11, 'Regular'), 'cfr_s': (17, 'Bold'),
-         'cfr_m': (22, 'Bold'), 'cfr_row': (21, 'Bold'), 'cfr_l': (32, 'Bold'), 'cfr_num': (42, 'Bold')}
+         'cfr_m': (22, 'Bold'), 'cfr_row': (21, 'Bold'), 'cfr_l': (32, 'Bold'), 'cfr_num': (42, 'Bold'), 'cfr_big': (46, 'Bold')}
 F = {k: ImageFont.truetype(FONT % w, s) for k, (s, w) in SIZES.items()}
 SS = 2  # supersample
 img = Image.new('RGB', (1024 * SS, 512 * SS), (0, 0, 0))

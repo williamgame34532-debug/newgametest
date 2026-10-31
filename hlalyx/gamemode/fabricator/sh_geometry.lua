@@ -343,9 +343,11 @@ end
 -- Cyan light on every rib of the cage (entity space; moves with 'cage'). Ribs are rings around the
 -- X axis at Y 6.57, Z 33.27; the light runs on their front faces around the bottom of the trough.
 function P.ribglow(b)
+	-- dark bottom of the tunnel, so it never shows through to the other side
+	b:cyl('inner', 'x', 6.57, 33.27, 6.4, -8.6, -8.2, 24)
 	for _, x in ipairs({1.96, 3.47, 4.98, 6.5, 8.01, 9.52}) do
 		b:push(M.mul(M.T(x + 0.67, 0, 0), M.RZ(90)))
-		b:band('glow', 6.57, 33.27, 6.05, 6.5, -100, 100, -0.03, 0.03, 18)
+		b:band('glow', 6.57, 33.27, 5.5, 6.3, -180, 180, -0.08, 0.08, 32)
 		b:pop()
 	end
 end

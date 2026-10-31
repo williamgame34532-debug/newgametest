@@ -7,7 +7,7 @@ local M = C.M
 ---------------------------------------------------------------------------------------------------
 -- fonts and the draw adapter for cl_ui.lua
 local FONTS = {cfr_hdr = {26, 700}, cfr_xs = {14, 500}, cfr_xxs = {11, 500}, cfr_s = {17, 700},
-	cfr_m = {22, 700}, cfr_row = {21, 700}, cfr_l = {32, 700}, cfr_num = {42, 700}}
+	cfr_m = {22, 700}, cfr_row = {21, 700}, cfr_l = {32, 700}, cfr_num = {42, 700}, cfr_big = {46, 800}}
 for name, f in pairs(FONTS) do
 	surface.CreateFont(name, {font = 'Roboto Condensed', size = f[1], weight = f[2], extended = true, antialias = true})
 end
@@ -97,14 +97,15 @@ function ENT:DrawItem(pose, st, item)
 	local m = self:ClientModel('item', item.model)
 	if not IsValid(m) then return end
 	local center = C.ItemPoint(self, pose)
-	-- lie the item along the chamber axis (its longest side along the entity X)
+	-- the item floats on the tunnel axis, barrel pointing out of the mouth (entity +X), slowly turning
 	local mins, maxs = m:GetModelBounds()
 	local d = maxs - mins
 	local a = Angle(0, 0, 0)
 	if d.z > d.x and d.z > d.y then a = Angle(90, 0, 0) elseif d.y > d.x then a = Angle(0, 90, 0) end
+	a.r = (CurTime() * 20) % 360
 	local ang = self:LocalToWorldAngles(a)
 	local size = m:GetModelRadius() or 8
-	local scale = math.Clamp(6 / math.max(size, 1), 0.3, 1.0)
+	local scale = math.Clamp(5 / math.max(size, 1), 0.3, 1.0)
 	if st == S.PRINT then
 		-- the item materialises inside the rib chamber from the bottom up
 		local f = math.Clamp((CurTime() - self:GetStageStarted()) / math.max(0.1, self:GetStageUntil() - self:GetStageStarted()), 0, 1)
@@ -128,7 +129,7 @@ function ENT:DrawItem(pose, st, item)
 		render.SetMaterial(beamMat)
 		render.DrawBeam(zcut - right, zcut + right, 0.8, 0, 1, Color(90, 230, 255, 220))
 	elseif st == S.DONE then
-		local bob = math.sin(CurTime() * 2) * 0.3
+		local bob = math.sin(CurTime() * 2) * 0.25
 		placeModel(m, center + self:GetUp() * bob, ang, scale)
 		m:DrawModel()
 	end

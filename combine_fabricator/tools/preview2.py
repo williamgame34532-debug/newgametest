@@ -58,7 +58,7 @@ def texmat(name):
     m = bpy.data.materials.new(name); m.use_nodes = True; nt = m.node_tree; b = nt.nodes['Principled BSDF']
     tx = nt.nodes.new('ShaderNodeTexImage'); tx.image = bpy.data.images.load('/tmp/u/tex/%s.png' % name)
     mix = nt.nodes.new('ShaderNodeMixRGB'); mix.blend_type = 'MULTIPLY'; mix.inputs[0].default_value = 1
-    mix.inputs[2].default_value = (0.42, 0.45, 0.48, 1)
+    mix.inputs[2].default_value = (0.30, 0.32, 0.36, 1)
     nt.links.new(tx.outputs['Color'], mix.inputs[1]); nt.links.new(mix.outputs[0], b.inputs['Base Color'])
     b.inputs['Metallic'].default_value = 0.3; b.inputs['Roughness'].default_value = 0.55
     return m
@@ -119,7 +119,7 @@ if ui:
 if state.get('item'):
     wp = L.eval('CFRework.Rig.WeaponPoint')(pose)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(wp[1], wp[2], wp[3]))
-    ob = bpy.context.active_object; ob.scale = (9, 3, 3); ob.data.materials.append(MATS['red'])
+    ob = bpy.context.active_object; ob.scale = (6, 1.2, 2.0); ob.data.materials.append(MATS['red'])
 if state.get('holo'):
     hp = L.eval('CFRework.Rig.HoloPoint')(pose)
     bpy.ops.mesh.primitive_cube_add(size=1, location=(hp[1], hp[2], hp[3]))

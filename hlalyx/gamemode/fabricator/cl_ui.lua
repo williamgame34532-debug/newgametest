@@ -11,9 +11,9 @@ C.UI = UI
 -- palette sampled from the reference screenshots
 local function rgb(r, g, b, a) return {r, g, b, a or 255} end
 local COL = {
-	bg = rgb(6, 36, 48), bg2 = rgb(9, 47, 61), panel = rgb(11, 55, 71), rowbg = rgb(5, 44, 60),
-	line = rgb(41, 170, 189), lineDim = rgb(24, 96, 115), bar = rgb(44, 206, 240),
-	text = rgb(120, 214, 232), textHi = rgb(214, 247, 251), textDim = rgb(52, 128, 150),
+	bg = rgb(7, 38, 50), bg2 = rgb(10, 50, 64), panel = rgb(13, 58, 74), rowbg = rgb(7, 38, 50, 0),
+	line = rgb(48, 178, 200), lineDim = rgb(24, 96, 115), bar = rgb(36, 196, 236),
+	text = rgb(110, 214, 236), textHi = rgb(150, 232, 248), textDim = rgb(52, 128, 150),
 	sel = rgb(78, 206, 232), selText = rgb(4, 32, 44), red = rgb(222, 52, 70), amber = rgb(255, 186, 92),
 	x = rgb(26, 104, 128),
 }
@@ -71,35 +71,34 @@ end
 local function frame(D, ctx, title)
 	local W, H = Lay.W, Lay.H
 	D.rect(0, 0, W, H, COL.bg)
-	D.rect(0, 0, W, 120, A(COL.bg2, 90))
-	-- scanlines and a slow sweep
-	for y = 0, H, 4 do D.rect(0, y, W, 1, A(COL.bg2, 70)) end
-	D.rect(0, (ctx.t * 40) % H, W, 3, A(COL.line, 10))
-	-- bright left bar with the break near the bottom (reference)
-	D.rect(6, 0, 11, 424, COL.bar)
-	D.rect(6, 436, 11, H - 436, COL.bar)
-	-- header
+	-- dense scanlines over the whole display, one slow brighter sweep
+	for y = 0, H, 3 do D.rect(0, y, W, 1, A(COL.bg2, 120)) end
+	D.rect(0, (ctx.t * 40) % H, W, 2, A(COL.line, 14))
+	-- thick bright bar on the left with a break near the bottom
+	D.rect(6, 0, 12, 424, COL.bar)
+	D.rect(6, 436, 12, H - 436, COL.bar)
+	-- header: title, the run of X's, station id and the small glyph
 	local tw = D.size(title, 'cfr_hdr')
 	D.text(title, 'cfr_hdr', 38, 10, COL.textHi)
 	D.text('XXXXXXXXXXXX . .  XXX . X . X', 'cfr_xs', 38 + tw + 16, 16, COL.x)
-	D.text('СИСТЕМА ИЗГОТОВЛЕНИЯ  4.4.1', 'cfr_xs', W - 74, 16, COL.textDim, 2)
+	D.text('СТАНЦИЯ КОМПЛЕКТОВАНИЯ 6.3.5.333', 'cfr_xxs', W - 74, 18, COL.textDim, 2)
 	glyph(D, W - 58, 9, 26, COL.line)
 	D.rect(38, 44, W - 60, 1, COL.lineDim)
-	-- bottom strip: barcode, tiny legend, resin counter, diagonal accent
-	D.rect(38, Lay.BOTTOM, W - 60, 1, COL.lineDim)
-	for _, b in ipairs(BARS) do D.rect(40 + b[1], Lay.BOTTOM + 12 + (32 - b[3]), b[2], b[3], A(COL.lineDim, 220)) end
-	D.text('ГРАЖДАНСКАЯ ОБОРОНА  ·  СНАБЖЕНИЕ ПО НОРМЕ', 'cfr_xxs', 40, Lay.BOTTOM + 50, A(COL.red, 200))
-	local label = 'СМОЛЫ У ВАС:'
+	-- bottom strip: barcode, small print, «СМОЛЫ У ВАС:» with a big number, a long diagonal
+	D.rect(28, Lay.BOTTOM, W - 50, 2, COL.lineDim)
+	for _, b in ipairs(BARS) do D.rect(40 + b[1], Lay.BOTTOM + 12 + (32 - b[3]), b[2], b[3], A(COL.lineDim, 230)) end
+	D.text('ПРИЛОЖЕНИЕ ПО ГРАЖДАНСКОЙ ОБОРОНЕ 6-3-5', 'cfr_xxs', 40, Lay.BOTTOM + 50, A(COL.textDim, 200))
 	local num = tostring(ctx.resin or 0)
 	local nw = D.size(num, 'cfr_num')
-	D.text(num, 'cfr_num', 690, Lay.BOTTOM + 8, COL.textHi)
-	D.text(label, 'cfr_s', 682, Lay.BOTTOM + 30, COL.text, 2)
-	D.line(690 + nw + 20, Lay.BOTTOM + 44, W - 24, Lay.BOTTOM + 14, COL.lineDim)
+	D.text('СМОЛЫ У ВАС:', 'cfr_s', 552, Lay.BOTTOM + 30, COL.text, 2)
+	D.text(num, 'cfr_num', 560, Lay.BOTTOM + 6, COL.textHi)
+	D.rect(400, Lay.BOTTOM + 50, 160 + nw + 8, 2, COL.text)
+	D.line(560 + nw + 24, Lay.BOTTOM + 46, W - 24, Lay.BOTTOM + 8, COL.lineDim)
 end
 
-local function summary(D, item, y0)
+local function summary(D, item, y0, head)
 	local Sx = Lay.SUMMARY
-	D.text('СВОДКА', 'cfr_xs', Sx.x, Sx.y - 2, COL.textDim)
+	D.text(head or 'ОПИСАНИЕ', 'cfr_xs', Sx.x, Sx.y - 2, COL.textDim)
 	if not item then return end
 	local y = wrap(D, C.Upper(item.name), 'cfr_m', Sx.x, (y0 or Sx.y) + 18, Sx.w, COL.textHi, 24)
 	wrap(D, item.text or '', 'cfr_s', Sx.x, y + 6, Sx.w, COL.text, 22)
@@ -128,7 +127,7 @@ end
 
 function UI.Menu(D, ctx)
 	frame(D, ctx, C.Upper(C.Categories[ctx.tab] or ''))
-	D.text('НАИМЕНОВАНИЕ', 'cfr_xs', 52, 58, COL.textDim)
+	D.text('ПРЕДМЕТЫ', 'cfr_xs', 52, 58, COL.textDim)
 	D.text('СТОИМОСТЬ', 'cfr_xs', 626, 58, COL.textDim, 2)
 	local shown
 	for _, b in ipairs(Lay.Buttons(S.MENU, ctx.tab)) do
@@ -181,7 +180,7 @@ function UI.Deposit(D, ctx)
 	local P = Lay.PANEL
 	local cx = P.x + P.w / 2
 	D.text(string.format('%02d/%02d', ctx.paid or 0, ctx.cost or 0), 'cfr_l', cx, 132, COL.textHi, 1, 1)
-	D.text('ВНЕСИТЕ СМОЛУ', 'cfr_l', cx, 172, COL.textHi, 1, 1)
+	D.text('ВСТАВЬТЕ СМОЛУ', 'cfr_l', cx, 172, COL.textHi, 1, 1)
 	local bx, by, bw, bh = cx - 250, 214, 500, 30
 	D.outline(bx, by, bw, bh, COL.line, 2)
 	local f = (ctx.cost or 0) > 0 and math.min(1, (ctx.paid or 0) / ctx.cost) or 0
@@ -210,7 +209,7 @@ function UI.Print(D, ctx)
 	local P = Lay.PANEL
 	local cx = P.x + P.w / 2
 	local f = ctx.printFrac or 0
-	D.text('ИЗГОТОВЛЕНИЕ', 'cfr_l', cx, 140, COL.textHi, 1, 1)
+	D.text('ФАБРИКАЦИЯ', 'cfr_l', cx, 140, COL.textHi, 1, 1)
 	local n = 30
 	for i = 1, n do
 		local on = i / n <= f
@@ -224,12 +223,14 @@ end
 function UI.Done(D, ctx)
 	local item = C.Items[ctx.sel]
 	frame(D, ctx, C.Upper(item and item.name or ''))
-	D.text('ИЗДЕЛИЕ ГОТОВО', 'cfr_m', 400, 150, COL.text, 1, 1)
-	D.text('ЗАБЕРИТЕ ИЗ КАМЕРЫ  —  E', 'cfr_s', 400, 182, COL.textDim, 1, 1)
-	local pulse = 0.55 + 0.45 * math.abs(math.sin(ctx.t * 3))
-	chevron(D, 330, 220, 90, A(COL.bar, 255 * pulse))
-	chevron(D, 400, 220, 90, A(COL.bar, 255 * pulse))
-	summary(D, item)
+	local P = Lay.PANEL
+	D.rect(P.x + 20, P.y - 20, P.w - 20, 210, COL.panel)
+	D.rect(P.x + 20, P.y - 20, P.w - 20, 5, COL.bar)
+	local cx = P.x + 20 + (P.w - 20) / 2
+	D.text('ФАБРИКАЦИЯ ЗАВЕРШЕНА', 'cfr_m', cx, P.y + 18, COL.text, 1, 1)
+	D.text('ВОЗЬМИТЕ', 'cfr_big', cx, P.y + 72, COL.text, 1, 1)
+	D.text('ПРЕДМЕТ', 'cfr_big', cx, P.y + 134, COL.text, 1, 1)
+	summary(D, item, nil, 'ПОЛУЧЕНО')
 end
 
 function UI.Boot(D, ctx)
