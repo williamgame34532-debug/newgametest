@@ -1,0 +1,38 @@
+ИЗМЕНЕНИЯ К СБОРКЕ 5.5 — только эти файлы, положите их поверх своей сборки (пути сохранены)
+
+ИСПРАВЛЕНО
+1. Лаги на экране «Новый персонаж» (имя, фамилия, выбор модели).
+   Панель пересобирается несколько раз за кадр, и каждый раз проверяла 16 моделей на диске
+   (file.Exists по всем путям игры). Теперь список проверяется один раз.
+   garrysmod/gamemodes/hlalyx/gamemode/cl_menu.lua
+2. Логотип в меню «без текстур». Обе надписи рисовались одним серым материалом.
+   В HL:A у «HALF-LIFE» и «ALYX» разные материалы (logo_text_halflife_face_* и
+   logo_text_alyx_face_*). Теперь «HALF-LIFE» золотой, «ALYX» белый (цвета сняты со скриншота
+   меню HL:A), бока букв — темнее лица. Части логотипа определяются по высоте (HALF-LIFE выше).
+   garrysmod/gamemodes/hlalyx/gamemode/cl_menu.lua
+   garrysmod/addons/hla_menu_content/materials/hla/logo/halflife_face.vmt, halflife_body.vmt,
+   alyx_face.vmt, alyx_body.vmt (новые)
+3. Стамина: признак «устал» был только на сервере, а движение предсказывается и на клиенте —
+   при нулевой стамине игрока дёргало назад (клиент разрешал бег/прыжок, сервер нет).
+   Теперь флаг сетевой (NW2Bool hla_tired).
+   garrysmod/gamemodes/hlalyx/gamemode/sh_movement.lua
+
+НОВОЕ: ДЕКОМПИЛЯЦИЯ ПРЯМО ИЗ ИГРЫ (tools/hla_convert)
+• vpk.py — читает pak01_dir.vpk из папки HL:A, достаёт файлы и все их зависимости
+  (модель → материалы → текстуры), проверяет CRC. Открывает только нужные архивы.
+    python vpk.py "...\Half-Life Alyx\game\hlvr\pak01_dir.vpk" list "models/hologram_fx/logo_text_*"
+    python vpk.py "...\pak01_dir.vpk" extract "models/props_combine/combine_printer/combine_crafting_station.vmdl_c" out --deps
+    python vpk.py "...\pak01_dir.vpk" need "<маска>"   — какие pak01_NNN.vpk нужны
+  Логотип меню и все его материалы: pak01_028.vpk. Станция: pak01_322 + pak01_323.
+• blender_import.py — модель .vmdl_c в Blender: сетки, UV, материалы с текстурами из vmat/vtex,
+  скелет и веса.
+    blender --background --python blender_import.py -- out\models\...\model.vmdl_c out model.blend
+  Нужны те же пакеты, что и для конвертера: numpy, lz4, pillow.
+
+ЧТО ПРОВЕРЕНО
+• check.py сборки — всё PASS на изменённых файлах; синтаксис изменённого Lua под LuaJIT (как в GMod).
+• vpk.py: на вашем pak01_dir.vpk (46 935 записей; поиск, «какие архивы нужны») и на собранном
+  тестовом VPK — извлечение из архива и из самого dir-файла, CRC, цепочка зависимостей.
+• Логотип: разделение на HALF-LIFE / ALYX проверено на logo_anim.txt этим же кодом.
+НЕ ПРОВЕРЕНО: blender_import.py на настоящих файлах HL:A — здесь только оглавление VPK, без
+архивов с данными; в игре — внешний вид логотипа и отсутствие лагов.

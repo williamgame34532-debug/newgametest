@@ -1,0 +1,9 @@
+"UnlitGeneric"
+{
+	"$basetexture" "hla/logo/white"
+	"$color" "[0.62 0.42 0.16]"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"$translucent" "1"
+	"$nocull" "1"
+}

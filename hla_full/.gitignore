@@ -1,0 +1,14 @@
+# Valve content extracted from Half-Life: Alyx stays out of git (it is shipped in zips only)
+*.smd
+*.vtf
+*.mdl
+*.vvd
+*.vtx
+*.phy
+*.wav
+*.mp3
+*.ttf
+*.png
+*.jpg
+data_static/
+review/
