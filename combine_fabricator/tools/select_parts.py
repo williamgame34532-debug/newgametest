@@ -12,6 +12,16 @@ parts['cage'] = [c['id'] for c in C if hidden(c) and inbox(c, -8, 18, -1.5, 15.5
 # front cap of the chamber (everything of the cage in front of X 12.9): opens when the item is ready
 parts['cagedoor'] = [i for i in parts['cage'] if C[i]['lo'][0] >= 12.9]
 parts['cage'] = [i for i in parts['cage'] if C[i]['lo'][0] < 12.9]
+# upper halves of the rib rings ("jaws"): open outward so the chamber becomes a trough
+def jaw(c):
+    d = dims(c)
+    if not (c['c'][2] > 34.0 and c['lo'][2] > 31.5): return False
+    if d[1] < 1.2 and d[2] > 5: return False          # tall flat side plates stay
+    if 5.2 < c['c'][1] < 7.9 and d[1] < 3: return False  # the small centre block stays
+    return True
+parts['jawL'] = [i for i in parts['cage'] if jaw(C[i]) and C[i]['c'][1] < 6.57]
+parts['jawR'] = [i for i in parts['cage'] if jaw(C[i]) and C[i]['c'][1] >= 6.57]
+parts['cage'] = [i for i in parts['cage'] if i not in parts['jawL'] and i not in parts['jawR']]
 # resin cells: the 2x5 tube magazine and its end plates
 parts['cells'] = [c['id'] for c in C if hidden(c) and inbox(c, -3.6, 16, -19.6, 0.4, 30.5, 40.5)
                   and not (dims(c)[1] > 15 and dims(c)[2] < 2)]  # skip the flat frame on top

@@ -23,8 +23,10 @@ R.HINGE = {3.0, -10.0, 44.2}   -- screen hinge, above the resin magazine
 R.PITCH = 3.5                  -- tube pitch of the resin magazine
 R.CAGE_AXIS = {6.57, 33.27}    -- Y, Z of the rib cage axis (runs along X)
 R.CAGE_OUT = 17.0              -- how far the cage slides out of the front
-R.WEAPON = {10.5, 6.57, 31.0}  -- where the printed item rests inside the chamber (cage closed, entity space)
-R.DOOR_HINGE = {15.26, 23.57}  -- X, Z of the chamber front cap hinge (bottom front edge)
+R.WEAPON = {6.5, 6.57, 29.6}   -- the printed item lies on the bottom ribs of the trough  -- where the printed item rests inside the chamber (cage closed, entity space)
+R.DOOR_HINGE = {15.26, 41.5}   -- X, Z of the chamber front cap hinge (top front edge)
+R.JAW_L = {0.5, 35.5}          -- Y, Z hinge of the left upper half of the rib rings
+R.JAW_R = {13.4, 35.5}         -- Y, Z hinge of the right upper half
 
 function R.Pose(s)
 	local d = s.deploy or 0
@@ -51,7 +53,7 @@ function R.Pose(s)
 	local e1 = span(d, 0.00, 0.28)
 	local e2 = span(d, 0.12, 0.40)
 	local z1 = R.HATCH[3] - 9.0 + 7.4 * e1
-	local z2 = z1 + 0.4 + 6.4 * e2
+	local z2 = z1 + 0.4 + 7.0 * e2
 	out.stalk1 = M.T(R.HATCH[1], R.HATCH[2], z1)
 	out.stalk2 = M.T(R.HATCH[1], R.HATCH[2], z2)
 	local alive = span(d, 0.30, 0.48)
@@ -71,9 +73,14 @@ function R.Pose(s)
 	local slide = span(c, 0.25, 0.9) * (1 - 0.75 * span(s.pull or 0, 0, 1))
 	out.cage = M.T(R.CAGE_OUT * slide, 0, 1.5 * slide)
 	out.ribglow = out.cage
-	-- the front cap of the chamber swings down once the chamber is fully out, so the item can be taken
-	local door = span(c, 0.86, 1.0)
-	out.cagedoor = M.mul(out.cage, M.pivot(R.DOOR_HINGE[1], 0, R.DOOR_HINGE[2], M.RY(105 * door)))
+	-- the upper halves of the rib rings open like jaws: a little while printing (the item is seen
+	-- forming inside), wide once the chamber is out - the item then lies in an open trough of ribs
+	local jaw = 0.4 * span(c, 0.45, 0.55) + 0.6 * span(c, 0.80, 0.98)
+	out.jawL = M.mul(out.cage, M.pivot(0, R.JAW_L[1], R.JAW_L[2], M.RX(105 * jaw)))
+	out.jawR = M.mul(out.cage, M.pivot(0, R.JAW_R[1], R.JAW_R[2], M.RX(-105 * jaw)))
+	-- the front cap lifts up like a visor (hinge on its top edge)
+	local door = span(c, 0.84, 1.0)
+	out.cagedoor = M.mul(out.cage, M.pivot(R.DOOR_HINGE[1], 0, R.DOOR_HINGE[2], M.RY(-95 * door)))
 
 	-- dark niches only while their panel is open (otherwise they could show through thin hull spots)
 	if lid > 0.001 then out.niche_lid = M.ident() end

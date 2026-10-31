@@ -97,9 +97,14 @@ function ENT:DrawItem(pose, st, item)
 	local m = self:ClientModel('item', item.model)
 	if not IsValid(m) then return end
 	local center = C.ItemPoint(self, pose)
-	local ang = self:LocalToWorldAngles(Angle(0, 0, 0))
+	-- lie the item along the chamber axis (its longest side along the entity X)
+	local mins, maxs = m:GetModelBounds()
+	local d = maxs - mins
+	local a = Angle(0, 0, 0)
+	if d.z > d.x and d.z > d.y then a = Angle(90, 0, 0) elseif d.y > d.x then a = Angle(0, 90, 0) end
+	local ang = self:LocalToWorldAngles(a)
 	local size = m:GetModelRadius() or 8
-	local scale = math.Clamp(9 / math.max(size, 1), 0.4, 1.3)
+	local scale = math.Clamp(6 / math.max(size, 1), 0.3, 1.0)
 	if st == S.PRINT then
 		-- the item materialises inside the rib chamber from the bottom up
 		local f = math.Clamp((CurTime() - self:GetStageStarted()) / math.max(0.1, self:GetStageUntil() - self:GetStageStarted()), 0, 1)

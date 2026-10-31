@@ -22,6 +22,7 @@ end
 -- plain white base tinted by $color2: pale brushed posts and bright rods like the reference
 P.MAT = {
 	metal = lit('metal4', 'vgui/white', '[0.10 0.11 0.12]', 0.2),
+	inner = lit('inner4', 'models/cf_rework/socket', '[0.42 0.45 0.48]', 0.1),
 	steel = lit('steel4', 'vgui/white', '[0.32 0.34 0.37]', 0.5),
 	brass = lit('brass4', 'vgui/white', '[0.56 0.53 0.47]', 0.7),
 	silver = lit('silver4', 'vgui/white', '[0.80 0.82 0.85]', 0.9),

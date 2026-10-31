@@ -266,35 +266,45 @@ function P.screen(b)
 	b:pop()
 end
 
--- Eyestalk, built (the model only has its socket cone). stalk origins = tube bottoms, head = lens centre.
+-- Eyestalk, built after the reference: a neck of thin parallel rods, a dark head with a thick
+-- glowing cyan ring lens (dark centre, tiny red pupil), a red diode on a fin to the right, a wedge
+-- to the left and a long flat blade on top with a cyan light at its left tip.
+-- stalk origins = bottom of each section; head origin = lens centre, looking along +X.
 local EYE = 0.62
 function P.stalk1(b)
-	b:cyl('metal', 'z', 0, 0, 1.5, 0, 0.8, 14)
-	b:cyl('metal', 'z', 0, 0, 0.7, 0.8, 9.6, 10)
-	b:cyl('brass', 'z', 0, 0, 0.95, 8.8, 9.8, 12)
-	b:cyl('brass', 'z', 0, 0, 1.0, 3.0, 3.7, 12)
+	b:cyl('metal', 'z', 0, 0, 1.4, 0, 0.7, 12)
+	for _, y in ipairs({-0.45, 0.45}) do b:cyl('metal', 'z', 0, y, 0.24, 0.7, 9.8, 6) end
+	b:box('metal', -0.5, -0.9, 4.2, 0.5, 0.9, 4.8)
+	b:box('metal', -0.5, -0.9, 9.0, 0.5, 0.9, 9.8)
 end
 function P.stalk2(b)
-	b:cyl('metal', 'z', 0, 0, 0.45, 0, 10.0, 8)
-	b:cyl('metal', 'z', 0, 0, 0.7, 9.2, 10.4, 10)
+	for _, x in ipairs({-0.35, 0.35}) do b:cyl('metal', 'z', x, 0, 0.2, 0, 10.2, 6) end
+	b:box('metal', -0.6, -0.5, 9.6, 0.6, 0.5, 10.6)
 end
 function P.head(b)
-	b:push(M.mul(M.ident(), {EYE,0,0,0, 0,EYE,0,0, 0,0,EYE,0}))
-	b:cbox('metal', 'y', -2.6, -1.9, 0.9, 1.9, -2.0, 2.0, 0.7)
-	b:cbox('metal', 'x', -1.4, -2.2, 1.4, 2.2, -3.2, -2.4, 0.5)
-	b:torus('glow', 'x', 0, 0, 1.15, 1.55, 0.5, 24, 8)                    -- the big glowing ring lens
-	b:cyl('dark', 'x', 0, 0, 1.12, 0.9, 1.2, 16)
-	b:cyl('metal', 'x', 0, 0, 0.4, 1.1, 1.55, 10)
-	b:cyl('red', 'x', 1.0, -0.6, 0.32, 0.85, 1.05, 8)                     -- red diode right of the lens
-	b:cyl('metal', 'z', -0.4, 0, 0.3, 1.8, 3.2, 8)                        -- flat dish "hat" with spokes
-	b:cyl('metal', 'z', -0.4, 0, 3.4, 3.2, 3.5, 24)
-	b:torus('metal', 'z', -0.4, 0, 3.5, 3.4, 0.18, 28, 6)
-	for i = 0, 5 do
-		b:push(M.mul(M.T(-0.4, 0, 0), M.A(0, i * 60, 0)))
-		b:box('brass', 0.3, -0.1, 3.5, 3.3, 0.1, 3.7)
-		b:pop()
-	end
-	b:cyl('metal', 'z', 0, 0, 0.85, -2.7, -1.8, 12)
+	b:push({EYE,0,0,0, 0,EYE,0,0, 0,0,EYE,0})
+	-- body and the round socket around the lens
+	b:cbox('metal', 'y', -2.6, -1.8, -0.2, 1.6, -1.7, 1.7, 0.6)
+	b:torus('metal', 'x', 0, 0, -0.05, 1.75, 0.45, 24, 8)
+	-- lens: thick glowing ring, dark centre, tiny red pupil
+	b:torus('glow', 'x', 0, 0, 0.25, 1.05, 0.36, 24, 8)
+	b:cyl('dark', 'x', 0, 0, 0.75, 0.0, 0.3, 16)
+	b:cyl('red', 'x', 0, 0, 0.16, 0.3, 0.36, 8)
+	-- right fin with the red diode, angled down
+	b:push(M.mul(M.T(-0.4, 1.6, -0.6), M.A(0, 0, 35)))
+	b:box('metal', -0.3, -0.35, -2.6, 0.3, 0.35, 0.6)
+	b:pop()
+	b:cyl('red', 'x', 2.35, -1.15, 0.32, 0.0, 0.2, 10)
+	-- left wedge
+	b:prism('metal', {{-2.9, -1.4}, {-1.4, -1.6}, {-1.4, 0.8}}, 'x', -0.6, 0.1)
+	-- neck plate and rods into the head
+	b:box('metal', -1.2, -0.6, -2.6, 0.2, 0.6, -1.6)
+	-- the long flat blade on top, slightly tilted, cyan light at its left tip
+	b:push(M.mul(M.T(-0.6, 0, 2.5), M.A(0, 0, -8)))
+	b:prism('metal', {{-5.2, -0.2}, {-4.6, -0.55}, {4.6, -0.55}, {5.4, -0.1}, {4.6, 0.2}, {-4.6, 0.2}}, 'x', -1.0, 1.0)
+	b:box('metal', -0.4, -0.5, -1.6, 0.4, 0.5, -0.5)
+	b:cyl('glow', 'x', -4.9, -0.2, 0.42, 0.95, 1.15, 10)
+	b:pop()
 	b:pop()
 end
 
@@ -335,18 +345,19 @@ end
 function P.ribglow(b)
 	for _, x in ipairs({1.96, 3.47, 4.98, 6.5, 8.01, 9.52}) do
 		b:push(M.mul(M.T(x + 0.67, 0, 0), M.RZ(90)))
-		b:band('glow', 6.57, 33.27, 6.05, 6.5, -118, 118, -0.03, 0.03, 20)
+		b:band('glow', 6.57, 33.27, 6.05, 6.5, -100, 100, -0.03, 0.03, 18)
 		b:pop()
 	end
 end
 
 -- Dark niches behind the panels that open (entity space, static; drawn only while open).
+-- lit dark metal (not pure black), so the inside of the hull reads as a cavity, not a hole
 function P.niche_lid(b)
-	b:niche('dark', -0.5, -21.0, 27.5, 16.5, -1.8, 40.0, {'z+', 'x+'})
+	b:niche('inner', -0.5, -21.0, 27.5, 16.5, -1.8, 40.0, {'z+', 'x+'})
 end
 function P.niche_cage(b)
-	b:niche('dark', 3.0, -3.2, 19.2, 19.6, 22.8, 39.0, {'x+'})
-	b:box('dark', 3.0, -3.2, 39.0, 13.0, 22.8, 39.2)
+	b:niche('inner', 3.0, -3.2, 19.2, 19.6, 22.8, 39.0, {'x+'})
+	b:box('inner', 3.0, -3.2, 39.0, 13.0, 22.8, 39.2)
 end
 
 local cache
