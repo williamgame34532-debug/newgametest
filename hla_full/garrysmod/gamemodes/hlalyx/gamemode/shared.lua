@@ -24,6 +24,8 @@ end
 -- main menu (characters) and movement with stamina
 if SERVER then AddCSLuaFile('sh_menu.lua') AddCSLuaFile('sh_movement.lua') AddCSLuaFile('cl_menu.lua') end
 include('sh_menu.lua')
+if SERVER then AddCSLuaFile('sh_items.lua') AddCSLuaFile('cl_tabmenu.lua') AddCSLuaFile('cl_world.lua') end
+include('sh_items.lua')
 include('sh_movement.lua')
 
 HLA.DropChance = CreateConVar('hla_resin_drop_chance', '0.6', {FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY}, 'Chance an NPC drops resin')

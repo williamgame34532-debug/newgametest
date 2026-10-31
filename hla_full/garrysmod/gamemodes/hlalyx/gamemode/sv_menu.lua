@@ -94,8 +94,13 @@ net.Receive('hla_menu_do', function(_, p)
 		sendOpen(p)
 	elseif what == 'play' then
 		if not p.HLAInMenu then return end
-		local c = M.LoadChars(p)[net.ReadUInt(8)]
-		if c and M.ValidModel(c.model) then M.Play(p, c) end
+		local idx = net.ReadUInt(8)
+		local c = M.LoadChars(p)[idx]
+		if c and M.ValidModel(c.model) then
+			p.HLACharIndex = idx
+			M.Play(p, c)
+			if HLA.Items and HLA.Items.Load then HLA.Items.Load(p) end -- this character's inventory
+		end
 	end
 end)
 

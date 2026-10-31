@@ -91,6 +91,15 @@ hook.Add('KeyPress', 'CFReworkUse', function(p, key)
 	if key ~= IN_USE or not p:Alive() or (p.CFReworkNextUse or 0) > CurTime() then return end
 	-- at the screen E does nothing: resin goes into the cells by hand, after «ЗАВЕРШИТЬ»
 	if IsValid(p.CFFocus) then return end
+	-- a folded fabricator opens when E is pressed on its hull
+	local tr = p:GetEyeTrace()
+	local hull = tr.Entity
+	if IsValid(hull) and hull.IsCombineFabricator and not hull.Awake and tr.HitPos:DistToSqr(p:EyePos()) < (C.UseRange + 40) ^ 2 then
+		p.CFReworkNextUse = CurTime() + 0.5
+		hull.LastNearby = CurTime()
+		hull:WakeUp()
+		return
+	end
 	local e, x, y, part = target(p)
 	if not e then return end
 	p.CFReworkNextUse = CurTime() + 0.2

@@ -70,7 +70,7 @@ local function after(e, list) -- the sequences played since a mark
 end
 
 local p = {SteamID64 = function() return '1' end, HasWeapon = function() return false end, Alive = function() return true end,
-	Health = function() return 50 end, GetMaxHealth = function() return 100 end, SetHealth = function(s, n) s.health = n end,
+	Health = function() return 50 end, Armor = function() return 0 end, GetMaxHealth = function() return 100 end, SetHealth = function(s, n) s.health = n end,
 	GetPos = function() return vec(0) end, KeyDown = function() return false end, EmitSound = function() end}
 players = {p}
 
@@ -78,11 +78,14 @@ players = {p}
 local e = station()
 assert(e.seq == 'dormant' and e:GetStage() == S.DORMANT)
 now = now + 0.05 e:Think()
+assert(e.seq == 'dormant', 'standing near does not wake it')
+e:WakeUp() -- E on the hull (sv_resin.lua)
+now = now + 0.05 e:Think()
 assert(e.seq == 'eye_deploy' and not e:GetDeployed())
 run(e, 3) assert(e.seq == 'interface_deploy' and not C.Ready(e))
 run(e, 3.6) assert(e.seq == 'menu_idle' and C.Ready(e) and e:GetStage() == S.MENU)
 assert(not C.CellsOpen(e), 'no resin tray in the menu')
-print('PASS wake: dormant > eye_deploy > interface_deploy > menu_idle')
+print('PASS wake by E: dormant > eye_deploy > interface_deploy > menu_idle')
 
 -- order: hatch, then the tray comes out; resin only once it is presented
 local mark = #e.played
@@ -145,7 +148,7 @@ print('PASS walk away: tray_retract > hatch_close > interface_retract > eye_retr
 
 -- walking away during the print cuts it, closes the hatch and folds
 p.GetPos = function() return vec(0) end
-run(e, 7) assert(e.seq == 'menu_idle')
+e:WakeUp() run(e, 7) assert(e.seq == 'menu_idle')
 balance, refunds = 100, 0
 e:Order(p, 1) run(e, 4)
 e:InsertResin(p) run(e, 0.5) e:InsertResin(p) run(e, 6)

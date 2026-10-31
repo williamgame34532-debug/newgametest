@@ -64,8 +64,10 @@ function MON.Draw(pos, ang, scale, paint)
 	-- per-frame values (same for every pixel): a rare short vertical roll and flickering contrast
 	local slot = math.floor(t * 2)
 	local rnd = (math.sin(slot * 12.9898) * 43758.5453) % 1
-	local roll = rnd > 0.93 and ((t * 2) % 1 - 0.5) * MON.VSyncJump or 0
-	matFX:SetFloat('$c3_y', roll)
+	-- HL:A's vsync control only stretches the horizontal split for a moment; nothing moves the image
+	matFX:SetFloat('$c3_y', 0)
+	matFX:SetFloat('$c1_x', MON.Shift[1] * (rnd > 0.93 and 2.5 or 1))
+	matFX:SetFloat('$c1_z', MON.Shift[3] * (rnd > 0.93 and 2.5 or 1))
 	matFX:SetFloat('$c3_z', 0.75 + 0.25 * math.sin(t * 13) * math.sin(t * 3.7))
 	render.PushRenderTarget(rtFX)
 		render.SetMaterial(matFX)

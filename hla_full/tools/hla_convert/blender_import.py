@@ -102,8 +102,8 @@ def material(root, ref, texdir):
             for vp in data.get('m_vectorParams', []):
                 if vp.get('m_name') == 'g_vColorTint':
                     c = vp.get('m_value')
-                    if c and not bsdf.inputs['Base Color'].is_linked:
-                        bsdf.inputs['Base Color'].default_value = (c[0], c[1], c[2], 1)
+                    if c is not None and len(c) >= 3 and not bsdf.inputs['Base Color'].is_linked:
+                        bsdf.inputs['Base Color'].default_value = (float(c[0]), float(c[1]), float(c[2]), 1)
         except Exception as e:
             print('material', ref, 'failed:', e)
     _mat_cache[ref] = m

@@ -12,3 +12,4 @@
 *.jpg
 data_static/
 review/
+__pycache__/

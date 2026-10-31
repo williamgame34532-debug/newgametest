@@ -1,0 +1,13 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/hla/health_station/vial_juice_color"
+	"$bumpmap" "models/hla/health_station/vial_juice_normal"
+	"$translucent" "1"
+	"$alpha" "0.600"
+	"$color2" "[0.227 0.941 0.000]"
+	"$phong" "1"
+	"$phongboost" "2"
+	"$phongexponent" "40"
+	"$selfillum" "1"
+	"$selfillumtint" "[0.498 1.000 0.000]"
+}

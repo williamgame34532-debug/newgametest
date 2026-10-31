@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+	"$basetexture" "models/hla/health_station/vial_pipe_color"
+	"$bumpmap" "models/hla/health_station/vial_pipe_normal"
+	"$color2" "[1.000 1.000 1.000]"
+	"$phong" "1"
+	"$phongboost" "0.60"
+	"$phongexponent" "20"
+	"$phongfresnelranges" "[0.3 0.6 1]"
+}

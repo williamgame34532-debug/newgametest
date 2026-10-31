@@ -138,6 +138,7 @@ function ENT:CanOrder(p, item)
 	if item.kind == 'weapon' and p:HasWeapon(item.class) then return false, 'ЭТО ОРУЖИЕ УЖЕ ЕСТЬ' end
 	if item.kind == 'health' and p:Health() >= p:GetMaxHealth() then return false, 'ЗДОРОВЬЕ УЖЕ ВОССТАНОВЛЕНО' end
 	if item.kind == 'armor' and p:Armor() >= 100 then return false, 'БРОНЯ УЖЕ ВОССТАНОВЛЕНА' end
+	if item.kind == 'item' and HLA.Items and not HLA.Items.FreeSlot(p) then return false, 'ИНВЕНТАРЬ ЗАПОЛНЕН' end
 	return true
 end
 
@@ -260,6 +261,9 @@ function ENT:Deliver(p, item)
 		if p:Armor() >= 100 then return false, 'БРОНЯ УЖЕ ВОССТАНОВЛЕНА' end
 		p:SetArmor(math.min(100, p:Armor() + item.amount))
 		return true
+	elseif item.kind == 'item' then
+		if not (HLA.Items and HLA.Items.FreeSlot(p)) then return false, 'ИНВЕНТАРЬ ЗАПОЛНЕН' end
+		return HLA.Items.Add(p, item.item) ~= false, 'ИНВЕНТАРЬ ЗАПОЛНЕН'
 	elseif item.kind == 'ammo' then
 		return p:GiveAmmo(item.amount, item.ammo, true) > 0, 'НЕ УДАЛОСЬ ВЫДАТЬ ПАТРОНЫ'
 	end
@@ -272,7 +276,7 @@ function ENT:Collect(p)
 	if not item then self:EndSession(false) return end
 	local ok, why = self:Deliver(p, item)
 	if not ok then self:Notify(p, why or 'ВЫДАЧА НЕ УДАЛАСЬ') return end
-	p:EmitSound(item.kind == 'weapon' and 'items/ammo_pickup.wav' or 'items/smallmedkit1.wav', 60)
+	p:EmitSound('hla/ui/inv_move6.mp3', 65)
 	self:Snd('print_item.wav', 55)
 	self.OrderID = nil
 	self:EndSession(false)
@@ -336,9 +340,8 @@ function ENT:Think()
 		end
 		if near then self.LastNearby = now end
 		local awake = near or now - self.LastNearby < C.CloseDelay
-		if awake and not self.Awake then
-			self:WakeUp()
-		elseif not awake and self.Awake then
+		-- it wakes up only when someone presses E on it (sv_resin.lua); it folds when nobody is near
+		if not awake and self.Awake then
 			if self:GetStage() > S.MENU then self:EndSession(true, true) else self:Fold() end
 		end
 	end

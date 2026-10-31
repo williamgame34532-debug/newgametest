@@ -5,6 +5,7 @@ include('shared.lua')
 include('fabricator/sv_resin.lua')
 include('sv_game.lua')
 include('sv_menu.lua')
+include('sv_inventory.lua')
 
 -- clients download the fabricator content (models, materials, sounds, font) from the server
 local function sendFolder(path)

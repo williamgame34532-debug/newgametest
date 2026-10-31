@@ -19,7 +19,7 @@ C.MaxResin = 1000000
 
 C.Categories = {'МЕДИЦИНА', 'ОРУЖИЕ', 'БОЕПРИПАСЫ'}
 
--- kind: health / armor (applied to the player), weapon (class), ammo (ammo type + amount)
+-- kind: health / armor (applied to the player), weapon (class), ammo (ammo type + amount), item (into the inventory)
 C.Items = {
 	{id = 'vial', category = 1, name = 'Медицинская ампула', cost = 2, kind = 'health', amount = 10,
 		model = 'models/healthvial.mdl', text = 'Восстанавливает 10 единиц здоровья.'},
@@ -43,6 +43,8 @@ C.Items = {
 		model = 'models/items/boxbuckshot.mdl', text = 'Пополняет запас дробовых патронов на 12.'},
 	{id = 'ammo_ar2', category = 3, name = 'Импульсные заряды', cost = 5, kind = 'ammo', ammo = 'AR2', amount = 30,
 		model = 'models/items/combine_rifle_cartridge01.mdl', text = 'Пополняет запас импульсной винтовки на 30.'},
+	{id = 'health_vial', category = 1, name = 'Колба с личинкой', cost = 6, kind = 'item', item = 'health_vial',
+		model = 'models/hla/health_station/health_vial.mdl', text = 'Для станции первой помощи. Попадает в инвентарь.'},
 }
 
 function C.CategoryItems(cat)

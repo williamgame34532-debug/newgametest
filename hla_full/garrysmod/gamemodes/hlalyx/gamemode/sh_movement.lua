@@ -10,12 +10,15 @@ if SERVER then
 		p:SetSlowWalkSpeed(mv.slow)
 		p:SetCrouchedWalkSpeed(mv.crouch)
 		p:SetJumpPower(mv.jump)
-		p:SetNW2Float('hla_stamina', ST.max)
-		p:SetNW2Bool('hla_tired', false)
+		p:SetDTFloat(30, ST.max)
+		p:SetDTBool(30, false)
 	end)
 end
 
-local function stamina(p) return p:GetNW2Float('hla_stamina', ST.max) end
+-- stamina and the tired flag live in DT slots 30: they are predicted, so the client computes the
+-- same values as the server every tick (NW2 vars changed by the server made the movement stutter)
+local function stamina(p) return p:GetDTFloat(30) end
+HLA.Stamina = stamina
 
 hook.Add('SetupMove', 'HLAStamina', function(p, mv, cmd)
 	if p:GetNWBool('hla_in_menu') then
@@ -25,11 +28,11 @@ hook.Add('SetupMove', 'HLAStamina', function(p, mv, cmd)
 	end
 	if not p:Alive() or p:GetMoveType() == MOVETYPE_NOCLIP then return end
 	local s = stamina(p)
-	local dt = FrameTime()
+	local dt = FrameTime() -- inside SetupMove this is the tick interval on both sides
 	local moving = mv:GetForwardSpeed() ~= 0 or mv:GetSideSpeed() ~= 0
 	local onGround = p:IsOnGround()
 	-- networked, so the client predicts exactly what the server allows (no rubber-banding when tired)
-	local tired = p:GetNW2Bool('hla_tired', false)
+	local tired = p:GetDTBool(30)
 	local sprint = mv:KeyDown(IN_SPEED) and moving and not p:Crouching()
 
 	if sprint and (tired or s <= 0) then
@@ -41,19 +44,18 @@ hook.Add('SetupMove', 'HLAStamina', function(p, mv, cmd)
 	if mv:KeyPressed(IN_JUMP) and onGround then
 		if tired or s < ST.jump then
 			mv:SetButtons(bit.band(mv:GetButtons(), bit.bnot(IN_JUMP)))
-		elseif SERVER then
+		else
 			s = s - ST.jump
-			p.HLAStaminaUsed = CurTime()
+			p:SetDTFloat(31, CurTime())
 		end
 	end
-	if not SERVER then return end
 	if sprint and onGround then
 		s = s - ST.drain * dt
-		p.HLAStaminaUsed = CurTime()
-	elseif CurTime() - (p.HLAStaminaUsed or 0) > ST.regenDelay then
+		p:SetDTFloat(31, CurTime())
+	elseif CurTime() - p:GetDTFloat(31) > ST.regenDelay then
 		s = s + ST.regen * dt * (moving and 0.6 or 1)
 	end
 	s = math.Clamp(s, 0, ST.max)
-	if s <= 0 then p:SetNW2Bool('hla_tired', true) elseif s >= ST.recover then p:SetNW2Bool('hla_tired', false) end
-	if math.abs(s - stamina(p)) > 0.05 then p:SetNW2Float('hla_stamina', s) end
+	if s <= 0 then p:SetDTBool(30, true) elseif s >= ST.recover then p:SetDTBool(30, false) end
+	p:SetDTFloat(30, s)
 end)

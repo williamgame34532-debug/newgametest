@@ -5,7 +5,9 @@ import lz4.block
 from PIL import Image
 from kv3 import read_resource
 
-BLOCK = {1: 8, 2: 16, 27: 8}
+# Source 2 VTEX formats: 1 DXT1, 2 DXT5, 4 RGBA8888, 19 BC6H, 20 BC7, 21 ATI2N (BC5), 27 ATI1N (BC4), 28 BGRA8888
+BLOCK = {1: 8, 2: 16, 27: 8, 19: 16, 20: 16, 21: 16}
+DXGI = {19: 95, 20: 98, 21: 83}  # BC6H_UF16, BC7_UNORM, BC5_UNORM (decoded by Pillow through a DX10 DDS header)
 
 
 def mip_size(fmt, w, h):
@@ -13,6 +15,8 @@ def mip_size(fmt, w, h):
         return max(1, (w + 3) // 4) * max(1, (h + 3) // 4) * BLOCK[fmt]
     if fmt in (4, 28):
         return w * h * 4
+    if fmt == 3:  # I8
+        return w * h
     raise ValueError(fmt)
 
 
@@ -47,7 +51,23 @@ def read_vtex(path):
     return decode(fmt, w, h, data)
 
 
+def _dds_dx10(dxgi, w, h, data):
+    hdr = b'DDS ' + struct.pack('<7I', 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x80000, h, w, len(data), 0, 1) + b'\0' * 44
+    hdr += struct.pack('<2I4s5I', 32, 0x4, b'DX10', 0, 0, 0, 0, 0) + struct.pack('<5I', 0x1000, 0, 0, 0, 0)
+    hdr += struct.pack('<5I', dxgi, 3, 0, 1, 0)  # format, 2D texture, misc, array size, misc2
+    return Image.open(io.BytesIO(hdr + data))
+
+
 def decode(fmt, w, h, data):
+    if fmt in DXGI:
+        img = _dds_dx10(DXGI[fmt], w, h, data)
+        if fmt == 21:  # BC5 normal map: rebuild blue from red/green
+            a = np.asarray(img.convert('RGB'), np.float32) / 255.0
+            x, y = a[..., 0] * 2 - 1, a[..., 1] * 2 - 1
+            z = np.sqrt(np.clip(1 - x * x - y * y, 0, 1))
+            a[..., 2] = z * 0.5 + 0.5
+            return Image.fromarray((a * 255).astype(np.uint8), 'RGB').convert('RGBA')
+        return img.convert('RGBA')
     if fmt in (1, 2):
         fourcc = b'DXT1' if fmt == 1 else b'DXT5'
         hdr = b'DDS ' + struct.pack('<7I', 124, 0x1 | 0x2 | 0x4 | 0x1000 | 0x80000, h, w, len(data), 0, 1) + b'\0' * 44
@@ -76,6 +96,8 @@ def decode(fmt, w, h, data):
         return Image.fromarray(a, 'RGBA')
     if fmt == 4:
         return Image.frombytes('RGBA', (w, h), data)
+    if fmt == 3:
+        return Image.frombytes('L', (w, h), data).convert('RGBA')
     raise ValueError(fmt)
 
 

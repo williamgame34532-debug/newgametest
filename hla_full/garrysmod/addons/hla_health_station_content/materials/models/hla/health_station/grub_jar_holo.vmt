@@ -1,0 +1,8 @@
+"UnlitGeneric"
+{
+	"$basetexture" "models/hla/health_station/grub_jar_holo_color"
+	"$color2" "[0.294 0.529 0.753]"
+	"$additive" "1"
+	"$nocull" "1"
+	"$model" "1"
+}

@@ -1,5 +1,7 @@
 include('shared.lua')
 include('cl_hud.lua')
+include('cl_world.lua')
+include('cl_tabmenu.lua')
 include('cl_menu.lua')
 
 local H = HLA.Hud
@@ -97,6 +99,7 @@ function GM:HUDPaint()
 	local p = LocalPlayer()
 	if not IsValid(p) or not p:Alive() then return end
 	if CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0 then return end
+	if HLA.Tab and HLA.Tab.fade > 0 then return end
 	-- no HUD while the main menu is up
 	if p:GetNWBool('hla_in_menu') or (HLA.Menu.State and HLA.Menu.State.fade > 0) then return end
 	fonts()
@@ -135,7 +138,7 @@ function GM:HUDPaint()
 		hp = hp, maxhp = p:GetMaxHealth(), hurt = math.Clamp(1 - (CurTime() - hurtAt) / 0.35, 0, 1),
 		weapons = weps, notes = shown}
 	-- stamina bar fades in when used and out a moment after it is full again
-	local stam = p:GetNW2Float('hla_stamina', HLA.Menu.Stamina.max)
+	local stam = HLA.Stamina and HLA.Stamina(p) or HLA.Menu.Stamina.max
 	if stam < HLA.Menu.Stamina.max - 0.5 then staminaSeen = CurTime() end
 	st.stamina, st.staminaMax = stam, HLA.Menu.Stamina.max
 	st.staminaShow = math.Clamp(1.5 - (CurTime() - (staminaSeen or -10)), 0, 1)
