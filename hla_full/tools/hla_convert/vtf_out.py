@@ -15,6 +15,36 @@ def _dxt(img, fmt):
     return d[off:]
 
 
+def _fix_dxt1(data):
+    """Pillow may emit DXT1 blocks in 3-colour mode (c0 <= c1), where index 3 is transparent black.
+    Source draws that as black specks, so rewrite them as 4-colour blocks (c0 > c1)."""
+    import numpy as np
+    b = np.frombuffer(data, dtype='<u2').reshape(-1, 4).copy()
+    c0, c1 = b[:, 0].copy(), b[:, 1].copy()
+    bad = c0 <= c1
+    if not bad.any():
+        return data
+    idx = b[:, 2].astype(np.uint32) | (b[:, 3].astype(np.uint32) << 16)
+    sel = np.arange(16, dtype=np.uint32) * 2
+    ix = (idx[:, None] >> sel) & 3                       # 16 indices per block
+    # 3-colour palette: 0=c0 1=c1 2=mid 3=black. New 4-colour palette after swapping (c0'=c1, c1'=c0):
+    # 0=c1 1=c0 2=2/3c1+1/3c0 3=1/3c1+2/3c0. mid -> 2, black -> the darker endpoint
+    lum0 = ((c0 >> 11) & 31) * 2 + ((c0 >> 5) & 63) + (c0 & 31) * 2
+    lum1 = ((c1 >> 11) & 31) * 2 + ((c1 >> 5) & 63) + (c1 & 31) * 2
+    dark = np.where(lum1 <= lum0, 0, 1)                  # new index of the darker colour (c1 is new 0)
+    remap = np.stack([np.ones_like(dark), np.zeros_like(dark), np.full_like(dark, 2), dark], 1)  # old 0,1,2,3 -> new
+    new = np.take_along_axis(remap, ix.astype(np.int64), 1).astype(np.uint32)
+    eq = c0 == c1                                        # solid blocks: one colour, nudge c0 above c1
+    nc0, nc1 = c1.copy(), c0.copy()
+    nc0[eq] = np.where(c0[eq] < 0xFFFF, c0[eq] + 1, c0[eq])
+    nc1[eq] = np.where(c0[eq] < 0xFFFF, c0[eq], c0[eq] - 1)
+    new[eq] = np.where(c0[eq] < 0xFFFF, 1, 0)[:, None]   # index of the original colour
+    packed = (new << sel).sum(1).astype(np.uint32)
+    b[bad, 0], b[bad, 1] = nc0[bad], nc1[bad]
+    b[bad, 2], b[bad, 3] = (packed[bad] & 0xFFFF), (packed[bad] >> 16)
+    return b.tobytes()
+
+
 def _pad4(img):
     w, h = img.size
     if w % 4 == 0 and h % 4 == 0:
@@ -64,6 +94,6 @@ def write(path, img, alpha=None, normal=False, max_size=2048):
         blk = _dxt(q.convert('RGBA' if alpha else 'RGB'), fmt)
         bw, bh = max(1, (m.size[0] + 3) // 4), max(1, (m.size[1] + 3) // 4)
         need = bw * bh * (16 if alpha else 8)
-        data += blk[:need]
+        data += _fix_dxt1(blk[:need]) if fmt == 'DXT1' else blk[:need]
     open(path, 'wb').write(hdr + data)
     return fmt, (w, h)
