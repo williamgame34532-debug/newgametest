@@ -28,14 +28,15 @@ end
 
 function ENT:CanTakeVial() return not self:GetHasVial() end
 
--- where a vial sits (the gauge's own attachment, as in HL:A)
+-- where a vial sits: the gauge's socket (its attachment position); the vial points straight out of the wall
+-- like in HL:A, so it takes the station's own angles (+X of the vial = out of the wall)
 function ENT:VialSlot()
 	local g = self:GetGauge()
 	if not IsValid(g) then return end
 	local id = g:LookupAttachment('health_vial_attach')
 	if not id or id <= 0 then return end
 	local a = g:GetAttachment(id)
-	if a then return a.Pos, a.Ang end
+	if a then return a.Pos, self:GetAngles() end
 end
 
 -- frozen sequences (gauge level, vial flush): prop_dynamic animates on the client, so the client sets the frame

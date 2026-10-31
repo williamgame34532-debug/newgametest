@@ -1,4 +1,7 @@
-"VertexLitGeneric"
+"UnlitGeneric"
 {
-	"$basetexture" "dev/dev_measuregeneric01b"
+	"$basetexture" "models/hla/health_station/combine_health_charge_powerbar_color"
+	"$color2" "[1.000 1.000 1.000]"
+	"$additive" "1"
+	"$model" "1"
 }

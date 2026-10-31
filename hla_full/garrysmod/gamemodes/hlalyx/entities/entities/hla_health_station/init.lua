@@ -71,12 +71,12 @@ function ENT:Initialize()
 	end
 	self:SetModel(ST.Dir .. 'charger.mdl')
 	self:PhysicsInit(SOLID_VPHYSICS)
-	self:SetMoveType(MOVETYPE_NONE)
+	self:SetMoveType(MOVETYPE_VPHYSICS)
 	self:SetSolid(SOLID_VPHYSICS)
 	local ph = self:GetPhysicsObject()
 	if IsValid(ph) then ph:EnableMotion(false) end
 	self:ResetSequence(self:LookupSequence('idle'))
-	self.Internals = part(self, 'charger_internals', 'rest')
+	self.Internals = part(self, 'charger_internals', 'idle_retracted')
 	self.Pad = part(self, 'charger_pad', 'rest')
 	self:SetGauge(part(self, 'charger_gauge', 'drained'))
 end
@@ -102,10 +102,10 @@ function ENT:AcceptItem(p, id)
 	v:SetKeyValue('DefaultAnim', idle)
 	v:Spawn()
 	v:SetSolid(SOLID_NONE)
-	local att = IsValid(g) and g:LookupAttachment('health_vial_attach') or 0
-	v:SetParent(IsValid(g) and g or self, att > 0 and att or nil)
-	v:SetLocalPos(vector_origin)
-	v:SetLocalAngles(angle_zero)
+	local pos, ang = self:VialSlot()
+	v:SetPos(pos or self:WorldSpaceCenter())
+	v:SetAngles(ang or self:GetAngles())
+	v:SetParent(IsValid(g) and g or self)
 	self:DeleteOnRemove(v)
 	self.Vial = v
 	self:SetVial(v)
@@ -172,7 +172,7 @@ function ENT:StopHeal()
 	self.HealSerial = (self.HealSerial or 0) + 1
 	self:SetHealer(NULL)
 	if self.Loop then self.Loop:Stop() end
-	anim(self.Internals, 'retract', 'rest')
+	anim(self.Internals, 'retract', 'idle_retracted')
 	anim(self.Pad, 'retract', 'rest')
 	self:UpdateGauge()
 	if not IsValid(self.Vial) then return end
@@ -232,4 +232,16 @@ hook.Add('KeyPress', 'HLAHealthStation', function(p, k)
 			return
 		end
 	end
+end)
+
+-- physgun: anyone allowed to move props can move the station freely, through walls too; dropped = frozen in place
+hook.Add('OnPhysgunPickup', 'HLAHealthStation', function(p, e)
+	if not e.IsHealthStation then return end
+	local ph = e:GetPhysicsObject()
+	if IsValid(ph) then ph:EnableCollisions(false) ph:EnableGravity(false) end
+end)
+hook.Add('PhysgunDrop', 'HLAHealthStation', function(p, e)
+	if not e.IsHealthStation then return end
+	local ph = e:GetPhysicsObject()
+	if IsValid(ph) then ph:EnableCollisions(true) ph:EnableMotion(false) ph:Sleep() end
 end)

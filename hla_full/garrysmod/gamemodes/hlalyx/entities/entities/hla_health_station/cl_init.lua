@@ -27,8 +27,8 @@ function ENT:Draw()
 	local pos, ang = self:VialSlot()
 	if not pos then return end
 	if not IsValid(self.Ghost) then
-		local m = HLA.Station.Dir .. 'vial_hologram.mdl'
-		self.Ghost = ClientsideModel(util.IsValidModel(m) and m or (HLA.Station.Dir .. 'health_vial.mdl'), RENDERGROUP_TRANSLUCENT)
+		-- the vial itself in the hologram material: the same shape and place as the real one
+		self.Ghost = ClientsideModel(HLA.Station.Dir .. 'health_vial.mdl', RENDERGROUP_TRANSLUCENT)
 		if not IsValid(self.Ghost) then return end
 		self.Ghost:SetNoDraw(true)
 	end

@@ -44,10 +44,12 @@ def qangle(q):
 # ---------------------------------------------------------------------------------------------
 # materials
 def find(root, ref):
+    if not ref:
+        return None
     ref = ref.replace('\\', '/')
     for c in (ref + '_c', ref):
         p = os.path.join(root, c)
-        if os.path.exists(p):
+        if os.path.isfile(p):
             return p
 
 
@@ -56,8 +58,15 @@ def texture(root, ref, out_dir, name, **kw):
     if not p:
         return None
     dst = os.path.join(out_dir, name + '.vtf')
+    ao = kw.pop('ao', None)
     if not os.path.exists(dst):
-        vtf_out.write(dst, read_vtex(p), **kw)
+        img = read_vtex(p)
+        if ao:
+            from PIL import Image, ImageChops
+            occ = read_vtex(ao).convert('L').resize(img.size)
+            rgb = ImageChops.multiply(img.convert('RGB'), Image.merge('RGB', (occ, occ, occ)))
+            img = Image.merge('RGBA', (*rgb.split(), img.getchannel('A'))) if 'A' in img.getbands() else rgb
+        vtf_out.write(dst, img, **kw)
     return name
 
 
@@ -79,14 +88,20 @@ def convert_material(root, ref, content, matdir):
     vec = {t['m_name']: [float(c) for c in t['m_value']] for t in d.get('m_vectorParams', [])}
     base = matdir.replace('\\', '/') + '/'
     L = []
-    if 'hologram' in shader:
+    if ints.get('F_UNLIT') and ints.get('F_ADDITIVE_BLEND'):
+        t = texture(root, tex.get('g_tColor'), out_dir, name + '_color')
+        c = vec.get('g_vColorTint', [1, 1, 1])
+        L = ['"UnlitGeneric"', '{', '\t"$basetexture" "%s"' % (base + t if t else 'vgui/white'),
+             '\t"$color2" "[%.3f %.3f %.3f]"' % (c[0], c[1], c[2]), '\t"$additive" "1"', '\t"$model" "1"', '}']
+    elif 'hologram' in shader:
         c = vec.get('g_vHologramColor', [0.3, 0.7, 1, 1])
         t = texture(root, tex.get('g_tColor'), out_dir, name + '_color')
         L = ['"UnlitGeneric"', '{', '\t"$basetexture" "%s"' % (base + t if t else 'vgui/white'),
              '\t"$color2" "[%.3f %.3f %.3f]"' % (c[0] * 3, c[1] * 3, c[2] * 3), '\t"$additive" "1"', '\t"$nocull" "1"', '\t"$model" "1"', '}']
     else:
         glass = 'glass' in shader
-        col = texture(root, tex.get('g_tColor'), out_dir, name + '_color', alpha=True if glass else False)
+        col = texture(root, tex.get('g_tColor'), out_dir, name + '_color', alpha=True if glass else False,
+                      ao=None if glass else find(root, tex.get('g_tAmbientOcclusion') or ''))
         nrm = texture(root, tex.get('g_tNormal'), out_dir, name + '_normal', alpha=False, normal=True)
         L = ['"VertexLitGeneric"', '{', '\t"$basetexture" "%s"' % (base + col if col else 'vgui/white')]
         if nrm:
@@ -115,7 +130,8 @@ def convert_material(root, ref, content, matdir):
                 mask_ref = (os.path.dirname(cref) + '/' + guess[0][:-2]) if guess else None
             mask = texture(root, mask_ref, out_dir, name + '_illum', alpha=False) if mask_ref else None
             st = vec.get('g_vSelfIllumTint', [1, 1, 1])
-            br = fl.get('g_flSelfIllumBrightness', 1.0) * fl.get('g_flSelfIllumOverallScale', 1.0)
+            # HL:A brightness is in stops (0 = x1)
+            br = 2.0 ** fl.get('g_flSelfIllumBrightness', 0.0) * fl.get('g_flSelfIllumScale', 1.0) * fl.get('g_flSelfIllumOverallScale', 1.0)
             L += ['\t"$selfillum" "1"', '\t"$selfillumtint" "[%.3f %.3f %.3f]"' % (st[0] * br, st[1] * br, st[2] * br)]
             if mask:
                 L.append('\t"$selfillummask" "%s"' % (base + mask))
