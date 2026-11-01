@@ -36,8 +36,10 @@ include('sh_voice.lua')
 if SERVER then AddCSLuaFile('sh_squads.lua') AddCSLuaFile('cl_squads.lua') AddCSLuaFile('cl_hudcurve.lua') AddCSLuaFile('cl_ffmenu.lua') AddCSLuaFile('cl_ambient.lua') end
 include('sh_squads.lua')
 -- story: chapters, rounds, vote, spectators, PvP, story NPCs, dispatcher, voice panel
-if SERVER then AddCSLuaFile('sh_dispatch.lua') AddCSLuaFile('sh_story.lua') AddCSLuaFile('cl_story.lua') AddCSLuaFile('cl_editor.lua') AddCSLuaFile('cl_voice.lua') AddCSLuaFile('cl_thirdperson.lua') AddCSLuaFile('cl_effects.lua') end
+if SERVER then AddCSLuaFile('sh_dispatch.lua') AddCSLuaFile('sh_story.lua') AddCSLuaFile('cl_story.lua') AddCSLuaFile('cl_editor.lua') AddCSLuaFile('cl_voice.lua') AddCSLuaFile('cl_thirdperson.lua') AddCSLuaFile('cl_effects.lua') AddCSLuaFile('cl_pause.lua') end
 include('sh_dispatch.lua')
+if SERVER then AddCSLuaFile('sh_radiovoice.lua') end
+include('sh_radiovoice.lua') -- HL2 radio voice of the dispatcher (sound/hla/radiovoice)
 include('sh_story.lua')
 if SERVER then AddCSLuaFile('sh_markers.lua') end
 include('sh_markers.lua') -- squad markers (middle mouse)

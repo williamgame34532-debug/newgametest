@@ -1,0 +1,15 @@
+// HL2 combine_intmonitor001, the texture 4x larger (2048) with a normal map made from it and a metal sheen
+"VertexLitGeneric"
+{
+	"$basetexture" "models/props_combine/combine_intmonitor001"
+	"$bumpmap" "models/props_combine/combine_intmonitor001_normal"
+	"$surfaceprop" "metal"
+	"$phong" "1"
+	"$phongexponent" "28"
+	"$phongboost" "2.2"
+	"$phongfresnelranges" "[0.25 0.6 1]"
+	"$phongtint" "[0.75 0.85 1]"
+	"$envmap" "env_cubemap"
+	"$normalmapalphaenvmapmask" "1"
+	"$envmaptint" "[0.12 0.16 0.22]"
+}

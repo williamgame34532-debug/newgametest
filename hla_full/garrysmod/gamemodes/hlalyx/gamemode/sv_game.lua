@@ -153,7 +153,8 @@ hook.Add('PlayerSpawn', 'HLAEyeHeight', function(p)
 			if z < 48 or z > 84 then return end
 			eyeCache[mdl] = z
 		end
-		p:SetViewOffset(Vector(0, 0, z))
-		p:SetViewOffsetDucked(Vector(0, 0, math.Round(z * 28 / 64, 1)))
+		local add = p.HLAClass and p.HLAClass.eyeAdd or 0
+		p:SetViewOffset(Vector(0, 0, z + add))
+		p:SetViewOffsetDucked(Vector(0, 0, math.Round((z + add) * 28 / 64, 1)))
 	end)
 end)

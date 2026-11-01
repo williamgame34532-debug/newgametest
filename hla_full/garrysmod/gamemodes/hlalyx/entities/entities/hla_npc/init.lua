@@ -22,7 +22,7 @@ function ENT:ApplyConfig(n)
 	local mdl = n.model ~= '' and n.model or HLA.Story.NPCModels[1].model
 	if not util.IsValidModel(mdl) then mdl = 'models/combine_soldier.mdl' end
 	self:SetModel(mdl)
-	self:SetNWString('hla_name', n.name ~= '' and n.name or 'ЮНИТ')
+	self:SetNWString('hla_name', n.name ~= '' and n.name or 'ЭХО')
 	self:SetWeapon(n.weapon or '')
 	if self.Idles then self:PickIdles() self:NextIdle() end
 end
@@ -132,7 +132,7 @@ function ENT:Use(p)
 	local text = lines[math.min(n, #lines)]
 	self.FaceYaw = (p:GetPos() - self:GetPos()):Angle().y
 	self.FaceUntil = CurTime() + 8
-	local len = HLA.Chat.Say(self, 'say', text, {name = self:GetNWString('hla_name', 'ЮНИТ'), radio = true})
+	local len = HLA.Chat.Say(self, 'say', text, {name = self:GetNWString('hla_name', 'ЭХО'), radio = true})
 	self.BusyUntil = CurTime() + math.Clamp(len or (utf8.len(text) or #text) * 0.05, 1, 15)
 	self.NextChatter = math.max(self.NextChatter or 0, CurTime() + 20)
 end

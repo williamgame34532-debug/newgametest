@@ -64,9 +64,26 @@ local function armed(p)
 	return IsValid(w) and not UNARMED[w:GetClass()]
 end
 
+local SEQ_NAMES = {
+	safe = {idle = 'idle1', walk = 'walkeasy_all', run = 'runall'},
+	armed = {idle = 'combatidle1', walk = 'walk_aiming_all', run = 'runaimall1'},
+}
+local namedCache = {}
+local function named(p, name)
+	local mdl = p:GetModel()
+	local c = namedCache[mdl]
+	if not c then c = {} namedCache[mdl] = c end
+	if c[name] == nil then
+		local id = p:LookupSequence(name)
+		c[name] = (id and id >= 0) and id or false
+	end
+	return c[name] or nil
+end
+
 hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	if not isUnit(p) or p:InVehicle() then return end
-	local set = SETS[armed(p) and (p:GetNW2Bool('hla_safe') and 'safe' or 'armed') or 'unarmed']
+	local setName = armed(p) and (p:GetNW2Bool('hla_safe') and 'safe' or 'armed') or 'unarmed'
+	local set = SETS[setName]
 	local speed = vel:Length2D()
 	local kind
 	if p:WaterLevel() >= 2 then kind = 'swim'
@@ -75,6 +92,17 @@ hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	elseif speed > (p:GetWalkSpeed() + p:GetRunSpeed()) * 0.5 then kind = 'run'
 	elseif speed > 4 then kind = 'walk'
 	else kind = 'idle' end
+	-- sequences by name first (the HL:A Combine models: safety — idle1 / walkeasy_all / runall,
+	-- weapon up — combatidle1 / walk_aiming_all / runaimall1), when the model has them
+	local byName = SEQ_NAMES[setName] and SEQ_NAMES[setName][kind]
+	if byName then
+		local seq = named(p, byName)
+		if seq then
+			local act = kind == 'run' and ACT_RUN or kind == 'walk' and ACT_WALK or ACT_IDLE
+			p.CalcIdeal, p.CalcSeqOverride = act, seq
+			return act, seq
+		end
+	end
 	local act, seq = pick(p, set[kind])
 	if not act then return end
 	p.CalcIdeal, p.CalcSeqOverride = act, seq

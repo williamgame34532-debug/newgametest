@@ -81,6 +81,7 @@ local function newPlayer(name)
 end
 HLA = {Chat = {Say = function(p, k, t) said[#said + 1] = t end, Dispatch = function() end}}
 dofile(ARG_DIR .. '/sh_dispatch.lua')
+dofile(ARG_DIR .. '/sh_radiovoice.lua')
 dofile(ARG_DIR .. '/sh_story.lua')
 dofile(ARG_DIR .. '/sv_story.lua')
 local S = HLA.Story

@@ -104,6 +104,7 @@ end
 local function focus(p, e)
 	p.HLATerminal = e
 	net.Start('hla_term') net.WriteEntity(e or NULL) net.Send(p)
+	if IsValid(e) then hook.Run('HLATerminalFocus', p, e) end
 end
 
 function ENT:Use(p)
@@ -120,7 +121,7 @@ hook.Add('PlayerTick', 'HLATerminal', function(p)
 end)
 
 -- terminals placed by admins are remembered per map (all kinds)
-local KINDS = {'hla_terminal', 'hla_terminal_medium', 'hla_terminal_small', 'hla_terminal_console'}
+local KINDS = {'hla_terminal', 'hla_terminal_medium', 'hla_terminal_small', 'hla_terminal_console', 'hla_terminal_cams'}
 local function path() return 'hlalyx/terminals_' .. game.GetMap() .. '.txt' end
 local function load()
 	for _, s in ipairs(util.JSONToTable(file.Read(path(), 'DATA') or '') or {}) do

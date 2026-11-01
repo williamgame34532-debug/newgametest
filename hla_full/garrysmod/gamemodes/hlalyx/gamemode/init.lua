@@ -35,3 +35,10 @@ for _, f in ipairs({'resource/fonts/combine_alphabet.ttf', 'resource/fonts/Combi
 end
 resource.AddFile('resource/fonts/Play-Regular.ttf')
 resource.AddFile('resource/fonts/Play-Bold.ttf')
+resource.AddFile('resource/fonts/Exo2-Bold.ttf')
+-- the monitor of the surveillance terminal in a higher resolution (hla_terminal_content)
+for _, f in ipairs({'combine_intmonitor001', 'combine_intmonitor001_disp', 'combine_intmonitor001_disp_off'}) do
+	resource.AddFile('materials/models/props_combine/' .. f .. '.vmt')
+end
+resource.AddSingleFile('materials/models/props_combine/combine_intmonitor001_normal.vtf')
+resource.AddFile('resource/fonts/Exo2-SemiBold.ttf')

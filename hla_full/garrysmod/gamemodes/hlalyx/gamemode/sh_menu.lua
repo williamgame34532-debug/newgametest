@@ -10,9 +10,10 @@ M.MaxChars = 4
 
 -- Characters are Combine units: a three-digit number instead of a name, one of three models,
 -- each with its own weapon. Every character has a permanent ID (saves are keyed by it).
-M.NamePrefix = 'ЮНИТ '
+M.NamePrefix = 'ЭХО-' -- «ЭХО-443»
 M.Classes = {
-	{model = 'models/cultist/hl_a/combine_grunt/combine_grunt.mdl', label = 'ГРАНТ', weapon = 'tfa_osips'},
+	-- eyeAdd: the camera this many units over the model's «eyes» (the grunt's sit low in its helmet)
+	{model = 'models/cultist/hl_a/combine_grunt/combine_grunt.mdl', label = 'ГРАНТ', weapon = 'tfa_osips', eyeAdd = 5},
 	{model = 'models/nemez/combine_soldiers/combine_soldier_recon_h.mdl', label = 'РАЗВЕДЧИК', weapon = 'weapon_csniper_tfa2'},
 	{model = 'models/nemez/combine_soldiers/combine_soldier_coordinator_h.mdl', label = 'КООРДИНАТОР', weapon = 'tfa_ocipr'},
 	-- HL:A Ordinal: shown in character creation once its model is installed; change the path / weapon here

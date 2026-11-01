@@ -90,7 +90,7 @@ function CH.Say(p, key, text, opts)
 		end
 	end
 	deliver(clear, p, mode, text, false, opts.name)
-	if #muffled > 0 then deliver(muffled, p, mode, '', true, opts.name) end
+	-- those a little further hear nothing in the chat (no «говорит что-то неразборчиво» lines)
 	-- the unit's radio clicks when it speaks out loud
 	local level = mode.key == 'y' and 85 or mode.key == 'w' and 55 or 72
 	local voLen
@@ -161,20 +161,38 @@ end)
 
 ---------------------------------------------------------------------------------------------------
 -- the city dispatcher: a line to everyone in the game, «// ДИСПЕТЧЕР — …» in red, with its sound
-function CH.Dispatch(text, sound)
+-- the sound of an announcement: one path or a chain «a.wav;b.wav;…». Radio voice parts get their measured
+-- length («path|seconds»), so the client plays the chain without gaps or overlaps.
+function CH.SoundChain(snd)
+	local out = {}
+	for part in string.gmatch(snd or '', '[^;]+') do
+		part = string.Trim(part)
+		local id = string.match(part, '^hla/radiovoice/(.+)%.wav$')
+		local l = id and HLA.RadioVoiceByID and HLA.RadioVoiceByID[id]
+		out[#out + 1] = part .. '|' .. (l and l.dur or 0)
+	end
+	return table.concat(out, ';')
+end
+
+-- who speaks: the radio voice (radiovoice) is the dispatcher, the city broadcast (cityvoice) is Overwatch
+-- to: a list of players (default: everyone in the game)
+function CH.Dispatch(text, sound, who, to)
 	if not text or text == '' then return end
-	local to = {}
-	for _, o in ipairs(player.GetAll()) do if not o.HLAInMenu then to[#to + 1] = o end end
+	who = who or ((sound and string.find(sound, 'radiovoice', 1, true)) and 'ДИСПЕТЧЕР' or 'ОВЕРВОТЧ')
+	if not to then
+		to = {}
+		for _, o in ipairs(player.GetAll()) do if not o.HLAInMenu then to[#to + 1] = o end end
+	end
 	if #to == 0 then return end
 	net.Start('hla_chat')
 	net.WriteUInt(CH.DISPATCH, 4)
 	net.WriteEntity(NULL)
-	net.WriteString('ДИСПЕТЧЕР')
+	net.WriteString(who)
 	net.WriteBool(false)
 	net.WriteString(text)
-	net.WriteString(sound or '')
+	net.WriteString(CH.SoundChain(sound))
 	net.Send(to)
-	MsgN('[диспетчер] ' .. text)
+	MsgN('[' .. who .. '] ' .. text)
 end
 
 ---------------------------------------------------------------------------------------------------

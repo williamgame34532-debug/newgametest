@@ -445,7 +445,7 @@ local function npcTab(sheet)
 		local yaw = (LocalPlayer():GetPos() - Vector(a[1], a[2], a[3])):Angle().y
 		local m = S.NPCModels[1]
 		for _, c in ipairs(S.NPCModels) do if util.IsValidModel(c.model) then m = c break end end
-		table.insert(E.cfg.npcs, {pos = a, yaw = math.Round(yaw, 1), name = 'ЮНИТ ' .. math.random(100, 999), model = m.model,
+		table.insert(E.cfg.npcs, {pos = a, yaw = math.Round(yaw, 1), name = 'ЭХО-' .. math.random(100, 999), model = m.model,
 			weapon = m.weapon, lines = {'', '', ''}, chatter = true, idles = ''})
 		sel = #E.cfg.npcs
 		E.dirty = true fill() form()
@@ -501,7 +501,16 @@ local function dispatchTab(sheet)
 	col.add(text)
 	col.add(en)
 	col.row(
-		button(nil, 'ПРОСЛУШАТЬ', function() if cur and cur.snd and cur.snd ~= '' then surface.PlaySound(cur.snd) end end),
+		button(nil, 'ПРОСЛУШАТЬ', function()
+			if not (cur and cur.snd and cur.snd ~= '') then return end
+			local at = 0
+			for part in string.gmatch(cur.snd, '[^;]+') do
+				local id = string.match(part, '^hla/radiovoice/(.+)%.wav$')
+				local dur = id and HLA.RadioVoiceByID[id] and HLA.RadioVoiceByID[id].dur or SoundDuration(part)
+				timer.Simple(at, function() LocalPlayer():EmitSound(part, 0, 100, 1, CHAN_STATIC) end)
+				at = at + math.max(0.06, (dur and dur > 0 and dur or 1.2) - 0.03)
+			end
+		end),
 		button(nil, 'В ЭФИР СЕЙЧАС', function()
 			if not cur then return end
 			if E.dirty then save() end
@@ -524,6 +533,159 @@ local function dispatchTab(sheet)
 		E.dirty = true fill()
 	end))
 	fill()
+	return root
+end
+
+-- zones: named places (two corners where you look); the visor shows the zone the unit is in
+local function zonesTab(sheet)
+	local root = vgui.Create('DPanel', sheet)
+	root:SetPaintBackground(false)
+	local left = vgui.Create('DPanel', root)
+	left:Dock(LEFT)
+	left:SetWide(math.floor(360 * sc()))
+	left:SetPaintBackground(false)
+	local lst = list(left, {'№', 'НАЗВАНИЕ'})
+	lst:Dock(FILL)
+	local right = vgui.Create('DPanel', root)
+	right:Dock(FILL)
+	right:SetPaintBackground(false)
+	E.cfg.zones = E.cfg.zones or {}
+	local sel
+	local function fill()
+		lst:Clear()
+		for i, z in ipairs(E.cfg.zones) do lst:AddLine(i, z.name) end
+	end
+	local function form()
+		right:Clear()
+		local z = sel and E.cfg.zones[sel]
+		E.selZone = sel
+		local col = column(right)
+		if not z then
+			col.add(label(nil, 'Зона — место с названием («Блок 4», «Вокзал»). Юнит видит на визоре, в какой он зоне;'))
+			col.add(label(nil, 'название зоны пишется и под метками. Выберите зону слева или добавьте новую.'))
+			return
+		end
+		col.add(label(nil, 'ЗОНА ' .. sel, 'hla_ed_big'))
+		col.add(label(nil, 'НАЗВАНИЕ'))
+		col.add(entry(nil, z.name, function(v) z.name = v fill() end))
+		col.add(label(nil, 'Наведитесь на угол зоны на полу — «УГОЛ 1», на противоположный — «УГОЛ 2».'))
+		col.row(
+			button(nil, 'УГОЛ 1 (куда смотрю)', function()
+				local a = aimPoint()
+				z.a = {a[1], a[2], a[3] - 16}
+				z.b = z.b or {a[1] + 128, a[2] + 128, a[3] + 256}
+				E.dirty = true form()
+			end),
+			button(nil, 'УГОЛ 2 (куда смотрю)', function()
+				local b = aimPoint()
+				z.a = z.a or {b[1] - 128, b[2] - 128, b[3] - 16}
+				z.b = {b[1], b[2], b[3] + 256}
+				E.dirty = true form()
+			end))
+		if z.a and z.b then
+			col.row(
+				button(nil, 'ВЫШЕ +64', function() z.b[3] = z.b[3] + 64 E.dirty = true end),
+				button(nil, 'НИЖЕ −64', function() z.b[3] = math.max(z.a[3] + 32, z.b[3] - 64) E.dirty = true end))
+		end
+	end
+	lst.OnRowSelected = function(_, i) sel = i form() end
+	local bar = vgui.Create('DPanel', left)
+	bar:Dock(BOTTOM)
+	bar:SetTall(math.floor(34 * sc()))
+	bar:SetPaintBackground(false)
+	local add = button(bar, '+ ЗОНА', function()
+		table.insert(E.cfg.zones, {name = 'ЗОНА ' .. (#E.cfg.zones + 1)})
+		sel = #E.cfg.zones E.dirty = true fill() form()
+	end)
+	add:Dock(LEFT) add:DockMargin(0, 4, 4, 0)
+	local del = button(bar, 'УДАЛИТЬ', function()
+		if sel and E.cfg.zones[sel] then table.remove(E.cfg.zones, sel) sel = nil E.dirty = true fill() form() end
+	end)
+	del:Dock(LEFT) del:DockMargin(0, 4, 4, 0)
+	fill() form()
+	return root
+end
+
+-- the dispatcher's radio voice: words and phrases (sound/hla/radiovoice) chained into an announcement
+local function radioTab(sheet)
+	local root = vgui.Create('DPanel', sheet)
+	root:SetPaintBackground(false)
+	local top = vgui.Create('DPanel', root)
+	top:Dock(TOP)
+	top:SetTall(math.floor(320 * sc()))
+	top:SetPaintBackground(false)
+	local lst = list(top, {'ПЕРЕВОД', 'ОРИГИНАЛ', 'С'})
+	lst:Dock(FILL)
+	if lst.Columns and lst.Columns[3] then lst.Columns[3]:SetFixedWidth(math.floor(50 * sc())) end
+	for _, l in ipairs(HLA.RadioVoice) do lst:AddLine(l.ru, l.en, l.dur) end
+	local chain = {}
+	local col = column(root)
+	local chainLabel = label(nil, '')
+	local text = ''
+	local textEntry
+	local function chainText()
+		local parts = {}
+		for _, id in ipairs(chain) do
+			local l = HLA.RadioVoiceByID[id]
+			if l and not string.find(l.ru, '^%(') then parts[#parts + 1] = l.ru end
+		end
+		local t = table.concat(parts, ' ')
+		return (string.gsub(t, '^%l', string.upper)), t
+	end
+	local function refresh()
+		local names = {}
+		local total = 0
+		for _, id in ipairs(chain) do names[#names + 1] = id total = total + (HLA.RadioVoiceByID[id] and HLA.RadioVoiceByID[id].dur or 0) end
+		chainLabel:SetText(#chain == 0 and 'Цепочка пуста: выберите фразу и «+ В ЦЕПОЧКУ»' or (table.concat(names, ' + ') .. string.format('   (%.1f с)', total)))
+		chainLabel:SizeToContents()
+		text = chainText()
+		if IsValid(textEntry) then textEntry:SetValue(text) end
+	end
+	local function play(ids)
+		local at = 0
+		for _, id in ipairs(ids) do
+			local l = HLA.RadioVoiceByID[id]
+			if l then
+				timer.Simple(at, function() LocalPlayer():EmitSound(HLA.RadioVoicePath(id), 0, 100, 1, CHAN_STATIC) end)
+				at = at + math.max(0.06, l.dur - 0.03)
+			end
+		end
+	end
+	local function sel()
+		local line = lst:GetSelectedLine()
+		return line and HLA.RadioVoice[line] and HLA.RadioVoice[line].id
+	end
+	lst.DoDoubleClick = function(_, i) play({HLA.RadioVoice[i].id}) end
+	col.add(label(nil, 'Двойной клик — прослушать. Слова и фразы собираются в одно объявление (в эфире: «// ДИСПЕТЧЕР — …»).'))
+	col.row(
+		button(nil, 'ПРОСЛУШАТЬ', function() local id = sel() if id then play({id}) end end),
+		button(nil, '+ В ЦЕПОЧКУ', function() local id = sel() if id then chain[#chain + 1] = id refresh() end end),
+		button(nil, '+ НАЧАЛО И КОНЕЦ СВЯЗИ', function() table.insert(chain, 1, 'on3') chain[#chain + 1] = 'off2' refresh() end))
+	col.add(chainLabel)
+	col.row(
+		button(nil, 'ПРОСЛУШАТЬ ЦЕПОЧКУ', function() play(chain) end),
+		button(nil, 'УБРАТЬ ПОСЛЕДНЮЮ', function() table.remove(chain) refresh() end),
+		button(nil, 'ОЧИСТИТЬ', function() chain = {} refresh() end))
+	col.add(label(nil, 'ТЕКСТ В ЧАТЕ (собирается из перевода, можно поправить)'))
+	textEntry = col.add(entry(nil, '', function(v) text = v end))
+	local function paths()
+		local t = {}
+		for _, id in ipairs(chain) do t[#t + 1] = HLA.RadioVoicePath(id) end
+		return table.concat(t, ';')
+	end
+	col.row(
+		button(nil, 'В ЭФИР СЕЙЧАС', function()
+			if #chain == 0 or string.Trim(text) == '' then return end
+			act('dispatch_chain', util.TableToJSON({text = text, snd = paths()}))
+		end),
+		button(nil, 'СОХРАНИТЬ КАК ФРАЗУ', function()
+			if #chain == 0 or string.Trim(text) == '' then return end
+			local d = E.cfg.dispatch
+			d.custom[#d.custom + 1] = {id = 'rv_' .. os.time() .. '_' .. math.random(100, 999), ru = text, snd = paths()}
+			E.dirty = true
+			chat.AddText(BLUE, '[HLA] ', WHITE, 'Фраза добавлена: вкладка ДИСПЕТЧЕР и выбор фразы для главы. Не забудьте СОХРАНИТЬ.')
+		end))
+	refresh()
 	return root
 end
 
@@ -587,7 +749,9 @@ function E.Open()
 	sheet:AddSheet('ГЛАВЫ', chaptersTab(sheet))
 	sheet:AddSheet('ПВП', pvpTab(sheet))
 	sheet:AddSheet('NPC', npcTab(sheet))
+	sheet:AddSheet('ЗОНЫ', zonesTab(sheet))
 	sheet:AddSheet('ДИСПЕТЧЕР', dispatchTab(sheet))
+	sheet:AddSheet('РАЦИЯ', radioTab(sheet))
 	sheet:AddSheet('ОБЩЕЕ', generalTab(sheet))
 	local b = button(f, 'СОХРАНИТЬ', function() save() end)
 	b:Dock(BOTTOM)
@@ -639,6 +803,20 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 			render.DrawBox(vector_origin, angle_zero, mn, mx, Color(tc.r, tc.g, tc.b, on and 18 or 6))
 			cam.Start3D2D((mn + mx) / 2 + Vector(0, 0, (mx.z - mn.z) / 2 + 12), Angle(0, EyeAngles().y - 90, 90), 0.2)
 				draw.SimpleTextOutlined('ПЕРЕХОД ИЗ ГЛАВЫ ' .. i, 'hla_ed3d', 0, 0, tc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
+			cam.End3D2D()
+		end
+	end
+	for i, z in ipairs(E.cfg.zones or {}) do
+		if z.a and z.b then
+			local a, b = v3(z.a), v3(z.b)
+			local mn = Vector(math.min(a.x, b.x), math.min(a.y, b.y), math.min(a.z, b.z))
+			local mx = Vector(math.max(a.x, b.x), math.max(a.y, b.y), math.max(a.z, b.z))
+			local on = E.selZone == i
+			local zc = on and Color(120, 255, 200) or Color(70, 150, 120)
+			render.DrawWireframeBox(vector_origin, angle_zero, mn, mx, zc, true)
+			render.DrawBox(vector_origin, angle_zero, mn, mx, Color(zc.r, zc.g, zc.b, on and 14 or 5))
+			cam.Start3D2D((mn + mx) / 2 + Vector(0, 0, (mx.z - mn.z) / 2 + 12), Angle(0, EyeAngles().y - 90, 90), 0.25)
+				draw.SimpleTextOutlined('ЗОНА: ' .. (z.name or ''), 'hla_ed3d', 0, 0, zc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
 			cam.End3D2D()
 		end
 	end

@@ -91,15 +91,22 @@ net.Receive('hla_chat', function()
 	local radioSounds = (mode and mode.radio) and net.ReadString() or ''
 	if id == CH.DISPATCH then
 		local snd = net.ReadString()
-		C.Add({{'// ДИСПЕТЧЕР — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
-		-- one sound or a sequence «a.wav;b.wav;…» (radio voice: phrase + digits), missing files are skipped
+		-- «// ОВЕРВОТЧ — …» (city broadcast) or «// ДИСПЕТЧЕР — …» (radio), red
+		local who = name ~= '' and name or 'ДИСПЕТЧЕР'
+		C.Add({{'// ' .. who .. ' — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
 		if snd == '' then soft('hla/ui/textline_7.wav') return end
+		-- the chain plays from the player, not positional, one part after another by its length
+		-- (no file.Exists check: it does not always see the sounds inside the game archives)
+		local me = LocalPlayer()
 		local at = 0
 		for part in string.gmatch(snd, '[^;]+') do
-			if file.Exists('sound/' .. part, 'GAME') then
-				timer.Simple(at, function() surface.PlaySound(part) end)
-				at = at + math.max(0.08, SoundDuration(part) - 0.04)
-			end
+			local path, dur = string.match(part, '^(.-)|([%d%.]+)$')
+			path = path or part
+			dur = tonumber(dur) or 0
+			if dur <= 0 then dur = SoundDuration(path) end
+			if not dur or dur <= 0 then dur = 1.2 end
+			timer.Simple(at, function() if IsValid(me) then me:EmitSound(path, 0, 100, 1, CHAN_STATIC) end end)
+			at = at + math.max(0.06, dur - 0.03)
 		end
 		return
 	end
@@ -507,7 +514,7 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 			C.bubbles[ent] = nil
 		elseif ent ~= me then
 			local a = math.Clamp(math.min(age * 4, (life - age) / 1.2), 0, 1)
-			local target = headPos(ent) + Vector(0, 0, 14)
+			local target = headPos(ent) + Vector(0, 0, 22) -- over the name tag
 			b.pos = b.pos and LerpVector(math.min(1, FrameTime() * 14), b.pos, target) or target
 			local pos = b.pos
 			if pos:DistToSqr(EyePos()) < 900 * 900 then

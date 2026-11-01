@@ -114,8 +114,7 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAVoiceIcons', function(_, sky)
 	local me = LocalPlayer()
 	for p, v in pairs(talking) do
 		if IsValid(p) and p ~= me and p:Alive() and not p:GetNoDraw() and p:GetPos():DistToSqr(EyePos()) < 1500 * 1500 then
-			local head = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(p) or p:EyePos()
-			local pos = head + Vector(0, 0, 26)
+			local pos = (HLA.TagPos and HLA.TagPos(p) or p:EyePos() + Vector(0, 0, 23)) + Vector(0, 0, 9) -- just over the name tag
 			local lvl = math.Clamp((v.level or 0) * 1.6, 0, 1)
 			cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), 0.08)
 				draw.NoTexture()

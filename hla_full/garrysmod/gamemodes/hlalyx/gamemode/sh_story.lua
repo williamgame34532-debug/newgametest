@@ -32,6 +32,7 @@ function S.Default()
 		pvp = {team1 = 'ОТРЯД АЛЬФА', team2 = 'ОТРЯД ОМЕГА', time = 10, friendly = false,
 			spawns = {ffa = {}, t1 = {}, t2 = {}}},
 		npcs = {},
+		zones = {}, -- {name, a = {x,y,z}, b = {x,y,z}}: named places shown on the visor and under marks
 		dispatch = {every = 0, pool = {}, custom = {}, edits = {}},
 		settings = {minPlayers = 2, voteTime = 20, cardTime = 7, killCallout = true, storyFriendlyFire = false,
 			killLines = {'Противник нейтрализован.', 'Цель уничтожена.', 'Ликвидация подтверждена.'},
@@ -74,6 +75,22 @@ end
 -- who may use the story editor and place story NPCs: admins, the host of a listen server, single player
 function HLA.CanEdit(p)
 	return IsValid(p) and (p:IsAdmin() or game.SinglePlayer() or p:IsListenServerHost())
+end
+
+-- zones (sent to everyone as a small JSON): the name of the zone a point is in, or nil
+local zoneCache, zoneSrc = {}, nil
+function S.Zones()
+	local src = GetGlobal2String('hla_zones', '[]')
+	if src ~= zoneSrc then
+		zoneSrc = src
+		zoneCache = util.JSONToTable(src) or {}
+	end
+	return zoneCache
+end
+function S.ZoneAt(pos)
+	for _, z in ipairs(S.Zones()) do
+		if S.Inside(z, pos) then return z.name end
+	end
 end
 
 function S.State() return GetGlobal2String('hla_state', S.WAIT) end

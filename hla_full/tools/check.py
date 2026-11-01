@@ -40,7 +40,7 @@ run(pathlib.Path('garrysmod/gamemodes/hlalyx/gamemode/sh_menu.lua').read_text(),
 run("""
 local M = HLA.Menu
 assert(M.ValidNum('443') and M.ValidNum('007') and not M.ValidNum('44') and not M.ValidNum('4433') and not M.ValidNum('a43'))
-assert(M.DisplayName({num = '443'}) == 'ЮНИТ 443')
+assert(M.DisplayName({num = '443'}) == 'ЭХО-443')
 assert(#M.Models == #M.Classes and M.ModelLabel(M.Classes[1].model) == M.Classes[1].label and not M.ValidModel('models/player/gman_high.mdl'))
 print('PASS menu: unit numbers (3 digits), class models and labels')
 """, 'menu rules')

@@ -43,8 +43,19 @@ function SQ.Join(p, id)
 	p:SetNWInt('hla_squad', id)
 	s.members[#s.members + 1] = p
 	clean(s)
-	for _, m in ipairs(s.members) do
-		if m ~= p then m:ChatPrint(p:GetNWString('hla_name', p:Nick()) .. ' вступил в ' .. s.name) end
+	-- the dispatcher announces it on the squad's channel: «Отряд: "…" — ЭХО-443 вступил в отряд», reading the number
+	local name = p:GetNWString('hla_name', p:Nick())
+	local num = string.match(name, '(%d+)%s*$') or ''
+	local rv = HLA.RadioVoicePath
+	local DIG = {['0'] = 'zero', ['1'] = 'one', ['2'] = 'two', ['3'] = 'three', ['4'] = 'four', ['5'] = 'five', ['6'] = 'six', ['7'] = 'seven', ['8'] = 'eight', ['9'] = 'nine'}
+	local seq = {rv('on1'), rv('attention')}
+	for d in string.gmatch(num, '%d') do seq[#seq + 1] = rv(DIG[d]) end
+	seq[#seq + 1] = rv('inprogress')
+	seq[#seq + 1] = rv('off4')
+	local to = {}
+	for _, m in ipairs(s.members) do if IsValid(m) then to[#to + 1] = m end end
+	if HLA.Chat and HLA.Chat.Dispatch then
+		HLA.Chat.Dispatch('Отряд: «' .. s.name .. '» — ' .. name .. ' вступил в отряд.', table.concat(seq, ';'), 'ДИСПЕТЧЕР', to)
 	end
 	send()
 	return true

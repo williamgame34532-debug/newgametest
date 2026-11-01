@@ -31,15 +31,17 @@ local function fonts()
 end
 surface.CreateFont('hla_mate3d', {font = 'Russo One', size = 42, weight = 400, extended = true, antialias = true})
 
-local function hidden()
+local function baseHidden()
 	local p = LocalPlayer()
 	return not IsValid(p) or not p:Alive() or p:GetNWBool('hla_in_menu') or (HLA.Tab and HLA.Tab.fade > 0)
 		or (HLA.TerminalFocus and HLA.TerminalFocus.blend > 0) or (CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0)
 end
+local function hidden() return baseHidden() or (HLA.Binoculars and HLA.Binoculars.k > 0.2) end
 
 ---------------------------------------------------------------------------------------------------
 -- top left of the visor, as on the Combine screens: Combine glyphs, ОТРЯД :: / ЮНИТ :: and the squad
 local glyphs = Material('hla/hud/glyphs')
+local zoneWas, zoneAt
 hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	if hidden() then return end
 	fonts()
@@ -54,7 +56,7 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	draw.SimpleText('COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(26 * s), Color(BLUE.r, BLUE.g, BLUE.b, 220))
 	y = y + math.floor(72 * s)
 	-- as on the Combine visor: «ОТРЯД :: …» and «ЮНИТ :: …», labels dim, values bright; no squad — dim and plain
-	local unit = string.gsub(string.upper(p:GetNWString('hla_name', p:Nick())), '^ЮНИТ%s+', '')
+	local unit = string.upper(p:GetNWString('hla_name', p:Nick())) -- «ЭХО-443»
 	surface.SetFont('hla_sq')
 	local lw = surface.GetTextSize('ОТРЯД  ::  ')
 	draw.SimpleText('ОТРЯД  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
@@ -66,6 +68,17 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	y = y + lh
 	draw.SimpleText('ЮНИТ  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
 	draw.SimpleText(unit .. ((sq and sq.leader == p) and '  (К)' or ''), 'hla_sq', x + lw, y, TEXT)
+	-- the zone the unit is in (zones are set in the editor); a change flashes for a moment
+	y = y + lh
+	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(p:GetPos())
+	if zone ~= zoneWas then zoneWas, zoneAt = zone, RealTime() end
+	local flash = math.Clamp(1 - (RealTime() - (zoneAt or 0)) / 1.5, 0, 1)
+	draw.SimpleText('ЗОНА  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
+	if zone then
+		draw.SimpleText(string.upper(zone), 'hla_sq', x + lw, y, Color(TEXT.r + (255 - TEXT.r) * flash, TEXT.g + (255 - TEXT.g) * flash, 255))
+	else
+		draw.SimpleText('вне зон', 'hla_sq_s', x + lw, y + math.floor(2 * s), Color(DIM.r, DIM.g, DIM.b, 200))
+	end
 	if sq then
 		y = y + lh + math.floor(8 * s)
 		for _, m in ipairs(sq.members) do
@@ -157,13 +170,10 @@ end)
 hook.Add('PostDrawTranslucentRenderables', 'HLASquadNames', function(_, sky)
 	if sky or hidden() then return end
 	for _, m in ipairs(mates()) do
-		local pos = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(m) + Vector(0, 0, 5) or m:EyePos() + Vector(0, 0, 16)
+		local pos = HLA.TagPos and HLA.TagPos(m) or m:EyePos() + Vector(0, 0, 22)
 		local d = pos:Distance(EyePos())
-		local sc = math.Clamp(d / 900, 0.06, 0.6)
 		cam.IgnoreZ(true)
-		cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), sc)
-			draw.SimpleTextOutlined(string.upper(m:GetNWString('hla_name', m:Nick())), 'hla_mate3d', 0, 0, BLUE, TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 2, Color(0, 8, 14, 200))
-		cam.End3D2D()
+		if HLA.NameTag then HLA.NameTag(pos, string.upper(m:GetNWString('hla_name', m:Nick())), BLUE, 1, math.Clamp(d / 1100, 0.05, 0.5)) end
 		cam.IgnoreZ(false)
 	end
 end)
@@ -175,23 +185,25 @@ local B = {on = false, k = 0}
 HLA.Binoculars = B
 local overlay = Material('hla/binoculars/overlay')
 local function toggle()
-	if hidden() then B.on = false return end
+	if baseHidden() then B.on = false return end
 	B.on = not B.on
 	surface.PlaySound(B.on and 'weapons/sniper/sniper_zoomin.wav' or 'weapons/sniper/sniper_zoomout.wav')
 end
-concommand.Add('hla_binoculars', toggle)
+concommand.Add('hla_binoculars', toggle) -- (a toggle for a key of one's own)
+-- held, not toggled: the binoculars are up while B (or the zoom key) is held, released — they go down
+local zoomHeld = false
 hook.Add('PlayerBindPress', 'HLABinoculars', function(p, bind, pressed)
-	if not pressed or not string.find(bind, '+zoom', 1, true) then return end
-	toggle()
+	if not string.find(bind, '+zoom', 1, true) then return end
+	zoomHeld = pressed
 	return true
 end)
-local keyWas = false
 hook.Add('Think', 'HLABinoculars', function()
-	-- B, when nothing is typed into
-	local down = input.IsKeyDown(KEY_B) and not vgui.GetKeyboardFocus() and not gui.IsGameUIVisible() and not gui.IsConsoleVisible()
-	if down and not keyWas then toggle() end
-	keyWas = down
-	if B.on and hidden() then B.on = false end
+	local down = (input.IsKeyDown(KEY_B) or zoomHeld) and not vgui.GetKeyboardFocus() and not gui.IsGameUIVisible() and not gui.IsConsoleVisible()
+	if baseHidden() then down = false end
+	if down ~= B.on then
+		B.on = down
+		surface.PlaySound(down and 'weapons/sniper/sniper_zoomin.wav' or 'weapons/sniper/sniper_zoomout.wav')
+	end
 	B.k = math.Clamp(B.k + (B.on and 1 or -1) * FrameTime() * 5, 0, 1)
 end)
 hook.Add('CalcView', 'HLABinocularsFOV', function(p, origin, angles, fov)

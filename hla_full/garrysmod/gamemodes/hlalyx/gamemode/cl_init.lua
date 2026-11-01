@@ -14,6 +14,7 @@ include('cl_editor.lua')
 include('cl_voice.lua')
 include('cl_thirdperson.lua')
 include('cl_effects.lua')
+include('cl_pause.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
@@ -144,6 +145,7 @@ function GM:HUDPaint()
 	end
 	if CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0 then return end
 	if HLA.Tab and HLA.Tab.fade > 0 then return end
+	if HLA.Binoculars and HLA.Binoculars.k > 0.2 then return end -- the binoculars have their own overlay
 	-- no HUD while the main menu is up
 	if p:GetNWBool('hla_in_menu') or (HLA.Menu.State and HLA.Menu.State.fade > 0) then return end
 	fonts()

@@ -420,11 +420,14 @@ hook.Add('PlayerDeath', 'HLADispatchDeath', function(p)
 	p.HLADeathCallAt = CurTime() + 5
 	local name = p:GetNWString('hla_name', '')
 	local num = string.match(name, '(%d+)%s*$') or ''
-	local seq = {'npc/overwatch/radiovoice/on3.wav', 'npc/overwatch/radiovoice/lostbiosignalforunit.wav'}
-	for d in string.gmatch(num, '%d') do seq[#seq + 1] = 'npc/overwatch/radiovoice/' .. DIGITS[d] .. '.wav' end
-	seq[#seq + 1] = 'npc/overwatch/radiovoice/off2.wav'
+	local rv = HLA.RadioVoicePath
+	local seq = {rv('on3'), rv('lostbiosignalforunit')}
+	for d in string.gmatch(num, '%d') do seq[#seq + 1] = rv(DIGITS[d]) end
+	seq[#seq + 1] = rv('off2')
+	-- the death of the unit itself, heard near the body
+	p:EmitSound('hla/death/die_' .. math.random(1, 2) .. '.wav', 80, math.random(96, 104), 1, CHAN_VOICE)
 	local text = 'Потерян биосигнал юнита' .. (num ~= '' and (' ' .. num) or '') .. '.'
-	timer.Simple(1.2, function() CH.Dispatch(text, table.concat(seq, ';')) end)
+	timer.Simple(1.2, function() CH.Dispatch(text, table.concat(seq, ';'), 'ДИСПЕТЧЕР') end)
 end)
 
 ---------------------------------------------------------------------------------------------------
@@ -460,6 +463,11 @@ function S.Apply()
 	SetGlobal2String('hla_team2', S.Config.pvp.team2)
 	SetGlobal2Int('hla_min_players', math.max(1, S.Config.settings.minPlayers or 2))
 	SetGlobal2Int('hla_vote_time', math.max(5, S.Config.settings.voteTime or 20))
+	local zones = {}
+	for _, z in ipairs(S.Config.zones or {}) do
+		if z.a and z.b and isstring(z.name) then zones[#zones + 1] = {name = z.name, a = z.a, b = z.b} end
+	end
+	SetGlobal2String('hla_zones', util.TableToJSON(zones))
 	S.SpawnNPCs()
 end
 
@@ -487,7 +495,7 @@ function S.PlaceNPC(p, tr, label)
 	local pos = tr.HitPos
 	local yaw = math.Round((p:GetPos() - pos):Angle().y, 1)
 	local n = {pos = {math.Round(pos.x, 1), math.Round(pos.y, 1), math.Round(pos.z, 1)}, yaw = yaw,
-		name = label .. ' ' .. math.random(100, 999), model = pick.model, weapon = pick.weapon,
+		name = 'ЭХО-' .. math.random(100, 999), model = pick.model, weapon = pick.weapon,
 		lines = {'', '', ''}, chatter = true, idles = ''}
 	table.insert(S.Config.npcs, n)
 	S.Save()
@@ -539,6 +547,9 @@ net.Receive('hla_story_do', function(_, p)
 		S.StartChapter(tonumber(arg) or 1)
 	elseif what == 'dispatch' then dispatchID(arg)
 	elseif what == 'dispatch_text' then CH.Dispatch(arg, '')
+	elseif what == 'dispatch_chain' then
+		local t = util.JSONToTable(arg)
+		if istable(t) and isstring(t.text) and isstring(t.snd) then CH.Dispatch(t.text, t.snd) end
 	end
 end)
 

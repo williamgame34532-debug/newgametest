@@ -8,10 +8,31 @@ hook.Add('HUDShouldDraw', 'HLANoHints', function(name)
 end)
 
 ---------------------------------------------------------------------------------------------------
--- unit name over the player you look at
-surface.CreateFont('hla_name3d', {font = 'Roboto Condensed', size = 46, weight = 700, extended = true, antialias = true})
+-- unit name over the player you look at: well above the helmet, Exo 2 (hla_chat_content, OFL), the Combine
+-- symbol on its left in the same colour (hla/ui/combine_logo, from HL:A — shown once it is installed)
+surface.CreateFont('hla_name3d', {font = 'Exo 2', size = 52, weight = 700, extended = true, antialias = true})
 local AMBER = HLA.Hud.AMBER_C -- blue HUD colour
 local lookAt, lookAlpha = nil, 0
+local logo = Material('hla/ui/combine_logo', 'smooth')
+
+-- a name tag in the world: pos is the point over the head, col its colour, a 0..1
+function HLA.NameTag(pos, text, col, a, scale)
+	local hasLogo = not logo:IsError()
+	cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), scale or 0.055)
+		surface.SetFont('hla_name3d')
+		local tw, th = surface.GetTextSize(text)
+		local icon = hasLogo and th * 0.95 or 0
+		local gap = hasLogo and 12 or 0
+		local x0 = -(tw + icon + gap) / 2
+		if hasLogo then
+			surface.SetMaterial(logo)
+			surface.SetDrawColor(col.r, col.g, col.b, 255 * a)
+			surface.DrawTexturedRect(x0, -icon / 2, icon, icon)
+		end
+		draw.SimpleTextOutlined(text, 'hla_name3d', x0 + icon + gap, 0, Color(col.r, col.g, col.b, 255 * a),
+			TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER, 2, Color(0, 6, 12, 170 * a))
+	cam.End3D2D()
+end
 
 hook.Add('Think', 'HLANameTarget', function()
 	local p = LocalPlayer()
@@ -27,13 +48,18 @@ hook.Add('Think', 'HLANameTarget', function()
 	end
 end)
 
+-- the point for name tags: over the helmet (the eyes + a head and a little more)
+function HLA.TagPos(e)
+	local base = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(e) or e:EyePos() + Vector(0, 0, 11)
+	return base + Vector(0, 0, 12)
+end
+
 hook.Add('PostDrawTranslucentRenderables', 'HLANames', function(depth, sky)
 	if sky or not IsValid(lookAt) or lookAlpha <= 0 then return end
-	local pos = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(lookAt) + Vector(0, 0, 3) or lookAt:EyePos() + Vector(0, 0, 14)
-	cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), 0.06)
-		draw.SimpleTextOutlined(string.upper(lookAt:GetNWString('hla_name')), 'hla_name3d', 0, 0,
-			Color(AMBER.r, AMBER.g, AMBER.b, 255 * lookAlpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 160 * lookAlpha))
-	cam.End3D2D()
+	-- squad mates have their own tag (cl_squads.lua)
+	local SQ = HLA.Squads
+	if SQ and SQ.Of(LocalPlayer()) and SQ.Of(LocalPlayer()) == SQ.Of(lookAt) then return end
+	HLA.NameTag(HLA.TagPos(lookAt), string.upper(lookAt:GetNWString('hla_name')), AMBER, lookAlpha)
 end)
 
 ---------------------------------------------------------------------------------------------------

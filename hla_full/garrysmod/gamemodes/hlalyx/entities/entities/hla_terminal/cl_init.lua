@@ -18,11 +18,11 @@ local bg, bar = Material('hla/terminal/bg'), Material('hla/terminal/bar')
 local ring = Material('hla/ui_blue/crosshair')
 local glyphs = Material('hla/hud/glyphs')
 
-surface.CreateFont('hlaterm_xs', {font = 'Roboto Condensed', size = 17, weight = 500, extended = true})
-surface.CreateFont('hlaterm_s', {font = 'Roboto Condensed', size = 20, weight = 700, extended = true})
-surface.CreateFont('hlaterm_tab', {font = 'Roboto Condensed', size = 21, weight = 700, extended = true})
-surface.CreateFont('hlaterm_m', {font = 'Roboto Condensed', size = 24, weight = 700, extended = true})
-surface.CreateFont('hlaterm_t', {font = 'Roboto Condensed', size = 32, weight = 700, extended = true})
+surface.CreateFont('hlaterm_xs', {font = 'Exo 2', size = 17, weight = 600, extended = true})
+surface.CreateFont('hlaterm_s', {font = 'Exo 2', size = 20, weight = 700, extended = true})
+surface.CreateFont('hlaterm_tab', {font = 'Exo 2', size = 21, weight = 700, extended = true})
+surface.CreateFont('hlaterm_m', {font = 'Exo 2', size = 25, weight = 700, extended = true})
+surface.CreateFont('hlaterm_t', {font = 'Exo 2', size = 32, weight = 700, extended = true})
 surface.CreateFont('hlaterm_num', {font = 'Russo One', size = 54, weight = 400, extended = true})
 surface.CreateFont('hlaterm_big', {font = 'Russo One', size = 52, weight = 400, extended = true})
 surface.CreateFont('hlaterm_warn', {font = 'Russo One', size = 38, weight = 400, extended = true})
@@ -55,8 +55,9 @@ local GREEN = Color(72, 214, 156)
 local NAVY = Color(8, 26, 40)
 local PANEL_BG = Color(10, 34, 48)
 surface.CreateFont('hlaterm_cmb', {font = 'Combine_alphabet', size = 17, weight = 400, extended = true, antialias = true})
-surface.CreateFont('hlaterm_id', {font = 'Roboto Condensed', size = 36, weight = 700, extended = true})
-surface.CreateFont('hlaterm_bar', {font = 'Roboto Condensed', size = 25, weight = 700, extended = true})
+surface.CreateFont('hlaterm_num2', {font = 'Exo 2', size = 18, weight = 700, extended = true})
+surface.CreateFont('hlaterm_id', {font = 'Exo 2', size = 40, weight = 700, extended = true})
+surface.CreateFont('hlaterm_bar', {font = 'Exo 2', size = 24, weight = 700, extended = true})
 
 local function L()
 	local cw = F.cw
@@ -65,6 +66,14 @@ local function L()
 	local mx = 40 + lw + 24
 	return {cw = cw, lx = 40, lw = lw, mx = mx, mw = cw - 40 - rw - 24 - mx, rx = cw - 40 - rw, rw = rw, top = 74}
 end
+
+-- the terminal being drawn (the camera terminal has its own pages)
+local DRAW_ENT
+local function camT()
+	local t = DRAW_ENT or F.ent
+	return IsValid(t) and t.IsCamTerminal and t or nil
+end
+local function camList(t) return (HLA.CamTerminals and HLA.CamTerminals.lists[t:EntIndex()]) or {} end
 
 -- the squad cards of the middle column
 local CARD_H, CARD_GAP = 64, 8
@@ -82,12 +91,29 @@ local function selected(r)
 end
 
 -- everything clickable on the screen
+local function camButtons(t)
+	local l = L()
+	local b = {}
+	b[#b + 1] = {id = 'nav', arg = 'cams', label = 'КАМЕРЫ', x = l.lx, y = 214, w = l.lw, h = 32, tab = true, n = 1}
+	for i, c in ipairs(camList(t)) do
+		if i > 5 then break end
+		local on = t:GetCamIndex() == c.idx
+		b[#b + 1] = {id = 'campick', arg = c.idx, label = on and 'НА ЭКРАНЕ' or 'СМОТРЕТЬ', x = l.mx + l.mw - 128, y = cardY(i) + 4, w = 120, h = 24, chip = true, dim = on}
+	end
+	b[#b + 1] = {id = 'campick', arg = 0, label = 'ОТКЛЮЧИТЬ ЭКРАН', x = l.rx, y = 440, w = l.rw, h = 30, big = true}
+	b[#b + 1] = {id = 'logout', label = 'ВЫХОД ИЗ СИСТЕМЫ', x = l.rx, y = 476, w = l.rw, h = 30, big = true}
+	b[#b + 1] = {id = 'exit', label = 'ЗАКРЫТЬ ТЕРМИНАЛ', x = l.rx, y = 512, w = l.rw, h = 30, big = true}
+	return b
+end
+
 local function buttons()
+	local t = camT()
+	if t then return camButtons(t) end
 	local l = L()
 	local b = {}
 	-- navigation (left column)
 	for i, t in ipairs({{'index', 'КОМАНДНЫЙ ИНДЕКС'}, {'squads', 'ОТРЯДЫ'}}) do
-		b[#b + 1] = {id = 'nav', arg = t[1], label = t[2], x = l.lx, y = 214 + (i - 1) * 34, w = l.lw, h = 30, tab = true}
+		b[#b + 1] = {id = 'nav', arg = t[1], label = t[2], x = l.lx, y = 214 + (i - 1) * 36, w = l.lw, h = 32, tab = true, n = i}
 	end
 	local mine = SQ.Of(LocalPlayer())
 	if F.page == 'squads' then
@@ -143,6 +169,9 @@ local function activate(b)
 	elseif b.id == 'join' then send('join', b.arg) log('ПРИКРЕПЛЕНИЕ К ОТРЯДУ')
 	elseif b.id == 'leave' then send('leave') log('ОТКРЕПЛЕНИЕ ОТ ОТРЯДА')
 	elseif b.id == 'disband' then send('disband') log('РАСФОРМИРОВАНИЕ')
+	elseif b.id == 'campick' then
+		net.Start('hla_cam_pick') net.WriteEntity(F.ent) net.WriteUInt(b.arg, 16) net.SendToServer()
+		log(b.arg == 0 and 'ЭКРАН ОТКЛЮЧЁН' or 'ТРАНСЛЯЦИЯ КАМЕРЫ')
 	elseif b.id == 'logout' then F.log = {} net.Start('hla_term') net.SendToServer()
 	elseif b.id == 'exit' then net.Start('hla_term') net.SendToServer()
 	end
@@ -177,12 +206,19 @@ end
 
 local function drawButton(b, hot)
 	if b.tab then
-		local on = F.page == b.arg
-		if on then fill(b.x, b.y, 3, b.h, CYAN) end
-		txt(b.label, 'hlaterm_s', b.x + 12, b.y + b.h / 2, (on or hot) and CYAN_HI or BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		local on = F.page == b.arg or (camT() and b.arg == 'cams')
+		if on then
+			fill(b.x, b.y, b.w, b.h, CYAN, 40)
+			fill(b.x, b.y, 3, b.h, CYAN)
+		elseif hot then
+			fill(b.x, b.y, b.w, b.h, CYAN, 18)
+		end
+		txt(string.format('%02d /', b.n or 1), 'hlaterm_num2', b.x + 12, b.y + b.h / 2, on and CYAN or BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		txt(b.label, 'hlaterm_s', b.x + 52, b.y + b.h / 2, (on or hot) and CYAN_HI or BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	elseif b.big then
 		brightBar(b.x, b.y, b.w, b.h, hot and CYAN_HI or CYAN, hot and 1 or 0.85)
-		txt(b.label, 'hlaterm_xs', b.x + b.w / 2, b.y + b.h / 2, NAVY, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		txt(b.label, 'hlaterm_xs', b.x + 12, b.y + b.h / 2, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		txt('›', 'hlaterm_s', b.x + b.w - 12, b.y + b.h / 2 - 1, NAVY, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	else -- chips on the cards, arrows
 		fill(b.x, b.y, b.w, b.h, hot and CYAN_HI or (b.dim and BLUE_DIM or CYAN), hot and 255 or 210)
 		txt(b.label, 'hlaterm_xs', b.x + b.w / 2, b.y + b.h / 2, NAVY, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
@@ -206,7 +242,53 @@ local function combineLines(seed, n)
 	return out
 end
 
+local function camMiddle(l, t)
+	local x, w = l.mx, l.mw
+	brightBar(x, l.top, w, 34, CYAN)
+	txt('КАМЕРЫ НАБЛЮДЕНИЯ', 'hlaterm_bar', x + 12, l.top + 17, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	txt('ВЫБЕРИТЕ КАМЕРУ — ТРАНСЛЯЦИЯ ИДЁТ НА МОНИТОР НАД ТЕРМИНАЛОМ', 'hlaterm_xs', x, l.top + 46, CYAN)
+	line(x, l.top + 66, w, BLUE_DIM, 120)
+	local list = camList(t)
+	for i, c in ipairs(list) do
+		if i > 5 then break end
+		local y = cardY(i)
+		local on = t:GetCamIndex() == c.idx
+		fill(x, y, w, CARD_H, PANEL_BG, 230)
+		frame(x, y, w, CARD_H, on and GREEN or BLUE_DIM, 150)
+		brightBar(x, y, w - 136, 32, on and GREEN or CYAN)
+		txt('КАМ-' .. string.format('%02d', c.n), 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		local d = math.floor(c.pos:Distance(t:GetPos()) / 52.5 + 0.5)
+		txt(fit((c.zone ~= '' and (string.upper(c.zone) .. '   ::   ') or '') .. d .. ' М ОТ ТЕРМИНАЛА', 'hlaterm_xs', w - 160), 'hlaterm_xs', x + 12, y + 48, on and GREEN or CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	end
+	if #list == 0 then
+		txt('КАМЕР НЕТ', 'hlaterm_m', x + w / 2, 260, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		txt('ПОСТАВЬТЕ НА КАРТУ npc_combine_camera', 'hlaterm_xs', x + w / 2, 290, BLUE_DIM, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	elseif #list > 5 then
+		txt('ПОКАЗАНЫ ПЕРВЫЕ 5 ИЗ ' .. #list, 'hlaterm_xs', x, cardY(6) + 4, BLUE_DIM)
+	end
+end
+
+-- the right column of the camera terminal: the live preview
+local function camPreview(l, t)
+	txt('ТРАНСЛЯЦИЯ', 'hlaterm_s', l.rx, l.top + 2, CYAN_HI)
+	local pw = l.rw
+	local ph = math.floor(pw * 9 / 16)
+	local y = l.top + 30
+	fill(l.rx, y, pw, ph, NAVY, 255)
+	if t:GetCamIndex() > 0 and HLA.CamTerminals then
+		local r = HLA.CamTerminals.Target(t)
+		surface.SetMaterial(r.mat)
+		surface.SetDrawColor(255, 255, 255, 255)
+		surface.DrawTexturedRect(l.rx, y, pw, ph)
+	else
+		txt('ЭКРАН ОТКЛЮЧЁН', 'hlaterm_s', l.rx + pw / 2, y + ph / 2, BLUE_DIM, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	end
+	frame(l.rx, y, pw, ph, CYAN, 160)
+end
+
 local function middle(l)
+	local ct = camT()
+	if ct then return camMiddle(l, ct) end
 	local mine = SQ.Of(LocalPlayer())
 	local x, w = l.mx, l.mw
 	if F.page == 'squads' then
@@ -220,16 +302,29 @@ local function middle(l)
 			if i > 5 then break end
 			local y = cardY(i)
 			local own = s == mine
+			local acc = own and GREEN or CYAN
 			fill(x, y, w, CARD_H, PANEL_BG, 230)
 			frame(x, y, w, CARD_H, own and GREEN or BLUE_DIM, 150)
-			brightBar(x, y, w - 136, 32, own and GREEN or CYAN)
-			txt(fit(s.name .. '   [' .. #s.members .. '/' .. SQ.MaxMembers .. ']', 'hlaterm_bar', w - 160), 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			local names = {}
+			brightBar(x, y, w - 136, 32, acc)
+			fill(x, y, 40, 32, NAVY, 200)
+			txt(string.format('%02d', i), 'hlaterm_num2', x + 20, y + 16, acc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			txt(fit(s.name .. '   [' .. #s.members .. '/' .. SQ.MaxMembers .. ']', 'hlaterm_bar', w - 200), 'hlaterm_bar', x + 52, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			-- the units as chips
+			local cx = x + 12
+			local any = false
 			for _, m in ipairs(s.members) do
-				if IsValid(m) then names[#names + 1] = string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == s.leader and ' (К)' or '') end
+				if IsValid(m) then
+					any = true
+					local label = string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == s.leader and ' (К)' or '')
+					surface.SetFont('hlaterm_xs')
+					local tw = surface.GetTextSize(label) + 16
+					if cx + tw > x + w - 140 then txt('…', 'hlaterm_xs', cx, y + 48, acc, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER) break end
+					fill(cx, y + 38, tw, 20, acc, m == s.leader and 70 or 36)
+					txt(label, 'hlaterm_xs', cx + 8, y + 48, own and Color(200, 255, 225) or CYAN_HI, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+					cx = cx + tw + 6
+				end
 			end
-			local body = #names > 0 and table.concat(names, '   ') or 'НЕТ ПРИКРЕПЛЁННЫХ ЮНИТОВ'
-			txt(fit(body, 'hlaterm_xs', w - 160), 'hlaterm_xs', x + 12, y + 48, own and GREEN or CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			if not any then txt('НЕТ ПРИКРЕПЛЁННЫХ ЮНИТОВ', 'hlaterm_xs', x + 12, y + 48, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER) end
 			fill(x, y + CARD_H - 2, math.floor(w * 0.18), 2, own and GREEN or CYAN, 160)
 		end
 		if i == 0 then
@@ -258,16 +353,45 @@ local function middle(l)
 	end
 end
 
-local function drawScreen(cur, live, seed)
+-- corner brackets
+local function corners(x, y, w, h, c, len)
+	surface.SetDrawColor(c.r, c.g, c.b, 255)
+	for _, p in ipairs({{x, y, 1, 1}, {x + w, y, -1, 1}, {x, y + h, 1, -1}, {x + w, y + h, -1, -1}}) do
+		surface.DrawRect(p[3] > 0 and p[1] or p[1] - len, p[4] > 0 and p[2] or p[2] - 2, len, 2)
+		surface.DrawRect(p[3] > 0 and p[1] or p[1] - 2, p[4] > 0 and p[2] or p[2] - len, 2, len)
+	end
+end
+
+local logoMat = Material('hla/ui/combine_logo', 'smooth')
+local function drawScreen(cur, live, seed, ent)
+	DRAW_ENT = ent
 	local l = L()
 	local cw = l.cw
 	surface.SetMaterial(bg)
 	surface.SetDrawColor(110, 170, 190, 255)
 	surface.DrawTexturedRect(0, 0, cw, H)
 	fill(0, 0, cw, H, NAVY, 205) -- dark teal glass, like the Civil Authority screens
+	-- a faint grid and scanlines of the glass, brackets in the corners
+	surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 9)
+	for gx = 0, cw, 32 do surface.DrawRect(gx, 0, 1, H) end
+	for gy = 0, H, 32 do surface.DrawRect(0, gy, cw, 1) end
+	surface.SetDrawColor(0, 0, 0, 40)
+	for gy = 0, H, 3 do surface.DrawRect(0, gy, cw, 1) end
+	corners(5, 5, cw - 10, H - 10, CYAN, 22)
 	local me = LocalPlayer()
-	-- header
-	txt('ГРАЖДАНСКАЯ ВЛАСТЬ АЛЬЯНСА / КОМАНДНЫЙ ДОСТУП', 'hlaterm_m', 40, 34, CYAN_HI, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	-- header: the Combine symbol (when installed), the title, the node with a live signal
+	local tx = 40
+	if not logoMat:IsError() then
+		surface.SetMaterial(logoMat)
+		surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 230)
+		surface.DrawTexturedRect(40, 18, 32, 32)
+		tx = 82
+	end
+	txt('ГРАЖДАНСКАЯ ВЛАСТЬ АЛЬЯНСА / КОМАНДНЫЙ ДОСТУП', 'hlaterm_m', tx, 34, CYAN_HI, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	for k = 0, 4 do
+		local v = 0.35 + 0.65 * math.abs(math.sin(CurTime() * 2.3 + k * 0.9))
+		fill(cw - 300 + k * 7, 42 - 16 * v, 4, 16 * v, CYAN, 200)
+	end
 	txt('ЛОКАЛЬНЫЙ УЗЕЛ :: 08', 'hlaterm_xs', cw - 92, 34, CYAN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	-- the Combine mark: a ring cut by a wedge
 	draw.NoTexture()
@@ -292,6 +416,8 @@ local function drawScreen(cur, live, seed)
 	-- middle
 	middle(l)
 	-- right: session activity, forming a squad
+	local ct = camT()
+	if ct then camPreview(l, ct) else
 	txt('АКТИВНОСТЬ СЕАНСА', 'hlaterm_s', l.rx, l.top + 2, CYAN_HI)
 	for i, e in ipairs(F.log) do
 		if i > 5 then break end
@@ -301,10 +427,11 @@ local function drawScreen(cur, live, seed)
 	end
 	txt('ТИП НОВОГО ОТРЯДА', 'hlaterm_xs', l.rx, 340, BLUE_DIM)
 	txt(fit(SQ.Kinds[F.kind] or '', 'hlaterm_xs', l.rw - 70), 'hlaterm_xs', l.rx + l.rw / 2, 375, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	end
 	-- footer
 	line(40, H - 22, cw - 80, BLUE_DIM, 90)
 	txt('ВЛАСТЬ АЛЬЯНСА / ЗАЩИЩЁННЫЙ ДОСТУП', 'hlaterm_xs', 40, H - 12, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-	txt(os.date('%H:%M:%S') .. '  /  ЮНИТ ' .. unitNumber(me), 'hlaterm_xs', cw - 40, H - 12, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	txt(os.date('%H:%M:%S') .. '  /  ЭХО-' .. unitNumber(me), 'hlaterm_xs', cw - 40, H - 12, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	-- buttons
 	local hot = live and hovered(cur) or nil
 	local hk = bkey(hot)
@@ -328,16 +455,9 @@ local function drawScreen(cur, live, seed)
 		surface.SetDrawColor(CYAN_HI.r, CYAN_HI.g, CYAN_HI.b, 255)
 		surface.DrawTexturedRect(cur[1] - 10, cur[2] - 10, 20, 20)
 	end
+	DRAW_ENT = nil -- clicks work with the focused terminal again
 end
 
--- corner brackets
-local function corners(x, y, w, h, c, len)
-	surface.SetDrawColor(c.r, c.g, c.b, 255)
-	for _, p in ipairs({{x, y, 1, 1}, {x + w, y, -1, 1}, {x, y + h, 1, -1}, {x + w, y + h, -1, -1}}) do
-		surface.DrawRect(p[3] > 0 and p[1] or p[1] - len, p[4] > 0 and p[2] or p[2] - 2, len, 2)
-		surface.DrawRect(p[3] > 0 and p[1] or p[1] - 2, p[4] > 0 and p[2] or p[2] - len, 2, len)
-	end
-end
 
 -- a monitor without power: red, «:: ВНИМАНИЕ, ВНИМАНИЕ - ТЕРМИНАЛ ОБЕСТОЧЕН ::» blinking
 local function drawDead(cw, seed)
@@ -393,7 +513,7 @@ function ENT:DrawTranslucent()
 	local prev = F.cw
 	F.cw = cw
 	cam.Start3D2D(origin, right:AngleEx(normal), scale)
-		drawScreen(live and F.cursor or nil, live, self:EntIndex())
+		drawScreen(live and F.cursor or nil, live, self:EntIndex(), self)
 	cam.End3D2D()
 	if not live then F.cw = prev end
 	surface.SetAlphaMultiplier(1)
