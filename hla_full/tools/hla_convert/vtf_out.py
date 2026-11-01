@@ -97,3 +97,40 @@ def write(path, img, alpha=None, normal=False, max_size=2048):
         data += _fix_dxt1(blk[:need]) if fmt == 'DXT1' else blk[:need]
     open(path, 'wb').write(hdr + data)
     return fmt, (w, h)
+
+
+def write_frames(path, frames, max_size=1024):
+    """An animated VTF (DXT1, full mip chain): the frames play with the AnimatedTexture proxy."""
+    imgs = []
+    for im in frames:
+        im = im.convert('RGB')
+        w, h = im.size
+        while max(w, h) > max_size:
+            w, h = max(1, w // 2), max(1, h // 2)
+        if (w, h) != im.size:
+            im = im.resize((w, h), Image.LANCZOS)
+        imgs.append(im)
+    w, h = imgs[0].size
+    chains = []
+    for im in imgs:
+        mips, m = [], im
+        while True:
+            mips.append(m)
+            if m.size == (1, 1):
+                break
+            m = m.resize((max(1, m.size[0] // 2), max(1, m.size[1] // 2)), Image.LANCZOS)
+        chains.append(mips)
+    n = len(chains[0])
+    flags = FLAG_TRILINEAR
+    hdr = struct.pack('<4sII I HH I HH 4x 3f 4x f I B i BB H', b'VTF\0', 7, 2, 80, w, h, flags, len(imgs), 0,
+                      0.5, 0.5, 0.5, 1.0, FMT['DXT1'], n, -1, 0, 0, 1)
+    hdr = hdr.ljust(80, b'\0')
+    data = b''
+    for level in reversed(range(n)):          # smallest mip first
+        for chain in chains:                  # then every frame of that size
+            m = chain[level]
+            blk = _dxt(_pad4(m).convert('RGB'), 'DXT1')
+            bw, bh = max(1, (m.size[0] + 3) // 4), max(1, (m.size[1] + 3) // 4)
+            data += _fix_dxt1(blk[:bw * bh * 8])
+    open(path, 'wb').write(hdr + data)
+    return len(imgs), (w, h)

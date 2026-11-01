@@ -644,7 +644,10 @@ net.Receive('hla_menu_error', function()
 end)
 
 hook.Add('InitPostEntity', 'HLAMenuReady', function()
-	net.Start('hla_menu_do') net.WriteString('ready') net.SendToServer()
+	local function ready() net.Start('hla_menu_do') net.WriteString('ready') net.SendToServer() end
+	-- the train intro first (hla_intro 0 — straight to the menu)
+	if HLA.Intro and HLA.Intro.Start(ready) then return end
+	ready()
 end)
 concommand.Add('hla_menu', function()
 	net.Start('hla_menu_do') net.WriteString('reopen') net.SendToServer()

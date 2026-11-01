@@ -37,8 +37,7 @@ hook.Add('RenderScreenspaceEffects', 'HLAPicture', function()
 	-- at a screen (terminal, fabricator) no glow: it would wash out the text of the screen
 	local atScreen = (HLA.TerminalFocus and HLA.TerminalFocus.blend > 0) or (CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0)
 	if cvHDR:GetBool() and not atScreen then
-		probe()
-		-- the glow only over the brightest parts
+		-- the glow only over the brightest parts (no eye adaptation: it made the picture pulse)
 		DrawBloom(0.74, 0.45, 7, 7, 2, 0.8, 1, 1, 1)
 	else
 		adapt = 1
@@ -48,7 +47,7 @@ hook.Add('RenderScreenspaceEffects', 'HLAPicture', function()
 		DrawColorModify({
 			['$pp_colour_addr'] = 0, ['$pp_colour_addg'] = 0, ['$pp_colour_addb'] = grade and 0.004 or 0,
 			['$pp_colour_brightness'] = grade and -0.035 or 0,
-			['$pp_colour_contrast'] = (grade and 1.07 or 1) * adapt,
+			['$pp_colour_contrast'] = grade and 1.07 or 1,
 			['$pp_colour_colour'] = grade and 0.86 or 1,
 			['$pp_colour_mulr'] = 0, ['$pp_colour_mulg'] = 0, ['$pp_colour_mulb'] = 0,
 		})

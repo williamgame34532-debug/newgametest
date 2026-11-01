@@ -5,6 +5,7 @@
 --   NPC        story NPCs: place where you look, name, model, weapon, idle animations, lines for E
 --   ДИСПЕТЧЕР  the HL2 dispatcher lines (listen, correct the text, on the air now, random air every N min),
 --              own lines
+--   ДЕСАНТНИК  the dropship's path (points where you stand), how often, with the container
 --   ОБЩЕЕ      players to start, vote time, card time, kill callouts, friendly fire in the story; round control
 -- «СОХРАНИТЬ» sends everything to the server (data/hla/story/<map>.json). While the editor is open the spawn
 -- points, triggers and NPC places are drawn in the world. NPCs can also be edited with C held: click the NPC
@@ -606,6 +607,38 @@ local function zonesTab(sheet)
 	return root
 end
 
+-- the dropship: points where the admin stands (also in the air, noclip), how often it flies, the container
+local function dropshipTab(sheet)
+	local root = vgui.Create('DPanel', sheet)
+	root:SetPaintBackground(false)
+	local function build()
+		root:Clear()
+		E.cfg.dropship = E.cfg.dropship or {points = {}, every = 5, container = true, speed = 700}
+		local v = E.cfg.dropship
+		local col = column(root)
+		col.add(label(nil, 'ДЕСАНТНИК', 'hla_ed_big'))
+		col.add(label(nil, 'Встаньте (или зависните в noclip) там, где он должен пролететь, и нажмите «+ ТОЧКА ЗДЕСЬ».'))
+		col.add(label(nil, 'Первую и последнюю точку ставьте за краем карты / за зданиями: там он появляется и исчезает.'))
+		col.add(label(nil, 'ТОЧЕК: ' .. #v.points))
+		col.row(
+			button(nil, '+ ТОЧКА ЗДЕСЬ', function()
+				local pos = LocalPlayer():GetPos()
+				v.points[#v.points + 1] = {math.Round(pos.x, 1), math.Round(pos.y, 1), math.Round(pos.z, 1)}
+				E.dirty = true build()
+			end),
+			button(nil, 'УБРАТЬ ПОСЛЕДНЮЮ', function() table.remove(v.points) E.dirty = true build() end),
+			button(nil, 'ОЧИСТИТЬ', function() v.points = {} E.dirty = true build() end))
+		col.add(label(nil, 'КАК ЧАСТО, МИНУТ (0 — только вручную)'))
+		col.add(number(nil, v.every, 0, 120, function(x) v.every = x end))
+		col.add(label(nil, 'СКОРОСТЬ, ЮНИТОВ В СЕКУНДУ'))
+		col.add(number(nil, v.speed, 100, 3000, function(x) v.speed = x end))
+		col.add(check(nil, 'С контейнером', v.container, function(x) v.container = x end))
+		col.row(button(nil, 'ЗАПУСТИТЬ СЕЙЧАС (сначала сохраните)', function() act('dropship') end))
+	end
+	build()
+	return root
+end
+
 -- the dispatcher's radio voice: words and phrases (sound/hla/radiovoice) chained into an announcement
 local function radioTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
@@ -750,6 +783,7 @@ function E.Open()
 	sheet:AddSheet('ПВП', pvpTab(sheet))
 	sheet:AddSheet('NPC', npcTab(sheet))
 	sheet:AddSheet('ЗОНЫ', zonesTab(sheet))
+	sheet:AddSheet('ДЕСАНТНИК', dropshipTab(sheet))
 	sheet:AddSheet('ДИСПЕТЧЕР', dispatchTab(sheet))
 	sheet:AddSheet('РАЦИЯ', radioTab(sheet))
 	sheet:AddSheet('ОБЩЕЕ', generalTab(sheet))
@@ -819,6 +853,15 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 				draw.SimpleTextOutlined('ЗОНА: ' .. (z.name or ''), 'hla_ed3d', 0, 0, zc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
 			cam.End3D2D()
 		end
+	end
+	local ds = E.cfg.dropship and E.cfg.dropship.points or {}
+	for k, pt in ipairs(ds) do
+		local pos = v3(pt)
+		render.DrawWireframeSphere(pos, 24, 8, 8, Color(255, 170, 60), true)
+		if ds[k + 1] then render.DrawLine(pos, v3(ds[k + 1]), Color(255, 170, 60), true) end
+		cam.Start3D2D(pos + Vector(0, 0, 40), Angle(0, EyeAngles().y - 90, 90), 0.2)
+			draw.SimpleTextOutlined('ДЕСАНТНИК #' .. k, 'hla_ed3d', 0, 0, Color(255, 170, 60), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
+		cam.End3D2D()
 	end
 	local pv = E.cfg.pvp.spawns
 	for k, sp in ipairs(pv.t1) do mark(v3(sp.p), sp.y, Color(110, 200, 255), 'К1 #' .. k) end

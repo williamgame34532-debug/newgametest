@@ -32,6 +32,7 @@ function S.Default()
 		pvp = {team1 = 'ОТРЯД АЛЬФА', team2 = 'ОТРЯД ОМЕГА', time = 10, friendly = false,
 			spawns = {ffa = {}, t1 = {}, t2 = {}}},
 		npcs = {},
+		dropship = {points = {}, every = 5, container = true, speed = 700}, -- the flight path of the dropship
 		zones = {}, -- {name, a = {x,y,z}, b = {x,y,z}}: named places shown on the visor and under marks
 		dispatch = {every = 0, pool = {}, custom = {}, edits = {}},
 		settings = {minPlayers = 2, voteTime = 20, cardTime = 7, killCallout = true, storyFriendlyFire = false,

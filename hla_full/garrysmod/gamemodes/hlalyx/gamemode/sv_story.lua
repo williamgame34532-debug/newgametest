@@ -471,6 +471,16 @@ function S.Apply()
 	S.SpawnNPCs()
 end
 
+-- the flickering lights of the maps (light styles 1..12: flicker, strobe, candle, fluorescent …) burn steady;
+-- hla_steady_lights 0 keeps them as the map has them. (Styles 32+ are the switchable lights: not touched.)
+CreateConVar('hla_steady_lights', '1', {FCVAR_ARCHIVE}, 'Flickering map lights burn steady (0/1)')
+local function steadyLights()
+	if not GetConVar('hla_steady_lights'):GetBool() then return end
+	for i = 1, 12 do engine.LightStyle(i, 'm') end
+end
+hook.Add('InitPostEntity', 'HLASteadyLights', steadyLights)
+hook.Add('PostCleanupMap', 'HLASteadyLights', steadyLights)
+
 hook.Add('InitPostEntity', 'HLAStory', function()
 	S.Load()
 	setState(S.WAIT, '')
@@ -545,6 +555,7 @@ net.Receive('hla_story_do', function(_, p)
 	elseif what == 'chapter' then
 		if S.State() ~= S.STORY then setState(S.STORY, 'story') resetPlayers() end
 		S.StartChapter(tonumber(arg) or 1)
+	elseif what == 'dropship' then if HLA.Dropship then HLA.Dropship.Fly() end
 	elseif what == 'dispatch' then dispatchID(arg)
 	elseif what == 'dispatch_text' then CH.Dispatch(arg, '')
 	elseif what == 'dispatch_chain' then

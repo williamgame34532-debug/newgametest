@@ -89,7 +89,8 @@ hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	if p:WaterLevel() >= 2 then kind = 'swim'
 	elseif not p:IsOnGround() and p:GetMoveType() ~= MOVETYPE_NOCLIP then kind = 'air'
 	elseif p:Crouching() then kind = speed > 4 and 'cwalk' or 'cidle'
-	elseif speed > (p:GetWalkSpeed() + p:GetRunSpeed()) * 0.5 then kind = 'run'
+	-- running: Shift held and really faster than a walk (the speed alone sat on the line between them)
+	elseif (p:KeyDown(IN_SPEED) and speed > p:GetWalkSpeed() * 1.1) or speed > (p:GetWalkSpeed() + p:GetRunSpeed()) * 0.5 then kind = 'run'
 	elseif speed > 4 then kind = 'walk'
 	else kind = 'idle' end
 	-- sequences by name first (the HL:A Combine models: safety — idle1 / walkeasy_all / runall,
@@ -109,15 +110,51 @@ hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	return act, seq
 end)
 
+-- turning on the spot (as Barney and the HL2 humans do it, male_shared.mdl): standing, the body keeps its
+-- direction while the head and the weapon follow the view; past 50° it turns with a turn gesture
+-- (ACT_GESTURE_TURN_LEFT45 / 90, RIGHT45 / 90 — when the model has them), moving it simply faces the view
+local TURN = {left45 = ACT_GESTURE_TURN_LEFT45, left90 = ACT_GESTURE_TURN_LEFT90, right45 = ACT_GESTURE_TURN_RIGHT45, right90 = ACT_GESTURE_TURN_RIGHT90}
+local function bodyYaw(p, vel)
+	local eye = p:EyeAngles().y
+	local now = CurTime()
+	local dt = FrameTime()
+	p.HLABody = p.HLABody or eye
+	local moving = vel:Length2D() > 10 or not p:IsOnGround()
+	if moving then
+		p.HLATurnTo = nil
+		p.HLABody = math.ApproachAngle(p.HLABody, eye, math.max(360, math.abs(math.AngleDifference(eye, p.HLABody)) * 10) * dt)
+		return p.HLABody
+	end
+	if p.HLATurnTo then
+		p.HLABody = math.ApproachAngle(p.HLABody, p.HLATurnTo, p.HLATurnSpeed * dt)
+		if math.abs(math.AngleDifference(p.HLATurnTo, p.HLABody)) < 1 or now > (p.HLATurnUntil or 0) then p.HLATurnTo = nil end
+		return p.HLABody
+	end
+	local diff = math.AngleDifference(eye, p.HLABody)
+	if math.abs(diff) > 50 then
+		local big = math.abs(diff) > 75
+		local act = diff > 0 and (big and TURN.left90 or TURN.left45) or (big and TURN.right90 or TURN.right45)
+		local seq = act and p:SelectWeightedSequence(act)
+		if seq and seq > 0 then p:AnimRestartGesture(GESTURE_SLOT_CUSTOM, act, true) end
+		p.HLATurnTo = eye
+		p.HLATurnSpeed = math.abs(diff) / 0.45
+		p.HLATurnUntil = now + 0.6
+	end
+	return p.HLABody
+end
+
 hook.Add('UpdateAnimation', 'HLAUnitAnims', function(p, vel, maxSeqSpeed)
 	if not isUnit(p) then return end
-	local body = CLIENT and p:GetRenderAngles().y or p:GetAngles().y
+	local body = bodyYaw(p, vel)
+	if CLIENT then p:SetRenderAngles(Angle(0, body, 0)) end
 	local speed = vel:Length2D()
 	local rate = 1
 	if speed > 4 then
 		p:SetPoseParameter('move_yaw', math.NormalizeAngle(vel:Angle().y - body))
 		local gs = p:GetSequenceGroundSpeed(p:GetSequence())
-		if gs and gs > 1 then rate = math.Clamp(speed / gs, 0.5, 2) end
+		-- the run is never slowed down into a walk, the walk never sped up into a run
+		local running = p.CalcIdeal == ACT_RUN or (p.CalcIdeal and string.find(tostring(p:GetSequenceActivityName(p:GetSequence()) or ''), 'RUN', 1, true))
+		if gs and gs > 1 then rate = math.Clamp(speed / gs, running and 0.85 or 0.6, running and 1.6 or 1.3) end
 	end
 	if not p:IsOnGround() then rate = 1 end
 	p:SetPlaybackRate(rate)
@@ -125,8 +162,8 @@ hook.Add('UpdateAnimation', 'HLAUnitAnims', function(p, vel, maxSeqSpeed)
 	local safe = p:GetNW2Bool('hla_safe') and armed(p)
 	p:SetPoseParameter('aim_pitch', safe and 0 or math.Clamp(eye.p, -60, 60))
 	p:SetPoseParameter('aim_yaw', safe and 0 or math.Clamp(math.NormalizeAngle(eye.y - body), -60, 60))
+	p:SetPoseParameter('head_yaw', math.Clamp(math.NormalizeAngle(eye.y - body), -50, 50) * 0.5)
 	p:SetPoseParameter('head_pitch', 0)
-	p:SetPoseParameter('head_yaw', 0)
 	if CLIENT then
 		GAMEMODE:MouthMoveAnimation(p)
 	end
@@ -171,3 +208,10 @@ hook.Add('StartCommand', 'HLASafety', function(p, cmd)
 	end
 end)
 HLA.IsSafe = function(p) return IsValid(p) and p:GetNW2Bool('hla_safe') and armed(p) end
+
+-- the body direction also when the model is drawn (other code may set the render angles back)
+if CLIENT then
+	hook.Add('PrePlayerDraw', 'HLAUnitBodyYaw', function(p)
+		if p.HLABody and isUnit(p) then p:SetRenderAngles(Angle(0, p.HLABody, 0)) end
+	end)
+end

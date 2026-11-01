@@ -17,8 +17,11 @@ function TP.Active(p)
 end
 
 function TP.Toggle()
-	RunConsoleCommand('hla_thirdperson', cvOn:GetBool() and '0' or '1')
 	surface.PlaySound('hla/ui/textline_end.wav')
+	local v = cvOn:GetBool() and '0' or '1'
+	-- a short black blink around the camera change
+	if HLA.FadeSwap then HLA.FadeSwap(function() RunConsoleCommand('hla_thirdperson', v) end)
+	else RunConsoleCommand('hla_thirdperson', v) end
 end
 function TP.Swap()
 	RunConsoleCommand('hla_tp_side', cvSide:GetInt() < 0 and '1' or '-1')

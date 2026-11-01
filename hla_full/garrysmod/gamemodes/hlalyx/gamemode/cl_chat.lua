@@ -105,7 +105,7 @@ net.Receive('hla_chat', function()
 			dur = tonumber(dur) or 0
 			if dur <= 0 then dur = SoundDuration(path) end
 			if not dur or dur <= 0 then dur = 1.2 end
-			timer.Simple(at, function() if IsValid(me) then me:EmitSound(path, 0, 100, 1, CHAN_STATIC) end end)
+			timer.Simple(at, function() surface.PlaySound(path) end) -- 2D: heard the same everywhere
 			at = at + math.max(0.06, dur - 0.03)
 		end
 		return
@@ -530,4 +530,16 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 			end
 		end
 	end
+end)
+
+-- hla_dispatch_test — the sound of an Overwatch line and of a dispatcher line, to check they are heard
+concommand.Add('hla_dispatch_test', function()
+	local city = 'npc/overwatch/cityvoice/f_innactionisconspiracy_spkr.wav'
+	local radio = 'hla/radiovoice/attention.wav'
+	chat.AddText(Color(236, 64, 52), '// ТЕСТ — ', color_white, city .. (file.Exists('sound/' .. city, 'GAME') and ' (найден)' or ' (НЕ НАЙДЕН)'))
+	surface.PlaySound(city)
+	timer.Simple(6, function()
+		chat.AddText(Color(236, 64, 52), '// ТЕСТ — ', color_white, radio .. (file.Exists('sound/' .. radio, 'GAME') and ' (найден)' or ' (НЕ НАЙДЕН)'))
+		surface.PlaySound(radio)
+	end)
 end)

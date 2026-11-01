@@ -327,7 +327,7 @@ hook.Add('HLAHUDPaint', 'HLABiosignalFeed', function()
 	if #feed == 0 then return end
 	fonts()
 	local s = sc()
-	local x, y = ScrW() - math.floor(70 * s), math.floor(48 * s)
+	local x, y = ScrW() - math.floor(66 * s), HLA.HudRightBottom or math.floor(48 * s)
 	for i = #feed, 1, -1 do
 		if RealTime() - feed[i].t > 12 then table.remove(feed, i) end
 	end

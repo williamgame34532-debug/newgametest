@@ -165,9 +165,26 @@ function T.Close()
 end
 
 -- Tab only opens the menu; it is left with the «ВЕРНУТЬСЯ» button
-function GM:ScoreboardShow()
-	if T.placing then T.placing = nil return end
+-- the menu is held on Q (instead of the spawn menu): pressed — open, released — closed.
+-- Shift + Q: the usual Sandbox spawn menu (admins / the host). TAB is the scoreboard (cl_scoreboard.lua).
+local spawnMenuMode
+function GM:OnSpawnMenuOpen()
+	if T.placing then T.placing = nil return false end
+	if input.IsKeyDown(KEY_LSHIFT) and HLA.CanEdit and HLA.CanEdit(LocalPlayer()) then
+		spawnMenuMode = 'sandbox'
+		return self.BaseClass.OnSpawnMenuOpen(self)
+	end
+	spawnMenuMode = 'hla'
 	if not T.open then T.Open() end
+	return false
+end
+function GM:OnSpawnMenuClose()
+	if spawnMenuMode == 'sandbox' then
+		spawnMenuMode = nil
+		return self.BaseClass.OnSpawnMenuClose(self)
+	end
+	spawnMenuMode = nil
+	if T.open then T.Close() end
 end
 hook.Add('Think', 'HLATabDead', function()
 	if T.open then
@@ -175,7 +192,6 @@ hook.Add('Think', 'HLATabDead', function()
 		if not IsValid(p) or not p:Alive() or p:GetNWBool('hla_in_menu') then T.Close() end
 	end
 end)
-function GM:ScoreboardHide() end
 
 local function activate(b)
 	if not b then return end
@@ -308,7 +324,7 @@ local function wrap(text, font, x, y, w, col)
 end
 
 local HELP = {
-	'TAB — это меню, выйти — кнопка «ВЕРНУТЬСЯ». ПКМ — назад.',
+	'Q (держать) — это меню, отпустить Q — закрыть. ПКМ — назад. TAB (держать) — список юнитов.',
 	'E по предмету (удерживать) — подобрать в инвентарь.',
 	'Инвентарь: клик по предмету — сведения справа;',
 	'  клик ещё раз — переложить, затем клик по другой ячейке.',

@@ -363,20 +363,16 @@ local function corners(x, y, w, h, c, len)
 end
 
 local logoMat = Material('hla/ui/combine_logo', 'smooth')
+local bgAnim = Material('hla/terminal/bg_anim')
 local function drawScreen(cur, live, seed, ent)
 	DRAW_ENT = ent
 	local l = L()
 	local cw = l.cw
-	surface.SetMaterial(bg)
-	surface.SetDrawColor(110, 170, 190, 255)
+	-- the glass: one animated material (dark teal, grid, scanlines, a glow band, noise) instead of drawing
+	-- all of it every frame
+	surface.SetMaterial(bgAnim)
+	surface.SetDrawColor(255, 255, 255, 255)
 	surface.DrawTexturedRect(0, 0, cw, H)
-	fill(0, 0, cw, H, NAVY, 205) -- dark teal glass, like the Civil Authority screens
-	-- a faint grid and scanlines of the glass, brackets in the corners
-	surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 9)
-	for gx = 0, cw, 32 do surface.DrawRect(gx, 0, 1, H) end
-	for gy = 0, H, 32 do surface.DrawRect(0, gy, cw, 1) end
-	surface.SetDrawColor(0, 0, 0, 40)
-	for gy = 0, H, 3 do surface.DrawRect(0, gy, cw, 1) end
 	corners(5, 5, cw - 10, H - 10, CYAN, 22)
 	local me = LocalPlayer()
 	-- header: the Combine symbol (when installed), the title, the node with a live signal

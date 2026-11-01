@@ -15,6 +15,9 @@ include('cl_voice.lua')
 include('cl_thirdperson.lua')
 include('cl_effects.lua')
 include('cl_pause.lua')
+include('cl_scoreboard.lua')
+include('cl_dropship.lua')
+include('cl_intro.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}

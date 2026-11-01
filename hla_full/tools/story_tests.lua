@@ -7,6 +7,9 @@ local hooks = {}
 hook = {Add = function(ev, id, fn) hooks[ev] = hooks[ev] or {} hooks[ev][id] = fn end,
 	Run = function(ev, ...) for _, fn in pairs(hooks[ev] or {}) do local r = fn(...) if r ~= nil then return r end end end}
 local timers, simple = {}, {}
+CreateConVar = CreateConVar or function(_, v) return {GetBool = function() return v == "1" end, GetInt = function() return tonumber(v) or 0 end} end
+GetConVar = GetConVar or function() return {GetBool = function() return true end} end
+engine = engine or {LightStyle = function() end}
 timer = {Create = function(id, d, r, fn) timers[id] = {d = d, fn = fn, next = now + d, rep = r} end, Remove = function(id) timers[id] = nil end,
 	Simple = function(d, fn) simple[#simple + 1] = {at = now + d, fn = fn} end}
 local function advance(sec)

@@ -25,6 +25,8 @@ local function fonts()
 	surface.CreateFont('hla_sq', {font = 'Play', size = math.max(13, math.floor(22 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_name', {font = 'Play', size = math.max(18, math.floor(34 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_s', {font = 'Play', size = math.max(12, math.floor(19 * S())), weight = 400, extended = true})
+	surface.CreateFont('hla_vis_b', {font = 'Exo 2', size = math.max(14, math.floor(24 * S())), weight = 700, italic = true, extended = true})
+	surface.CreateFont('hla_vis_s', {font = 'Exo 2', size = math.max(12, math.floor(18 * S())), weight = 700, italic = true, extended = true})
 	surface.CreateFont('hla_combine', {font = 'Combine_alphabet', size = math.max(12, math.floor(22 * S())), weight = 400, extended = true, antialias = true})
 	surface.CreateFont('hla_compass', {font = 'IBM Plex Mono', size = math.max(11, math.floor(16 * S())), weight = 500, extended = true})
 	surface.CreateFont('hla_bino', {font = 'IBM Plex Mono', size = math.max(12, math.floor(20 * S())), weight = 600, extended = true})
@@ -42,53 +44,109 @@ local function hidden() return baseHidden() or (HLA.Binoculars and HLA.Binocular
 -- top left of the visor, as on the Combine screens: Combine glyphs, ОТРЯД :: / ЮНИТ :: and the squad
 local glyphs = Material('hla/hud/glyphs')
 local zoneWas, zoneAt
+-- the status lines of the visor (as on the Combine HUD): on the left «<:: …» — the network, a ticker of what
+-- the visor is doing, the squad and its units; on the right «… ::>» — the index of the unit: number, zone,
+-- status, the current objective. Italic, on the curved visor.
+local function line(text, font, x, y, col, right)
+	draw.SimpleText(text, font, x, y, col, right and TEXT_ALIGN_RIGHT or TEXT_ALIGN_LEFT)
+end
+-- a thin rule that fades out away from the edge of the screen
+local function rule(x, y, w, col, right)
+	local n = 12
+	for i = 0, n - 1 do
+		local a = col.a * (1 - i / n) ^ 1.6
+		surface.SetDrawColor(col.r, col.g, col.b, a)
+		local seg = math.ceil(w / n)
+		surface.DrawRect(right and (x - (i + 1) * seg) or (x + i * seg), y, seg, 1)
+	end
+end
+-- the edge bracket of a block: a vertical line with short ticks
+local function bracket(x, y, h, col, right)
+	surface.SetDrawColor(col.r, col.g, col.b, col.a)
+	surface.DrawRect(x, y, 2, h)
+	local t = math.max(6, math.floor(h * 0.08))
+	surface.DrawRect(right and x - t + 2 or x, y, t, 2)
+	surface.DrawRect(right and x - t + 2 or x, y + h - 2, t, 2)
+end
+-- segments: how much of something, as on the Combine screens
+local function segments(x, y, n, k, w, h, col, right)
+	for i = 0, n - 1 do
+		local on = i < math.Round(k * n)
+		surface.SetDrawColor(col.r, col.g, col.b, on and 230 or 45)
+		local xx = right and (x - (n - i) * (w + 3)) or (x + i * (w + 3))
+		surface.DrawRect(xx, y, w, h)
+	end
+end
+
 hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	if hidden() then return end
 	fonts()
 	local s = S()
 	local p = LocalPlayer()
 	local sq = SQ.Of(p)
-	local lh = math.floor(24 * s)
-	-- left
-	local x, y = math.floor(70 * s), math.floor(46 * s)
-	-- the unit's status in the Combine alphabet (font Combine_alphabet: resource/fonts/combine_alphabet.ttf)
-	draw.SimpleText('COMBINE NETWORK STABLE', 'hla_combine', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 220))
-	draw.SimpleText('COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(26 * s), Color(BLUE.r, BLUE.g, BLUE.b, 220))
-	y = y + math.floor(72 * s)
-	-- as on the Combine visor: «ОТРЯД :: …» and «ЮНИТ :: …», labels dim, values bright; no squad — dim and plain
-	local unit = string.upper(p:GetNWString('hla_name', p:Nick())) -- «ЭХО-443»
-	surface.SetFont('hla_sq')
-	local lw = surface.GetTextSize('ОТРЯД  ::  ')
-	draw.SimpleText('ОТРЯД  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
+	local lh = math.floor(26 * s)
+	local GREENC, REDC = Color(110, 236, 150), Color(255, 84, 72)
+	local glow = 0.75 + 0.25 * math.sin(RealTime() * 1.7)
+	-- left: the network lines (Combine letters), the squad and its units
+	local x0, y0 = math.floor(54 * s), math.floor(42 * s)
+	local x, y = x0 + math.floor(14 * s), y0
+	line('<:: COMBINE NETWORK STABLE', 'hla_combine', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 230 * glow))
+	line('<:: COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(24 * s), Color(BLUE.r, BLUE.g, BLUE.b, 170))
+	y = y + math.floor(58 * s)
+	rule(x, y, math.floor(300 * s), Color(BLUE.r, BLUE.g, BLUE.b, 160))
+	y = y + math.floor(10 * s)
 	if sq then
-		draw.SimpleText(sq.name, 'hla_sq', x + lw, y, TEXT)
+		line('<:: ' .. string.upper(sq.name), 'hla_vis_b', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 255))
+		local alive, total = 0, 0
+		for _, m in ipairs(sq.members) do if IsValid(m) then total = total + 1 if m:Alive() then alive = alive + 1 end end end
+		y = y + lh + math.floor(12 * s)
+		segments(x + math.floor(4 * s), y, math.max(total, 1), total > 0 and alive / total or 0, math.floor(18 * s), math.max(2, math.floor(4 * s)), BLUE)
+		y = y + math.floor(12 * s)
+		for _, m in ipairs(sq.members) do
+			if IsValid(m) then
+				local ok = m:Alive()
+				local txt = '<:: ' .. string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == sq.leader and ' (К)' or '') .. '  |  ' .. (ok and 'В СТРОЮ' or 'ВЫВЕДЕН')
+				line(txt, 'hla_vis_s', x, y, ok and TEXT or REDC)
+				y = y + math.floor(22 * s)
+			end
+		end
 	else
-		draw.SimpleText('не назначен', 'hla_sq_s', x + lw, y + math.floor(2 * s), Color(DIM.r, DIM.g, DIM.b, 200))
+		line('<:: ОТРЯД НЕ НАЗНАЧЕН', 'hla_vis_s', x, y, Color(DIM.r + 40, DIM.g + 40, DIM.b + 40, 220))
+		y = y + math.floor(22 * s)
 	end
-	y = y + lh
-	draw.SimpleText('ЮНИТ  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
-	draw.SimpleText(unit .. ((sq and sq.leader == p) and '  (К)' or ''), 'hla_sq', x + lw, y, TEXT)
-	-- the zone the unit is in (zones are set in the editor); a change flashes for a moment
-	y = y + lh
+	bracket(x0, y0, y - y0 + math.floor(4 * s), Color(BLUE.r, BLUE.g, BLUE.b, 150))
+	-- right: the index of the unit, the zone, the status, the objective
+	local rx0, ry0 = ScrW() - math.floor(54 * s), math.floor(42 * s)
+	local rx, ry = rx0 - math.floor(14 * s), ry0
+	local unit = string.upper(p:GetNWString('hla_name', p:Nick()))
 	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(p:GetPos())
 	if zone ~= zoneWas then zoneWas, zoneAt = zone, RealTime() end
 	local flash = math.Clamp(1 - (RealTime() - (zoneAt or 0)) / 1.5, 0, 1)
-	draw.SimpleText('ЗОНА  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
-	if zone then
-		draw.SimpleText(string.upper(zone), 'hla_sq', x + lw, y, Color(TEXT.r + (255 - TEXT.r) * flash, TEXT.g + (255 - TEXT.g) * flash, 255))
-	else
-		draw.SimpleText('вне зон', 'hla_sq_s', x + lw, y + math.floor(2 * s), Color(DIM.r, DIM.g, DIM.b, 200))
-	end
-	if sq then
-		y = y + lh + math.floor(8 * s)
-		for _, m in ipairs(sq.members) do
-			if IsValid(m) and m ~= p then
-				local name = string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == sq.leader and '  [К]' or '')
-				draw.SimpleText('   ' .. name, 'hla_sq_s', x, y, m:Alive() and TEXT or Color(220, 90, 80))
-				y = y + math.floor(20 * s)
-			end
-		end
-	end
+	line('ИНДЕКС БИОСИГНАЛА ::>', 'hla_vis_b', rx, ry, Color(BLUE.r, BLUE.g, BLUE.b, 255), true)
+	ry = ry + lh + math.floor(4 * s)
+	rule(rx, ry, math.floor(300 * s), Color(BLUE.r, BLUE.g, BLUE.b, 160), true)
+	ry = ry + math.floor(8 * s)
+	line(unit .. ((sq and sq.leader == p) and ' (К)' or '') .. ' ::>', 'hla_vis_s', rx, ry, TEXT, true)
+	ry = ry + math.floor(22 * s)
+	line('ЗОНА: ' .. (zone and string.upper(zone) or 'ВНЕ ЗОН') .. ' ::>', 'hla_vis_s', rx, ry,
+		Color(TEXT.r + (255 - TEXT.r) * flash, TEXT.g + (255 - TEXT.g) * flash, 255), true)
+	ry = ry + math.floor(22 * s)
+	local hp = p:Health()
+	local okc = hp > 30 and GREENC or REDC
+	line('СТАТУС: ' .. (hp > 30 and 'В НОРМЕ' or 'КРИТИЧЕСКИЙ') .. ' ::>', 'hla_vis_s', rx, ry, okc, true)
+	ry = ry + math.floor(30 * s)
+	segments(rx - math.floor(28 * s), ry, 10, math.Clamp(hp / math.max(p:GetMaxHealth(), 1), 0, 1), math.floor(14 * s), math.max(2, math.floor(4 * s)), okc, true)
+	ry = ry + math.floor(18 * s)
+	line('ЗАДАЧИ ::>', 'hla_vis_b', rx, ry, Color(BLUE.r, BLUE.g, BLUE.b, 255), true)
+	ry = ry + lh + math.floor(4 * s)
+	rule(rx, ry, math.floor(200 * s), Color(BLUE.r, BLUE.g, BLUE.b, 120), true)
+	ry = ry + math.floor(8 * s)
+	local st = HLA.Story and HLA.Story.State and HLA.Story.State()
+	local task = st == 'story' and GetGlobal2String('hla_chapter_title', '') or st == 'pvp' and 'ПВП-РАУНД' or nil
+	line((task and task ~= '' and string.upper(task) or 'НЕТ АКТИВНЫХ ЗАДАЧ') .. ' ::>', 'hla_vis_s', rx, ry, task and TEXT or REDC, true)
+	ry = ry + math.floor(22 * s)
+	bracket(rx0 - 2, ry0, ry - ry0 + math.floor(4 * s), Color(BLUE.r, BLUE.g, BLUE.b, 150), true)
+	HLA.HudRightBottom = ry + math.floor(20 * s) -- the lost biosignals go under it
 end)
 
 ---------------------------------------------------------------------------------------------------
