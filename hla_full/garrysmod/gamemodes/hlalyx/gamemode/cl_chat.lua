@@ -87,6 +87,12 @@ net.Receive('hla_chat', function()
 	local name = net.ReadString()
 	local muffled = net.ReadBool()
 	local text = muffled and '' or net.ReadString()
+	if id == CH.DISPATCH then
+		local snd = net.ReadString()
+		C.Add({{'// ДИСПЕТЧЕР — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
+		if snd ~= '' then surface.PlaySound(snd) else soft('hla/ui/textline_7.wav') end
+		return
+	end
 	if id == 0 then
 		C.Add({{'// ', BLUE, 'hla_chat_b'}, {text, ENV, 'hla_chat_i'}})
 		soft('hla/ui/textline_7.wav')
@@ -103,14 +109,17 @@ net.Receive('hla_chat', function()
 	elseif m.env then
 		segs = {{'* ', BLUE, 'hla_chat_b'}, {text, ENV, 'hla_chat_i'}, {'  (' .. name .. ')', GREY, 'hla_chat_s'}}
 	else
+		-- speech of a unit: the words in the Combine brackets <:: ... ::>
 		local body = m.key == 'w' and 'hla_chat_i' or 'hla_chat'
-		segs = {{name, BLUE, 'hla_chat_b'}, {' ' .. m.verb .. ': ', GREY, 'hla_chat'}, {text, m.key == 'w' and ACT or WHITE, body}}
+		segs = {{name, BLUE, 'hla_chat_b'}, {' ' .. m.verb .. ': ', GREY, 'hla_chat'}, {'<:: ', BLUE, 'hla_chat_b'},
+			{text, m.key == 'w' and ACT or WHITE, body}, {' ::>', BLUE, 'hla_chat_b'}}
 	end
 	C.Add(segs)
 	soft(m.key == 'w' and 'hla/ui/textline_8.wav' or 'hla/ui/textline_6.wav')
-	-- over the head of the speaker
+	-- over the head of the speaker (players and story NPCs)
 	if IsValid(who) and not muffled and not m.env then
-		C.bubbles[who] = {text = m.action and ('* ' .. text) or text, t = RealTime(), italic = m.action or m.key == 'w', yell = m.key == 'y'}
+		C.bubbles[who] = {text = m.action and ('* ' .. text) or nil, inner = (not m.action) and text or nil, t = RealTime(),
+			italic = m.action or m.key == 'w', yell = m.key == 'y', life = math.Clamp(4 + ulen(text) / 14, 5, 12)}
 	end
 end)
 
@@ -419,15 +428,45 @@ end)
 ---------------------------------------------------------------------------------------------------
 -- words over the head, as long as they are fresh
 local function wrapWords(text, maxLetters)
-	local rows, cur = {}, ''
+	local rows, cur, cut = {}, '', false
 	for word in string.gmatch(text, '%S+') do
+		if #rows >= 3 then cut = true break end
 		local cand = cur == '' and word or (cur .. ' ' .. word)
 		if ulen(cand) > maxLetters and cur ~= '' then rows[#rows + 1] = cur cur = word else cur = cand end
-		if #rows >= 3 then break end
 	end
-	if cur ~= '' and #rows < 3 then rows[#rows + 1] = cur end
+	if cur ~= '' then
+		if #rows < 3 then rows[#rows + 1] = cur else cut = true end
+	end
+	if cut and #rows > 0 then rows[#rows] = rows[#rows] .. ' …' end
 	return rows
 end
+
+-- rows of a bubble: speech gets the brackets around all of it, «<::» opens the first row, «::>» closes the last
+local function bubbleRows(b)
+	if b.rows then return b.rows end
+	local rows = wrapWords(b.inner or b.text, 32)
+	if b.inner and #rows > 0 then
+		rows[1] = '<:: ' .. rows[1]
+		rows[#rows] = rows[#rows] .. ' ::>'
+	end
+	b.rows = rows
+	return rows
+end
+
+-- the point over the head: players by their eyes (the view follows crouching smoothly, the bones of an
+-- unseen player are stale), others by the head bone; smoothed so running does not shake the words
+local function headPos(ent)
+	local pos
+	if ent:IsPlayer() then
+		pos = ent:EyePos() + Vector(0, 0, ent:Crouching() and 9 or 11)
+	else
+		local bone = ent:LookupBone('ValveBiped.Bip01_Head1')
+		if bone then ent:SetupBones() pos = ent:GetBonePosition(bone) end
+		pos = (pos or ent:WorldSpaceCenter() + Vector(0, 0, 30)) + Vector(0, 0, 10)
+	end
+	return pos
+end
+C.HeadPos = headPos
 
 hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 	if sky then return end
@@ -435,20 +474,21 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 	local me = LocalPlayer()
 	for ent, b in pairs(C.bubbles) do
 		local age = now - b.t
-		if not IsValid(ent) or age > 7 or (ent:IsPlayer() and not ent:Alive()) then
+		local life = b.life or 7
+		if not IsValid(ent) or age > life or (ent:IsPlayer() and not ent:Alive()) then
 			C.bubbles[ent] = nil
 		elseif ent ~= me then
-			local a = math.Clamp(math.min(age * 4, (7 - age) / 1.2), 0, 1)
-			local bone = ent:LookupBone('ValveBiped.Bip01_Head1')
-			local pos = bone and ent:GetBonePosition(bone) or ent:EyePos()
-			pos = pos + Vector(0, 0, 22)
+			local a = math.Clamp(math.min(age * 4, (life - age) / 1.2), 0, 1)
+			local target = headPos(ent) + Vector(0, 0, 14)
+			b.pos = b.pos and LerpVector(math.min(1, FrameTime() * 14), b.pos, target) or target
+			local pos = b.pos
 			if pos:DistToSqr(EyePos()) < 900 * 900 then
-				b.rows = b.rows or wrapWords(b.text, 30)
 				local font = b.italic and 'hla_chat_head_i' or 'hla_chat_head'
 				local col = b.italic and ACT or WHITE
 				cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), b.yell and 0.075 or 0.06)
-					for i, r in ipairs(b.rows) do
-						local yy = (i - #b.rows) * 46
+					local rows = bubbleRows(b)
+					for i, r in ipairs(rows) do
+						local yy = (i - #rows) * 46
 						draw.SimpleTextOutlined(r, font, 0, yy, Color(col.r, col.g, col.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_BOTTOM, 2, Color(0, 6, 12, 170 * a))
 					end
 				cam.End3D2D()

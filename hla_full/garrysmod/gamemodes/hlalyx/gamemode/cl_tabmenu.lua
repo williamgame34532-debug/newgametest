@@ -70,10 +70,15 @@ end
 local function buttons()
 	local b = {}
 	if T.page == 'root' then
-		b[#b + 1] = {id = 'inventory', label = 'ИНВЕНТАРЬ', x = 300, y = 120, w = 560, h = 70}
-		b[#b + 1] = {id = 'help', label = 'ПОМОЩЬ', x = 300, y = 200, w = 560, h = 70}
-		b[#b + 1] = {id = 'mainmenu', label = 'ГЛАВНОЕ МЕНЮ', x = 300, y = 280, w = 560, h = 70}
-		b[#b + 1] = {id = 'close', label = 'ВЕРНУТЬСЯ', x = 300, y = 360, w = 560, h = 70}
+		-- admins get the story editor as one more line (the lines move closer together)
+		local admin = LocalPlayer():IsAdmin()
+		local rows = {{'inventory', 'ИНВЕНТАРЬ'}, {'help', 'ПОМОЩЬ'}, {'mainmenu', 'ГЛАВНОЕ МЕНЮ'}}
+		if admin then rows[#rows + 1] = {'editor', 'РЕДАКТОР'} end
+		rows[#rows + 1] = {'close', 'ВЕРНУТЬСЯ'}
+		local step, h = admin and 66 or 80, admin and 58 or 70
+		for i, r in ipairs(rows) do
+			b[#b + 1] = {id = r[1], label = r[2], x = 300, y = 110 + (i - 1) * step, w = 560, h = h}
+		end
 	elseif T.page == 'inventory' then
 		for i = 1, I.Slots do
 			local x, y, w, h = slotRect(i)
@@ -148,6 +153,7 @@ local function activate(b)
 		if b.id == 'inventory' then click('bag', 0.5) end
 	elseif b.id == 'mainmenu' then T.Close() RunConsoleCommand('hla_menu')
 	elseif b.id == 'close' then T.Close()
+	elseif b.id == 'editor' then T.Close() RunConsoleCommand('hla_editor')
 	elseif b.id == 'back' then
 		if T.page == 'inventory' then click('bag', 0.5) end
 		T.page = 'root'

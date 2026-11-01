@@ -35,6 +35,10 @@ if SERVER then AddCSLuaFile('sh_voice.lua') AddCSLuaFile('sh_voicelines_data.lua
 include('sh_voice.lua')
 if SERVER then AddCSLuaFile('sh_squads.lua') AddCSLuaFile('cl_squads.lua') AddCSLuaFile('cl_hudcurve.lua') AddCSLuaFile('cl_ffmenu.lua') AddCSLuaFile('cl_ambient.lua') end
 include('sh_squads.lua')
+-- story: chapters, rounds, vote, spectators, PvP, story NPCs, dispatcher, voice panel
+if SERVER then AddCSLuaFile('sh_dispatch.lua') AddCSLuaFile('sh_story.lua') AddCSLuaFile('cl_story.lua') AddCSLuaFile('cl_editor.lua') AddCSLuaFile('cl_voice.lua') end
+include('sh_dispatch.lua')
+include('sh_story.lua')
 
 HLA.DropChance = CreateConVar('hla_resin_drop_chance', '0.6', {FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY}, 'Chance an NPC drops resin')
 HLA.StartResin = CreateConVar('hla_start_resin', '10', {FCVAR_ARCHIVE, FCVAR_NOTIFY}, 'Resin a new player starts with')

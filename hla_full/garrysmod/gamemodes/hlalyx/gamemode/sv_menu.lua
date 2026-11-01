@@ -100,7 +100,9 @@ end
 function M.Enter(p)
 	if HLA.Squads and HLA.Squads.Leave and HLA.Squads.Of(p) then HLA.Squads.Leave(p, true) end -- another character
 	p.HLAInMenu = true
+	p.HLAJoinedRound = false -- back from the menu during a round: watches until the next chapter / round
 	p:SetNWBool('hla_in_menu', true)
+	if p.HLAOut then p.HLAOut = false p:UnSpectate() end
 	p:StripWeapons()
 	p:SetNoDraw(true)
 	p:SetNotSolid(true)
@@ -125,6 +127,7 @@ function M.Play(p, c)
 	p:GodDisable()
 	p:Spawn()
 	net.Start('hla_menu_closed') net.Send(p)
+	hook.Run('HLAPlayerEnteredGame', p) -- chapter card, spectating during a round (sv_story.lua)
 end
 
 hook.Add('PlayerInitialSpawn', 'HLAMenu', function(p)

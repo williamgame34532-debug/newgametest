@@ -39,10 +39,11 @@ isstring = function(v) return type(v) == 'string' end
 run(pathlib.Path('garrysmod/gamemodes/hlalyx/gamemode/sh_menu.lua').read_text(), 'sh_menu')
 run("""
 local M = HLA.Menu
-assert(M.ValidName('Иван') and M.ValidName('Alyx') and M.ValidName("O'Neil") and M.ValidName('Анна-Мария'))
-assert(not M.ValidName('A') and not M.ValidName('Ivan1') and not M.ValidName('Иван Петров') and not M.ValidName(string.rep('я', 25)) and M.ValidName(string.rep('я', 24)))
-assert(M.ModelLabel('models/player/Group03/female_04.mdl') == 'ЖЕНЩИНА 04' and M.ModelLabel(M.Models[1]) == 'МУЖЧИНА 01')
-assert(#M.Models == 16 and M.ValidModel(M.Models[9]) and not M.ValidModel('models/player/gman_high.mdl'))
-print('PASS menu: names (Cyrillic/Latin, 2-24 letters), model whitelist and labels')
+assert(M.ValidNum('443') and M.ValidNum('007') and not M.ValidNum('44') and not M.ValidNum('4433') and not M.ValidNum('a43'))
+assert(M.DisplayName({num = '443'}) == 'ЮНИТ 443')
+assert(#M.Models == #M.Classes and M.ModelLabel(M.Classes[1].model) == M.Classes[1].label and not M.ValidModel('models/player/gman_high.mdl'))
+print('PASS menu: unit numbers (3 digits), class models and labels')
 """, 'menu rules')
 run(pathlib.Path('tools/server_tests.lua').read_text(),'server lifecycle')
+run("ARG_DIR = 'garrysmod/gamemodes/hlalyx/gamemode'\n" + pathlib.Path('tools/story_tests.lua').read_text(), 'story rounds')
+run("ARG = 'garrysmod/gamemodes/hlalyx/entities/entities/hla_npc'\n" + pathlib.Path('tools/npc_tests.lua').read_text(), 'story npc')

@@ -19,6 +19,7 @@ CH.Modes = {
 }
 CH.ByID = {}
 for key, m in pairs(CH.Modes) do m.key = key CH.ByID[m.id] = m end
+CH.DISPATCH = 6 -- message id of the city dispatcher (not a chat mode)
 CH.Muffle = 1.45 -- up to range * Muffle: heard, but not the words
 
 -- 'mode key', 'text without the command'

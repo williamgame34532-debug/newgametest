@@ -9,6 +9,7 @@ include('sv_inventory.lua')
 include('sv_chat.lua')
 include('sv_squads.lua')
 include('sv_ambient.lua')
+include('sv_story.lua')
 
 -- clients download the fabricator content (models, materials, sounds, font) from the server
 local function sendFolder(path)

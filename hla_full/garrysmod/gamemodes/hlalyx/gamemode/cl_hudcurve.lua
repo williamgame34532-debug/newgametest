@@ -7,16 +7,24 @@ HLA.HudCurve = HC
 local cv = CreateClientConVar('hla_hud_curve', '1', true, false, 'Curved HUD (0/1)')
 local strength = CreateClientConVar('hla_hud_curve_strength', '0.07', true, false, 'How much the HUD bends (0 .. 0.15)')
 
-local rt, mat
+local rt, mat, rtKey
 local broken = false
 local tested = false
+-- one texture per screen size: a new resolution (another monitor, windowed mode) gets its own,
+-- the old one is not stretched
 local function targets()
-	if rt then return true end
-	rt = GetRenderTargetEx('hla_hud_rt3', ScrW(), ScrH(), RT_SIZE_FULL_FRAME_BUFFER, MATERIAL_RT_DEPTH_NONE, 2, 0, IMAGE_FORMAT_RGBA8888)
+	local key = ScrW() .. 'x' .. ScrH()
+	if rt and rtKey == key then return true end
+	rt = GetRenderTargetEx('hla_hud_rt_' .. key, ScrW(), ScrH(), RT_SIZE_LITERAL, MATERIAL_RT_DEPTH_NONE, 2, 0, IMAGE_FORMAT_RGBA8888)
 	if not rt then return false end
-	mat = CreateMaterial('hla_hud_curve3', 'UnlitGeneric', {['$basetexture'] = rt:GetName(), ['$additive'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$ignorez'] = 1})
+	rtKey = key
+	mat = CreateMaterial('hla_hud_curve_' .. key, 'UnlitGeneric', {['$basetexture'] = rt:GetName(), ['$additive'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$ignorez'] = 1})
 	return true
 end
+
+-- the HUD is added onto the picture: a black backing adds nothing, so the backing panels need a colour of
+-- their own (cl_hud.lua asks this)
+function HC.Additive() return not broken and cv:GetBool() and rt ~= nil end
 
 local function warp(u, v, k, ox, oy)
 	local x, y = u * 2 - 1, v * 2 - 1
@@ -46,8 +54,13 @@ local function drawGrid(m, r, g, b, a, ox, oy)
 end
 
 local function curved(fn)
+	-- the texture is wiped every frame: colour only (it has no depth buffer — asking to clear depth made
+	-- some cards skip the clear, and old text stayed under new text)
+	render.ClearRenderTarget(rt, Color(0, 0, 0, 255))
 	render.PushRenderTarget(rt)
-	render.Clear(0, 0, 0, 255, true, true)
+	render.OverrideAlphaWriteEnable(true, true)
+	render.Clear(0, 0, 0, 255)
+	render.OverrideAlphaWriteEnable(false)
 	cam.Start2D()
 		local ok, err = pcall(fn)
 		if not ok then ErrorNoHalt('[HLA HUD] ' .. tostring(err) .. '\n') end

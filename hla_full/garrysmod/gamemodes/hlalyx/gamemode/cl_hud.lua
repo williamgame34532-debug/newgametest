@@ -12,6 +12,21 @@ H.AMBER = {110, 200, 255, 255}
 H.AMBER_C = Color(110, 200, 255)
 H.RED = {236, 52, 44, 255}
 H.PANEL = {4, 10, 16, 120}
+-- backing panels: barely there — seen when you look for them. On the curved visor the HUD is added
+-- onto the picture, so the panel is a faint blue glow; drawn flat it is a faint dark plate.
+local function panel(D, x, y, w, h, k)
+	k = k or 1
+	local add = HLA.HudCurve and HLA.HudCurve.Additive and HLA.HudCurve.Additive()
+	if add then
+		local a = math.min(255, 255 * k)
+		D.rect(x, y, w, h, {6 * k, 14 * k, 20 * k, a})
+		D.rect(x, y, w, math.max(1, h * 0.012), {18 * k, 40 * k, 54 * k, a}) -- a hairline on top
+	else
+		D.rect(x, y, w, h, {4, 12, 20, math.min(255, 45 * k)})
+		D.rect(x, y, w, math.max(1, h * 0.012), {110, 200, 255, math.min(255, 26 * k)})
+	end
+end
+H.Panel = panel
 H.LOW = 100 / 3 -- one heart left -> low health state
 
 local HEART = {
@@ -83,13 +98,13 @@ function H.Draw(D, st)
 
 	-- RESIN
 	local flash = st.resinFlash or 0
-	D.rect(x0, y0, 330 * s, 64 * s, A(H.PANEL, 110 + 90 * flash))
+	panel(D, x0, y0, 330 * s, 64 * s, 1 + 1.5 * flash)
 	D.text('СМОЛА', 'hla_label', x0 + 22 * s, y0 + 32 * s, amber, 0, 1)
 	D.text(tostring(st.resin or 0), 'hla_value', x0 + 306 * s, y0 + 32 * s, A(amber, 200 + 55 * flash), 2, 1)
 
 	-- HEALTH
 	local y1 = y0 + 92 * s
-	D.rect(x0, y1, 330 * s, 144 * s, A(H.PANEL, 70))
+	panel(D, x0, y1, 330 * s, 144 * s)
 	local hcol = low and mix(amber, H.RED, 1) or amber
 	if (st.hurt or 0) > 0 then hcol = mix(hcol, {255, 255, 255, 255}, st.hurt * 0.7) end
 	D.text('ЗДОРОВЬЕ', 'hla_label', x0 + 22 * s, y1 + 14 * s, low and H.RED or amber, 0, 0)
@@ -124,7 +139,7 @@ function H.Draw(D, st)
 		local c = w.active and amber or A(amber, 110)
 		if w.active then
 			D.rect(xr - 6 * s, wy - rh / 2 + 4 * s, 4 * s, rh - 8 * s, amber)
-			D.rect(xr - 330 * s, wy - rh / 2 + 2 * s, 320 * s, rh - 4 * s, A(H.PANEL, 80))
+			panel(D, xr - 330 * s, wy - rh / 2 + 2 * s, 320 * s, rh - 4 * s, 0.8)
 		end
 		D.text(string.upper(w.name or '?'), 'hla_wname', xr - 18 * s, wy, c, 2, 1)
 		D.text(tostring(w.slot or i), 'hla_wslot', xr - 340 * s, wy, A(amber, w.active and 220 or 90), 0, 1)
@@ -132,7 +147,7 @@ function H.Draw(D, st)
 	end
 	if st.showAmmo then
 		local y3 = y2 + 92 * s
-		D.rect(xr - 250 * s, y3, 250 * s, 144 * s, A(H.PANEL, 70))
+		panel(D, xr - 250 * s, y3, 250 * s, 144 * s)
 		D.text('БОЕЗАПАС', 'hla_label', xr - 228 * s, y3 + 14 * s, amber, 0, 0)
 		if st.clip and st.clip >= 0 then
 			local rs = '/' .. tostring(st.reserve or 0)

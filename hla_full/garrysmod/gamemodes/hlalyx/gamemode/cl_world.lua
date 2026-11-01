@@ -29,9 +29,7 @@ end)
 
 hook.Add('PostDrawTranslucentRenderables', 'HLANames', function(depth, sky)
 	if sky or not IsValid(lookAt) or lookAlpha <= 0 then return end
-	local bone = lookAt:LookupBone('ValveBiped.Bip01_Head1')
-	local pos = bone and lookAt:GetBonePosition(bone) or lookAt:EyePos()
-	pos = pos + Vector(0, 0, 13)
+	local pos = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(lookAt) + Vector(0, 0, 3) or lookAt:EyePos() + Vector(0, 0, 14)
 	cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), 0.06)
 		draw.SimpleTextOutlined(string.upper(lookAt:GetNWString('hla_name')), 'hla_name3d', 0, 0,
 			Color(AMBER.r, AMBER.g, AMBER.b, 255 * lookAlpha), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 160 * lookAlpha))

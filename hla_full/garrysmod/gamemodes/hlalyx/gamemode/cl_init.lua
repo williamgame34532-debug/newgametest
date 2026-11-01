@@ -9,6 +9,9 @@ include('cl_view.lua')
 include('cl_squads.lua')
 include('cl_ambient.lua')
 include('cl_ffmenu.lua')
+include('cl_story.lua')
+include('cl_editor.lua')
+include('cl_voice.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
@@ -35,6 +38,7 @@ end
 
 hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
 	if not pressed or (CFRework and CFRework.FocusEnt and CFRework.FocusEnt()) then return end
+	if HLA.Story and HLA.Story.VoteKey and HLA.Story.VoteKey(bind) then return true end -- 1..3 vote (cl_story.lua)
 	local list = ordered(p)
 	if #list == 0 then return end
 	local cur = p:GetActiveWeapon()

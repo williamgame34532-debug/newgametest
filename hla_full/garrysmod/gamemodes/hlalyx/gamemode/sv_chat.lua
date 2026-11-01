@@ -14,20 +14,29 @@ end)
 
 util.AddNetworkString('hla_chat')
 
--- kind: mode id; muffled: heard but not understood
-local function deliver(to, speaker, mode, text, muffled)
+-- kind: mode id; muffled: heard but not understood. The speaker is a player or any entity with a name
+-- (story NPCs: hla_npc), name overrides the shown name.
+local function speakerName(e, name)
+	if name then return name end
+	if not IsValid(e) then return '' end
+	return e:GetNWString('hla_name', e:IsPlayer() and e:Nick() or '')
+end
+
+local function deliver(to, speaker, mode, text, muffled, name)
 	net.Start('hla_chat')
 	net.WriteUInt(mode.id, 4)
 	net.WriteEntity(speaker)
-	net.WriteString(speaker:GetNWString('hla_name', speaker:Nick()))
+	net.WriteString(speakerName(speaker, name))
 	net.WriteBool(muffled)
 	if not muffled then net.WriteString(text) end
 	net.Send(to)
 end
 
-function CH.Say(p, key, text)
+-- p: the speaker (a player, or an entity when opts.name is given); opts.name, opts.radio (clicks for a non-player)
+function CH.Say(p, key, text, opts)
+	opts = opts or {}
 	local mode = CH.Modes[key]
-	if not mode or text == '' then return end
+	if not mode or text == '' or not IsValid(p) then return end
 	text = utf8.len(text) and utf8.len(text) > CH.MaxLen and string.sub(text, 1, utf8.offset(text, CH.MaxLen + 1) - 1) or text
 	local vo
 	if not mode.action and not mode.env then
@@ -38,7 +47,7 @@ function CH.Say(p, key, text)
 		end
 	end
 	local clear, muffled = {}, {}
-	local origin = p:EyePos()
+	local origin = p:IsPlayer() and p:EyePos() or (p:WorldSpaceCenter() + Vector(0, 0, 24))
 	local r2, m2 = mode.range * mode.range, (mode.range * CH.Muffle) ^ 2
 	for _, o in ipairs(player.GetAll()) do
 		if o == p then
@@ -49,8 +58,8 @@ function CH.Say(p, key, text)
 			elseif d <= m2 and not mode.action and not mode.env and mode.key ~= 'w' then muffled[#muffled + 1] = o end
 		end
 	end
-	deliver(clear, p, mode, text, false)
-	if #muffled > 0 then deliver(muffled, p, mode, '', true) end
+	deliver(clear, p, mode, text, false, opts.name)
+	if #muffled > 0 then deliver(muffled, p, mode, '', true, opts.name) end
 	-- the unit's radio clicks when it speaks out loud
 	local level = mode.key == 'y' and 85 or mode.key == 'w' and 55 or 72
 	local voLen
@@ -58,19 +67,20 @@ function CH.Say(p, key, text)
 		-- the voicelines one after another, from the unit's mask (between the radio clicks)
 		local at = 0.12
 		for _, snd in ipairs(vo) do
-			timer.Simple(at, function() if IsValid(p) and p:Alive() then p:EmitSound(snd, level, 100, 1, CHAN_VOICE) end end)
+			timer.Simple(at, function() if IsValid(p) and (not p:IsPlayer() or p:Alive()) then p:EmitSound(snd, level, 100, 1, CHAN_VOICE) end end)
 			at = at + math.Clamp(SoundDuration(snd), 0.3, 12) + 0.15
 		end
 		voLen = at
 	end
-	if not mode.action and not mode.env and mode.key ~= 'w' and HLA.IsUnit and HLA.IsUnit(p) then
+	if not mode.action and not mode.env and mode.key ~= 'w' and (opts.radio or (p:IsPlayer() and HLA.IsUnit and HLA.IsUnit(p))) then
 		p:EmitSound('npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav', mode.key == 'y' and 75 or 62, 100, 0.55)
 		local len = voLen and math.Clamp(voLen + 0.1, 0.6, 40) or math.Clamp(#text * 0.035, 0.6, 3)
 		timer.Simple(len, function()
 			if IsValid(p) then p:EmitSound('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav', mode.key == 'y' and 75 or 62, 100, 0.55) end
 		end)
 	end
-	MsgN(string.format('[чат %s] %s (%s): %s', mode.key, p:GetNWString('hla_name', ''), p:Nick(), text))
+	MsgN(string.format('[чат %s] %s (%s): %s', mode.key, speakerName(p, opts.name), p:IsPlayer() and p:Nick() or p:GetClass(), text))
+	return voLen
 end
 
 -- the chat box sends by net: longer than the «say» command allows
@@ -117,3 +127,21 @@ timer.Create('HLAChatAmbient', 15, 0, function()
 		end
 	end
 end)
+
+---------------------------------------------------------------------------------------------------
+-- the city dispatcher: a line to everyone in the game, «// ДИСПЕТЧЕР — …» in red, with its sound
+function CH.Dispatch(text, sound)
+	if not text or text == '' then return end
+	local to = {}
+	for _, o in ipairs(player.GetAll()) do if not o.HLAInMenu then to[#to + 1] = o end end
+	if #to == 0 then return end
+	net.Start('hla_chat')
+	net.WriteUInt(CH.DISPATCH, 4)
+	net.WriteEntity(NULL)
+	net.WriteString('ДИСПЕТЧЕР')
+	net.WriteBool(false)
+	net.WriteString(text)
+	net.WriteString(sound or '')
+	net.Send(to)
+	MsgN('[диспетчер] ' .. text)
+end

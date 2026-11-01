@@ -57,7 +57,9 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	y = y + math.floor(20 * s)
 	draw.SimpleText(sq and sq.name or 'НЕ НАЗНАЧЕН', 'hla_sq_name', x, y, sq and TEXT or Color(BLUE.r, BLUE.g, BLUE.b, 150))
 	y = y + math.floor(40 * s)
-	draw.SimpleText('ЮНИТ  ·  ' .. string.upper(p:GetNWString('hla_name', p:Nick())), 'hla_sq', x, y, BLUE)
+	-- the name already starts with «ЮНИТ»: the number alone after the label
+	local unit = string.gsub(string.upper(p:GetNWString('hla_name', p:Nick())), '^ЮНИТ%s+', '')
+	draw.SimpleText('ЮНИТ  ·  ' .. unit, 'hla_sq', x, y, BLUE)
 	if sq then
 		y = y + lh + math.floor(8 * s)
 		for _, m in ipairs(sq.members) do
@@ -149,8 +151,7 @@ end)
 hook.Add('PostDrawTranslucentRenderables', 'HLASquadNames', function(_, sky)
 	if sky or hidden() then return end
 	for _, m in ipairs(mates()) do
-		local bone = m:LookupBone('ValveBiped.Bip01_Head1')
-		local pos = (bone and m:GetBonePosition(bone) or m:EyePos()) + Vector(0, 0, 16)
+		local pos = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(m) + Vector(0, 0, 5) or m:EyePos() + Vector(0, 0, 16)
 		local d = pos:Distance(EyePos())
 		local sc = math.Clamp(d / 900, 0.06, 0.6)
 		cam.IgnoreZ(true)
