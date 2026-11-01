@@ -55,7 +55,6 @@ local GREEN = Color(72, 214, 156)
 local NAVY = Color(8, 26, 40)
 local PANEL_BG = Color(10, 34, 48)
 surface.CreateFont('hlaterm_cmb', {font = 'Combine_alphabet', size = 24, weight = 400, extended = true, antialias = true})
-surface.CreateFont('hlaterm_cmb_s', {font = 'Combine_alphabet', size = 17, weight = 400, extended = true, antialias = true})
 surface.CreateFont('hlaterm_id', {font = 'Russo One', size = 30, weight = 400, extended = true})
 surface.CreateFont('hlaterm_bar', {font = 'Play', size = 22, weight = 400, extended = true})
 
@@ -304,8 +303,7 @@ local function drawScreen(cur, live, seed)
 	txt(fit(SQ.Kinds[F.kind] or '', 'hlaterm_xs', l.rw - 70), 'hlaterm_xs', l.rx + l.rw / 2, 375, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	-- footer
 	line(40, H - 22, cw - 80, BLUE_DIM, 90)
-	-- in the Combine alphabet like the script on the left (the font has Latin letters only)
-	txt('COMBINE AUTHORITY / SECURE ACCESS', 'hlaterm_cmb_s', 40, H - 12, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	txt('ВЛАСТЬ АЛЬЯНСА / ЗАЩИЩЁННЫЙ ДОСТУП', 'hlaterm_xs', 40, H - 12, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	txt(os.date('%H:%M:%S') .. '  /  ЮНИТ ' .. unitNumber(me), 'hlaterm_xs', cw - 40, H - 12, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	-- buttons
 	local hot = live and hovered(cur) or nil
