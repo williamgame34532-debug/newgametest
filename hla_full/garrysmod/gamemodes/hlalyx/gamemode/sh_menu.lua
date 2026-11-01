@@ -45,10 +45,10 @@ function M.DisplayName(c)
 end
 
 -- movement and stamina
--- realistic pace for an armed unit in gear (1 m ~ 52 units): walk ~2.4 m/s = 125, run ~4.4 m/s = 230,
--- slow walk (Alt) ~1.4 m/s = 75, crouch 45% of it, jump 180 (about 45 cm up)
-M.Move = {walk = 125, run = 230, slow = 75, crouch = 0.45, jump = 180,
-	accel = 6,       -- sv_accelerate: speeds up and stops over ~0.25 s, not instantly (GMod: 10)
+-- a heavy, slow pace of a unit in gear (1 m ~ 52 units): walk ~1.5 m/s = 80, run ~2.9 m/s = 150,
+-- slow walk (Alt) ~1 m/s = 55, crouch 45% of it, jump 160 (about 35 cm up)
+M.Move = {walk = 80, run = 150, slow = 55, crouch = 0.45, jump = 160,
+	accel = 5,       -- sv_accelerate: speeds up and stops over ~0.3 s, not instantly (GMod: 10)
 	airaccel = 2,    -- sv_airaccelerate: almost no steering in the air (GMod: 10)
 	airMax = 1.0}    -- in a jump not faster than the speed it started with (no jump boost / bunny hop)
 -- stamina: ~11 s of running from full, back to full in ~6 s after a short pause

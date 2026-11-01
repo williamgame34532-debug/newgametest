@@ -160,10 +160,21 @@ function GM:CalcView(p, origin, angles, fov, znear, zfar)
 	return view
 end
 
+local safeK = 0
 -- the weapon / hands follow the camera
 function GM:CalcViewModelView(wep, vm, oldPos, oldAng, pos, ang)
 	local p, a = self.BaseClass.CalcViewModelView(self, wep, vm, oldPos, oldAng, pos, ang)
 	p, a = p or pos, a or ang
 	if active(LocalPlayer()) then p = p + offset end
+	-- on safety the weapon goes down and turns aside, smoothly
+	local want = (HLA.IsSafe and HLA.IsSafe(LocalPlayer())) and 1 or 0
+	safeK = Lerp(math.min(1, FrameTime() * 8), safeK, want)
+	if safeK > 0.001 then
+		local ang2 = Angle(a.p, a.y, a.r)
+		ang2:RotateAroundAxis(ang2:Right(), -22 * safeK)
+		ang2:RotateAroundAxis(ang2:Up(), 14 * safeK)
+		p = p - a:Up() * 3.5 * safeK + a:Right() * 1.5 * safeK - a:Forward() * 1 * safeK
+		a = ang2
+	end
 	return p, a
 end

@@ -71,6 +71,11 @@ function S.DispatchText(cfg, id)
 	end
 end
 
+-- who may use the story editor and place story NPCs: admins, the host of a listen server, single player
+function HLA.CanEdit(p)
+	return IsValid(p) and (p:IsAdmin() or game.SinglePlayer() or p:IsListenServerHost())
+end
+
 function S.State() return GetGlobal2String('hla_state', S.WAIT) end
 function S.Mode() return GetGlobal2String('hla_mode', '') end
 function S.InRound() local s = S.State() return s == S.STORY or s == S.PVP end

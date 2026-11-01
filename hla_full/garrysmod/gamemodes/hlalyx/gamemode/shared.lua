@@ -39,6 +39,8 @@ include('sh_squads.lua')
 if SERVER then AddCSLuaFile('sh_dispatch.lua') AddCSLuaFile('sh_story.lua') AddCSLuaFile('cl_story.lua') AddCSLuaFile('cl_editor.lua') AddCSLuaFile('cl_voice.lua') AddCSLuaFile('cl_thirdperson.lua') AddCSLuaFile('cl_effects.lua') end
 include('sh_dispatch.lua')
 include('sh_story.lua')
+if SERVER then AddCSLuaFile('sh_markers.lua') end
+include('sh_markers.lua') -- squad markers (middle mouse)
 
 HLA.DropChance = CreateConVar('hla_resin_drop_chance', '0.6', {FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY}, 'Chance an NPC drops resin')
 HLA.StartResin = CreateConVar('hla_start_resin', '10', {FCVAR_ARCHIVE, FCVAR_NOTIFY}, 'Resin a new player starts with')

@@ -139,7 +139,7 @@ end
 
 -- the editor changed this NPC (C + click, or the NPC tab)
 net.Receive('hla_npc_edit', function(_, p)
-	if not p:IsAdmin() then return end
+	if not HLA.CanEdit(p) then return end
 	local e = net.ReadEntity()
 	local n = net.ReadTable()
 	if not IsValid(e) or not e.IsHLANPC or not istable(n) then return end
@@ -159,3 +159,17 @@ net.Receive('hla_npc_edit', function(_, p)
 	p:ChatPrint('[HLA] NPC «' .. cfg.name .. '» сохранён')
 end)
 util.AddNetworkString('hla_npc_edit')
+
+-- removed by the remover / undo: it leaves the map's story config too
+-- (not when the story respawns its NPCs, cleans up the map or the server shuts down)
+function ENT:OnRemove()
+	local S = HLA.Story
+	if self.HLARespawning or not S or not S.Config or S.Cleaning then return end
+	local i = self.HLAIndex
+	if not i or S.Config.npcs[i] ~= self.Cfg then return end
+	table.remove(S.Config.npcs, i)
+	for _, e in ipairs(ents.FindByClass('hla_npc*')) do
+		if e ~= self and e.HLAIndex and e.HLAIndex > i then e.HLAIndex = e.HLAIndex - 1 end
+	end
+	S.Save()
+end

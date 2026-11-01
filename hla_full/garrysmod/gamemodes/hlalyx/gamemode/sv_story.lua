@@ -441,7 +441,7 @@ end)
 ---------------------------------------------------------------------------------------------------
 -- NPCs of the map from the config
 function S.SpawnNPCs()
-	for _, e in ipairs(ents.FindByClass('hla_npc')) do e:Remove() end
+	for _, e in ipairs(ents.FindByClass('hla_npc*')) do e.HLARespawning = true e:Remove() end
 	for i, n in ipairs(S.Config.npcs) do
 		local e = ents.Create('hla_npc')
 		if IsValid(e) then
@@ -468,7 +468,40 @@ hook.Add('InitPostEntity', 'HLAStory', function()
 	setState(S.WAIT, '')
 	RunConsoleCommand('mp_show_voice_icons', '0') -- our own icon over the head (cl_voice.lua)
 end)
-hook.Add('PostCleanupMap', 'HLAStory', function() if S.Config then S.SpawnNPCs() end end)
+hook.Add('PreCleanupMap', 'HLAStory', function() S.Cleaning = true end)
+hook.Add('PostCleanupMap', 'HLAStory', function() S.Cleaning = false if S.Config then S.SpawnNPCs() end end)
+hook.Add('ShutDown', 'HLAStory', function() S.Cleaning = true end)
+
+-- an NPC from the Q menu (hla_npc_grunt / hla_npc_ordinal): where the player aims, facing the player,
+-- added to the map's config and saved at once
+function S.PlaceNPC(p, tr, label)
+	if not tr.Hit or not IsValid(p) or not HLA.CanEdit(p) or not S.Config then return end
+	local pick
+	for _, c in ipairs(S.NPCModels) do
+		if c.label == label and util.IsValidModel(c.model) then pick = c break end
+	end
+	if not pick then
+		for _, c in ipairs(S.NPCModels) do if c.label == label then pick = c break end end
+		p:ChatPrint('[HLA] Модель «' .. label .. '» не установлена: впишите путь в её настройках (C + клик по NPC)')
+	end
+	local pos = tr.HitPos
+	local yaw = math.Round((p:GetPos() - pos):Angle().y, 1)
+	local n = {pos = {math.Round(pos.x, 1), math.Round(pos.y, 1), math.Round(pos.z, 1)}, yaw = yaw,
+		name = label .. ' ' .. math.random(100, 999), model = pick.model, weapon = pick.weapon,
+		lines = {'', '', ''}, chatter = true, idles = ''}
+	table.insert(S.Config.npcs, n)
+	S.Save()
+	local e = ents.Create('hla_npc')
+	if not IsValid(e) then return end
+	e:SetPos(pos)
+	e:SetAngles(Angle(0, yaw, 0))
+	e.HLAIndex = #S.Config.npcs
+	e:ApplyConfig(n)
+	e:Spawn()
+	e:Activate()
+	p:ChatPrint('[HLA] ' .. n.name .. ' поставлен. Реплики: зажмите C и кликните по нему.')
+	return e
+end
 
 ---------------------------------------------------------------------------------------------------
 -- the editor (admins)
@@ -482,7 +515,7 @@ end
 S.SendConfig = sendConfig
 
 net.Receive('hla_story_save', function(_, p)
-	if not p:IsAdmin() then return end
+	if not HLA.CanEdit(p) then return end
 	local len = net.ReadUInt(32)
 	if len <= 0 or len > 4 * 1024 * 1024 then return end
 	local t = util.JSONToTable(util.Decompress(net.ReadData(len)) or '')
@@ -494,7 +527,7 @@ net.Receive('hla_story_save', function(_, p)
 end)
 
 net.Receive('hla_story_do', function(_, p)
-	if not p:IsAdmin() then return end
+	if not HLA.CanEdit(p) then return end
 	local what = net.ReadString()
 	local arg = net.ReadString()
 	if what == 'get' then sendConfig(p)
@@ -510,7 +543,7 @@ net.Receive('hla_story_do', function(_, p)
 end)
 
 concommand.Add('hla_round', function(p, _, a)
-	if IsValid(p) and not p:IsAdmin() then return end
+	if IsValid(p) and not HLA.CanEdit(p) then return end
 	local w = a[1] or ''
 	if w == 'stop' then S.Stop() elseif w == 'vote' then S.Stop() S.StartVote() elseif w ~= '' then S.StartRound(w) end
 end)

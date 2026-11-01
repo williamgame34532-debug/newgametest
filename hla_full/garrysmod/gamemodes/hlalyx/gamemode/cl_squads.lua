@@ -25,7 +25,7 @@ local function fonts()
 	surface.CreateFont('hla_sq', {font = 'Play', size = math.max(13, math.floor(22 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_name', {font = 'Play', size = math.max(18, math.floor(34 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_s', {font = 'Play', size = math.max(12, math.floor(19 * S())), weight = 400, extended = true})
-	surface.CreateFont('hla_combine', {font = 'Combine_alphabet', size = math.max(14, math.floor(28 * S())), weight = 400, extended = true, antialias = true})
+	surface.CreateFont('hla_combine', {font = 'Combine_alphabet', size = math.max(12, math.floor(22 * S())), weight = 400, extended = true, antialias = true})
 	surface.CreateFont('hla_compass', {font = 'IBM Plex Mono', size = math.max(11, math.floor(16 * S())), weight = 500, extended = true})
 	surface.CreateFont('hla_bino', {font = 'IBM Plex Mono', size = math.max(12, math.floor(20 * S())), weight = 600, extended = true})
 end
@@ -51,16 +51,21 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	local x, y = math.floor(70 * s), math.floor(46 * s)
 	-- the unit's status in the Combine alphabet (font Combine_alphabet: resource/fonts/combine_alphabet.ttf)
 	draw.SimpleText('COMBINE NETWORK STABLE', 'hla_combine', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 220))
-	draw.SimpleText('COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(32 * s), Color(BLUE.r, BLUE.g, BLUE.b, 220))
-	y = y + math.floor(86 * s)
-	-- the squad: a small label, the name large on its own line
-	draw.SimpleText('ОТРЯД', 'hla_sq_s', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 170))
-	y = y + math.floor(20 * s)
-	draw.SimpleText(sq and sq.name or 'НЕ НАЗНАЧЕН', 'hla_sq_name', x, y, sq and TEXT or Color(BLUE.r, BLUE.g, BLUE.b, 150))
-	y = y + math.floor(40 * s)
-	-- the name already starts with «ЮНИТ»: the number alone after the label
+	draw.SimpleText('COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(26 * s), Color(BLUE.r, BLUE.g, BLUE.b, 220))
+	y = y + math.floor(72 * s)
+	-- as on the Combine visor: «ОТРЯД :: …» and «ЮНИТ :: …», labels dim, values bright; no squad — dim and plain
 	local unit = string.gsub(string.upper(p:GetNWString('hla_name', p:Nick())), '^ЮНИТ%s+', '')
-	draw.SimpleText('ЮНИТ  ·  ' .. unit, 'hla_sq', x, y, BLUE)
+	surface.SetFont('hla_sq')
+	local lw = surface.GetTextSize('ОТРЯД  ::  ')
+	draw.SimpleText('ОТРЯД  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
+	if sq then
+		draw.SimpleText(sq.name, 'hla_sq', x + lw, y, TEXT)
+	else
+		draw.SimpleText('не назначен', 'hla_sq_s', x + lw, y + math.floor(2 * s), Color(DIM.r, DIM.g, DIM.b, 200))
+	end
+	y = y + lh
+	draw.SimpleText('ЮНИТ  ::', 'hla_sq', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 150))
+	draw.SimpleText(unit .. ((sq and sq.leader == p) and '  (К)' or ''), 'hla_sq', x + lw, y, TEXT)
 	if sq then
 		y = y + lh + math.floor(8 * s)
 		for _, m in ipairs(sq.members) do

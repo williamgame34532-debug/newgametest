@@ -92,7 +92,7 @@ local function buttons()
 	local b = {}
 	if T.page == 'root' then
 		-- admins get the story editor as one more line (the lines move closer together)
-		local admin = LocalPlayer():IsAdmin()
+		local admin = HLA.CanEdit(LocalPlayer())
 		local rows = {{'inventory', 'ИНВЕНТАРЬ'}, {'settings', 'НАСТРОЙКИ'}, {'help', 'ПОМОЩЬ'}, {'mainmenu', 'ГЛАВНОЕ МЕНЮ'}}
 		if admin then rows[#rows + 1] = {'editor', 'РЕДАКТОР'} end
 		rows[#rows + 1] = {'close', 'ВЕРНУТЬСЯ'}

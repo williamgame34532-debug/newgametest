@@ -22,13 +22,14 @@ local function speakerName(e, name)
 	return e:GetNWString('hla_name', e:IsPlayer() and e:Nick() or '')
 end
 
-local function deliver(to, speaker, mode, text, muffled, name)
+local function deliver(to, speaker, mode, text, muffled, name, radioSounds)
 	net.Start('hla_chat')
 	net.WriteUInt(mode.id, 4)
 	net.WriteEntity(speaker)
 	net.WriteString(speakerName(speaker, name))
 	net.WriteBool(muffled)
 	if not muffled then net.WriteString(text) end
+	if mode.radio then net.WriteString(radioSounds or '') end -- voicelines over the air: «a.wav;b.wav»
 	net.Send(to)
 end
 
@@ -59,7 +60,20 @@ function CH.Say(p, key, text, opts)
 			end
 			for _, m in ipairs(sq.members) do if IsValid(m) then to[#to + 1] = m end end
 		end
-		deliver(to, p, mode, text, false, opts.name)
+		-- voicelines work on the radio too: everyone on the channel hears them through the radio,
+		-- the ones standing next to the unit also hear them from its mask
+		local seq
+		local shown, lines = V.Parse(text)
+		if shown then
+			text, seq = shown, {}
+			for _, l in ipairs(lines) do seq[#seq + 1] = 'hla/vo/grunt/' .. l.files[math.random(#l.files)] .. '.wav' end
+			local at = 0.15
+			for _, snd in ipairs(seq) do
+				timer.Simple(at, function() if IsValid(p) and (not p:IsPlayer() or p:Alive()) then p:EmitSound(snd, 60, 100, 0.6, CHAN_VOICE) end end)
+				at = at + math.Clamp(SoundDuration(snd), 0.3, 12) + 0.15
+			end
+		end
+		deliver(to, p, mode, text, false, opts.name, seq and table.concat(seq, ';') or '')
 		MsgN(string.format('[рация %s] %s: %s', mode.radio, speakerName(p, opts.name), text))
 		return
 	end

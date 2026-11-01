@@ -29,7 +29,7 @@ local function fonts()
 end
 
 concommand.Add('hla_editor', function()
-	if not LocalPlayer():IsAdmin() then chat.AddText(BLUE, '[HLA] ', WHITE, 'Редактор — только для администраторов') return end
+	if not HLA.CanEdit(LocalPlayer()) then chat.AddText(BLUE, '[HLA] ', WHITE, 'Редактор — только для администраторов') return end
 	net.Start('hla_story_do') net.WriteString('get') net.WriteString('') net.SendToServer()
 end)
 
@@ -257,7 +257,7 @@ end
 
 -- C held + click on an NPC: the config is fetched, then the NPC's own window opens (saved at once)
 local function openNPC(ent)
-	if not IsValid(ent) or not LocalPlayer():IsAdmin() then return end
+	if not IsValid(ent) or not HLA.CanEdit(LocalPlayer()) then return end
 	E.pendingNPC = ent
 	act('get')
 end
@@ -265,12 +265,12 @@ E.OpenNPC = openNPC
 
 properties.Add('hla_npc_edit', {
 	MenuLabel = 'NPC: реплики и настройки', Order = 1, MenuIcon = 'icon16/comments.png',
-	Filter = function(self, ent, p) return IsValid(ent) and ent.IsHLANPC and p:IsAdmin() end,
+	Filter = function(self, ent, p) return IsValid(ent) and ent.IsHLANPC and HLA.CanEdit(p) end,
 	Action = function(self, ent) openNPC(ent) end,
 })
 -- with C held, a plain left click on an NPC opens it too
 hook.Add('GUIMousePressed', 'HLANPCEdit', function(code, aim)
-	if code ~= MOUSE_LEFT or not LocalPlayer():IsAdmin() then return end
+	if code ~= MOUSE_LEFT or not HLA.CanEdit(LocalPlayer()) then return end
 	local tr = util.TraceLine({start = EyePos(), endpos = EyePos() + aim * 400, filter = LocalPlayer()})
 	if IsValid(tr.Entity) and tr.Entity.IsHLANPC then openNPC(tr.Entity) end
 end)
@@ -650,3 +650,12 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 		if n.pos then mark(v3(n.pos), n.yaw, Color(120, 255, 160), 'NPC ' .. k .. ': ' .. (n.name or '')) end
 	end
 end)
+
+-- the editor on the desktop of the C menu (admins)
+_G.list.Set('DesktopWindows', 'HLAStoryEditor', {
+	title = 'Редактор сюжета', icon = 'icon64/tool.png', width = 10, height = 10, onewindow = true,
+	init = function(icon, window)
+		if IsValid(window) then window:Remove() end
+		RunConsoleCommand('hla_editor')
+	end,
+})

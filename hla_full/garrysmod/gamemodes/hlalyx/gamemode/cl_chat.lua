@@ -87,6 +87,8 @@ net.Receive('hla_chat', function()
 	local name = net.ReadString()
 	local muffled = net.ReadBool()
 	local text = muffled and '' or net.ReadString()
+	local mode = CH.ByID[id]
+	local radioSounds = (mode and mode.radio) and net.ReadString() or ''
 	if id == CH.DISPATCH then
 		local snd = net.ReadString()
 		C.Add({{'// ДИСПЕТЧЕР — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
@@ -118,9 +120,17 @@ net.Receive('hla_chat', function()
 		local cd = m.radio == 'tac' and Color(170, 222, 255) or Color(178, 244, 186)
 		segs = {{'[' .. m.label .. '] ', c, 'hla_chat_b'}, {name, c, 'hla_chat_b'}, {' ' .. m.verb .. ': ', c, 'hla_chat'}, {'"' .. text .. '"', cd, 'hla_chat'}}
 		C.Add(segs)
-		local snd = 'npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav'
-		LocalPlayer():EmitSound(snd, 0, 100, 0.3, CHAN_STATIC)
-		timer.Simple(0.35, function() if IsValid(LocalPlayer()) then LocalPlayer():EmitSound('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav', 0, 100, 0.25, CHAN_STATIC) end end)
+		-- radio click, the voicelines through the radio one after another, the closing click
+		local me = LocalPlayer()
+		me:EmitSound('npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav', 0, 100, 0.3, CHAN_STATIC)
+		local at = 0.15
+		if radioSounds ~= '' and who ~= me then
+			for part in string.gmatch(radioSounds, '[^;]+') do
+				timer.Simple(at, function() if IsValid(me) then me:EmitSound(part, 0, 100, 0.55, CHAN_STATIC) end end)
+				at = at + math.Clamp(SoundDuration(part), 0.3, 12) + 0.15
+			end
+		end
+		timer.Simple(math.max(0.35, at), function() if IsValid(me) then me:EmitSound('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav', 0, 100, 0.25, CHAN_STATIC) end end)
 		return
 	elseif m.action then
 		segs = {{'* ' .. name .. ' ', BLUE, 'hla_chat_b'}, {text, ACT, 'hla_chat_i'}}

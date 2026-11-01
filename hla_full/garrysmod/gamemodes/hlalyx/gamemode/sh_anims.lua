@@ -17,6 +17,16 @@ local SETS = {
 		air = {ACT_GLIDE, ACT_JUMP, ACT_IDLE_ANGRY_SMG1, ACT_IDLE},
 		swim = {ACT_SWIM, ACT_GLIDE, ACT_IDLE},
 	},
+	-- the weapon on safety (Shift + E + R): lowered, relaxed — the «at ease» activities of the Combine
+	safe = {
+		idle = {ACT_IDLE_SMG1_RELAXED, ACT_IDLE_AR2_RELAXED, ACT_IDLE_RIFLE, ACT_IDLE_RELAXED, ACT_IDLE_SMG1, ACT_IDLE},
+		walk = {ACT_WALK_RIFLE_RELAXED, ACT_WALK_AR2_RELAXED, ACT_WALK_RELAXED, ACT_WALK_RIFLE, ACT_WALK},
+		run = {ACT_RUN_RIFLE_RELAXED, ACT_RUN_AR2_RELAXED, ACT_RUN_RELAXED, ACT_RUN_RIFLE, ACT_RUN},
+		cidle = {ACT_CROUCHIDLE, ACT_COVER_LOW, ACT_IDLE},
+		cwalk = {ACT_WALK_CROUCH_RIFLE, ACT_WALK_CROUCH, ACT_WALK},
+		air = {ACT_GLIDE, ACT_JUMP, ACT_IDLE},
+		swim = {ACT_SWIM, ACT_GLIDE, ACT_IDLE},
+	},
 	unarmed = {
 		idle = {ACT_IDLE, ACT_IDLE_RELAXED, ACT_IDLE_ANGRY},
 		walk = {ACT_WALK, ACT_WALK_RELAXED, ACT_WALK_RIFLE},
@@ -56,7 +66,7 @@ end
 
 hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	if not isUnit(p) or p:InVehicle() then return end
-	local set = SETS[armed(p) and 'armed' or 'unarmed']
+	local set = SETS[armed(p) and (p:GetNW2Bool('hla_safe') and 'safe' or 'armed') or 'unarmed']
 	local speed = vel:Length2D()
 	local kind
 	if p:WaterLevel() >= 2 then kind = 'swim'
@@ -84,8 +94,9 @@ hook.Add('UpdateAnimation', 'HLAUnitAnims', function(p, vel, maxSeqSpeed)
 	if not p:IsOnGround() then rate = 1 end
 	p:SetPlaybackRate(rate)
 	local eye = p:EyeAngles()
-	p:SetPoseParameter('aim_pitch', math.Clamp(eye.p, -60, 60))
-	p:SetPoseParameter('aim_yaw', math.Clamp(math.NormalizeAngle(eye.y - body), -60, 60))
+	local safe = p:GetNW2Bool('hla_safe') and armed(p)
+	p:SetPoseParameter('aim_pitch', safe and 0 or math.Clamp(eye.p, -60, 60))
+	p:SetPoseParameter('aim_yaw', safe and 0 or math.Clamp(math.NormalizeAngle(eye.y - body), -60, 60))
 	p:SetPoseParameter('head_pitch', 0)
 	p:SetPoseParameter('head_yaw', 0)
 	if CLIENT then
@@ -109,3 +120,26 @@ hook.Add('DoAnimationEvent', 'HLAUnitAnims', function(p, event, data)
 		return ACT_INVALID
 	end
 end)
+
+---------------------------------------------------------------------------------------------------
+-- Safety: Shift + E + R together puts the weapon on safety (lowered, relaxed animations, it does not
+-- fire) and takes it off again. Read from the movement command, so client and server agree; the E and R of
+-- the combo do not use or reload.
+local HELD = IN_SPEED + IN_USE + IN_RELOAD
+hook.Add('StartCommand', 'HLASafety', function(p, cmd)
+	local b = cmd:GetButtons()
+	local combo = bit.band(b, HELD) == HELD
+	if combo then
+		cmd:SetButtons(bit.band(b, bit.bnot(bit.bor(IN_RELOAD, IN_USE))))
+		if not p.HLASafeHeld and SERVER and armed(p) then
+			local on = not p:GetNW2Bool('hla_safe')
+			p:SetNW2Bool('hla_safe', on)
+			p:EmitSound(on and 'weapons/smg1/switch_single.wav' or 'weapons/smg1/switch_burst.wav', 55, on and 95 or 105, 0.7)
+		end
+	end
+	p.HLASafeHeld = combo
+	if p:GetNW2Bool('hla_safe') and armed(p) then
+		cmd:SetButtons(bit.band(cmd:GetButtons(), bit.bnot(bit.bor(IN_ATTACK, IN_ATTACK2))))
+	end
+end)
+HLA.IsSafe = function(p) return IsValid(p) and p:GetNW2Bool('hla_safe') and armed(p) end

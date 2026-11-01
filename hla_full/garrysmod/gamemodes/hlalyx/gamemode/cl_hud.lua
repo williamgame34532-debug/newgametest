@@ -148,7 +148,7 @@ function H.Draw(D, st)
 	if st.showAmmo then
 		local y3 = y2 + 92 * s
 		panel(D, xr - 250 * s, y3, 250 * s, 144 * s)
-		D.text('БОЕЗАПАС', 'hla_label', xr - 228 * s, y3 + 14 * s, amber, 0, 0)
+		D.text(st.safe and 'ПРЕДОХРАНИТЕЛЬ' or 'БОЕЗАПАС', 'hla_label', xr - 228 * s, y3 + 14 * s, st.safe and A(amber, 140) or amber, 0, 0)
 		if st.clip and st.clip >= 0 then
 			local rs = '/' .. tostring(st.reserve or 0)
 			local rw = D.size(rs, 'hla_small')

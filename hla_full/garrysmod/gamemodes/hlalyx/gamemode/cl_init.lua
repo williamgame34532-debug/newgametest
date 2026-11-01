@@ -26,6 +26,10 @@ end
 -- HL:A shows pickups on its own counters, not in a pickup list
 function GM:HUDDrawPickupHistory() end
 
+-- no kill feed in the corner (deaths are reported by the dispatcher)
+function GM:AddDeathNotice() end
+function GM:DrawDeathNotice() end
+
 -- the standard weapon list is hidden, so weapons switch instantly: wheel cycles, 1..6 pick
 -- (the active one is highlighted among the icons on the right of the HUD)
 local function ordered(p)
@@ -189,6 +193,7 @@ function GM:HUDPaint()
 		st.showAmmo = true
 		st.clip = active:Clip1()
 		st.reserve = p:GetAmmoCount(active:GetPrimaryAmmoType())
+		st.safe = HLA.IsSafe and HLA.IsSafe(p)
 	end
 	-- the vignette flat on the screen, the HUD itself on the curved visor with the other HUD layers
 	H.Vignette(D, st)

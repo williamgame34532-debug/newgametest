@@ -18,11 +18,11 @@ local bg, bar = Material('hla/terminal/bg'), Material('hla/terminal/bar')
 local ring = Material('hla/ui_blue/crosshair')
 local glyphs = Material('hla/hud/glyphs')
 
-surface.CreateFont('hlaterm_xs', {font = 'IBM Plex Mono', size = 14, weight = 500, extended = true})
-surface.CreateFont('hlaterm_s', {font = 'IBM Plex Mono', size = 16, weight = 600, extended = true})
-surface.CreateFont('hlaterm_tab', {font = 'Play', size = 19, weight = 700, extended = true})
-surface.CreateFont('hlaterm_m', {font = 'Play', size = 21, weight = 700, extended = true})
-surface.CreateFont('hlaterm_t', {font = 'Play', size = 30, weight = 700, extended = true})
+surface.CreateFont('hlaterm_xs', {font = 'Roboto Condensed', size = 17, weight = 500, extended = true})
+surface.CreateFont('hlaterm_s', {font = 'Roboto Condensed', size = 20, weight = 700, extended = true})
+surface.CreateFont('hlaterm_tab', {font = 'Roboto Condensed', size = 21, weight = 700, extended = true})
+surface.CreateFont('hlaterm_m', {font = 'Roboto Condensed', size = 24, weight = 700, extended = true})
+surface.CreateFont('hlaterm_t', {font = 'Roboto Condensed', size = 32, weight = 700, extended = true})
 surface.CreateFont('hlaterm_num', {font = 'Russo One', size = 54, weight = 400, extended = true})
 surface.CreateFont('hlaterm_big', {font = 'Russo One', size = 52, weight = 400, extended = true})
 surface.CreateFont('hlaterm_warn', {font = 'Russo One', size = 38, weight = 400, extended = true})
@@ -54,9 +54,9 @@ local CYAN_HI = Color(150, 222, 248)
 local GREEN = Color(72, 214, 156)
 local NAVY = Color(8, 26, 40)
 local PANEL_BG = Color(10, 34, 48)
-surface.CreateFont('hlaterm_cmb', {font = 'Combine_alphabet', size = 24, weight = 400, extended = true, antialias = true})
-surface.CreateFont('hlaterm_id', {font = 'Russo One', size = 30, weight = 400, extended = true})
-surface.CreateFont('hlaterm_bar', {font = 'Play', size = 22, weight = 400, extended = true})
+surface.CreateFont('hlaterm_cmb', {font = 'Combine_alphabet', size = 17, weight = 400, extended = true, antialias = true})
+surface.CreateFont('hlaterm_id', {font = 'Roboto Condensed', size = 36, weight = 700, extended = true})
+surface.CreateFont('hlaterm_bar', {font = 'Roboto Condensed', size = 25, weight = 700, extended = true})
 
 local function L()
 	local cw = F.cw
@@ -159,7 +159,7 @@ end
 local function fill(x, y, w, h, c, a) surface.SetDrawColor(c.r, c.g, c.b, a or 255) surface.DrawRect(x, y, w, h) end
 -- a bright bar with a soft scratch texture over it (the HL:A screens are not flat)
 local function brightBar(x, y, w, h, c, a)
-	fill(x, y, w, h, c, 235 * (a or 1))
+	fill(x, y, w, h, Color(c.r * 0.82, c.g * 0.82, c.b * 0.82), 235 * (a or 1))
 	surface.SetMaterial(bar)
 	surface.SetDrawColor(255, 255, 255, 50 * (a or 1))
 	surface.DrawTexturedRect(x, y, w, h)
@@ -190,11 +190,11 @@ local function drawButton(b, hot)
 end
 
 -- Combine script lines: the same for a terminal every time (seeded by its index)
-local CMB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+local CMB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 local function combineLines(seed, n)
 	local out, x = {}, seed * 7919
 	for i = 1, n do
-		local len = 8 + (x % 9)
+		local len = 6 + (x % 7)
 		local t = {}
 		for k = 1, len do
 			x = (x * 1103515245 + 12345) % 2147483648
@@ -287,7 +287,7 @@ local function drawScreen(cur, live, seed)
 	local sq = SQ.Of(me)
 	txt(fit(sq and ('ОТРЯД :: ' .. sq.name) or 'ОТРЯД :: НЕ НАЗНАЧЕН', 'hlaterm_xs', l.lw), 'hlaterm_xs', l.lx, l.top + 80, sq and GREEN or BLUE_DIM)
 	for i, s in ipairs(combineLines(seed or 1, 7)) do
-		txt(s, 'hlaterm_cmb', l.lx, 300 + (i - 1) * 30, Color(CYAN.r, CYAN.g, CYAN.b, 150))
+		txt(s, 'hlaterm_cmb', l.lx, 306 + (i - 1) * 24, Color(CYAN.r, CYAN.g, CYAN.b, 140))
 	end
 	-- middle
 	middle(l)

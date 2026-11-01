@@ -34,7 +34,9 @@ end
 
 hook.Add('RenderScreenspaceEffects', 'HLAPicture', function()
 	if inMenu() then return end
-	if cvHDR:GetBool() then
+	-- at a screen (terminal, fabricator) no glow: it would wash out the text of the screen
+	local atScreen = (HLA.TerminalFocus and HLA.TerminalFocus.blend > 0) or (CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0)
+	if cvHDR:GetBool() and not atScreen then
 		probe()
 		-- the glow only over the brightest parts
 		DrawBloom(0.74, 0.45, 7, 7, 2, 0.8, 1, 1, 1)
