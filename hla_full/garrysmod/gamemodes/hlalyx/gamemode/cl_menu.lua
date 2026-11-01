@@ -1,9 +1,9 @@
 -- Main menu (client): golden Half-Life: Alyx style panels drawn in the world (3D2D) at the menu spot,
 -- the camera stands in front of them and drifts a little toward the mouse. All looks come from the
 -- textures of the hla_menu_content addon (materials/hla/ui); this file only lays them out.
---   ИГРАТЬ > персонажи > (персонаж > ИГРАТЬ / УДАЛИТЬ) | (СОЗДАТЬ ПЕРСОНАЖА > имя, фамилия, модель)
+--   ИГРАТЬ > персонажи > (персонаж > ИГРАТЬ / УДАЛИТЬ) | (СОЗДАТЬ ПЕРСОНАЖА > номер, модель юнита)
 local M = HLA.Menu
-local S = {open = false, fade = 0, stack = {}, chars = {}, form = {first = '', last = '', model = 1}, look = {0, 0}}
+local S = {open = false, fade = 0, stack = {}, chars = {}, form = {num = '', model = 1}, look = {0, 0}}
 M.State = S
 
 local mats = {}
@@ -58,7 +58,7 @@ function PANELS.chars()
 	local it = {{kind = 'section', label = 'ВАШИ ПЕРСОНАЖИ', y = 40}}
 	local y = 62
 	for i, c in ipairs(S.chars) do
-		it[#it + 1] = {id = 'char', arg = i, kind = 'row', label = string.upper(c.first .. ' ' .. c.last), sub = M.ModelLabel(c.model), y = y, h = 62}
+		it[#it + 1] = {id = 'char', arg = i, kind = 'row', label = M.DisplayName(c), sub = M.ModelLabel(c.model) .. '  ·  ID ' .. tostring(c.id or '?'), y = y, h = 62}
 		y = y + 66
 	end
 	if #S.chars == 0 then it[#it + 1] = {kind = 'text', label = 'ПЕРСОНАЖЕЙ ПОКА НЕТ', y = y + 10} y = y + 50 end
@@ -75,8 +75,8 @@ function PANELS.char()
 	if not c then return {title = 'ПЕРСОНАЖ', h = 200, items = {{id = 'back', kind = 'back', label = 'НАЗАД'}}} end
 	local armed = (S.deleteArm or 0) > CurTime()
 	return {title = 'ПЕРСОНАЖ', h = 330, items = {
-		{kind = 'text', label = string.upper(c.first .. ' ' .. c.last), font = 'hlam_big', y = 58},
-		{kind = 'text', label = 'МОДЕЛЬ : ' .. M.ModelLabel(c.model), font = 'hlam_small', y = 98},
+		{kind = 'text', label = M.DisplayName(c), font = 'hlam_big', y = 58},
+		{kind = 'text', label = M.ModelLabel(c.model) .. '  ·  ID ПЕРСОНАЖА ' .. tostring(c.id or '?'), font = 'hlam_small', y = 98},
 		{id = 'play_char', kind = 'row', label = 'ИГРАТЬ', y = 140, h = 66},
 		{id = 'delete', kind = 'row', label = armed and 'НАЖМИТЕ ЕЩЁ РАЗ — УДАЛИТЬ' or 'УДАЛИТЬ', y = 214, h = 66, warn = armed},
 		{id = 'back', kind = 'back', label = 'НАЗАД'},
@@ -87,11 +87,11 @@ function PANELS.create()
 	local list = models()
 	S.form.model = math.Clamp(S.form.model, 1, math.max(1, #list))
 	return {title = 'НОВЫЙ ПЕРСОНАЖ', h = 380, items = {
-		{kind = 'section', label = 'ДАННЫЕ', y = 40},
-		{id = 'field', arg = 'first', kind = 'field', label = 'ИМЯ', y = 62, h = 60},
-		{id = 'field', arg = 'last', kind = 'field', label = 'ФАМИЛИЯ', y = 128, h = 60},
-		{kind = 'section', label = 'ВНЕШНОСТЬ', y = 200},
-		{id = 'model', kind = 'option', label = 'МОДЕЛЬ : ' .. M.ModelLabel(list[S.form.model]), count = #list, index = S.form.model, y = 222, h = 64},
+		{kind = 'section', label = 'ОПОЗНАНИЕ', y = 40},
+		{id = 'field', arg = 'num', kind = 'field', label = 'НОМЕР', y = 62, h = 60},
+		{kind = 'text', label = 'ТРИ ЦИФРЫ, НАПРИМЕР 457', font = 'hlam_small', y = 138},
+		{kind = 'section', label = 'ЮНИТ', y = 200},
+		{id = 'model', kind = 'option', label = #list > 0 and M.ModelLabel(list[S.form.model]) or 'НЕТ МОДЕЛЕЙ', count = #list, index = S.form.model, y = 222, h = 64},
 		{id = 'create', kind = 'row', label = 'СОЗДАТЬ', y = 296, h = 62},
 		{id = 'back', kind = 'back', label = 'НАЗАД'},
 	}}
@@ -142,7 +142,7 @@ local function activate(item)
 	elseif id == 'quit' then RunConsoleCommand('disconnect')
 	elseif id == 'back' then pop()
 	elseif id == 'char' then S.sel = item.arg S.deleteArm = nil push('char')
-	elseif id == 'new' then S.form = {first = '', last = '', model = 1} S.error = nil push('create')
+	elseif id == 'new' then S.form = {num = '', model = 1} S.error = nil push('create') timer.Simple(0.5, function() if S.open then focusField('num') end end)
 	elseif id == 'field' then focusField(item.arg)
 	elseif id == 'play_char' then
 		net.Start('hla_menu_do') net.WriteString('play') net.WriteUInt(S.sel, 8) net.SendToServer()
@@ -159,16 +159,21 @@ local function activate(item)
 	elseif id == 'create' then
 		local f = S.form
 		local list = models()
-		if not M.ValidName(f.first) or not M.ValidName(f.last) then
-			S.error = 'ИМЯ И ФАМИЛИЯ: ' .. M.NameMin .. '–' .. M.NameMax .. ' БУКВ'
+		if not M.ValidNum(f.num) then
+			S.error = 'НОМЕР: РОВНО ТРИ ЦИФРЫ'
+			snd('click')
+			return
+		end
+		if not list[f.model] then
+			S.error = 'МОДЕЛИ ЮНИТОВ НЕ УСТАНОВЛЕНЫ'
 			snd('click')
 			return
 		end
 		net.Start('hla_menu_do') net.WriteString('create')
-		net.WriteString(f.first) net.WriteString(f.last) net.WriteString(list[f.model] or '')
+		net.WriteString(f.num) net.WriteString(list[f.model])
 		net.SendToServer()
 		S.focus = nil
-		pop()
+		S.waitCreate = #S.chars
 	end
 end
 
@@ -565,9 +570,10 @@ local function makeCatcher()
 		self:RequestFocus()
 		if S.focus then self:SetCaretPos(utf8.len(self:GetText()) or 0) end
 	end
-	c.AllowInput = function(self)
+	c.AllowInput = function(self, ch)
 		if not S.focus then return true end -- nothing selected: ignore typing
-		return (utf8.len(self:GetText()) or 0) >= M.NameMax
+		-- the unit number: digits only, three of them
+		return not string.match(ch or '', '^%d$') or #self:GetText() >= 3
 	end
 	c.OnChange = function(self)
 		if not S.focus then
@@ -580,7 +586,7 @@ local function makeCatcher()
 		S.error = nil
 	end
 	c.OnEnter = function(self)
-		if S.focus == 'first' then focusField('last') else closeInput() end
+		closeInput()
 		self:RequestFocus()
 	end
 	-- the entry keeps the focus while the menu is up
@@ -619,11 +625,23 @@ net.Receive('hla_menu_open', function()
 	if S.open then
 		S.chars = chars
 		if S.sel and not chars[S.sel] then S.sel = nil end
+		-- the new character arrived: close the form
+		if S.waitCreate and #chars > S.waitCreate then
+			S.waitCreate = nil
+			local top = S.stack[#S.stack]
+			if top and top.id == 'create' then pop() end
+		end
 	else
 		openMenu(chars, pos, ang)
 	end
 end)
 net.Receive('hla_menu_closed', closeMenu)
+-- the server refused a new character (number taken): stay on the form and say why
+net.Receive('hla_menu_error', function()
+	S.error = net.ReadString()
+	S.waitCreate = nil
+	snd('click')
+end)
 
 hook.Add('InitPostEntity', 'HLAMenuReady', function()
 	net.Start('hla_menu_do') net.WriteString('ready') net.SendToServer()

@@ -4,6 +4,7 @@ local M = HLA.Menu
 util.AddNetworkString('hla_menu_open')
 util.AddNetworkString('hla_menu_do')
 util.AddNetworkString('hla_menu_closed')
+util.AddNetworkString('hla_menu_error')
 
 file.CreateDir('hla')
 file.CreateDir('hla/chars')
@@ -11,19 +12,75 @@ file.CreateDir('hla/menuspot')
 
 local function charsPath(p) return 'hla/chars/' .. p:SteamID64() .. '.json' end
 
-function M.LoadChars(p)
-	local t = util.JSONToTable(file.Read(charsPath(p), 'DATA') or '') or {}
-	local out = {}
-	for _, c in ipairs(t) do
-		if istable(c) and M.ValidName(c.first) and M.ValidName(c.last) and isstring(c.model) then out[#out + 1] = c end
-	end
-	return out
-end
-
 function M.SaveChars(p, list)
 	file.Write(charsPath(p), util.TableToJSON(list))
 end
 
+-- permanent character IDs: a server-wide counter, never reused
+local function nextCharID()
+	local n = (tonumber(file.Read('hla/charseq.txt', 'DATA') or '') or 0) + 1
+	file.Write('hla/charseq.txt', tostring(n))
+	return n
+end
+
+-- unit numbers are unique on the server: number -> character ID
+local function numbers() return util.JSONToTable(file.Read('hla/numbers.json', 'DATA') or '') or {} end
+local function saveNumbers(t) file.Write('hla/numbers.json', util.TableToJSON(t)) end
+function M.NumberFree(num, exceptID)
+	local owner = numbers()[num]
+	return owner == nil or owner == exceptID
+end
+local function claimNumber(num, id) local t = numbers() t[num] = id saveNumbers(t) end
+local function freeNumber(num, id)
+	local t = numbers()
+	if t[num] == id then t[num] = nil saveNumbers(t) end
+end
+local function randomFreeNumber()
+	local t = numbers()
+	for _ = 1, 2000 do
+		local n = string.format('%03d', math.random(100, 999))
+		if not t[n] then return n end
+	end
+	return '000'
+end
+
+-- move a file of the old per-slot saves to the character's own name
+local function moveFile(from, to)
+	if not file.Exists(from, 'DATA') or file.Exists(to, 'DATA') then return end
+	file.Write(to, file.Read(from, 'DATA') or '')
+	file.Delete(from)
+end
+
+function M.LoadChars(p)
+	local t = util.JSONToTable(file.Read(charsPath(p), 'DATA') or '') or {}
+	local out, changed, gaveResin = {}, false, false
+	for i, c in ipairs(t) do
+		if istable(c) then
+			-- characters from before the IDs (first/last name, Group03 models) become units:
+			-- they get an ID, a free number and the first unit model; their inventory and resin follow
+			if not isnumber(c.id) then
+				c.id = nextCharID()
+				changed = true
+				moveFile('hla/inv/' .. p:SteamID64() .. '_' .. i .. '.json', 'hla/inv/char_' .. c.id .. '.json')
+				-- the old account balance goes to the first of them
+				if CFRework and CFRework.StoreBalance and not gaveResin then
+					gaveResin = true
+					CFRework.StoreBalance('c' .. c.id, CFRework.ReadBalance(p:SteamID64()))
+				end
+			end
+			if not M.ValidNum(c.num) or not M.NumberFree(c.num, c.id) then
+				c.num = randomFreeNumber()
+				claimNumber(c.num, c.id)
+				changed = true
+			end
+			if not M.Class(c.model) then c.model = M.Classes[1].model changed = true end
+			c.first, c.last = nil, nil
+			out[#out + 1] = c
+		end
+	end
+	if changed then M.SaveChars(p, out) end
+	return out
+end
 local function spotPath() return 'hla/menuspot/' .. game.GetMap() .. '.json' end
 function M.Spot()
 	local t = util.JSONToTable(file.Read(spotPath(), 'DATA') or '')
@@ -41,6 +98,7 @@ end
 
 -- park the player while the menu is up: invisible, locked, no damage, no weapons
 function M.Enter(p)
+	if HLA.Squads and HLA.Squads.Leave and HLA.Squads.Of(p) then HLA.Squads.Leave(p, true) end -- another character
 	p.HLAInMenu = true
 	p:SetNWBool('hla_in_menu', true)
 	p:StripWeapons()
@@ -55,7 +113,12 @@ function M.Play(p, c)
 	p.HLAInMenu = false
 	p:SetNWBool('hla_in_menu', false)
 	p.HLAModel = c.model
-	p:SetNWString('hla_name', c.first .. ' ' .. c.last)
+	p.HLACharID = c.id
+	p.HLAClass = M.Class(c.model)
+	p:SetNWInt('hla_charid', c.id)
+	p:SetNWString('hla_name', M.DisplayName(c))
+	-- resin of this character
+	if CFRework and CFRework.ReadBalance then p:SetNWInt('cf_resin', CFRework.ReadBalance('c' .. c.id)) end
 	p:UnLock()
 	p:SetNoDraw(false)
 	p:SetNotSolid(false)
@@ -80,29 +143,55 @@ net.Receive('hla_menu_do', function(_, p)
 		M.Enter(p)
 	elseif what == 'create' then
 		if not p.HLAInMenu then return end
-		local first, last, model = string.Trim(net.ReadString()), string.Trim(net.ReadString()), net.ReadString()
+		local num, model = string.Trim(net.ReadString()), net.ReadString()
 		local list = M.LoadChars(p)
-		if #list >= M.MaxChars or not M.ValidName(first) or not M.ValidName(last) or not M.ValidModel(model) then return end
-		list[#list + 1] = {first = first, last = last, model = model, created = os.time()}
+		if #list >= M.MaxChars or not M.ValidNum(num) or not M.ValidModel(model) then return end
+		if not M.NumberFree(num) then
+			net.Start('hla_menu_error') net.WriteString('НОМЕР ' .. num .. ' УЖЕ ЗАНЯТ') net.Send(p)
+			return
+		end
+		local id = nextCharID()
+		claimNumber(num, id)
+		list[#list + 1] = {id = id, num = num, model = model, created = os.time()}
 		M.SaveChars(p, list)
+		if CFRework and CFRework.StoreBalance and HLA.StartResin then CFRework.StoreBalance('c' .. id, HLA.StartResin:GetInt()) end
 		sendOpen(p)
 	elseif what == 'delete' then
 		if not p.HLAInMenu then return end
 		local i = net.ReadUInt(8)
 		local list = M.LoadChars(p)
-		if list[i] then table.remove(list, i) M.SaveChars(p, list) end
+		if list[i] then
+			freeNumber(list[i].num, list[i].id)
+			table.remove(list, i)
+			M.SaveChars(p, list)
+		end
 		sendOpen(p)
 	elseif what == 'play' then
 		if not p.HLAInMenu then return end
 		local idx = net.ReadUInt(8)
 		local c = M.LoadChars(p)[idx]
 		if c and M.ValidModel(c.model) then
-			p.HLACharIndex = idx
+			if HLA.Items and HLA.Items.Save and p.HLAInv then HLA.Items.Save(p) end -- the previous character's
 			M.Play(p, c)
 			if HLA.Items and HLA.Items.Load then HLA.Items.Load(p) end -- this character's inventory
 		end
 	end
 end)
+
+-- unit models are NPC models: registered so the hands and player model lists know them
+for _, c in ipairs(M.Classes) do
+	player_manager.AddValidModel('hla_' .. string.lower(c.label), c.model)
+	player_manager.AddValidHands('hla_' .. string.lower(c.label), 'models/weapons/c_arms_combine.mdl', 0, '00000000')
+end
+function GM:PlayerSetHandsModel(p, hands)
+	if p.HLAClass then
+		hands:SetModel('models/weapons/c_arms_combine.mdl')
+		hands:SetSkin(0)
+		hands:SetBodyGroups('00000000')
+		return
+	end
+	self.BaseClass.PlayerSetHandsModel(self, p, hands)
+end
 
 -- the character's model
 function GM:PlayerSetModel(p)

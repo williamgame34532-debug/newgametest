@@ -1,8 +1,14 @@
 include('shared.lua')
 include('cl_hud.lua')
+include('cl_hudcurve.lua')
 include('cl_world.lua')
 include('cl_tabmenu.lua')
 include('cl_menu.lua')
+include('cl_chat.lua')
+include('cl_view.lua')
+include('cl_squads.lua')
+include('cl_ambient.lua')
+include('cl_ffmenu.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
@@ -67,10 +73,13 @@ local function fonts()
 	local key = ScrW() .. 'x' .. ScrH() .. '@' .. s
 	if fontsFor == key then return end
 	fontsFor = key
-	surface.CreateFont('hla_label', {font = 'Roboto Condensed', size = math.max(10, math.floor(26 * s)), weight = 700, extended = true})
-	surface.CreateFont('hla_value', {font = 'Roboto Condensed', size = math.max(14, math.floor(44 * s)), weight = 300, extended = true})
-	surface.CreateFont('hla_big', {font = 'Roboto Condensed', size = math.max(20, math.floor(92 * s)), weight = 300, extended = true})
-	surface.CreateFont('hla_small', {font = 'Roboto Condensed', size = math.max(12, math.floor(42 * s)), weight = 300, extended = true})
+	-- Play (hla_chat_content, OFL): a squared interface face with Cyrillic, bold for the labels
+	surface.CreateFont('hla_label', {font = 'Play', size = math.max(11, math.floor(28 * s)), weight = 700, extended = true})
+	surface.CreateFont('hla_value', {font = 'Play', size = math.max(15, math.floor(48 * s)), weight = 700, extended = true})
+	surface.CreateFont('hla_big', {font = 'Play', size = math.max(22, math.floor(100 * s)), weight = 700, extended = true})
+	surface.CreateFont('hla_small', {font = 'Play', size = math.max(13, math.floor(44 * s)), weight = 400, extended = true})
+	surface.CreateFont('hla_wname', {font = 'Play', size = math.max(12, math.floor(26 * s)), weight = 700, extended = true})
+	surface.CreateFont('hla_wslot', {font = 'Play', size = math.max(10, math.floor(20 * s)), weight = 400, extended = true})
 	surface.CreateFont('hla_wep', {font = 'HalfLife2', size = math.max(16, math.floor(64 * s)), weight = 0, antialias = true})
 end
 
@@ -127,10 +136,11 @@ function GM:HUDPaint()
 
 	local weps = {}
 	local active = p:GetActiveWeapon()
-	for _, w in ipairs(p:GetWeapons()) do
+	for _, w in ipairs(ordered(p)) do
 		local c = w:GetClass()
-		local glyph = H.GLYPHS[c]
-		weps[#weps + 1] = {glyph = glyph, name = glyph and nil or string.upper(string.sub(w:GetPrintName() or c, 1, 6)), active = w == active}
+		local name = language.GetPhrase(w:GetPrintName() or c)
+		if (utf8.len(name) or 0) > 22 then name = string.sub(name, 1, (utf8.offset(name, 22) or 23) - 1) .. '…' end
+		weps[#weps + 1] = {glyph = H.GLYPHS[c], name = utf8.force and utf8.force(name) or name, slot = w:GetSlot() + 1, active = w == active}
 		if #weps >= 6 then break end
 	end
 	local st = {w = ScrW(), h = ScrH(), scale = hudScale(), t = CurTime(), resin = resin,
@@ -149,7 +159,14 @@ function GM:HUDPaint()
 		st.clip = active:Clip1()
 		st.reserve = p:GetAmmoCount(active:GetPrimaryAmmoType())
 	end
-	local beat = H.Draw(D, st)
+	-- the vignette flat on the screen, the HUD itself on the curved visor with the other HUD layers
+	H.Vignette(D, st)
+	local beat
+	HLA.HudCurve.Paint(function()
+		beat = H.Draw(D, st)
+		hook.Run('HLAHUDPaint')
+	end)
+	beat = beat or 0
 
 	-- heartbeat in time with the hearts; a warning sound when health first drops low
 	local low = hp > 0 and hp <= H.LOW

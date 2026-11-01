@@ -205,7 +205,7 @@ function ENT:Order(p, index)
 	if C.Balance(p) < item.cost then self:Notify(p, 'НЕДОСТАТОЧНО СМОЛЫ — НУЖНО ' .. item.cost) return end
 	self.SessionSerial = (self.SessionSerial or 0) + 1
 	self:SetOperator(p)
-	self.OrderID = p:SteamID64()
+	self.OrderID = C.SaveKey and C.SaveKey(p) or p:SteamID64()
 	self:SetSelection(index)
 	self:SetCost(item.cost)
 	self:SetPaid(0)

@@ -8,9 +8,9 @@ hook.Add('HUDShouldDraw', 'HLANoHints', function(name)
 end)
 
 ---------------------------------------------------------------------------------------------------
--- first and last name over the player you look at
+-- unit name over the player you look at
 surface.CreateFont('hla_name3d', {font = 'Roboto Condensed', size = 46, weight = 700, extended = true, antialias = true})
-local AMBER = Color(241, 196, 61)
+local AMBER = HLA.Hud.AMBER_C -- blue HUD colour
 local lookAt, lookAlpha = nil, 0
 
 hook.Add('Think', 'HLANameTarget', function()

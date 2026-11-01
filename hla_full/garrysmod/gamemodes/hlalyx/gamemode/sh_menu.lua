@@ -1,44 +1,52 @@
 -- Main menu in the style of the Half-Life: Alyx menu (golden panels), shared settings.
 -- The menu is shown in the world (3D2D) at a spot an admin picks per map (hla_menu_spot),
--- the camera stands in front of it. Play > choose a character or create one > spawn.
+-- the camera stands in front of it. Play > choose a character or create one (number + model) > spawn.
 HLA = HLA or {}
 HLA.Menu = HLA.Menu or {}
 local M = HLA.Menu
 
 M.CommunityURL = 'https://steamcommunity.com/' -- button «СООБЩЕСТВО»
 M.MaxChars = 4
-M.NameMin, M.NameMax = 2, 24
 
--- player models a character can use (models missing on a client are skipped there)
+-- Characters are Combine units: a three-digit number instead of a name, one of three models,
+-- each with its own weapon. Every character has a permanent ID (saves are keyed by it).
+M.NamePrefix = 'ЮНИТ '
+M.Classes = {
+	{model = 'models/cultist/hl_a/combine_grunt/combine_grunt.mdl', label = 'ГРАНТ', weapon = 'tfa_osips'},
+	{model = 'models/nemez/combine_soldiers/combine_soldier_recon_h.mdl', label = 'РАЗВЕДЧИК', weapon = 'weapon_csniper_tfa2'},
+	{model = 'models/nemez/combine_soldiers/combine_soldier_coordinator_h.mdl', label = 'КООРДИНАТОР', weapon = 'tfa_ocipr'},
+}
 M.Models = {}
-for i = 1, 9 do M.Models[#M.Models + 1] = string.format('models/player/Group03/male_%02d.mdl', i) end
-for i = 1, 7 do M.Models[#M.Models + 1] = string.format('models/player/Group03/female_%02d.mdl', i) end
+for i, c in ipairs(M.Classes) do M.Models[i] = c.model end
+
+function M.Class(path)
+	path = string.lower(path or '')
+	for _, c in ipairs(M.Classes) do if c.model == path then return c end end
+end
 
 function M.ModelLabel(path)
-	local sex, n = string.match(path or '', '(%a+)_(%d+)%.mdl$')
-	if not sex then return '?' end
-	return (sex == 'female' and 'ЖЕНЩИНА ' or 'МУЖЧИНА ') .. n
+	local c = M.Class(path)
+	return c and c.label or '?'
 end
 
 function M.ValidModel(path)
-	for _, m in ipairs(M.Models) do if m == path then return file.Exists(path, 'GAME') end end
-	return false
+	return M.Class(path) ~= nil and file.Exists(path, 'GAME')
 end
 
--- letters (Latin and Cyrillic), hyphen and apostrophe; UTF-8 aware length
-function M.ValidName(s)
-	if not isstring(s) then return false end
-	s = string.Trim(s)
-	local n = utf8.len(s)
-	if not n or n < M.NameMin or n > M.NameMax then return false end
-	for _, code in utf8.codes(s) do
-		local ok = (code >= 65 and code <= 90) or (code >= 97 and code <= 122) or code == 45 or code == 39
-			or (code >= 0x410 and code <= 0x44F) or code == 0x401 or code == 0x451
-		if not ok then return false end
-	end
-	return true
+-- exactly three digits
+function M.ValidNum(s)
+	return isstring(s) and string.match(s, '^%d%d%d$') ~= nil
+end
+
+function M.DisplayName(c)
+	return M.NamePrefix .. (c.num or '???')
 end
 
 -- movement and stamina
-M.Move = {walk = 150, run = 245, slow = 90, crouch = 0.45, jump = 190}
+-- calm, weighty movement (units per second; a person walks ~1.4 m/s = ~75, runs ~3.5 m/s = ~185):
+-- walk 105, run 185, slow walk (Alt) 70, crouch 40% of it, jump 170 (about 40 cm up)
+M.Move = {walk = 105, run = 185, slow = 70, crouch = 0.4, jump = 170,
+	accel = 5,       -- sv_accelerate: speeds up and stops over ~0.3 s, not instantly (GMod: 10)
+	airaccel = 2,    -- sv_airaccelerate: almost no steering in the air (GMod: 10)
+	airMax = 1.0}    -- in a jump not faster than the speed it started with (no jump boost / bunny hop)
 M.Stamina = {max = 100, drain = 17, regen = 14, regenDelay = 1.1, jump = 14, recover = 25}

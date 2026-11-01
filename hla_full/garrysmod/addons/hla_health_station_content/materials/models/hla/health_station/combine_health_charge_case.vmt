@@ -10,4 +10,6 @@
 	"$selfillum" "1"
 	"$selfillumtint" "[1.000 1.000 1.000]"
 	"$selfillummask" "models/hla/health_station/combine_health_charge_case_illum"
+	"$alphatest" "1"
+	"$alphatestreference" "0.5"
 }

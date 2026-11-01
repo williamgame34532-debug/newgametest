@@ -6,6 +6,9 @@ include('fabricator/sv_resin.lua')
 include('sv_game.lua')
 include('sv_menu.lua')
 include('sv_inventory.lua')
+include('sv_chat.lua')
+include('sv_squads.lua')
+include('sv_ambient.lua')
 
 -- clients download the fabricator content (models, materials, sounds, font) from the server
 local function sendFolder(path)
@@ -20,3 +23,10 @@ end
 if file.Exists('shaders/fxc/hla_monitor_ps30.vcs', 'GAME') then resource.AddSingleFile('shaders/fxc/hla_monitor_ps30.vcs') end
 resource.AddFile('resource/fonts/RobotoCondensed-Regular.ttf')
 resource.AddFile('resource/fonts/RobotoCondensed-Bold.ttf')
+-- chat font (hla_chat_content)
+resource.AddFile('resource/fonts/IBMPlexMono-Regular.ttf')
+resource.AddFile('resource/fonts/IBMPlexMono-SemiBold.ttf')
+resource.AddFile('resource/fonts/IBMPlexMono-Italic.ttf')
+resource.AddFile('resource/fonts/RussoOne-Regular.ttf')
+resource.AddFile('resource/fonts/Play-Regular.ttf')
+resource.AddFile('resource/fonts/Play-Bold.ttf')

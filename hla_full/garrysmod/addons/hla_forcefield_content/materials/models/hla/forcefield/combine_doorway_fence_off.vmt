@@ -1,0 +1,14 @@
+"VertexLitGeneric"
+{
+	// Half-Life: Alyx combine_doorway_fence: metal (alpha of the colour map) is dark and reflective
+	"$basetexture" "models/hla/forcefield/combine_doorway_fence_on_color"
+	"$phong" "1"
+	"$basemapalphaphongmask" "1"
+	"$phongboost" "6"
+	"$phongexponent" "28"
+	"$phongtint" "[0.62 0.72 0.82]"
+	"$phongfresnelranges" "[0.4 0.8 1]"
+	"$selfillum" "1"
+	"$selfillumtint" "[0.040 0.060 0.060]"
+	"$selfillummask" "models/hla/forcefield/combine_doorway_fence_on_illum"
+}

@@ -1,4 +1,16 @@
-"VertexLitGeneric"
+"UnlitGeneric"
 {
-	"$basetexture" "dev/dev_measuregeneric01b"
+	"$basetexture" "models/hla/health_station/combine_printer_screens_trans_anim_color"
+	"$additive" "1"
+	"$nocull" "1"
+	"$model" "1"
+	"Proxies"
+	{
+		"TextureScroll"
+		{
+			"texturescrollvar" "$basetexturetransform"
+			"texturescrollrate" "0.06"
+			"texturescrollangle" "90"
+		}
+	}
 }

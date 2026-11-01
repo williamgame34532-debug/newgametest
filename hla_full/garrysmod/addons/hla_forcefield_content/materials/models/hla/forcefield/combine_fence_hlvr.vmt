@@ -1,0 +1,17 @@
+"VertexLitGeneric"
+{
+	// Half-Life: Alyx combine_fence_hlvr: metal (alpha of the colour map) is dark and shiny,
+	// the lights glow blue while the field is on and red while it is off (lit_on / lit_off)
+	"$basetexture" "models/hla/forcefield/combine_fence_hlvr_color"
+	"$bumpmap" "models/hla/forcefield/combine_fence_hlvr_normal"
+	"$phong" "1"
+	"$basemapalphaphongmask" "1"
+	"$phongboost" "2"
+	"$color2" "[0.55 0.57 0.6]"
+	"$phongexponent" "30"
+	"$phongtint" "[0.6 0.7 0.8]"
+	"$phongfresnelranges" "[0.4 0.8 1]"
+	"$selfillum" "1"
+	"$selfillumtint" "[1.6 1.6 1.6]"
+	"$selfillummask" "models/hla/forcefield/combine_fence_hlvr_illum_on"
+}

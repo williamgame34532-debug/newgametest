@@ -4,7 +4,12 @@ local C = CFRework
 file.CreateDir('cf_rework')
 file.CreateDir('cf_rework/balances')
 
-local function validID(id) return isstring(id) and id:match('^%d+$') end
+-- balances are kept per character: 'c<character ID>' (SteamID64 only for old saves)
+local function validID(id) return isstring(id) and id:match('^c?%d+$') end
+function C.SaveKey(p)
+	if p.HLACharID then return 'c' .. p.HLACharID end
+	return p:SteamID64()
+end
 
 function C.ReadBalance(id)
 	if not validID(id) then return 0 end
@@ -24,22 +29,22 @@ function C.ChangeBalance(p, delta)
 	local n = C.Balance(p) + delta
 	if n < 0 or n > C.MaxResin then return false end
 	p:SetNWInt('cf_resin', n)
-	C.StoreBalance(p:SteamID64(), n)
+	C.StoreBalance(C.SaveKey(p), n)
 	return true
 end
 
--- refund by SteamID64, also when the player already left
+-- refund by save key, also when the player already left
 function C.Refund(id, amount)
 	if not amount or amount <= 0 then return end
 	for _, p in ipairs(player.GetAll()) do
-		if p:SteamID64() == id then C.ChangeBalance(p, amount) return end
+		if C.SaveKey(p) == id then C.ChangeBalance(p, amount) return end
 	end
 	C.StoreBalance(id, C.ReadBalance(id) + amount)
 end
 
 hook.Add('PlayerInitialSpawn', 'CFReworkLoadBalance', function(p)
 	timer.Simple(0, function()
-		if IsValid(p) then p:SetNWInt('cf_resin', C.ReadBalance(p:SteamID64())) end
+		if IsValid(p) then p:SetNWInt('cf_resin', C.ReadBalance(C.SaveKey(p))) end
 	end)
 end)
 

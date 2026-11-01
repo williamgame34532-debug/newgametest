@@ -17,7 +17,9 @@ end
 C.Attachment = att
 
 -- the station is folded out and the screen can be used
-function C.Ready(ent) return ent:GetDeployed() end
+-- (an old separately installed combine_fabricator addon calls this with its own entity, which has no
+-- GetDeployed: such a station is simply never ready instead of an error)
+function C.Ready(ent) return IsValid(ent) and ent.GetDeployed ~= nil and ent:GetDeployed() end
 
 -- world-space display frame: top-left origin, right, down, normal, 3D2D angle and scale.
 -- The 1024 x 512 canvas fills the panel width and is centred on its height.

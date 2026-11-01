@@ -1,0 +1,20 @@
+"UnlitGeneric"
+{
+	// Half-Life: Alyx materials/effects/combine_shield_bh: plasma mask, additive, tint [0 .898 1],
+	// opacity 0.103, UV scale 0.2 x 1, scrolls 0.03 per second
+	"$basetexture" "hla/forcefield/field_plasma_mask"
+	"$color2" "[0 0.07 0.08]"
+	"$additive" "1"
+	"$nocull" "1"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"Proxies"
+	{
+		"TextureScroll"
+		{
+			"texturescrollvar" "$basetexturetransform"
+			"texturescrollrate" "0.03"
+			"texturescrollangle" "0"
+		}
+	}
+}

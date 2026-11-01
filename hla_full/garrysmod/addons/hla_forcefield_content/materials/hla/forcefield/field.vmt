@@ -1,0 +1,29 @@
+"UnlitGeneric"
+{
+	// Half-Life: Alyx materials/effects/combine_shield_02a (vr_energy_field): the glow of both passes
+	// of the shader from mask_01b, the waveforms, tints and speeds, in 32 frames (2 s loop) ...
+	"$basetexture" "hla/forcefield/field"
+	// ... and its fine clouds (phase detail of the same mask, UV scale 1 x 2), drifting
+	"$detail" "hla/forcefield/field_detail"
+	"$detailscale" "[1 2]"
+	"$detailblendmode" "0"
+	"$additive" "1"
+	"$nocull" "1"
+	"$vertexcolor" "1"
+	"$vertexalpha" "1"
+	"Proxies"
+	{
+		"AnimatedTexture"
+		{
+			"animatedtexturevar" "$basetexture"
+			"animatedtextureframenumvar" "$frame"
+			"animatedtextureframerate" "16"
+		}
+		"TextureScroll"
+		{
+			"texturescrollvar" "$detailtexturetransform"
+			"texturescrollrate" "0.05"
+			"texturescrollangle" "0"
+		}
+	}
+}

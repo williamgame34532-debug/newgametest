@@ -1,0 +1,10 @@
+"VertexLitGeneric"
+{
+               "$basetexture" "models/props_combineal/combine_fence_hlvr_color_tga_1c59db1_albedo.vtf"
+               //"$translucent" 1	
+               "$bumpmap"     "models/props_combineal/combine_fence_hlvr_rough_tga_5719ed3a.vtf"	
+}
+
+
+
+

@@ -59,3 +59,31 @@ hook.Add('SetupMove', 'HLAStamina', function(p, mv, cmd)
 	if s <= 0 then p:SetDTBool(30, true) elseif s >= ST.recover then p:SetDTBool(30, false) end
 	p:SetDTFloat(30, s)
 end)
+
+-- server-wide acceleration: start and stop take a moment, little steering in the air
+if SERVER then
+	hook.Add('Initialize', 'HLAMoveAccel', function()
+		RunConsoleCommand('sv_accelerate', tostring(M.Move.accel))
+		RunConsoleCommand('sv_airaccelerate', tostring(M.Move.airaccel))
+	end)
+end
+
+-- no speed from jumping: the HL2 movement adds a boost to every jump while running, and jumps one
+-- after another kept gaining speed. In the air the horizontal speed stays at most what it was on
+-- the ground (and never above the run speed). Predicted, the same on client and server.
+hook.Add('FinishMove', 'HLANoJumpBoost', function(p, mv)
+	if p:GetMoveType() ~= MOVETYPE_WALK then return end
+	local vel = mv:GetVelocity()
+	local flat = Vector(vel.x, vel.y, 0)
+	local speed = flat:Length()
+	if p:IsOnGround() then
+		p.HLAGroundSpeed = speed
+		return
+	end
+	local cap = math.min((p.HLAGroundSpeed or speed) * M.Move.airMax, p:GetRunSpeed())
+	cap = math.max(cap, p:GetWalkSpeed() * 0.5)
+	if speed > cap + 1 then
+		flat:Mul(cap / speed)
+		mv:SetVelocity(Vector(flat.x, flat.y, vel.z))
+	end
+end)

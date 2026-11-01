@@ -1,0 +1,5 @@
+"UnlitGeneric"
+{
+	// HL:A draws this plane with its monitor shader; here it is the dark screen of the terminal
+	"$basetexture" "hla/terminal/bg"
+}

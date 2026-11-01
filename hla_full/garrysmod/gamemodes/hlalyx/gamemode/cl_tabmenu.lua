@@ -1,5 +1,6 @@
--- Tab menu in the style of the HL:A menu, drawn in the world in front of the player (3D2D).
+-- Tab menu in the style of the HL:A menu, drawn in the world where the player looks (3D2D).
 -- The camera does not move: the player stands, the mouse drives a cursor on the panel.
+-- It closes only with the «ВЕРНУТЬСЯ» button (or by dying).
 -- Pages: root (Инвентарь / Помощь / Главное меню), inventory (4 x 4 + item info), help.
 -- From the inventory a health vial goes into «placement»: a ghost vial follows the aim and snaps
 -- into a health station; LMB puts it in.
@@ -10,23 +11,32 @@ HLA.Tab = T
 local W, H = 900, 520
 local SCALE = 0.03          -- 27 x 15.6 units
 local DIST = 28
-local GOLD = Color(238, 206, 140)
-local GOLD_HI = Color(255, 246, 222)
-local GOLD_DIM = Color(196, 156, 86)
-local DARK = Color(20, 14, 6)
+-- blue HUD colours (names kept from the golden version)
+local GOLD = Color(140, 206, 238)
+local GOLD_HI = Color(222, 246, 255)
+local GOLD_DIM = Color(86, 156, 196)
+local DARK = Color(6, 14, 20)
 
 local mats = {}
-local function mat(n) mats[n] = mats[n] or Material('hla/ui/' .. n) return mats[n] end
+local function mat(n) mats[n] = mats[n] or Material('hla/ui_blue/' .. n) return mats[n] end
 local function tex(n, x, y, w, h, c, a)
 	surface.SetMaterial(mat(n))
 	surface.SetDrawColor(c.r, c.g, c.b, (c.a or 255) * a)
 	surface.DrawTexturedRect(x, y, w, h)
 end
-local function click(kind)
-	local list = kind == 'press' and {'hla/ui/textline_end.wav'} or {'hla/ui/textline_5.wav', 'hla/ui/textline_6.wav'}
+local SOUNDS = {
+	press = {'hla/ui/textline_end.wav'},
+	hover = {'hla/ui/textline_5.wav', 'hla/ui/textline_6.wav'},
+	move = {'hla/ui/inv_move1.wav', 'hla/ui/inv_move2.wav', 'hla/ui/inv_move3.wav', 'hla/ui/inv_move4.mp3', 'hla/ui/inv_move5.mp3', 'hla/ui/inv_move6.mp3'},
+	bag = {'hla/ui/choreo_foley_jacket1.wav', 'hla/ui/choreo_foley_jacket2.wav', 'hla/ui/choreo_foley_jacket3.wav'},
+}
+local function click(kind, vol)
+	local list = SOUNDS[kind] or SOUNDS.hover
 	local s = list[math.random(#list)]
-	if file.Exists('sound/' .. s, 'GAME') then surface.PlaySound(s) else surface.PlaySound('buttons/lightswitch2.wav') end
+	if not file.Exists('sound/' .. s, 'GAME') then s = 'buttons/lightswitch2.wav' end
+	if vol then LocalPlayer():EmitSound(s, 60, 100, vol, CHAN_STATIC) else surface.PlaySound(s) end
 end
+HLA.TabSound = click
 
 surface.CreateFont('hlat_big', {font = 'Roboto Condensed', size = 34, weight = 700, extended = true})
 surface.CreateFont('hlat_mid', {font = 'Roboto Condensed', size = 24, weight = 700, extended = true})
@@ -63,7 +73,7 @@ local function buttons()
 		b[#b + 1] = {id = 'inventory', label = 'ИНВЕНТАРЬ', x = 300, y = 120, w = 560, h = 70}
 		b[#b + 1] = {id = 'help', label = 'ПОМОЩЬ', x = 300, y = 200, w = 560, h = 70}
 		b[#b + 1] = {id = 'mainmenu', label = 'ГЛАВНОЕ МЕНЮ', x = 300, y = 280, w = 560, h = 70}
-		b[#b + 1] = {id = 'close', label = 'ЗАКРЫТЬ', x = 300, y = 360, w = 560, h = 70}
+		b[#b + 1] = {id = 'close', label = 'ВЕРНУТЬСЯ', x = 300, y = 360, w = 560, h = 70}
 	elseif T.page == 'inventory' then
 		for i = 1, I.Slots do
 			local x, y, w, h = slotRect(i)
@@ -98,41 +108,56 @@ function T.Open()
 	if CFRework and CFRework.FocusEnt and CFRework.FocusEnt() then return end
 	T.open, T.page, T.sel, T.moveFrom = true, 'root', nil, nil
 	T.cursor = {W / 2, H / 2}
-	local ang = Angle(0, p:EyeAngles().y, 0)
-	T.pos = p:EyePos() + ang:Forward() * DIST + Vector(0, 0, -2)
-	T.ang = Angle(0, ang.y - 90, 90)
-	T.right = ang:Right()
+	-- the panel stands where the player looks, up or down too, facing the eyes
+	local ea = p:EyeAngles()
+	local va = Angle(math.Clamp(ea.p, -60, 60), ea.y, 0)
+	-- from where the camera really is (the eyes of the model, see cl_view.lua)
+	T.pos = p:EyePos() + (HLA.ViewOffset or vector_origin) + va:Forward() * DIST
+	T.fwd = va:Forward()
+	T.right, T.up = va:Right(), va:Up()
+	T.ang = T.right:AngleEx(-va:Forward())
 	click('press')
 end
 
 function T.Close()
 	if not T.open then return end
+	if T.page == 'inventory' then click('bag', 0.5) end
 	T.open = false
 	T.holdFire = true
 	click('hover')
 end
 
+-- Tab only opens the menu; it is left with the «ВЕРНУТЬСЯ» button
 function GM:ScoreboardShow()
 	if T.placing then T.placing = nil return end
-	if T.open then T.Close() else T.Open() end
+	if not T.open then T.Open() end
 end
+hook.Add('Think', 'HLATabDead', function()
+	if T.open then
+		local p = LocalPlayer()
+		if not IsValid(p) or not p:Alive() or p:GetNWBool('hla_in_menu') then T.Close() end
+	end
+end)
 function GM:ScoreboardHide() end
 
 local function activate(b)
 	if not b then return end
 	click('press')
-	if b.id == 'inventory' or b.id == 'help' then T.page = b.id T.sel = nil
+	if b.id == 'inventory' or b.id == 'help' then
+		T.page = b.id T.sel = nil
+		if b.id == 'inventory' then click('bag', 0.5) end
 	elseif b.id == 'mainmenu' then T.Close() RunConsoleCommand('hla_menu')
 	elseif b.id == 'close' then T.Close()
 	elseif b.id == 'back' then
-		if T.page == 'root' then T.Close() else T.page = 'root' end
+		if T.page == 'inventory' then click('bag', 0.5) end
+		T.page = 'root'
 	elseif b.id == 'slot' then
 		local i = b.arg
 		if T.moveFrom and T.moveFrom ~= i then
-			send('move', T.moveFrom, i)
+			send('move', T.moveFrom, i) -- the server plays the move sound
 			T.sel, T.moveFrom = i, nil
 		elseif T.inv[i] then
-			if T.sel == i then T.moveFrom = i else T.sel, T.moveFrom = i, nil end
+			if T.sel == i then T.moveFrom = i click('move') else T.sel, T.moveFrom = i, nil end
 		else
 			T.sel, T.moveFrom = nil, nil
 		end
@@ -165,8 +190,9 @@ hook.Add('CreateMove', 'HLATab', function(cmd)
 	local L, R = bit.band(btn, IN_ATTACK) ~= 0, bit.band(btn, IN_ATTACK2) ~= 0
 	if T.open then
 		if L and not wasL then activate(hovered()) end
-		if R and not wasR then
-			if T.page == 'root' then T.Close() else T.page = 'root' click('press') end
+		if R and not wasR and T.page ~= 'root' then
+			if T.page == 'inventory' then click('bag', 0.5) end
+			T.page = 'root' click('press')
 		end
 		cmd:ClearMovement()
 		cmd:SetButtons(0)
@@ -231,7 +257,7 @@ local function wrap(text, font, x, y, w, col)
 end
 
 local HELP = {
-	'TAB — это меню. ПКМ — назад.',
+	'TAB — это меню, выйти — кнопка «ВЕРНУТЬСЯ». ПКМ — назад.',
 	'E по предмету (удерживать) — подобрать в инвентарь.',
 	'Инвентарь: клик по предмету — сведения справа;',
 	'  клик ещё раз — переложить, затем клик по другой ячейке.',
@@ -299,7 +325,7 @@ local function drawIcons()
 			if IsValid(m) then
 				local x, y, w, h = slotRect(i)
 				local cx, cy = x + w / 2, y + h / 2
-				local world = origin + T.right * ((cx - W / 2) * SCALE) + Vector(0, 0, -(cy - H / 2) * SCALE)
+				local world = origin + T.right * ((cx - W / 2) * SCALE) - T.up * ((cy - H / 2) * SCALE)
 				local fwd = (EyePos() - world):GetNormalized()
 				world = world + fwd * 1.5
 				local rad = m:GetModelRadius() or 5
@@ -319,7 +345,11 @@ hook.Add('PostDrawTranslucentRenderables', 'HLATab', function(depth, sky)
 	if sky then return end
 	T.fade = math.Clamp(T.fade + (T.open and FrameTime() * 5 or -FrameTime() * 6), 0, 1)
 	if T.fade <= 0 or not T.pos then return end
-	local corner = T.pos - T.right * (W / 2 * SCALE) + Vector(0, 0, H / 2 * SCALE)
+	-- the panel keeps its distance from the eyes even when the player was carried a step after opening
+	if T.open and T.fwd then
+		T.pos = LocalPlayer():EyePos() + (HLA.ViewOffset or vector_origin) + T.fwd * DIST
+	end
+	local corner = T.pos - T.right * (W / 2 * SCALE) + T.up * (H / 2 * SCALE)
 	cam.IgnoreZ(true)
 	cam.Start3D2D(corner, T.ang, SCALE)
 		drawPanel(T.fade)
@@ -373,5 +403,5 @@ end)
 hook.Add('HUDPaint', 'HLAPlaceHint', function()
 	if not T.placing then return end
 	local text = T.target and 'ЛКМ — ВСТАВИТЬ КОЛБУ   ·   ПКМ — ОТМЕНА' or 'НАВЕДИТЕСЬ НА СТАНЦИЮ ПЕРВОЙ ПОМОЩИ   ·   ПКМ — ОТМЕНА'
-	draw.SimpleTextOutlined(text, 'hla_label', ScrW() / 2, ScrH() * 0.62, Color(241, 196, 61), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 160))
+	draw.SimpleTextOutlined(text, 'hla_label', ScrW() / 2, ScrH() * 0.62, HLA.Hud.AMBER_C, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 160))
 end)

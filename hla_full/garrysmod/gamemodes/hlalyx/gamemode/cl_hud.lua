@@ -7,9 +7,11 @@ HLA = HLA or {}
 local H = {}
 HLA.Hud = H
 
-H.AMBER = {241, 196, 61, 255}
+-- the whole on-screen HUD is blue (the name AMBER is kept for the code that uses it)
+H.AMBER = {110, 200, 255, 255}
+H.AMBER_C = Color(110, 200, 255)
 H.RED = {236, 52, 44, 255}
-H.PANEL = {8, 8, 6, 120}
+H.PANEL = {4, 10, 16, 120}
 H.LOW = 100 / 3 -- one heart left -> low health state
 
 local HEART = {
@@ -53,6 +55,18 @@ function H.Beat(t, rate)
 	return math.max(a, b)
 end
 
+-- screen vignette (texture from hla_menu_content): always a soft dark edge, red when hurt or low.
+-- Drawn on its own, outside the curved visor HUD.
+function H.Vignette(D, st)
+	if not D.vignette then return end
+	local hp = st.hp or 0
+	local low = hp > 0 and hp <= H.LOW
+	local beat = low and H.Beat(st.t or 0, H.Rate(hp)) or 0
+	D.vignette({0, 0, 0, 95})
+	if (st.hurt or 0) > 0 then D.vignette(A(H.RED, 150 * st.hurt)) end
+	if low then D.vignette(A(H.RED, 40 + 120 * beat)) end
+end
+
 -- st: {w, h, scale, t, resin, resinFlash, hp, maxhp, hurt (0..1 recent damage flash),
 --      weapons = {{glyph, name, active}}, clip, reserve, showAmmo, notes}
 function H.Draw(D, st)
@@ -63,13 +77,6 @@ function H.Draw(D, st)
 	local low = hp > 0 and hp <= H.LOW
 	local rate = H.Rate(hp)
 	local beat = low and H.Beat(t, rate) or 0
-
-	-- screen vignette (texture from hla_menu_content): always a soft dark edge, red when hurt or low
-	if D.vignette then
-		D.vignette({0, 0, 0, 95})
-		if (st.hurt or 0) > 0 then D.vignette(A(H.RED, 150 * st.hurt)) end
-		if low then D.vignette(A(H.RED, 40 + 120 * beat)) end
-	end
 
 	local m = 54 * s
 	local x0, y0 = m, st.h - m - 236 * s
@@ -109,14 +116,19 @@ function H.Draw(D, st)
 	-- WEAPONS + AMMO
 	local xr = st.w - m
 	local y2 = st.h - m - 236 * s
-	local wx = xr
+	-- one weapon per row, upward from over the ammo box: slot, name; the active one lit with a bar
+	local rh = 34 * s
+	local wy = y2 + 62 * s
 	for i = #(st.weapons or {}), 1, -1 do
 		local w = st.weapons[i]
-		local font = w.glyph and 'hla_wep' or 'hla_small'
-		local label = w.glyph or w.name or '?'
-		local tw = D.size(label, font)
-		D.text(label, font, wx, y2 + 40 * s, w.active and amber or A(amber, 90), 2, 1)
-		wx = wx - tw - 22 * s
+		local c = w.active and amber or A(amber, 110)
+		if w.active then
+			D.rect(xr - 6 * s, wy - rh / 2 + 4 * s, 4 * s, rh - 8 * s, amber)
+			D.rect(xr - 330 * s, wy - rh / 2 + 2 * s, 320 * s, rh - 4 * s, A(H.PANEL, 80))
+		end
+		D.text(string.upper(w.name or '?'), 'hla_wname', xr - 18 * s, wy, c, 2, 1)
+		D.text(tostring(w.slot or i), 'hla_wslot', xr - 340 * s, wy, A(amber, w.active and 220 or 90), 0, 1)
+		wy = wy - rh
 	end
 	if st.showAmmo then
 		local y3 = y2 + 92 * s

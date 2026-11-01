@@ -1,4 +1,5 @@
--- Inventory (server): 16 slots per character, saved in data/hla/inv/<SteamID64>_<character>.json.
+-- Inventory (server): 16 slots per character, saved in data/hla/inv/char_<character ID>.json
+-- (the permanent ID of the character, see sv_menu.lua).
 -- Clients only request actions (move / use / drop / place); every action is checked here.
 local I = HLA.Items
 
@@ -7,11 +8,12 @@ util.AddNetworkString('hla_inv_do')     -- client -> server: action
 file.CreateDir('hla/inv')
 
 local function key(p)
-	return p:SteamID64() .. '_' .. (p.HLACharIndex or 0)
+	return p.HLACharID and ('char_' .. p.HLACharID) or nil
 end
 
 function I.Load(p)
-	local t = util.JSONToTable(file.Read('hla/inv/' .. key(p) .. '.json', 'DATA') or '') or {}
+	local k = key(p)
+	local t = k and util.JSONToTable(file.Read('hla/inv/' .. k .. '.json', 'DATA') or '') or {}
 	local inv = {}
 	for i = 1, I.Slots do
 		local id = t[tostring(i)] or t[i]
@@ -22,7 +24,7 @@ function I.Load(p)
 end
 
 function I.Save(p)
-	if not p.HLAInv then return end
+	if not p.HLAInv or not key(p) then return end
 	local t = {}
 	for i = 1, I.Slots do if p.HLAInv[i] then t[tostring(i)] = p.HLAInv[i] end end
 	file.Write('hla/inv/' .. key(p) .. '.json', util.TableToJSON(t))
@@ -82,7 +84,7 @@ local USE = {}
 function USE.heal(p, d)
 	if p:Health() >= p:GetMaxHealth() then return false, 'Здоровье уже полное' end
 	p:SetHealth(math.min(p:GetMaxHealth(), p:Health() + d.amount))
-	p:EmitSound('items/smallmedkit1.wav', 60)
+	p:EmitSound(d.sound or 'items/smallmedkit1.wav', 60)
 	return true
 end
 function USE.armor(p, d)
@@ -103,7 +105,7 @@ net.Receive('hla_inv_do', function(_, p)
 		if a < 1 or b < 1 or a > I.Slots or b > I.Slots or a == b then return end
 		inv[a], inv[b] = inv[b], inv[a]
 		I.Save(p) I.Send(p)
-		p:EmitSound(I.PickupSound, 45, 110)
+		p:EmitSound(I.MoveSound(), 45, 100)
 	elseif what == 'use' then
 		local s = net.ReadUInt(5)
 		local d = inv[s] and I.Defs[inv[s]]
@@ -116,7 +118,7 @@ net.Receive('hla_inv_do', function(_, p)
 		if not id then return end
 		local tr = util.TraceLine({start = p:EyePos(), endpos = p:EyePos() + p:GetAimVector() * 40, filter = p})
 		I.SpawnWorld(id, tr.HitPos + tr.HitNormal * 6)
-		p:EmitSound(I.PickupSound, 50, 90)
+		p:EmitSound(I.MoveSound(), 50, 90)
 	elseif what == 'place' then
 		-- put an item into a station (health vial into a health station)
 		local s, ent = net.ReadUInt(5), net.ReadEntity()
@@ -155,7 +157,7 @@ hook.Add('PlayerTick', 'HLAPickup', function(p)
 		if e.Picked then return end
 		if I.Add(p, e:GetItemID()) then
 			e.Picked = true
-			p:EmitSound(I.PickupSound, 60)
+			p:EmitSound(I.MoveSound(), 60)
 			e:Remove()
 		else
 			p:ChatPrint('Инвентарь заполнен')

@@ -27,6 +27,14 @@ include('sh_menu.lua')
 if SERVER then AddCSLuaFile('sh_items.lua') AddCSLuaFile('cl_tabmenu.lua') AddCSLuaFile('cl_world.lua') end
 include('sh_items.lua')
 include('sh_movement.lua')
+-- unit animations, chat, first person body view
+if SERVER then AddCSLuaFile('sh_anims.lua') AddCSLuaFile('sh_chat.lua') AddCSLuaFile('cl_chat.lua') AddCSLuaFile('cl_view.lua') end
+include('sh_anims.lua')
+include('sh_chat.lua')
+if SERVER then AddCSLuaFile('sh_voice.lua') AddCSLuaFile('sh_voicelines_data.lua') end
+include('sh_voice.lua')
+if SERVER then AddCSLuaFile('sh_squads.lua') AddCSLuaFile('cl_squads.lua') AddCSLuaFile('cl_hudcurve.lua') AddCSLuaFile('cl_ffmenu.lua') AddCSLuaFile('cl_ambient.lua') end
+include('sh_squads.lua')
 
 HLA.DropChance = CreateConVar('hla_resin_drop_chance', '0.6', {FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY}, 'Chance an NPC drops resin')
 HLA.StartResin = CreateConVar('hla_start_resin', '10', {FCVAR_ARCHIVE, FCVAR_NOTIFY}, 'Resin a new player starts with')

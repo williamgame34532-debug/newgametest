@@ -1,0 +1,8 @@
+"Modulate"
+{
+	// the visor of a Combine unit: the picture is only tinted by the glass (blue rounded edges),
+	// nothing is bent, so the HUD and the edges of the screen stay clean
+	"$basetexture" "hla/overlay/visor_tint"
+	"$ignorez" "1"
+	"$nocull" "1"
+}

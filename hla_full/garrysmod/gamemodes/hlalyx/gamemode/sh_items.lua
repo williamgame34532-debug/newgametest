@@ -7,6 +7,9 @@ I.Slots = 16            -- 4 x 4
 I.PickupTime = 0.6      -- seconds of holding E on a world item
 I.PickupRange = 95
 I.PickupSound = 'hla/ui/inv_move1.wav'
+-- inventory sounds (hla_menu_content/sound/hla/ui)
+I.MoveSounds = {'hla/ui/inv_move1.wav', 'hla/ui/inv_move2.wav', 'hla/ui/inv_move3.wav', 'hla/ui/inv_move4.mp3', 'hla/ui/inv_move5.mp3', 'hla/ui/inv_move6.mp3'}
+function I.MoveSound() return I.MoveSounds[math.random(#I.MoveSounds)] end
 
 I.Defs = {
 	health_vial = {
@@ -18,7 +21,12 @@ I.Defs = {
 	medkit = {
 		name = 'Аптечка', model = 'models/items/healthkit.mdl',
 		text = 'Восстанавливает 25 единиц здоровья.',
-		use = 'heal', amount = 25,
+		use = 'heal', amount = 25, sound = 'hla/ui/inv_bandage.wav',
+	},
+	pills = {
+		name = 'Обезболивающее', model = 'models/props_lab/jar01b.mdl',
+		text = 'Пачка таблеток из пайка Альянса. Восстанавливает 10 единиц здоровья.',
+		use = 'heal', amount = 10, sound = 'hla/ui/inv_pills.wav',
 	},
 	battery = {
 		name = 'Энергоячейка', model = 'models/items/battery.mdl',
