@@ -327,29 +327,5 @@ function ENT:Think()
 end
 
 ---------------------------------------------------------------------------------------------------
--- hints at the crosshair and the resin counter near a station
-hook.Add('HUDPaint', C.HintHook or 'CFReworkHints', function()
-	local p = LocalPlayer()
-	if not IsValid(p) then return end
-	local near
-	for _, e in ipairs(ents.FindInSphere(p:EyePos(), 220)) do
-		if e.IsCombineFabricator then near = e break end
-	end
-	if not near or C.FocusEnt() then return end
-	local amber = Color(255, 196, 70)
-	if not (HLA and HLA.Hud) then
-		draw.RoundedBox(0, 40, ScrH() - 150, 170, 44, Color(20, 16, 6, 150))
-		draw.SimpleText('СМОЛА', 'cfr_m', 56, ScrH() - 128, amber, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		draw.SimpleText(p:GetNWInt('cf_resin', 0), 'cfr_l', 196, ScrH() - 128, amber, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	end
-	local st = near:GetStage()
-	if st ~= S.MENU and near:GetOperator() ~= p then return end
-	local part = C.HitPart(near, p)
-	local text
-	if st == S.MENU and C.HitScreen(near, p) then text = 'E — ВОЙТИ В ТЕРМИНАЛ'
-	elseif st == S.DEPOSIT and part == 'cells' then text = 'E — ВНЕСТИ СМОЛУ (удерживайте)'
-	elseif st == S.DONE and part == 'chamber' then text = 'E — ЗАБРАТЬ ПРЕДМЕТ' end
-	if text then
-		draw.SimpleTextOutlined(text, 'cfr_m', ScrW() / 2, ScrH() * 0.6, Color(170, 240, 250), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 1, Color(0, 0, 0, 180))
-	end
-end)
+-- no hints at the crosshair near a station: nothing is written when looking at the fabricator
+-- (the resin counter is on the HUD)

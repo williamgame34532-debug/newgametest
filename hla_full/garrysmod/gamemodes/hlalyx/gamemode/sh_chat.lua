@@ -16,6 +16,9 @@ CH.Modes = {
 	y = {id = 3, range = 1000, verb = 'кричит', label = 'КРИК', cmds = {'/y', '/к'}},
 	me = {id = 4, range = 400, action = true, label = 'ДЕЙСТВИЕ', cmds = {'/me', '/я'}},
 	it = {id = 5, range = 400, env = true, label = 'ОКРУЖЕНИЕ', cmds = {'/it', '/о'}},
+	-- radios: heard regardless of distance. /t — the tactical radio, every unit; /r — the squad radio
+	t = {id = 7, range = 0, radio = 'tac', verb = 'сообщает', label = 'ТАК-РАЦИЯ', cmds = {'/t', '/т'}},
+	r = {id = 8, range = 0, radio = 'squad', verb = 'говорит', label = 'РАЦИЯ', cmds = {'/r', '/р'}},
 }
 CH.ByID = {}
 for key, m in pairs(CH.Modes) do m.key = key CH.ByID[m.id] = m end
@@ -39,6 +42,11 @@ end
 
 -- range in metres for the hint in the input line (1 m ~ 52 units)
 function CH.Metres(m) return math.floor(m.range / 52 + 0.5) end
+-- the range shown in the input line
+function CH.RangeText(m)
+	if m.radio == 'tac' then return 'ВСЕ ЮНИТЫ' elseif m.radio == 'squad' then return 'ОТРЯД' end
+	return CH.Metres(m) .. ' М'
+end
 
 -- atmosphere: short lines about what is heard around, now and then, to each player on their own
 CH.AmbientEvery = {240, 480} -- seconds, random in between

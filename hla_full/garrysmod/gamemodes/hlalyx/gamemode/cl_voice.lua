@@ -40,6 +40,7 @@ local function fonts()
 end
 
 local function channel(p)
+	if p:GetNW2Bool('hla_radio') then return 'РАЦИЯ ОТРЯДА', true, true end
 	local SQ = HLA.Squads
 	local mine, theirs = SQ and SQ.Of(LocalPlayer()), SQ and SQ.Of(p)
 	if mine and theirs and mine == theirs then return 'КАНАЛ ОТРЯДА', true end
@@ -70,21 +71,22 @@ hook.Add('HUDPaint', 'HLAVoicePanel', function()
 		v.level = Lerp(math.min(1, FrameTime() * 12), v.level, p:VoiceVolume() or 0)
 		local age = RealTime() - v.t
 		local a = math.Clamp(age * 6, 0, 1)
-		local ch, close = channel(p)
+		local ch, close, radio = channel(p)
 		surface.SetDrawColor(4, 12, 20, 150 * a)
 		surface.DrawRect(x, y, w, h)
-		surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 230 * a)
+		local acc = radio and Color(110, 232, 128) or BLUE
+		surface.SetDrawColor(acc.r, acc.g, acc.b, 230 * a)
 		surface.DrawRect(x, y, math.max(2, math.floor(3 * s)), h)
 		local name = p == me and 'ВЫ В ЭФИРЕ' or string.upper(p:GetNWString('hla_name', p:Nick()))
 		draw.SimpleText(name, 'hla_vc_name', x + 14 * s, y + 6 * s, Color(WHITE.r, WHITE.g, WHITE.b, 255 * a))
-		draw.SimpleText(ch, 'hla_vc_small', x + 14 * s, y + h - 6 * s, close and Color(BLUE.r, BLUE.g, BLUE.b, 220 * a) or Color(GREY.r, GREY.g, GREY.b, 220 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
+		draw.SimpleText(ch, 'hla_vc_small', x + 14 * s, y + h - 6 * s, close and Color(acc.r, acc.g, acc.b, 220 * a) or Color(GREY.r, GREY.g, GREY.b, 220 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
 		-- level meter: 10 bars
 		local bars, bw, gap = 10, math.max(2, math.floor(5 * s)), math.max(1, math.floor(3 * s))
 		local bx = x + w - 12 * s - bars * (bw + gap)
 		local lit = math.floor(math.Clamp(v.level * 1.6, 0, 1) * bars + 0.5)
 		for i = 1, bars do
 			local bh = math.floor((8 + i * 2.2) * s)
-			surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, (i <= lit and 230 or 40) * a)
+			surface.SetDrawColor(acc.r, acc.g, acc.b, (i <= lit and 230 or 40) * a)
 			surface.DrawRect(bx + (i - 1) * (bw + gap), y + h / 2 + 10 * s - bh, bw, bh)
 		end
 		y = y + h + math.floor(6 * s)
@@ -136,4 +138,33 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAVoiceIcons', function(_, sky)
 			cam.End3D2D()
 		end
 	end
+end)
+
+---------------------------------------------------------------------------------------------------
+-- H held: talk over the squad radio (voice to the whole squad, wherever they are). The microphone is
+-- opened with permissions.EnableVoiceChat — the allowed way (RunConsoleCommand('+voicerecord') is blocked
+-- for Lua). Released — the microphone closes. The normal voice key keeps working as usual (near only).
+local radioOn = false
+local function setRadio(on)
+	if radioOn == on then return end
+	radioOn = on
+	net.Start('hla_radio') net.WriteBool(on) net.SendToServer()
+	if permissions and permissions.EnableVoiceChat then
+		permissions.EnableVoiceChat(on)
+	else
+		RunConsoleCommand(on and '+voicerecord' or '-voicerecord')
+	end
+end
+hook.Add('Think', 'HLARadioKey', function()
+	local p = LocalPlayer()
+	if not IsValid(p) then return end
+	local typing = vgui.GetKeyboardFocus() or gui.IsGameUIVisible() or gui.IsConsoleVisible()
+	local can = p:Alive() and not p:GetNWBool('hla_in_menu') and HLA.Squads and HLA.Squads.Of(p) ~= nil
+	local down = input.IsKeyDown(KEY_H) and not typing
+	if down and not radioOn and not can and not p.HLARadioWarned then
+		p.HLARadioWarned = true
+		chat.AddText(Color(110, 232, 128), '[РАЦИЯ] ', Color(226, 236, 244), 'вы не в отряде — вступите в отряд у терминала')
+		timer.Simple(5, function() if IsValid(p) then p.HLARadioWarned = nil end end)
+	end
+	setRadio(down and can)
 end)

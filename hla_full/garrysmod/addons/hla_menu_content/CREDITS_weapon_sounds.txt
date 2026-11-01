@@ -1,0 +1,3 @@
+sound/hla/weapon/* — recordings by rzen1th (rzen1th-audio-comprendium, github.com/rzen1th/rzen1th-audio-comprendium),
+folder [Personal]: common/cloth_1-3, glock/draw, m16/grab, common/grab-polymer, common/raise.
+Free for non-profit / non-commercial projects with credit to rzen1th as the author. Files are unmodified (renamed only).

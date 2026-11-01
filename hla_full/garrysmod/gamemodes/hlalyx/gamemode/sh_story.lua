@@ -29,7 +29,7 @@ S.NPCModels = {
 function S.Default()
 	return {
 		chapters = {{title = 'ГЛАВА 1', name = 'НАЧАЛО', sub = '', spawns = {}, dispatch = ''}},
-		pvp = {team1 = 'ОТРЯД АЛЬФА', team2 = 'ОТРЯД ОМЕГА', time = 8, friendly = false,
+		pvp = {team1 = 'ОТРЯД АЛЬФА', team2 = 'ОТРЯД ОМЕГА', time = 10, friendly = false,
 			spawns = {ffa = {}, t1 = {}, t2 = {}}},
 		npcs = {},
 		dispatch = {every = 0, pool = {}, custom = {}, edits = {}},
@@ -51,6 +51,7 @@ function S.Normalize(c)
 	end
 	fill(c, d)
 	if #c.chapters == 0 then c.chapters = d.chapters end
+	if c.pvp.time == 8 then c.pvp.time = 10 end -- the old default: rounds are 10 minutes now
 	for _, ch in ipairs(c.chapters) do
 		ch.title = tostring(ch.title or '') ch.name = tostring(ch.name or '') ch.sub = tostring(ch.sub or '')
 		ch.spawns = istable(ch.spawns) and ch.spawns or {}

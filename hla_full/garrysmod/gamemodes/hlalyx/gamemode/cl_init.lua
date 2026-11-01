@@ -12,6 +12,8 @@ include('cl_ffmenu.lua')
 include('cl_story.lua')
 include('cl_editor.lua')
 include('cl_voice.lua')
+include('cl_thirdperson.lua')
+include('cl_effects.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
@@ -36,6 +38,27 @@ local function ordered(p)
 	return list
 end
 
+-- weapon switch: a sleeve rustle for the hands, a pistol draw, a rifle grab + raise
+-- (sound/hla/weapon: recordings of rzen1th, free for non-commercial use, see CREDITS in hla_menu_content)
+local SW = {
+	hands = {'hla/weapon/cloth_1.wav', 'hla/weapon/cloth_2.wav', 'hla/weapon/cloth_3.wav'},
+	pistol = {'hla/weapon/draw_pistol.wav'},
+	rifle = {'hla/weapon/grab_rifle.wav', 'hla/weapon/grab_polymer.wav'},
+}
+local PISTOL = {pistol = true, revolver = true, ['357'] = true}
+function HLA.SwitchSound(w)
+	local kind = 'rifle'
+	if not IsValid(w) or w:GetClass() == 'hla_hands' or w:GetClass() == 'weapon_physcannon' then kind = 'hands'
+	elseif w.GetHoldType and PISTOL[w:GetHoldType()] then kind = 'pistol' end
+	local list = SW[kind]
+	local first = list[math.random(#list)]
+	if not file.Exists('sound/' .. first, 'GAME') then surface.PlaySound('common/wpn_hudoff.wav') return end
+	surface.PlaySound(first)
+	if kind == 'rifle' and file.Exists('sound/hla/weapon/raise.wav', 'GAME') then
+		timer.Simple(0.18, function() surface.PlaySound('hla/weapon/raise.wav') end)
+	end
+end
+
 hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
 	if not pressed or (CFRework and CFRework.FocusEnt and CFRework.FocusEnt()) then return end
 	if HLA.Story and HLA.Story.VoteKey and HLA.Story.VoteKey(bind) then return true end -- 1..3 vote (cl_story.lua)
@@ -56,7 +79,7 @@ hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
 	end
 	if pick then
 		input.SelectWeapon(pick)
-		surface.PlaySound('common/wpn_hudoff.wav')
+		HLA.SwitchSound(pick)
 		return true
 	end
 end)
@@ -105,12 +128,16 @@ local lastResin, flashAt = nil, 0
 local staminaSeen, wasTiredAt
 local lastHP, hurtAt = nil, 0
 local lastBeat, wasLow = nil, false
+local hbSound, hbPath
 local notes = {}
 
 function GM:HUDPaint()
 	self.BaseClass.HUDPaint(self)
 	local p = LocalPlayer()
-	if not IsValid(p) or not p:Alive() then return end
+	if not IsValid(p) or not p:Alive() then
+		if hbSound and hbSound:IsPlaying() then hbSound:Stop() end
+		return
+	end
 	if CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0 then return end
 	if HLA.Tab and HLA.Tab.fade > 0 then return end
 	-- no HUD while the main menu is up
@@ -179,10 +206,24 @@ function GM:HUDPaint()
 		if snd then surface.PlaySound(snd) end
 	end
 	wasLow = low
-	local idx = low and math.floor(CurTime() * H.Rate(hp) + 0.95) or nil
-	if idx and idx ~= lastBeat then
-		local snd = H.Sound('heartbeat')
-		if snd then surface.PlaySound(snd) end
+	-- the heartbeat is one sound object: HL2's player/heartbeat1.wav is a loop, so it is started once while
+	-- health is low and stopped as soon as it is not (surface.PlaySound could never stop it)
+	local snd = H.Sound('heartbeat')
+	if low and snd then
+		if not hbSound or hbPath ~= snd then
+			if hbSound then hbSound:Stop() end
+			hbSound, hbPath = CreateSound(p, snd), snd
+		end
+		local idx = math.floor(CurTime() * H.Rate(hp) + 0.95)
+		if snd == 'player/heartbeat1.wav' then
+			if not hbSound:IsPlaying() then hbSound:PlayEx(0.7, 100) end
+			hbSound:ChangePitch(math.Clamp(85 + H.Rate(hp) * 18, 90, 130), 0.2)
+		elseif idx ~= lastBeat then
+			hbSound:Stop() hbSound:PlayEx(0.8, 100) -- own one-beat file: once per beat
+		end
+		lastBeat = idx
+	elseif hbSound and hbSound:IsPlaying() then
+		hbSound:FadeOut(0.4)
+		lastBeat = nil
 	end
-	lastBeat = idx
 end

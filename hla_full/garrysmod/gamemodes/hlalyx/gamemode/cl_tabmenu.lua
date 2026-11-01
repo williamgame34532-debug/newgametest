@@ -67,18 +67,50 @@ local function slotRect(i)
 	return GRID.x + c * (GRID.cell + GRID.gap), GRID.y + r * (GRID.cell + GRID.gap), GRID.cell, GRID.cell
 end
 
+-- TAB > НАСТРОЙКИ: own settings of the player (client convars, kept between sessions)
+T.SETTINGS = {
+	{cv = 'hla_thirdperson', label = 'ТРЕТЬЕ ЛИЦО  (F3)', kind = 'bool'},
+	{cv = 'hla_tp_side', label = 'ПЛЕЧО КАМЕРЫ  (F4)', kind = 'side'},
+	{cv = 'hla_visor', label = 'ВИЗОР МАСКИ', kind = 'bool'},
+	{cv = 'hla_hud_curve', label = 'ИЗОГНУТЫЙ HUD', kind = 'bool'},
+	{cv = 'hla_grade', label = 'ЦВЕТОКОРРЕКЦИЯ (меньше пересвета)', kind = 'bool'},
+	{cv = 'hla_hdr', label = 'HDR-СВЕЧЕНИЕ', kind = 'bool'},
+	{cv = 'hla_music', label = 'МУЗЫКА АЛЬЯНСА', kind = 'bool'},
+	{cv = 'hla_music_volume', label = 'ГРОМКОСТЬ МУЗЫКИ', kind = 'num', min = 0, max = 1, step = 0.1},
+	{cv = 'hla_hud_scale', label = 'РАЗМЕР HUD', kind = 'num', min = 0.4, max = 1.2, step = 0.05},
+}
+local function setValue(st)
+	local c = GetConVar(st.cv)
+	if not c then return '—' end
+	if st.kind == 'bool' then return c:GetBool() and 'ВКЛ' or 'ВЫКЛ' end
+	if st.kind == 'side' then return c:GetInt() < 0 and 'ЛЕВОЕ' or 'ПРАВОЕ' end
+	return string.format(st.step < 0.1 and '%.2f' or '%.1f', c:GetFloat())
+end
+T.SettingValue = setValue
+
 local function buttons()
 	local b = {}
 	if T.page == 'root' then
 		-- admins get the story editor as one more line (the lines move closer together)
 		local admin = LocalPlayer():IsAdmin()
-		local rows = {{'inventory', 'ИНВЕНТАРЬ'}, {'help', 'ПОМОЩЬ'}, {'mainmenu', 'ГЛАВНОЕ МЕНЮ'}}
+		local rows = {{'inventory', 'ИНВЕНТАРЬ'}, {'settings', 'НАСТРОЙКИ'}, {'help', 'ПОМОЩЬ'}, {'mainmenu', 'ГЛАВНОЕ МЕНЮ'}}
 		if admin then rows[#rows + 1] = {'editor', 'РЕДАКТОР'} end
 		rows[#rows + 1] = {'close', 'ВЕРНУТЬСЯ'}
-		local step, h = admin and 66 or 80, admin and 58 or 70
+		local step, h = admin and 60 or 70, admin and 52 or 60
 		for i, r in ipairs(rows) do
-			b[#b + 1] = {id = r[1], label = r[2], x = 300, y = 110 + (i - 1) * step, w = 560, h = h}
+			b[#b + 1] = {id = r[1], label = r[2], x = 300, y = 96 + (i - 1) * step, w = 560, h = h}
 		end
+	elseif T.page == 'settings' then
+		for i, st in ipairs(T.SETTINGS) do
+			local y = 58 + (i - 1) * 43
+			if st.kind == 'num' then
+				b[#b + 1] = {id = 'dec', arg = i, label = '−', x = 640, y = y, w = 70, h = 38}
+				b[#b + 1] = {id = 'inc', arg = i, label = '+', x = 800, y = y, w = 70, h = 38}
+			else
+				b[#b + 1] = {id = 'set', arg = i, x = 40, y = y, w = 830, h = 38}
+			end
+		end
+		b[#b + 1] = {id = 'back', label = 'НАЗАД', x = 720, y = 462, w = 150, h = 44}
 	elseif T.page == 'inventory' then
 		for i = 1, I.Slots do
 			local x, y, w, h = slotRect(i)
@@ -152,6 +184,19 @@ local function activate(b)
 		T.page = b.id T.sel = nil
 		if b.id == 'inventory' then click('bag', 0.5) end
 	elseif b.id == 'mainmenu' then T.Close() RunConsoleCommand('hla_menu')
+	elseif b.id == 'settings' then T.page = 'settings'
+	elseif b.id == 'set' then
+		local st = T.SETTINGS[b.arg]
+		local c = st and GetConVar(st.cv)
+		if c and st.kind == 'bool' then RunConsoleCommand(st.cv, c:GetBool() and '0' or '1')
+		elseif c and st.kind == 'side' then RunConsoleCommand(st.cv, c:GetInt() < 0 and '1' or '-1') end
+	elseif b.id == 'dec' or b.id == 'inc' then
+		local st = T.SETTINGS[b.arg]
+		local c = st and GetConVar(st.cv)
+		if c then
+			local v = math.Clamp(c:GetFloat() + (b.id == 'inc' and st.step or -st.step), st.min, st.max)
+			RunConsoleCommand(st.cv, string.format('%.2f', v))
+		end
 	elseif b.id == 'close' then T.Close()
 	elseif b.id == 'editor' then T.Close() RunConsoleCommand('hla_editor')
 	elseif b.id == 'back' then
@@ -277,7 +322,7 @@ local HELP = {
 local function drawPanel(a)
 	local white = Color(255, 255, 255)
 	tex('header', 0, 0, W, 40, white, a)
-	local title = T.page == 'inventory' and 'ИНВЕНТАРЬ' or T.page == 'help' and 'ПОМОЩЬ' or 'МЕНЮ'
+	local title = T.page == 'inventory' and 'ИНВЕНТАРЬ' or T.page == 'help' and 'ПОМОЩЬ' or T.page == 'settings' and 'НАСТРОЙКИ' or 'МЕНЮ'
 	draw.SimpleText(title, 'hlat_small', W - 16, 20, Color(DARK.r, DARK.g, DARK.b, 255 * a), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 	tex('panel_bg', 0, 40, W, H - 40, white, a)
 	local hot = hovered()
@@ -308,6 +353,23 @@ local function drawPanel(a)
 		end
 		for _, b in ipairs(buttons()) do
 			if b.id ~= 'slot' then button(b, b.label, hot == b, a) end
+		end
+	elseif T.page == 'settings' then
+		for _, b in ipairs(buttons()) do
+			if b.id == 'set' then
+				local st = T.SETTINGS[b.arg]
+				if hot == b then tex('row_hover', b.x, b.y, b.w, b.h, Color(255, 255, 255), a) end
+				draw.SimpleText(st.label, 'hlat_mid', b.x + 10, b.y + b.h / 2, Color(GOLD.r, GOLD.g, GOLD.b, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+				draw.SimpleText(setValue(st), 'hlat_mid', b.x + b.w - 14, b.y + b.h / 2, Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 255 * a), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+				tex('line', b.x + 10, b.y + b.h - 2, b.w - 20, 2, Color(255, 255, 255), a * 0.35)
+			elseif b.id == 'dec' then
+				local st = T.SETTINGS[b.arg]
+				draw.SimpleText(st.label, 'hlat_mid', 50, b.y + b.h / 2, Color(GOLD.r, GOLD.g, GOLD.b, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+				draw.SimpleText(setValue(st), 'hlat_mid', 755, b.y + b.h / 2, Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+				button(b, b.label, hot == b, a)
+			else
+				button(b, b.label, hot == b, a)
+			end
 		end
 	elseif T.page == 'help' then
 		for i, line in ipairs(HELP) do draw.SimpleText(line, 'hlat_small', 40, 70 + (i - 1) * 34, Color(GOLD.r, GOLD.g, GOLD.b, 240 * a)) end

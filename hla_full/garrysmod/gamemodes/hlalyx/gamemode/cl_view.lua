@@ -146,6 +146,11 @@ local function eyeOffset(p, origin, angles)
 end
 
 function GM:CalcView(p, origin, angles, fov, znear, zfar)
+	-- third person over the shoulder (cl_thirdperson.lua)
+	if HLA.ThirdPerson and HLA.ThirdPerson.Active(p) then
+		smooth = nil offset = Vector(0, 0, 0) HLA.ViewOffset = nil
+		return HLA.ThirdPerson.View(p, origin, angles, fov)
+	end
 	local view = self.BaseClass.CalcView(self, p, origin, angles, fov, znear, zfar) or {origin = origin, angles = angles, fov = fov}
 	if not active(p) or p:ShouldDrawLocalPlayer() then smooth = nil offset = Vector(0, 0, 0) HLA.ViewOffset = nil return view end
 	offset = eyeOffset(p, origin, angles)

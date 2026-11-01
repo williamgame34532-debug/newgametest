@@ -25,6 +25,7 @@ local function fonts()
 	surface.CreateFont('hla_sq', {font = 'Play', size = math.max(13, math.floor(22 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_name', {font = 'Play', size = math.max(18, math.floor(34 * S())), weight = 700, extended = true})
 	surface.CreateFont('hla_sq_s', {font = 'Play', size = math.max(12, math.floor(19 * S())), weight = 400, extended = true})
+	surface.CreateFont('hla_combine', {font = 'Combine_alphabet', size = math.max(14, math.floor(28 * S())), weight = 400, extended = true, antialias = true})
 	surface.CreateFont('hla_compass', {font = 'IBM Plex Mono', size = math.max(11, math.floor(16 * S())), weight = 500, extended = true})
 	surface.CreateFont('hla_bino', {font = 'IBM Plex Mono', size = math.max(12, math.floor(20 * S())), weight = 600, extended = true})
 end
@@ -48,9 +49,9 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	local lh = math.floor(24 * s)
 	-- left
 	local x, y = math.floor(70 * s), math.floor(46 * s)
-	surface.SetMaterial(glyphs)
-	surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 210)
-	surface.DrawTexturedRectUV(x, y, math.floor(330 * s), math.floor(62 * s), 0, 0, 0.32, 0.333)
+	-- the unit's status in the Combine alphabet (font Combine_alphabet: resource/fonts/combine_alphabet.ttf)
+	draw.SimpleText('COMBINE NETWORK STABLE', 'hla_combine', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 220))
+	draw.SimpleText('COMBINE UNIT STABLE', 'hla_combine', x, y + math.floor(32 * s), Color(BLUE.r, BLUE.g, BLUE.b, 220))
 	y = y + math.floor(86 * s)
 	-- the squad: a small label, the name large on its own line
 	draw.SimpleText('ОТРЯД', 'hla_sq_s', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 170))
@@ -274,11 +275,18 @@ end)
 hook.Add('HUDPaint', 'HLACrosshair', function()
 	if hidden() or B.k > 0.3 then return end
 	local p = LocalPlayer()
-	if p:ShouldDrawLocalPlayer() then return end
+	local cx, cy = ScrW() / 2, ScrH() / 2
+	if p:ShouldDrawLocalPlayer() then
+		-- third person: the ring sits where the shots land
+		if not (HLA.ThirdPerson and HLA.ThirdPerson.Active(p)) then return end
+		local x, y, vis = HLA.ThirdPerson.AimScreen()
+		if not vis then return end
+		cx, cy = x, y
+	end
 	local size = math.max(10, math.floor(16 * S()))
 	surface.SetMaterial(ring)
 	surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 220)
-	surface.DrawTexturedRect(ScrW() / 2 - size / 2, ScrH() / 2 - size / 2, size, size)
+	surface.DrawTexturedRect(cx - size / 2, cy - size / 2, size, size)
 end)
 
 ---------------------------------------------------------------------------------------------------

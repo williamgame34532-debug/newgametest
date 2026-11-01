@@ -29,5 +29,9 @@ resource.AddFile('resource/fonts/IBMPlexMono-Regular.ttf')
 resource.AddFile('resource/fonts/IBMPlexMono-SemiBold.ttf')
 resource.AddFile('resource/fonts/IBMPlexMono-Italic.ttf')
 resource.AddFile('resource/fonts/RussoOne-Regular.ttf')
+-- the Combine alphabet (top left of the visor): put combine_alphabet.ttf into garrysmod/resource/fonts
+for _, f in ipairs({'resource/fonts/combine_alphabet.ttf', 'resource/fonts/Combine_Alphabet.ttf'}) do
+	if file.Exists(f, 'GAME') then resource.AddFile(f) end
+end
 resource.AddFile('resource/fonts/Play-Regular.ttf')
 resource.AddFile('resource/fonts/Play-Bold.ttf')

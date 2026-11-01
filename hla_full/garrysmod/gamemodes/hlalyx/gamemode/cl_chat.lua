@@ -90,7 +90,15 @@ net.Receive('hla_chat', function()
 	if id == CH.DISPATCH then
 		local snd = net.ReadString()
 		C.Add({{'// ДИСПЕТЧЕР — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
-		if snd ~= '' then surface.PlaySound(snd) else soft('hla/ui/textline_7.wav') end
+		-- one sound or a sequence «a.wav;b.wav;…» (radio voice: phrase + digits), missing files are skipped
+		if snd == '' then soft('hla/ui/textline_7.wav') return end
+		local at = 0
+		for part in string.gmatch(snd, '[^;]+') do
+			if file.Exists('sound/' .. part, 'GAME') then
+				timer.Simple(at, function() surface.PlaySound(part) end)
+				at = at + math.max(0.08, SoundDuration(part) - 0.04)
+			end
+		end
 		return
 	end
 	if id == 0 then
@@ -104,6 +112,16 @@ net.Receive('hla_chat', function()
 	local segs
 	if muffled then
 		segs = {{name, BLUE, 'hla_chat_b'}, {m.key == 'y' and ' что-то кричит вдалеке.' or ' говорит что-то неразборчиво.', GREY, 'hla_chat_i'}}
+	elseif m.radio then
+		-- radios: [ТАК-РАЦИЯ] in blue to every unit, [РАЦИЯ] of the squad in green
+		local c = m.radio == 'tac' and Color(110, 200, 255) or Color(110, 232, 128)
+		local cd = m.radio == 'tac' and Color(170, 222, 255) or Color(178, 244, 186)
+		segs = {{'[' .. m.label .. '] ', c, 'hla_chat_b'}, {name, c, 'hla_chat_b'}, {' ' .. m.verb .. ': ', c, 'hla_chat'}, {'"' .. text .. '"', cd, 'hla_chat'}}
+		C.Add(segs)
+		local snd = 'npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav'
+		LocalPlayer():EmitSound(snd, 0, 100, 0.3, CHAN_STATIC)
+		timer.Simple(0.35, function() if IsValid(LocalPlayer()) then LocalPlayer():EmitSound('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav', 0, 100, 0.25, CHAN_STATIC) end end)
+		return
 	elseif m.action then
 		segs = {{'* ' .. name .. ' ', BLUE, 'hla_chat_b'}, {text, ACT, 'hla_chat_i'}}
 	elseif m.env then
@@ -257,7 +275,7 @@ function C.Open()
 	f.Paint = function(self, pw, ph)
 		local key = CH.Parse(IsValid(C.entry) and C.entry:GetValue() or '')
 		local hx = math.floor(4 * s)
-		for _, h in ipairs({{'/w', 'шёпот', 'w'}, {'/y', 'крик', 'y'}, {'/me', 'действие', 'me'}, {'/it', 'окружение', 'it'}}) do
+		for _, h in ipairs({{'/w', 'шёпот', 'w'}, {'/y', 'крик', 'y'}, {'/me', 'действие', 'me'}, {'/it', 'окружение', 'it'}, {'/t', 'так-рация', 't'}, {'/r', 'рация', 'r'}}) do
 			local on = key == h[3]
 			surface.SetFont('hla_chat_s')
 			local c1 = on and WHITE or BLUE
@@ -266,7 +284,7 @@ function C.Open()
 			draw.SimpleText(h[2], 'hla_chat_s', hx, hintH / 2, Color(GREY.r, GREY.g, GREY.b, on and 255 or 200), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 			hx = hx + surface.GetTextSize(h[2]) + math.floor(22 * s)
 		end
-		draw.SimpleText('Enter — сказать   Esc — отмена', 'hla_chat_s', pw - 6, hintH / 2, Color(GREY.r, GREY.g, GREY.b, 160), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		-- (Enter — сказать, Esc — отмена: no room for it next to six commands)
 	end
 	local e = vgui.Create('DTextEntry', f)
 	e:SetPos(0, hintH)
@@ -285,7 +303,7 @@ function C.Open()
 		surface.DrawRect(0, ph - 2, pw, 2)
 		surface.DrawRect(0, 0, 3, ph - 2)
 		local m = CH.Modes[CH.Parse(self:GetValue())]
-		draw.SimpleText(m.label .. ' · ' .. CH.Metres(m) .. ' М', 'hla_chat_s', pw - 12, ph / 2, Color(BLUE.r, BLUE.g, BLUE.b, 220), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+		draw.SimpleText(m.label .. ' · ' .. CH.RangeText(m), 'hla_chat_s', pw - 12, ph / 2, Color(BLUE.r, BLUE.g, BLUE.b, 220), TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
 		if self:GetValue() == '' then
 			draw.SimpleText('Сообщение — слышат только те, кто рядом', 'hla_chat_i', math.floor(14 * s), ph / 2, Color(GREY.r, GREY.g, GREY.b, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 		end

@@ -46,6 +46,23 @@ function CH.Say(p, key, text, opts)
 			for _, l in ipairs(lines) do vo[#vo + 1] = 'hla/vo/grunt/' .. l.files[math.random(#l.files)] .. '.wav' end
 		end
 	end
+	-- radios: no distance, no voicelines from the mask — the words go over the air
+	if mode.radio then
+		local to = {}
+		if mode.radio == 'tac' then
+			for _, o in ipairs(player.GetAll()) do if not o.HLAInMenu then to[#to + 1] = o end end
+		else
+			local sq = HLA.Squads and HLA.Squads.Of(p)
+			if not sq then
+				if p:IsPlayer() then p:ChatPrint('Рация отряда: вы не в отряде (вступите в отряд у терминала)') end
+				return
+			end
+			for _, m in ipairs(sq.members) do if IsValid(m) then to[#to + 1] = m end end
+		end
+		deliver(to, p, mode, text, false, opts.name)
+		MsgN(string.format('[рация %s] %s: %s', mode.radio, speakerName(p, opts.name), text))
+		return
+	end
 	local clear, muffled = {}, {}
 	local origin = p:IsPlayer() and p:EyePos() or (p:WorldSpaceCenter() + Vector(0, 0, 24))
 	local r2, m2 = mode.range * mode.range, (mode.range * CH.Muffle) ^ 2
@@ -145,3 +162,32 @@ function CH.Dispatch(text, sound)
 	net.Send(to)
 	MsgN('[диспетчер] ' .. text)
 end
+
+---------------------------------------------------------------------------------------------------
+-- voice: by default only those near hear it (in the world, from the unit); with H held it goes over the
+-- squad radio — the squad hears it anywhere (not in 3D), those next to the speaker still hear it too
+util.AddNetworkString('hla_radio')
+net.Receive('hla_radio', function(_, p)
+	local on = net.ReadBool()
+	p.HLARadio = on
+	p:SetNW2Bool('hla_radio', on)
+end)
+
+CreateConVar('hla_voice_range', '900', {FCVAR_ARCHIVE}, 'How far normal voice is heard (units, ~17 m)')
+local function sameSquad(a, b)
+	local SQ = HLA.Squads
+	local sa = SQ and SQ.Of(a)
+	return sa ~= nil and sa == SQ.Of(b)
+end
+
+function GM:PlayerCanHearPlayersVoice(listener, talker)
+	if talker.HLAInMenu or listener.HLAInMenu then return false, false end
+	-- the dead talk among the dead (spectators)
+	if not talker:Alive() then return not listener:Alive(), false end
+	if talker.HLARadio and sameSquad(listener, talker) then return true, false end
+	local range = GetConVar('hla_voice_range'):GetFloat()
+	if listener:GetPos():DistToSqr(talker:GetPos()) <= range * range then return true, true end
+	return false, false
+end
+
+hook.Add('Initialize', 'HLAVoice', function() RunConsoleCommand('sv_voiceenable', '1') end)

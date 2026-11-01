@@ -268,7 +268,7 @@ function S.StartRound(mode)
 		return
 	end
 	setState(S.PVP, mode)
-	SetGlobal2Float('hla_round_end', CurTime() + math.max(1, c.pvp.time or 8) * 60)
+	SetGlobal2Float('hla_round_end', CurTime() + math.max(1, c.pvp.time or 10) * 60)
 	SetGlobal2String('hla_team1', c.pvp.team1)
 	SetGlobal2String('hla_team2', c.pvp.team2)
 	local list = participants()
@@ -408,6 +408,23 @@ end
 hook.Add('OnNPCKilled', 'HLAKillCallout', function(npc, attacker) callout(attacker, false) end)
 hook.Add('PlayerDeath', 'HLAKillCallout', function(victim, _, attacker)
 	if attacker ~= victim then callout(attacker, true) end
+end)
+
+---------------------------------------------------------------------------------------------------
+-- a unit died: the dispatcher reports the lost biosignal, with the HL2 radio voice reading the number
+local DIGITS = {['0'] = 'zero', ['1'] = 'one', ['2'] = 'two', ['3'] = 'three', ['4'] = 'four', ['5'] = 'five',
+	['6'] = 'six', ['7'] = 'seven', ['8'] = 'eight', ['9'] = 'nine'}
+hook.Add('PlayerDeath', 'HLADispatchDeath', function(p)
+	if p.HLAInMenu or not p.HLACharID then return end
+	if (p.HLADeathCallAt or 0) > CurTime() then return end
+	p.HLADeathCallAt = CurTime() + 5
+	local name = p:GetNWString('hla_name', '')
+	local num = string.match(name, '(%d+)%s*$') or ''
+	local seq = {'npc/overwatch/radiovoice/on3.wav', 'npc/overwatch/radiovoice/lostbiosignalforunit.wav'}
+	for d in string.gmatch(num, '%d') do seq[#seq + 1] = 'npc/overwatch/radiovoice/' .. DIGITS[d] .. '.wav' end
+	seq[#seq + 1] = 'npc/overwatch/radiovoice/off2.wav'
+	local text = 'Потерян биосигнал юнита' .. (num ~= '' and (' ' .. num) or '') .. '.'
+	timer.Simple(1.2, function() CH.Dispatch(text, table.concat(seq, ';')) end)
 end)
 
 ---------------------------------------------------------------------------------------------------

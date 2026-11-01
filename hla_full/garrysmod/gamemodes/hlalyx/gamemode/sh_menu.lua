@@ -15,6 +15,8 @@ M.Classes = {
 	{model = 'models/cultist/hl_a/combine_grunt/combine_grunt.mdl', label = 'ГРАНТ', weapon = 'tfa_osips'},
 	{model = 'models/nemez/combine_soldiers/combine_soldier_recon_h.mdl', label = 'РАЗВЕДЧИК', weapon = 'weapon_csniper_tfa2'},
 	{model = 'models/nemez/combine_soldiers/combine_soldier_coordinator_h.mdl', label = 'КООРДИНАТОР', weapon = 'tfa_ocipr'},
+	-- HL:A Ordinal: shown in character creation once its model is installed; change the path / weapon here
+	{model = 'models/cultist/hl_a/combine_ordinal/combine_ordinal.mdl', label = 'ОРДИНАЛ', weapon = 'tfa_ocipr'},
 }
 M.Models = {}
 for i, c in ipairs(M.Classes) do M.Models[i] = c.model end
@@ -43,10 +45,11 @@ function M.DisplayName(c)
 end
 
 -- movement and stamina
--- calm, weighty movement (units per second; a person walks ~1.4 m/s = ~75, runs ~3.5 m/s = ~185):
--- walk 105, run 185, slow walk (Alt) 70, crouch 40% of it, jump 170 (about 40 cm up)
-M.Move = {walk = 105, run = 185, slow = 70, crouch = 0.4, jump = 170,
-	accel = 5,       -- sv_accelerate: speeds up and stops over ~0.3 s, not instantly (GMod: 10)
+-- realistic pace for an armed unit in gear (1 m ~ 52 units): walk ~2.4 m/s = 125, run ~4.4 m/s = 230,
+-- slow walk (Alt) ~1.4 m/s = 75, crouch 45% of it, jump 180 (about 45 cm up)
+M.Move = {walk = 125, run = 230, slow = 75, crouch = 0.45, jump = 180,
+	accel = 6,       -- sv_accelerate: speeds up and stops over ~0.25 s, not instantly (GMod: 10)
 	airaccel = 2,    -- sv_airaccelerate: almost no steering in the air (GMod: 10)
 	airMax = 1.0}    -- in a jump not faster than the speed it started with (no jump boost / bunny hop)
-M.Stamina = {max = 100, drain = 17, regen = 14, regenDelay = 1.1, jump = 14, recover = 25}
+-- stamina: ~11 s of running from full, back to full in ~6 s after a short pause
+M.Stamina = {max = 100, drain = 9, regen = 18, regenDelay = 0.8, jump = 9, recover = 15}

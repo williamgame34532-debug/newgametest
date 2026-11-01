@@ -1,8 +1,8 @@
 include('shared.lua')
 
--- Screen of the Combine console, laid out like the Combine fabricator screen: tabs on top, a list on
--- the left (the chosen row lit), the details of the chosen row on the right with the action button,
--- a signal strip and the unit number at the bottom. The monitors without power show a red warning.
+-- Screen of the Combine console in the look of the Combine Civil Authority terminal: identification and
+-- navigation on the left, the squad register in the middle (cards with bright head bars), session activity
+-- and the big buttons on the right. The monitors without power show a red warning.
 local SQ = HLA.Squads
 local W, H = 1024, 576
 local F = {blend = 0, cursor = {W / 2, H / 2}, page = 'index', kind = 1, log = {}, cw = W, sel = {}}
@@ -45,86 +45,77 @@ local function unitNumber(p)
 end
 
 ---------------------------------------------------------------------------------------------------
--- layout (canvas px; the canvas is F.cw wide)
+-- Layout of the Combine terminal (as the HL:A / Combine Civil Authority screens): a header line,
+-- three columns — identification and navigation on the left, the working list in the middle (bright
+-- title bar, then cards with a bright head bar: cyan, green for the own squad, a chip button on the
+-- right, a dark body with the units), session activity and the big buttons on the right — and a footer.
+local CYAN = Color(96, 198, 236)
+local CYAN_HI = Color(150, 222, 248)
+local GREEN = Color(72, 214, 156)
+local NAVY = Color(8, 26, 40)
+local PANEL_BG = Color(10, 34, 48)
+surface.CreateFont('hlaterm_cmb', {font = 'Combine_alphabet', size = 24, weight = 400, extended = true, antialias = true})
+surface.CreateFont('hlaterm_id', {font = 'Russo One', size = 30, weight = 400, extended = true})
+surface.CreateFont('hlaterm_bar', {font = 'Play', size = 22, weight = 400, extended = true})
+
 local function L()
 	local cw = F.cw
-	local lw = math.floor((cw - 80) * 0.46)
-	local rx = 40 + lw + 34
-	return {cw = cw, lx = 40, lw = lw, rx = rx, rw = cw - 40 - rx, top = 70, row = 36, gap = 6}
+	local lw = math.floor(cw * 0.2)
+	local rw = math.floor(cw * 0.2)
+	local mx = 40 + lw + 24
+	return {cw = cw, lx = 40, lw = lw, mx = mx, mw = cw - 40 - rw - 24 - mx, rx = cw - 40 - rw, rw = rw, top = 74}
 end
 
--- rows of the left list for the page: {key, label, value, bright?}
+-- the squad cards of the middle column
+local CARD_H, CARD_GAP = 64, 8
+local function cardY(i) return 150 + (i - 1) * (CARD_H + CARD_GAP) end
+
+-- rows are kept for the selection logic (squad notice); the middle column draws them as cards
 local function rows()
-	local me = LocalPlayer()
-	local mine = SQ.Of(me)
 	local r = {}
-	if F.page == 'index' then
-		r[1] = {'online', 'ЮНИТОВ В СЕТИ', #player.GetAll() .. ''}
-		r[2] = {'squads', 'АКТИВНЫЕ ОТРЯДЫ', SQ.Count() .. ' / ' .. SQ.Max}
-		r[3] = {'size', 'СОСТАВ ОТРЯДА', mine and (#mine.members .. ' / ' .. SQ.MaxMembers) or '—'}
-		r[4] = {'post', 'НАЗНАЧЕНИЕ', mine and mine.name or 'НЕТ'}
-	elseif F.page == 'squads' then
-		for id, s in SortedPairs(SQ.list) do
-			r[#r + 1] = {id, (s == mine and '» ' or '') .. s.name, #s.members .. ' / ' .. SQ.MaxMembers}
-		end
-		r[#r + 1] = {'new', '+ НОВЫЙ ОТРЯД', ''}
-	else
-		for i, l in ipairs(F.log) do r[i] = {i, l[2], l[1]} end
-		if #r == 0 then r[1] = {0, 'ЗАПИСЕЙ НЕТ', ''} end
-	end
+	for id, s in SortedPairs(SQ.list) do r[#r + 1] = {id, s.name, #s.members .. ' / ' .. SQ.MaxMembers} end
 	return r
 end
-
 local function selected(r)
-	local key = F.sel[F.page]
-	for _, row in ipairs(r) do if row[1] == key then return key end end
-	if F.page == 'squads' then
-		local mine = SQ.Of(LocalPlayer())
-		if mine then return mine.id end
-	end
-	return r[1] and r[1][1]
+	local mine = SQ.Of(LocalPlayer())
+	return mine and mine.id or (r[1] and r[1][1])
 end
 
 -- everything clickable on the screen
 local function buttons()
 	local l = L()
 	local b = {}
-	local tabs = {{'index', 'ИНДЕКС'}, {'squads', 'ОТРЯДЫ'}, {'log', 'ЖУРНАЛ'}}
-	for i, t in ipairs(tabs) do
-		b[#b + 1] = {id = 'nav', arg = t[1], label = t[2], x = 40 + (i - 1) * 128, y = 18, w = 118, h = 30, tab = true}
+	-- navigation (left column)
+	for i, t in ipairs({{'index', 'КОМАНДНЫЙ ИНДЕКС'}, {'squads', 'ОТРЯДЫ'}}) do
+		b[#b + 1] = {id = 'nav', arg = t[1], label = t[2], x = l.lx, y = 214 + (i - 1) * 34, w = l.lw, h = 30, tab = true}
 	end
-	b[#b + 1] = {id = 'exit', label = 'ВЫХОД', x = l.cw - 40 - 120, y = 18, w = 120, h = 30, chip = true}
-	local r = rows()
-	for i, row in ipairs(r) do
-		b[#b + 1] = {id = 'row', arg = row[1], x = l.lx, y = l.top + 24 + (i - 1) * (l.row + l.gap), w = l.lw, h = l.row, row = row}
-	end
-	-- actions of the chosen row (right column, at the bottom)
-	local key = selected(r)
-	local ax, ay, aw = l.rx, 446, math.min(l.rw, 300)
 	local mine = SQ.Of(LocalPlayer())
-	if F.page == 'index' then
-		b[#b + 1] = {id = 'nav', arg = 'squads', label = 'ОТРЯДЫ', x = ax, y = ay, w = aw, h = 40, act = true}
-	elseif F.page == 'squads' then
-		if key == 'new' then
-			b[#b + 1] = {id = 'kind', arg = -1, label = '<', x = l.rx, y = 160, w = 36, h = 36}
-			b[#b + 1] = {id = 'kind', arg = 1, label = '>', x = l.rx + 290, y = 160, w = 36, h = 36}
-			if SQ.Count() < SQ.Max then
-				b[#b + 1] = {id = 'create', label = 'СОЗДАТЬ ОТРЯД', x = ax, y = ay, w = aw, h = 40, act = true}
+	if F.page == 'squads' then
+		local i = 0
+		for id, s in SortedPairs(SQ.list) do
+			i = i + 1
+			if i > 5 then break end
+			local y = cardY(i)
+			if s == mine then
+				b[#b + 1] = {id = 'leave', label = 'ПОКИНУТЬ', x = l.mx + l.mw - 128, y = y + 4, w = 120, h = 24, chip = true}
+			elseif #s.members < SQ.MaxMembers then
+				b[#b + 1] = {id = 'join', arg = id, label = 'ВСТУПИТЬ', x = l.mx + l.mw - 128, y = y + 4, w = 120, h = 24, chip = true}
 			end
-		else
-			local s = SQ.list[key]
-			if s and s == mine then
-				b[#b + 1] = {id = 'leave', label = 'ПОКИНУТЬ ОТРЯД', x = ax, y = ay, w = aw, h = 40, act = true}
-				if s.leader == LocalPlayer() and l.rw >= aw * 2 + 10 then
-					b[#b + 1] = {id = 'disband', label = 'РАСФОРМИРОВАТЬ', x = ax + aw + 10, y = ay, w = aw, h = 40}
-				elseif s.leader == LocalPlayer() then
-					b[#b + 1] = {id = 'disband', label = 'РАСФОРМИРОВАТЬ', x = ax, y = ay - 48, w = aw, h = 40}
-				end
-			elseif s and #s.members < SQ.MaxMembers then
-				b[#b + 1] = {id = 'join', arg = key, label = 'ВСТУПИТЬ', x = ax, y = ay, w = aw, h = 40, act = true}
+			if s == mine and s.leader == LocalPlayer() then
+				b[#b + 1] = {id = 'disband', label = 'РАСФОРМ.', x = l.mx + l.mw - 128, y = y + 36, w = 120, h = 22, chip = true, dim = true}
 			end
 		end
 	end
+	-- right column: forming a squad, then the big buttons at the bottom
+	local rx, rw = l.rx, l.rw
+	b[#b + 1] = {id = 'kind', arg = -1, label = '<', x = rx, y = 360, w = 30, h = 30, chip = true}
+	b[#b + 1] = {id = 'kind', arg = 1, label = '>', x = rx + rw - 30, y = 360, w = 30, h = 30, chip = true}
+	if SQ.Count() < SQ.Max then
+		b[#b + 1] = {id = 'create', label = 'СФОРМИРОВАТЬ ОТРЯД', x = rx, y = 396, w = rw, h = 30, big = true}
+	end
+	b[#b + 1] = {id = 'nav', arg = 'index', label = 'НАЗАД / ИНДЕКС', x = rx, y = 440, w = rw, h = 30, big = true}
+	b[#b + 1] = {id = 'logout', label = 'ВЫХОД ИЗ СИСТЕМЫ', x = rx, y = 476, w = rw, h = 30, big = true}
+	b[#b + 1] = {id = 'exit', label = 'ЗАКРЫТЬ ТЕРМИНАЛ', x = rx, y = 512, w = rw, h = 30, big = true}
 	return b
 end
 
@@ -142,17 +133,17 @@ local function send(what, arg)
 	net.SendToServer()
 end
 
-local PAGE = {index = 'КОМАНДНЫЙ ИНДЕКС', squads = 'ОТРЯДЫ', log = 'ЖУРНАЛ СЕАНСА'}
+local PAGE = {index = 'КОМАНДНЫЙ ИНДЕКС', squads = 'РЕЕСТР ОТРЯДОВ'}
 local function activate(b)
 	if not b then return end
 	snd('click')
-	if b.id == 'nav' then F.page = b.arg log(PAGE[b.arg])
-	elseif b.id == 'row' then F.sel[F.page] = b.arg
+	if b.id == 'nav' then F.page = b.arg log(PAGE[b.arg] or '')
 	elseif b.id == 'kind' then F.kind = (F.kind - 1 + b.arg) % #SQ.Kinds + 1
-	elseif b.id == 'create' then send('create', F.kind) log('СОЗДАНИЕ ОТРЯДА') F.sel.squads = nil
-	elseif b.id == 'join' then send('join', b.arg) log('ВСТУПЛЕНИЕ В ОТРЯД')
-	elseif b.id == 'leave' then send('leave') log('ВЫХОД ИЗ ОТРЯДА')
-	elseif b.id == 'disband' then send('disband') log('РАСФОРМИРОВАНИЕ') F.sel.squads = nil
+	elseif b.id == 'create' then send('create', F.kind) log('ФОРМИРОВАНИЕ ОТРЯДА') F.page = 'squads'
+	elseif b.id == 'join' then send('join', b.arg) log('ПРИКРЕПЛЕНИЕ К ОТРЯДУ')
+	elseif b.id == 'leave' then send('leave') log('ОТКРЕПЛЕНИЕ ОТ ОТРЯДА')
+	elseif b.id == 'disband' then send('disband') log('РАСФОРМИРОВАНИЕ')
+	elseif b.id == 'logout' then F.log = {} net.Start('hla_term') net.SendToServer()
 	elseif b.id == 'exit' then net.Start('hla_term') net.SendToServer()
 	end
 end
@@ -166,170 +157,158 @@ local function frame(x, y, w, h, c, a)
 	surface.DrawOutlinedRect(x, y, w, h, 1)
 end
 local function fill(x, y, w, h, c, a) surface.SetDrawColor(c.r, c.g, c.b, a or 255) surface.DrawRect(x, y, w, h) end
-local function barRect(x, y, w, h, a)
+-- a bright bar with a soft scratch texture over it (the HL:A screens are not flat)
+local function brightBar(x, y, w, h, c, a)
+	fill(x, y, w, h, c, 235 * (a or 1))
 	surface.SetMaterial(bar)
-	surface.SetDrawColor(255, 255, 255, 255 * (a or 1))
+	surface.SetDrawColor(255, 255, 255, 50 * (a or 1))
 	surface.DrawTexturedRect(x, y, w, h)
-end
--- corner brackets
-local function corners(x, y, w, h, c, len)
-	surface.SetDrawColor(c.r, c.g, c.b, 255)
-	for _, p in ipairs({{x, y, 1, 1}, {x + w, y, -1, 1}, {x, y + h, 1, -1}, {x + w, y + h, -1, -1}}) do
-		surface.DrawRect(p[3] > 0 and p[1] or p[1] - len, p[4] > 0 and p[2] or p[2] - 2, len, 2)
-		surface.DrawRect(p[3] > 0 and p[1] or p[1] - 2, p[4] > 0 and p[2] or p[2] - len, 2, len)
-	end
+	fill(x, y, w, 1, CYAN_HI, 180 * (a or 1))
 end
 
-local function wrap(text, font, width)
+local function fit(text, font, width)
 	surface.SetFont(font)
-	local out, cur = {}, ''
-	for word in string.gmatch(text, '%S+') do
-		local try = cur == '' and word or (cur .. ' ' .. word)
-		if surface.GetTextSize(try) > width and cur ~= '' then out[#out + 1] = cur cur = word else cur = try end
+	if surface.GetTextSize(text) <= width then return text end
+	while utf8.len(text) > 1 and surface.GetTextSize(text .. '…') > width do
+		text = string.sub(text, 1, utf8.offset(text, utf8.len(text)) - 1)
 	end
-	if cur ~= '' then out[#out + 1] = cur end
-	return out
+	return text .. '…'
 end
 
 local function drawButton(b, hot)
 	if b.tab then
 		local on = F.page == b.arg
-		txt(b.label, 'hlaterm_tab', b.x + 6, b.y + b.h / 2, (on or hot) and TEXT or BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-		if on then fill(b.x + 6, b.y + b.h - 3, b.w - 18, 3, BLUE) elseif hot then fill(b.x + 6, b.y + b.h - 2, b.w - 18, 1, BLUE_DIM) end
-	elseif b.row then
-		local on = selected(rows()) == b.arg
-		if on then
-			barRect(b.x, b.y, b.w, b.h)
-			txt(b.row[2], 'hlaterm_m', b.x + 12, b.y + b.h / 2, DARK, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			txt(b.row[3], 'hlaterm_m', b.x + b.w - 12, b.y + b.h / 2, DARK, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-		else
-			fill(b.x, b.y, b.w, b.h, BLUE, hot and 46 or 18)
-			frame(b.x, b.y, b.w, b.h, BLUE_DIM)
-			txt(b.row[2], 'hlaterm_m', b.x + 12, b.y + b.h / 2, TEXT, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			txt(b.row[3], 'hlaterm_m', b.x + b.w - 12, b.y + b.h / 2, BLUE, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-		end
-	elseif b.act or hot then
-		if hot then barRect(b.x, b.y, b.w, b.h) else fill(b.x, b.y, b.w, b.h, BLUE, 34) frame(b.x, b.y, b.w, b.h, BLUE) end
-		txt(b.label, 'hlaterm_m', b.x + b.w / 2, b.y + b.h / 2, hot and DARK or TEXT, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	else
-		fill(b.x, b.y, b.w, b.h, BLUE, 18)
-		frame(b.x, b.y, b.w, b.h, BLUE_DIM)
-		txt(b.label, b.chip and 'hlaterm_s' or 'hlaterm_m', b.x + b.w / 2, b.y + b.h / 2, b.chip and BLUE or TEXT, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		if on then fill(b.x, b.y, 3, b.h, CYAN) end
+		txt(b.label, 'hlaterm_s', b.x + 12, b.y + b.h / 2, (on or hot) and CYAN_HI or BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	elseif b.big then
+		brightBar(b.x, b.y, b.w, b.h, hot and CYAN_HI or CYAN, hot and 1 or 0.85)
+		txt(b.label, 'hlaterm_xs', b.x + b.w / 2, b.y + b.h / 2, NAVY, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	else -- chips on the cards, arrows
+		fill(b.x, b.y, b.w, b.h, hot and CYAN_HI or (b.dim and BLUE_DIM or CYAN), hot and 255 or 210)
+		txt(b.label, 'hlaterm_xs', b.x + b.w / 2, b.y + b.h / 2, NAVY, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 end
 
--- the details of the chosen row (right column)
-local function details(l, key)
-	local x, y, w = l.rx, l.top + 24, l.rw
-	local function title(t, sub)
-		txt(t, 'hlaterm_t', x, y - 6, TEXT)
-		line(x, y + 30, w, BLUE_DIM)
-		if sub then txt(sub, 'hlaterm_s', x, y + 38, BLUE) end
+-- Combine script lines: the same for a terminal every time (seeded by its index)
+local CMB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
+local function combineLines(seed, n)
+	local out, x = {}, seed * 7919
+	for i = 1, n do
+		local len = 8 + (x % 9)
+		local t = {}
+		for k = 1, len do
+			x = (x * 1103515245 + 12345) % 2147483648
+			local c = (x % #CMB) + 1
+			t[k] = string.sub(CMB, c, c)
+		end
+		out[i] = table.concat(t)
 	end
-	local function para(t, yy)
-		for i, s in ipairs(wrap(t, 'hlaterm_xs', w)) do txt(s, 'hlaterm_xs', x, yy + (i - 1) * 18, BLUE_DIM) end
-	end
+	return out
+end
+
+local function middle(l)
 	local mine = SQ.Of(LocalPlayer())
-	if F.page == 'index' then
-		local info = {
-			online = {'ЮНИТЫ В СЕТИ', 'Все юниты гражданской обороны, подключённые к локальному узлу.'},
-			squads = {'АКТИВНЫЕ ОТРЯДЫ', 'Отряды, сформированные в этом секторе. Создание и вступление — модуль «Отряды».'},
-			size = {'СОСТАВ ОТРЯДА', 'Число юнитов в вашем отряде. Отряд — до ' .. SQ.MaxMembers .. ' юнитов.'},
-			post = {'НАЗНАЧЕНИЕ', 'Текущий отряд юнита. Без отряда юнит действует самостоятельно.'},
-		}
-		local it = info[key] or info.online
-		title(it[1], 'КОМАНДНЫЙ ИНДЕКС :: ОБЗОР')
-		para(it[2], y + 64)
-	elseif F.page == 'squads' then
-		if key == 'new' then
-			title('НОВЫЙ ОТРЯД', 'ТИП ОТРЯДА')
-			frame(x + 42, 160, 242, 36, BLUE_DIM)
-			txt(SQ.Kinds[F.kind], 'hlaterm_s', x + 163, 178, TEXT, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-			para('Номер отряда назначается автоматически. Создатель становится командиром.', 212)
-			if SQ.Count() >= SQ.Max then txt('ЛИМИТ ОТРЯДОВ :: ' .. SQ.Max, 'hlaterm_s', x, 456, RED) end
-		else
-			local s = SQ.list[key]
-			if not s then title('ОТРЯДОВ НЕТ', 'СОЗДАЙТЕ НОВЫЙ ОТРЯД') return end
-			local lead = IsValid(s.leader) and string.upper(s.leader:GetNWString('hla_name', s.leader:Nick())) or '—'
-			title(s.name, 'КОМАНДИР :: ' .. lead)
-			txt('СОСТАВ  ' .. #s.members .. ' / ' .. SQ.MaxMembers .. (s == mine and '   ·   ВАШ ОТРЯД' or ''), 'hlaterm_xs', x, y + 62, BLUE_DIM)
-			for i, m in ipairs(s.members) do
-				if IsValid(m) then
-					local yy = y + 84 + (i - 1) * 22
-					fill(x, yy + 7, 6, 6, m:Alive() and BLUE or RED)
-					txt(string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == s.leader and '  [К]' or ''), 'hlaterm_s', x + 16, yy, TEXT)
-				end
+	local x, w = l.mx, l.mw
+	if F.page == 'squads' then
+		brightBar(x, l.top, w, 34, CYAN)
+		txt('РЕЕСТР ОТРЯДОВ', 'hlaterm_bar', x + 12, l.top + 17, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		txt('ПРИКРЕПИТЕСЬ / ОТКРЕПИТЕСЬ, ЧТОБЫ ОБНОВИТЬ НАЗНАЧЕНИЕ', 'hlaterm_xs', x, l.top + 46, CYAN)
+		line(x, l.top + 66, w, BLUE_DIM, 120)
+		local i = 0
+		for _, s in SortedPairs(SQ.list) do
+			i = i + 1
+			if i > 5 then break end
+			local y = cardY(i)
+			local own = s == mine
+			fill(x, y, w, CARD_H, PANEL_BG, 230)
+			frame(x, y, w, CARD_H, own and GREEN or BLUE_DIM, 150)
+			brightBar(x, y, w - 136, 32, own and GREEN or CYAN)
+			txt(fit(s.name .. '   [' .. #s.members .. '/' .. SQ.MaxMembers .. ']', 'hlaterm_bar', w - 160), 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			local names = {}
+			for _, m in ipairs(s.members) do
+				if IsValid(m) then names[#names + 1] = string.upper(m:GetNWString('hla_name', m:Nick())) .. (m == s.leader and ' (К)' or '') end
 			end
+			local body = #names > 0 and table.concat(names, '   ') or 'НЕТ ПРИКРЕПЛЁННЫХ ЮНИТОВ'
+			txt(fit(body, 'hlaterm_xs', w - 160), 'hlaterm_xs', x + 12, y + 48, own and GREEN or CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			fill(x, y + CARD_H - 2, math.floor(w * 0.18), 2, own and GREEN or CYAN, 160)
+		end
+		if i == 0 then
+			txt('АКТИВНЫХ ОТРЯДОВ НЕТ', 'hlaterm_m', x + w / 2, 260, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+			txt('СФОРМИРУЙТЕ ОТРЯД СПРАВА', 'hlaterm_xs', x + w / 2, 290, BLUE_DIM, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		end
 	else
-		title('ЖУРНАЛ СЕАНСА', 'ДЕЙСТВИЯ НА ЭТОМ ТЕРМИНАЛЕ')
-		para('Записи текущего сеанса. Журнал очищается при выходе из системы.', y + 64)
+		brightBar(x, l.top, w, 34, CYAN)
+		txt('КОМАНДНЫЙ ИНДЕКС', 'hlaterm_bar', x + 12, l.top + 17, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		txt('СВОДКА УЗЛА И НАЗНАЧЕНИЕ ЮНИТА', 'hlaterm_xs', x, l.top + 46, CYAN)
+		line(x, l.top + 66, w, BLUE_DIM, 120)
+		local cards = {
+			{'ЮНИТОВ В СЕТИ', tostring(#player.GetAll())},
+			{'АКТИВНЫЕ ОТРЯДЫ', SQ.Count() .. ' / ' .. SQ.Max},
+			{'НАЗНАЧЕНИЕ', mine and mine.name or 'НЕ НАЗНАЧЕН', mine ~= nil},
+			{'СОСТАВ ОТРЯДА', mine and (#mine.members .. ' / ' .. SQ.MaxMembers) or '—'},
+		}
+		for i, c in ipairs(cards) do
+			local y = cardY(i)
+			fill(x, y, w, CARD_H, PANEL_BG, 230)
+			frame(x, y, w, CARD_H, c[3] and GREEN or BLUE_DIM, 150)
+			brightBar(x, y, w, 32, c[3] and GREEN or CYAN)
+			txt(c[1], 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+			txt(fit(c[2], 'hlaterm_m', w - 24), 'hlaterm_m', x + 12, y + 48, c[3] and GREEN or CYAN_HI, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		end
 	end
 end
 
--- signal strip (bars moving like a waveform)
-local function wave(x, y, w, h)
-	local t = CurTime()
-	local n = math.floor(w / 6)
-	for i = 0, n - 1 do
-		local v = 0.25 + 0.75 * math.abs(math.sin(i * 0.37 + t * 2.1) * math.sin(i * 0.11 - t * 0.7))
-		local bh = math.max(2, math.floor(h * v))
-		fill(x + i * 6, y + h - bh, 3, bh, BLUE, 120 + 100 * v)
-	end
-end
-
-local function drawScreen(cur, live)
+local function drawScreen(cur, live, seed)
 	local l = L()
 	local cw = l.cw
 	surface.SetMaterial(bg)
-	surface.SetDrawColor(255, 255, 255, 255)
+	surface.SetDrawColor(110, 170, 190, 255)
 	surface.DrawTexturedRect(0, 0, cw, H)
-	frame(10, 10, cw - 20, H - 20, BLUE_DIM, 160)
-	corners(10, 10, cw - 20, H - 20, BLUE, 22)
+	fill(0, 0, cw, H, NAVY, 205) -- dark teal glass, like the Civil Authority screens
 	local me = LocalPlayer()
-	-- top: date / node chips
-	local cx = cw - 40 - 120 - 10
-	for _, chip in ipairs({os.date('%H:%M:%S'), os.date('%d.%m.%y'), 'УЗЕЛ 08'}) do
-		surface.SetFont('hlaterm_xs')
-		local tw = surface.GetTextSize(chip) + 18
-		cx = cx - tw
-		frame(cx, 22, tw, 22, BLUE_DIM)
-		txt(chip, 'hlaterm_xs', cx + tw / 2, 33, BLUE, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-		cx = cx - 8
-	end
-	line(40, 54, cw - 80, BLUE_DIM)
-	-- list header
-	local count = F.page == 'squads' and ('АКТИВНЫЕ ОТРЯДЫ  ' .. SQ.Count() .. ' / ' .. SQ.Max) or F.page == 'log' and 'ЗАПИСИ СЕАНСА' or 'ОБЗОР ПЕРСОНАЛА'
-	txt(count, 'hlaterm_xs', l.lx, l.top, BLUE_DIM)
-	local hot = live and hovered(cur) or nil
-	local r = rows()
-	if not live then
-		for i, row in ipairs(r) do
-			drawButton({row = row, arg = row[1], x = l.lx, y = l.top + 24 + (i - 1) * (l.row + l.gap), w = l.lw, h = l.row}, false)
+	-- header
+	txt('ГРАЖДАНСКАЯ ВЛАСТЬ АЛЬЯНСА / КОМАНДНЫЙ ДОСТУП', 'hlaterm_m', 40, 34, CYAN_HI, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	txt('ЛОКАЛЬНЫЙ УЗЕЛ :: 08', 'hlaterm_xs', cw - 92, 34, CYAN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	-- the Combine mark: a ring cut by a wedge
+	draw.NoTexture()
+	surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 220)
+	for k = 0, 23 do
+		if k % 8 ~= 0 then
+			local a0, a1 = math.rad(k * 15), math.rad(k * 15 + 12)
+			surface.DrawPoly({{x = cw - 60 + math.cos(a0) * 16, y = 34 + math.sin(a0) * 16}, {x = cw - 60 + math.cos(a1) * 16, y = 34 + math.sin(a1) * 16},
+				{x = cw - 60 + math.cos(a1) * 10, y = 34 + math.sin(a1) * 10}, {x = cw - 60 + math.cos(a0) * 10, y = 34 + math.sin(a0) * 10}})
 		end
 	end
-	details(l, selected(r))
-	-- glyphs (Combine script) between the list and the bottom, as decoration
-	surface.SetMaterial(glyphs)
-	surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 60)
-	surface.DrawTexturedRectUV(l.rx, 420, math.min(l.rw, 300), 20, 0.3, 0, 0.62, 1 / 6)
-	-- bottom: signal, unit number
-	line(40, 456, l.lw, BLUE_DIM, 120)
-	local nx = 40 + l.lw
-	local num = unitNumber(me)
-	surface.SetFont('hlaterm_num')
-	local nw = surface.GetTextSize(num)
-	wave(40, 470, math.floor(math.max(60, math.min(l.lw * 0.52, l.lw - nw - 160))), 54)
-	txt(num, 'hlaterm_num', nx, 532, TEXT, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
-	txt('НОМЕР ЮНИТА', 'hlaterm_xs', nx - nw - 14, 522, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
-	txt(live and 'СЕАНС АКТИВЕН' or 'E :: ВХОД В СИСТЕМУ', 'hlaterm_xs', nx - nw - 14, 502, live and BLUE or TEXT, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
-	txt('ГРАЖДАНСКАЯ ОБОРОНА / КОМАНДНЫЙ ДОСТУП', 'hlaterm_xs', cw - 40, 528, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
-	if live then
-		local hk = bkey(hot)
-		for _, b in ipairs(buttons()) do drawButton(b, bkey(b) == hk) end
-	else
-		for _, b in ipairs(buttons()) do if b.tab then drawButton(b, false) end end
+	line(40, 56, cw - 80, BLUE_DIM, 140)
+	-- left: identification, navigation, Combine script
+	txt('ИДЕНТИФИКАЦИЯ', 'hlaterm_xs', l.lx, l.top + 2, BLUE_DIM)
+	txt(fit(string.upper(me:GetNWString('hla_name', me:Nick())), 'hlaterm_id', l.lw), 'hlaterm_id', l.lx, l.top + 20, CYAN_HI)
+	txt(live and 'СЕАНС АКТИВЕН' or 'E :: ВХОД В СИСТЕМУ', 'hlaterm_xs', l.lx, l.top + 58, live and CYAN or TEXT)
+	local sq = SQ.Of(me)
+	txt(fit(sq and ('ОТРЯД :: ' .. sq.name) or 'ОТРЯД :: НЕ НАЗНАЧЕН', 'hlaterm_xs', l.lw), 'hlaterm_xs', l.lx, l.top + 80, sq and GREEN or BLUE_DIM)
+	for i, s in ipairs(combineLines(seed or 1, 7)) do
+		txt(s, 'hlaterm_cmb', l.lx, 300 + (i - 1) * 30, Color(CYAN.r, CYAN.g, CYAN.b, 150))
 	end
+	-- middle
+	middle(l)
+	-- right: session activity, forming a squad
+	txt('АКТИВНОСТЬ СЕАНСА', 'hlaterm_s', l.rx, l.top + 2, CYAN_HI)
+	for i, e in ipairs(F.log) do
+		if i > 5 then break end
+		local y = l.top + 30 + (i - 1) * 46
+		txt(e[1], 'hlaterm_xs', l.rx, y, BLUE_DIM)
+		txt(fit(e[2], 'hlaterm_s', l.rw), 'hlaterm_s', l.rx, y + 16, CYAN)
+	end
+	txt('ТИП НОВОГО ОТРЯДА', 'hlaterm_xs', l.rx, 340, BLUE_DIM)
+	txt(fit(SQ.Kinds[F.kind] or '', 'hlaterm_xs', l.rw - 70), 'hlaterm_xs', l.rx + l.rw / 2, 375, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	-- footer
+	line(40, H - 22, cw - 80, BLUE_DIM, 90)
+	txt('ВЛАСТЬ АЛЬЯНСА / ЗАЩИЩЁННЫЙ ДОСТУП', 'hlaterm_xs', 40, H - 12, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	txt(os.date('%H:%M:%S') .. '  /  ЮНИТ ' .. unitNumber(me), 'hlaterm_xs', cw - 40, H - 12, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
+	-- buttons
+	local hot = live and hovered(cur) or nil
+	local hk = bkey(hot)
+	for _, b in ipairs(buttons()) do drawButton(b, live and bkey(b) == hk) end
 	-- a squad was just created / joined: its name large across the screen for a few seconds
 	local n = F.notice
 	if live and n and CurTime() - n.t < 4 then
@@ -337,19 +316,26 @@ local function drawScreen(cur, live)
 		local a = math.Clamp(math.min(k / 0.2, (4 - k) / 0.5), 0, 1)
 		local bh = 130
 		local by = H / 2 - bh / 2
-		fill(0, 0, cw, H, DARK, 150 * a)
-		surface.SetMaterial(bar)
-		surface.SetDrawColor(255, 255, 255, 255 * a)
-		surface.DrawTexturedRect(40, by, cw - 80, bh)
-		txt(n.head, 'hlaterm_s', cw / 2, by + 22, Color(DARK.r, DARK.g, DARK.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		fill(0, 0, cw, H, NAVY, 170 * a)
+		brightBar(40, by, cw - 80, bh, GREEN, a)
+		txt(n.head, 'hlaterm_s', cw / 2, by + 22, Color(NAVY.r, NAVY.g, NAVY.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		surface.SetFont('hlaterm_big')
 		local font = surface.GetTextSize(n.name) > cw - 140 and 'hlaterm_t' or 'hlaterm_big'
-		txt(n.name, font, cw / 2, by + bh / 2 + 14, Color(DARK.r, DARK.g, DARK.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+		txt(n.name, font, cw / 2, by + bh / 2 + 14, Color(NAVY.r, NAVY.g, NAVY.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 	if cur then
 		surface.SetMaterial(ring)
-		surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 255)
+		surface.SetDrawColor(CYAN_HI.r, CYAN_HI.g, CYAN_HI.b, 255)
 		surface.DrawTexturedRect(cur[1] - 10, cur[2] - 10, 20, 20)
+	end
+end
+
+-- corner brackets
+local function corners(x, y, w, h, c, len)
+	surface.SetDrawColor(c.r, c.g, c.b, 255)
+	for _, p in ipairs({{x, y, 1, 1}, {x + w, y, -1, 1}, {x, y + h, 1, -1}, {x + w, y + h, -1, -1}}) do
+		surface.DrawRect(p[3] > 0 and p[1] or p[1] - len, p[4] > 0 and p[2] or p[2] - 2, len, 2)
+		surface.DrawRect(p[3] > 0 and p[1] or p[1] - 2, p[4] > 0 and p[2] or p[2] - len, 2, len)
 	end
 end
 
@@ -407,7 +393,7 @@ function ENT:DrawTranslucent()
 	local prev = F.cw
 	F.cw = cw
 	cam.Start3D2D(origin, right:AngleEx(normal), scale)
-		drawScreen(live and F.cursor or nil, live)
+		drawScreen(live and F.cursor or nil, live, self:EntIndex())
 	cam.End3D2D()
 	if not live then F.cw = prev end
 	surface.SetAlphaMultiplier(1)
