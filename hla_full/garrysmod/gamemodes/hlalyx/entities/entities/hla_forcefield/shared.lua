@@ -84,3 +84,8 @@ function ENT:Sound(kind)
 	if kind == 'touch' then list = list[math.random(#list)] end
 	return self.Pick(list, 'sound/')
 end
+
+-- the field always stands upright: only its yaw counts (a tilted entity — physgun, physics — is drawn and
+-- rebuilt level, the server puts it level again)
+function ENT:UprightAngles() return Angle(0, self:GetAngles().y, 0) end
+function ENT:FieldToWorld(v) return LocalToWorld(v, angle_zero, self:GetPos(), self:UprightAngles()) end

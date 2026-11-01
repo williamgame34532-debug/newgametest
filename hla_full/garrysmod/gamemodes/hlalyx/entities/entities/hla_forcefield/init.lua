@@ -125,7 +125,9 @@ function ENT:Follow(force)
 	pos.z = math.min(a.z, b.z) + ph * fb
 	local ang = Angle(0, flat:Angle().y - 90, 0) -- local +Y from the left post to the right one
 	local h = ph * math.max(ft - fb, 0.05)
-	if not force and pos:DistToSqr(self:GetPos()) < 0.25 and math.abs(math.AngleDifference(ang.y, self:GetAngles().y)) < 0.2
+	local cur = self:GetAngles()
+	local level = math.abs(cur.p) < 0.1 and math.abs(cur.r) < 0.1
+	if not force and level and pos:DistToSqr(self:GetPos()) < 0.25 and math.abs(math.AngleDifference(ang.y, cur.y)) < 0.2
 		and math.abs(w - self:GetWidth()) < 0.5 and math.abs(h - self:GetHeight()) < 0.5 then return end
 	-- while a post is in the physgun the field only follows it with its look (10 times a second) and
 	-- lets everything through; its solid body is built once, when the post is let go
@@ -225,7 +227,16 @@ end
 
 -- follow the posts; touching the field: pushed back with a crackle
 function ENT:Think()
-	if self:GetPosts() then self:Follow() end
+	if self:GetPosts() then
+		self:Follow()
+	else
+		-- a field without posts stays level (a tilted one — old saves, physics — is put upright)
+		local a = self:GetAngles()
+		if (math.abs(a.p) > 0.1 or math.abs(a.r) > 0.1) and not self:IsPlayerHolding() then
+			self:SetAngles(self:UprightAngles())
+			self:Rebuild()
+		end
+	end
 	local touching = 0
 	if IsValid(self) and self:GetOn() then
 		local mn, mx = self:FieldBox()
@@ -472,4 +483,20 @@ net.Receive('hla_ff_set', function(_, p)
 	elseif what == 'save' then p:ConCommand('hla_save_forcefields') return
 	end
 	f:Follow(true)
+end)
+
+-- the field itself is not taken by the physgun / gravity gun when it has posts (it moves with them);
+-- a field without posts can be carried, and is put level again when let go
+hook.Add('PhysgunPickup', 'HLAForceFieldLevel', function(p, e)
+	if e.IsHLAForceField and e:GetPosts() then return false end
+end)
+hook.Add('GravGunPickupAllowed', 'HLAForceFieldLevel', function(p, e)
+	if e.IsHLAForceField then return false end
+end)
+hook.Add('PhysgunDrop', 'HLAForceFieldLevel', function(p, e)
+	if not e.IsHLAForceField then return end
+	e:SetAngles(e:UprightAngles())
+	local ph = e:GetPhysicsObject()
+	if IsValid(ph) then ph:EnableMotion(false) end
+	e:Rebuild()
 end)

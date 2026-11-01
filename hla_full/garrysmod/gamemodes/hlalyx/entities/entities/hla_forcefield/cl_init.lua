@@ -37,10 +37,10 @@ local LAYER2, BH = Material('hla/forcefield/field_layer2'), Material('hla/forcef
 function ENT:Quad(m, x, u, v, scroll, both)
 	local w, h = self:GetWidth(), self:GetHeight()
 	scroll = scroll or 0
-	local p1 = self:LocalToWorld(Vector(x, w / 2, h))
-	local p2 = self:LocalToWorld(Vector(x, -w / 2, h))
-	local p3 = self:LocalToWorld(Vector(x, -w / 2, 0))
-	local p4 = self:LocalToWorld(Vector(x, w / 2, 0))
+	local p1 = self:FieldToWorld(Vector(x, w / 2, h))
+	local p2 = self:FieldToWorld(Vector(x, -w / 2, h))
+	local p3 = self:FieldToWorld(Vector(x, -w / 2, 0))
+	local p4 = self:FieldToWorld(Vector(x, w / 2, 0))
 	render.SetMaterial(m)
 	-- two triangles per face, drawn explicitly
 	for side = 1, both and 2 or 1 do
@@ -87,8 +87,8 @@ function ENT:Draw()
 	local w = self:GetWidth()
 	for _, m in ipairs(self.parts) do
 		if IsValid(m) then
-			m:SetPos(self:LocalToWorld(Vector(0, m.side * w / 2, 0)))
-			m:SetAngles(self:LocalToWorldAngles(Angle(0, m.side == -1 and 0 or 180, 0)))
+			m:SetPos(self:FieldToWorld(Vector(0, m.side * w / 2, 0)))
+			m:SetAngles(Angle(0, self:UprightAngles().y + (m.side == -1 and 0 or 180), 0))
 			m:SetupBones()
 			m:DrawModel()
 		end
@@ -131,7 +131,7 @@ function ENT:DrawTranslucent()
 	-- blue light on the floor and walls
 	local dl = DynamicLight(self:EntIndex())
 	if dl then
-		dl.pos = self:LocalToWorld(Vector(0, 0, h / 2))
+		dl.pos = self:FieldToWorld(Vector(0, 0, h / 2))
 		dl.r, dl.g, dl.b = 70, 150, 255
 		dl.brightness = 1.2
 		dl.decay = 1000
