@@ -78,6 +78,7 @@ T.SETTINGS = {
 	{cv = 'hla_music', label = 'МУЗЫКА АЛЬЯНСА', kind = 'bool'},
 	{cv = 'hla_music_volume', label = 'ГРОМКОСТЬ МУЗЫКИ', kind = 'num', min = 0, max = 1, step = 0.1},
 	{cv = 'hla_hud_scale', label = 'РАЗМЕР HUD', kind = 'num', min = 0.4, max = 1.2, step = 0.05},
+	{cv = 'hla_q_sandbox', label = 'Q — МЕНЮ SANDBOX  (Shift+Q — это меню)', kind = 'bool'},
 }
 local function setValue(st)
 	local c = GetConVar(st.cv)
@@ -102,12 +103,12 @@ local function buttons()
 		end
 	elseif T.page == 'settings' then
 		for i, st in ipairs(T.SETTINGS) do
-			local y = 58 + (i - 1) * 43
+			local y = 56 + (i - 1) * 40
 			if st.kind == 'num' then
-				b[#b + 1] = {id = 'dec', arg = i, label = '−', x = 640, y = y, w = 70, h = 38}
-				b[#b + 1] = {id = 'inc', arg = i, label = '+', x = 800, y = y, w = 70, h = 38}
+				b[#b + 1] = {id = 'dec', arg = i, label = '−', x = 640, y = y, w = 70, h = 36}
+				b[#b + 1] = {id = 'inc', arg = i, label = '+', x = 800, y = y, w = 70, h = 36}
 			else
-				b[#b + 1] = {id = 'set', arg = i, x = 40, y = y, w = 830, h = 38}
+				b[#b + 1] = {id = 'set', arg = i, x = 40, y = y, w = 830, h = 36}
 			end
 		end
 		b[#b + 1] = {id = 'back', label = 'НАЗАД', x = 720, y = 462, w = 150, h = 44}
@@ -165,12 +166,15 @@ function T.Close()
 end
 
 -- Tab only opens the menu; it is left with the «ВЕРНУТЬСЯ» button
--- the menu is held on Q (instead of the spawn menu): pressed — open, released — closed.
--- Shift + Q: the usual Sandbox spawn menu (admins / the host). TAB is the scoreboard (cl_scoreboard.lua).
+-- Q (held): this menu — or the Sandbox spawn menu, if «Q — МЕНЮ SANDBOX» is on in the settings
+-- (hla_q_sandbox 1). Shift + Q always opens the other one. TAB is the scoreboard (cl_scoreboard.lua).
+local cvQ = CreateClientConVar('hla_q_sandbox', '0', true, false, 'Q opens the Sandbox spawn menu (1) or the unit menu (0); Shift+Q the other')
 local spawnMenuMode
 function GM:OnSpawnMenuOpen()
 	if T.placing then T.placing = nil return false end
-	if input.IsKeyDown(KEY_LSHIFT) and HLA.CanEdit and HLA.CanEdit(LocalPlayer()) then
+	local shift = input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT)
+	if cvQ:GetBool() ~= shift then
+		if T.open then T.Close() end
 		spawnMenuMode = 'sandbox'
 		return self.BaseClass.OnSpawnMenuOpen(self)
 	end
@@ -324,7 +328,7 @@ local function wrap(text, font, x, y, w, col)
 end
 
 local HELP = {
-	'Q (держать) — это меню, отпустить Q — закрыть. ПКМ — назад. TAB (держать) — список юнитов.',
+	'Q (держать) — это меню, Shift+Q — меню Sandbox (спавн). ПКМ — назад. TAB (держать) — список юнитов.',
 	'E по предмету (удерживать) — подобрать в инвентарь.',
 	'Инвентарь: клик по предмету — сведения справа;',
 	'  клик ещё раз — переложить, затем клик по другой ячейке.',
