@@ -78,7 +78,7 @@ T.SETTINGS = {
 	{cv = 'hla_music', label = 'МУЗЫКА АЛЬЯНСА', kind = 'bool'},
 	{cv = 'hla_music_volume', label = 'ГРОМКОСТЬ МУЗЫКИ', kind = 'num', min = 0, max = 1, step = 0.1},
 	{cv = 'hla_hud_scale', label = 'РАЗМЕР HUD', kind = 'num', min = 0.4, max = 1.2, step = 0.05},
-	{cv = 'hla_q_sandbox', label = 'Q — МЕНЮ SANDBOX  (Shift+Q — это меню)', kind = 'bool'},
+	{cv = 'hla_q_sandbox', label = 'Q — МЕНЮ SANDBOX (АДМИНЫ; Shift+Q — это меню)', kind = 'bool'},
 }
 local function setValue(st)
 	local c = GetConVar(st.cv)
@@ -166,17 +166,35 @@ function T.Close()
 end
 
 -- Tab only opens the menu; it is left with the «ВЕРНУТЬСЯ» button
--- Q (held): this menu — or the Sandbox spawn menu, if «Q — МЕНЮ SANDBOX» is on in the settings
--- (hla_q_sandbox 1). Shift + Q always opens the other one. TAB is the scoreboard (cl_scoreboard.lua).
-local cvQ = CreateClientConVar('hla_q_sandbox', '0', true, false, 'Q opens the Sandbox spawn menu (1) or the unit menu (0); Shift+Q the other')
+-- Q (held): for admins (and the host) the Sandbox spawn menu, Shift + Q this menu; for everyone else Q is
+-- this menu only. An admin can swap it in the settings (hla_q_sandbox 0: Q this menu, Shift + Q Sandbox).
+-- TAB is the scoreboard (cl_scoreboard.lua).
+local cvQ = CreateClientConVar('hla_q_sandbox', '1', true, false, 'Admins: Q opens the Sandbox spawn menu (1) or the unit menu (0); Shift+Q the other')
 local spawnMenuMode
+local function sandboxOpen(gm)
+	local base = gm.BaseClass
+	if base and base.OnSpawnMenuOpen then base.OnSpawnMenuOpen(gm) end
+	-- if the base did not open it (another hook said no), open it ourselves
+	if IsValid(g_SpawnMenu) and not g_SpawnMenu:IsVisible() then
+		g_SpawnMenu:Open()
+		if menubar and menubar.ParentTo then menubar.ParentTo(g_SpawnMenu) end
+	end
+end
+local function sandboxClose(gm)
+	local base = gm.BaseClass
+	if base and base.OnSpawnMenuClose then base.OnSpawnMenuClose(gm) end
+	if IsValid(g_SpawnMenu) and g_SpawnMenu:IsVisible() then g_SpawnMenu:Close() end
+end
 function GM:OnSpawnMenuOpen()
 	if T.placing then T.placing = nil return false end
+	local p = LocalPlayer()
+	local admin = IsValid(p) and (p:IsAdmin() or p:IsSuperAdmin() or (HLA.CanEdit and HLA.CanEdit(p)))
 	local shift = input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT)
-	if cvQ:GetBool() ~= shift then
+	if admin and cvQ:GetBool() ~= shift then
 		if T.open then T.Close() end
 		spawnMenuMode = 'sandbox'
-		return self.BaseClass.OnSpawnMenuOpen(self)
+		sandboxOpen(self)
+		return
 	end
 	spawnMenuMode = 'hla'
 	if not T.open then T.Open() end
@@ -185,7 +203,8 @@ end
 function GM:OnSpawnMenuClose()
 	if spawnMenuMode == 'sandbox' then
 		spawnMenuMode = nil
-		return self.BaseClass.OnSpawnMenuClose(self)
+		sandboxClose(self)
+		return
 	end
 	spawnMenuMode = nil
 	if T.open then T.Close() end
@@ -328,7 +347,7 @@ local function wrap(text, font, x, y, w, col)
 end
 
 local HELP = {
-	'Q (держать) — это меню, Shift+Q — меню Sandbox (спавн). ПКМ — назад. TAB (держать) — список юнитов.',
+	'Q (держать) — это меню (у админов Q — Sandbox, Shift+Q — это меню). ПКМ — назад. TAB (держать) — список юнитов.',
 	'E по предмету (удерживать) — подобрать в инвентарь.',
 	'Инвентарь: клик по предмету — сведения справа;',
 	'  клик ещё раз — переложить, затем клик по другой ячейке.',
