@@ -641,8 +641,14 @@ local function fabricatorTab(sheet)
 	end
 	col.row(button(nil, 'СОХРАНИТЬ ФАБРИКАТОР', function() if F then F.SendEdit(edit) end end),
 		button(nil, 'СБРОСИТЬ ЦЕНЫ', function()
-			for id, b in pairs(F.Base) do edit[id] = {cost = b.cost, amount = b.amount, off = false} end
+			for id, b in pairs(F.Base) do
+				local e = edit[id] or {}
+				edit[id] = e
+				e.cost, e.amount, e.off = b.cost, b.amount, false
+			end
 			F.SendEdit(edit)
+			if IsValid(E.frame) then E.frame:Remove() end
+			timer.Simple(0.3, function() act('get') end)
 		end))
 	return root
 end

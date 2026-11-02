@@ -16,13 +16,21 @@ local TAG_GREY = Color(170, 196, 214)
 local TAG_GREEN = Color(110, 236, 150)
 local TAG_RED = Color(255, 84, 72)
 
+local function up(s) return (CFRework and CFRework.Upper) and CFRework.Upper(s) or string.upper(s) end
+local tagCache = setmetatable({}, {__mode = 'k'})
+local drawCol = Color(255, 255, 255)
+local outCol = Color(0, 6, 12, 150)
 local function tagLines(e, text)
+	local c = tagCache[e]
+	if c and c.text == text and RealTime() < c.exp then return c.lines end
 	local cls = HLA.Menu and HLA.Menu.ModelLabel and HLA.Menu.ModelLabel(e:GetModel()) or ''
 	local sq = HLA.Squads and HLA.Squads.Of and HLA.Squads.Of(e)
-	local second = string.upper((cls ~= '' and cls ~= '?') and cls or 'ЮНИТ ГО') .. (sq and ('  ::  ' .. string.upper(sq.name)) or '')
+	local second = up((cls ~= '' and cls ~= '?') and cls or 'ЮНИТ ГО') .. (sq and ('  ::  ' .. up(sq.name)) or '')
 	local hp = e:Health()
 	local third = hp > 30 and 'СТАТУС: В НОРМЕ' or 'СТАТУС: КРИТИЧЕСКИЙ'
-	return {{text, 'hla_tag_name', TAG_WHITE}, {second, 'hla_tag_line', TAG_GREY}, {third, 'hla_tag_line', hp > 30 and TAG_GREEN or TAG_RED}}
+	local lines = {{text, 'hla_tag_name', TAG_WHITE}, {second, 'hla_tag_line', TAG_GREY}, {third, 'hla_tag_line', hp > 30 and TAG_GREEN or TAG_RED}}
+	tagCache[e] = {text = text, lines = lines, exp = RealTime() + 0.25}
+	return lines
 end
 
 function HLA.NameTag(pos, text, col, a, scale, ent)
@@ -41,7 +49,9 @@ function HLA.NameTag(pos, text, col, a, scale, ent)
 				surface.DrawTexturedRect(0, -icon / 2, icon, icon)
 			end
 			for i, l in ipairs(lines) do
-				draw.SimpleTextOutlined(l[1], l[2], x, y, Color(l[3].r, l[3].g, l[3].b, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 2, Color(0, 6, 12, 150 * a))
+				drawCol.r, drawCol.g, drawCol.b, drawCol.a = l[3].r, l[3].g, l[3].b, 255 * a
+				outCol.a = 150 * a
+				draw.SimpleTextOutlined(l[1], l[2], x, y, drawCol, TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 2, outCol)
 				y = y + (i == 1 and 44 or 34)
 			end
 		cam.End3D2D()

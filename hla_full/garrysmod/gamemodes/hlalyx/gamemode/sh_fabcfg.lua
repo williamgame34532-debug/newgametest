@@ -4,7 +4,14 @@ HLA.FabCfg = F
 F.Path = 'hla/fabricator.json'
 
 F.Base = {}
-for _, it in ipairs(C.Items) do F.Base[it.id] = {cost = it.cost, amount = it.amount, off = false} end
+for _, it in ipairs(C.Items) do
+	local def = it.item and HLA.Items and HLA.Items.Defs[it.item]
+	F.Base[it.id] = {cost = it.cost, amount = it.amount, off = false, text = it.text, defText = def and def.text}
+end
+local function withAmount(text, from, to)
+	if not isstring(text) or not from or not to then return text end
+	return (string.gsub(text, '([^%d])' .. from .. '([^%d])', '%1' .. to .. '%2'))
+end
 
 function F.Current()
 	local out = {}
@@ -24,8 +31,12 @@ function F.Apply(t)
 				if base.amount and tonumber(o.amount) then it.amount = math.Clamp(math.floor(tonumber(o.amount)), 1, 9999) end
 				it.off = o.off == true
 			end
+			it.text = withAmount(base.text, base.amount, it.amount)
 			local def = it.item and HLA.Items and HLA.Items.Defs[it.item]
-			if def and def.amount and it.amount then def.amount = it.amount end
+			if def and def.amount and it.amount then
+				def.amount = it.amount
+				def.text = withAmount(base.defText, base.amount, it.amount)
+			end
 		end
 	end
 end

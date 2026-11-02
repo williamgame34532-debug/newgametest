@@ -123,6 +123,9 @@ net.Receive('hla_chat', function()
 			end
 		end
 		timer.Simple(math.max(0.35, at), function() if IsValid(me) then me:EmitSound('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav', 0, 100, 0.25, CHAN_STATIC) end end)
+		if IsValid(who) and who:IsPlayer() then
+			C.bubbles[who] = {inner = text, t = RealTime(), life = math.Clamp(4 + ulen(text) / 14, 5, 12)}
+		end
 		return
 	elseif m.action then
 		segs = {{'* ' .. name .. ' ', BLUE, 'hla_chat_b'}, {text, ACT, 'hla_chat_i'}}

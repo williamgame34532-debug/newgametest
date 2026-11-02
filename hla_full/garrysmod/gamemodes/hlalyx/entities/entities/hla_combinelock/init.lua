@@ -48,6 +48,14 @@ function ENT:SetDoor(door, pos, ang)
 	self:SetPos(pos)
 	self:SetAngles(ang)
 	self:SetParent(door)
+	door:CallOnRemove('HLALockDoor', function(d) d.HLARemoving = true end)
+	local was = door:GetInternalVariable('m_bLocked')
+	if was == true then
+		self.mapLocked = true
+		L.loading = true
+		self:SetLocked(true)
+		L.loading = false
+	end
 end
 
 function ENT:SpawnFunction(p, tr)
@@ -79,14 +87,14 @@ function ENT:OnRemove()
 	for _, d in ipairs({self.door, self.doorPartner}) do
 		if IsValid(d) then d:Fire('Unlock') d.HLALock = nil end
 	end
-	if not L.loading and not L.cleaning then timer.Simple(0, L.Save) end
+	if not L.loading and not L.cleaning and IsValid(self.door) and not self.door.HLARemoving then timer.Simple(0, L.Save) end
 end
 
 function ENT:OnLockChanged(_, was, now)
 	if was == now then return end
 	for _, d in ipairs({self.door, self.doorPartner}) do
 		if IsValid(d) then
-			if now then d:Fire('Close') d:Fire('Lock') else d:Fire('Unlock') end
+			if now then d:Fire('Close') d:Fire('Lock') elseif not self.mapLocked then d:Fire('Unlock') end
 		end
 	end
 	if L.loading then return end
@@ -109,7 +117,8 @@ end
 function ENT:Use(p)
 	if self.nextUse > CurTime() then return end
 	self.nextUse = CurTime() + 1.5
-	if not L.CanUse(p) then self:ShowError() return end
+	if not L.CanUse(p) or (self.mapLocked and not (HLA.CanEdit and HLA.CanEdit(p))) then self:ShowError() return end
+	self.mapLocked = nil
 	self:SetLocked(not self:GetLocked())
 end
 

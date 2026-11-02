@@ -265,9 +265,6 @@ end
 local TRAIN_CAR = 'models/props_combine/combine_train02b.mdl'
 local TRAIN_HEAD = 'models/props_combine/combine_train02a.mdl'
 local cvTrain = CreateClientConVar('hla_intro_train', '1', true, false, 'Intro: the HL2 Combine train model (1) or the simple car (0)')
-local cvCamX = CreateClientConVar('hla_intro_cam_x', '0.25', true, false, 'Intro camera along the car, 0..1')
-local cvCamY = CreateClientConVar('hla_intro_cam_y', '0.32', true, false, 'Intro camera across the car, 0..1')
-local cvCamZ = CreateClientConVar('hla_intro_cam_z', '0.45', true, false, 'Intro camera height in the car, 0..1')
 local EXTERIOR = 7
 
 local function makeTrain()
@@ -408,23 +405,22 @@ hook.Add('RenderScene', 'HLAIntro', function()
 		origin = Vector(-B.len * 0.9 + k * B.len * 0.7, -(B.half + 330), B.h * 0.55 + math.sin(t * 0.7) * 4)
 		ang = Angle(6 + shake * 0.3, 74 - k * 18, 0)
 	else
-		local fx, fy, fz = math.Clamp(cvCamX:GetFloat(), 0.05, 0.95), math.Clamp(cvCamY:GetFloat(), 0.05, 0.95), math.Clamp(cvCamZ:GetFloat(), 0.1, 0.9)
-		origin = Vector(-B.len / 2 + B.len * fx + math.sin(t * 0.05) * 4, -B.half + 2 * B.half * fy + sway * 0.6, B.h * fz + shake)
-		ang = Angle(4 + math.sin(t * 0.21) * 1.5 + shake * 0.5, 12 + math.sin(t * 0.13) * 6, sway * 0.9)
+		origin = Vector(-250 + math.sin(t * 0.05) * 6, -22 + sway * 0.6, 60 + shake)
+		ang = Angle(4 + math.sin(t * 0.21) * 1.5 + shake * 0.5, 14 + math.sin(t * 0.13) * 6, sway * 0.9)
 	end
 	render.Clear(0, 0, 0, 255, true, true)
 	cam.Start3D(origin, ang, 72, 0, 0, ScrW(), ScrH(), 2, 12000)
 		I.flick = (math.random() < 0.01) and 0.7 or 1
-		if B then
+		if outsideShot then
 			local outside = drawOutside(t, B.half, B.len / 2)
 			local pass = 0
 			for _, lx in ipairs(outside) do pass = pass + math.exp(-((lx - origin.x) / 160) ^ 2) end
-			drawTrain(not outsideShot, math.min(pass, 1.5) * (I.flick or 1))
+			drawTrain(false, math.min(pass, 1.5) * (I.flick or 1))
 		else
 			local outside = drawOutside(t)
 			drawCar(outside)
 		end
-		if IsValid(I.monitor) and not B then
+		if IsValid(I.monitor) and not outsideShot then
 			render.SuppressEngineLighting(true)
 			render.ResetModelLighting(0.5, 0.6, 0.7)
 			I.monitor:DrawModel()

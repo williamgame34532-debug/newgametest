@@ -33,6 +33,14 @@ hook.Add('PostCleanupMap', 'HLACameras', function()
 	for cls in pairs(CLASSES) do for _, e in ipairs(ents.FindByClass(cls)) do e:SetNWString('hla_cam_id', '') assign(e) end end
 end)
 
+local NECRO = {npc_zombie = true, npc_fastzombie = true, npc_poisonzombie = true, npc_zombine = true, npc_zombie_torso = true,
+	npc_fastzombie_torso = true, npc_headcrab = true, npc_headcrab_fast = true, npc_headcrab_black = true, npc_headcrab_poison = true,
+	npc_barnacle = true}
+local function necrotic(t)
+	local c = t:GetClass()
+	return NECRO[c] or string.find(c, 'zomb', 1, true) or string.find(c, 'headcrab', 1, true) or string.find(c, 'necro', 1, true)
+end
+
 local function hostile(t)
 	if not IsValid(t) then return false end
 	if t:IsPlayer() then return false end
@@ -43,10 +51,12 @@ local function alert(cam, target)
 	local id = CAM.ID(cam)
 	if id == '' then assign(cam) id = CAM.ID(cam) end
 	local num = tostring(cam.HLACamNum or '')
-	local chain = {HLA.RadioVoicePath('attention'), HLA.RadioVoicePath('infection'), HLA.RadioVoicePath('sector')}
+	local necro = necrotic(target)
+	local chain = {HLA.RadioVoicePath('on3'), HLA.RadioVoicePath('attention'), HLA.RadioVoicePath(necro and 'infection' or 'restrictedincursioninprogress'), HLA.RadioVoicePath('sector')}
 	for d in string.gmatch(num, '%d') do chain[#chain + 1] = HLA.RadioVoicePath(DIGIT[tonumber(d)]) end
+	chain[#chain + 1] = HLA.RadioVoicePath('off2')
 	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(cam:GetPos())
-	local text = 'Внимание: зафиксирован некротик на камере «' .. id .. '»' .. (zone and (', зона «' .. zone .. '»') or '') .. '.'
+	local text = 'Внимание: зафиксирован ' .. (necro and 'некротик' or 'нарушитель') .. ' на камере «' .. id .. '»' .. (zone and (', зона «' .. zone .. '»') or '') .. '.'
 	if HLA.Chat and HLA.Chat.Dispatch then HLA.Chat.Dispatch(text, table.concat(chain, ';'), 'ДИСПЕТЧЕР') end
 	hook.Run('HLACameraSpotted', cam, target, id)
 end
@@ -58,8 +68,8 @@ timer.Create('HLACameraWatch', 0.5, 0, function()
 			local en = cam.GetEnemy and cam:GetEnemy()
 			if hostile(en) then
 				if cam.HLASeen ~= en then
-					cam.HLASeen = en
 					if CurTime() >= (cam.HLANextAlert or 0) and CurTime() >= lastGlobal then
+						cam.HLASeen = en
 						cam.HLANextAlert = CurTime() + cvCooldown:GetFloat()
 						lastGlobal = CurTime() + 6
 						alert(cam, en)

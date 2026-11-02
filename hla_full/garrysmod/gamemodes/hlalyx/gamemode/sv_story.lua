@@ -437,16 +437,21 @@ CreateConVar('hla_steady_lights', '1', {FCVAR_ARCHIVE}, 'Flickering map lights b
 local FLICKER_FX = {[kRenderFxStrobeSlow or 9] = true, [kRenderFxStrobeFast or 10] = true, [kRenderFxStrobeFaster or 11] = true,
 	[kRenderFxFlickerSlow or 12] = true, [kRenderFxFlickerFast or 13] = true, [kRenderFxHologram or 16] = true, [kRenderFxPulseSlow or 1] = true,
 	[kRenderFxPulseFast or 2] = true, [kRenderFxPulseSlowWide or 3] = true, [kRenderFxPulseFastWide or 4] = true}
-local function steadyLights()
+local function steadyPattern(e)
+	local kv = e:GetKeyValues()
+	local pat = kv and kv.pattern
+	if not isstring(pat) or #pat < 2 or not string.find(pat, '[^' .. string.sub(pat, 1, 1) .. ']') then return end
+	local top = 'a'
+	for c in string.gmatch(pat, '%a') do if c > top then top = c end end
+	return top < 'm' and top or 'm'
+end
+local function steadyLights(withLamps)
 	if not GetConVar('hla_steady_lights'):GetBool() then return end
 	for i = 1, 12 do engine.LightStyle(i, 'm') end
-	for _, e in ipairs(ents.FindByClass('light*')) do
-		local kv = e:GetKeyValues()
-		local pat = kv and kv.pattern
-		if isstring(pat) and #pat > 1 and string.find(pat, '[^' .. string.sub(pat, 1, 1) .. ']') then
-			local top = 'a'
-			for c in string.gmatch(pat, '%a') do if c > top then top = c end end
-			e:Fire('SetPattern', top < 'm' and top or 'm')
+	if withLamps then
+		for _, e in ipairs(ents.FindByClass('light*')) do
+			local p = steadyPattern(e)
+			if p and not e:HasSpawnFlags(1) then e:Fire('SetPattern', p) end
 		end
 	end
 	for _, cls in ipairs({'env_sprite', 'env_sprite_oriented', 'env_glow', 'env_lightglow'}) do
@@ -455,8 +460,14 @@ local function steadyLights()
 		end
 	end
 end
-hook.Add('InitPostEntity', 'HLASteadyLights', function() steadyLights() timer.Simple(3, steadyLights) end)
-hook.Add('PostCleanupMap', 'HLASteadyLights', function() steadyLights() timer.Simple(3, steadyLights) end)
+hook.Add('InitPostEntity', 'HLASteadyLights', function() steadyLights(true) timer.Simple(3, function() steadyLights(false) end) end)
+hook.Add('PostCleanupMap', 'HLASteadyLights', function() steadyLights(true) timer.Simple(3, function() steadyLights(false) end) end)
+hook.Add('AcceptInput', 'HLASteadyLights', function(e, input)
+	if not GetConVar('hla_steady_lights'):GetBool() or string.lower(input) ~= 'turnon' then return end
+	if not string.find(e:GetClass(), '^light') then return end
+	local p = steadyPattern(e)
+	if p then timer.Simple(0, function() if IsValid(e) then e:Fire('SetPattern', p) end end) end
+end)
 
 hook.Add('InitPostEntity', 'HLAStory', function()
 	S.Load()
