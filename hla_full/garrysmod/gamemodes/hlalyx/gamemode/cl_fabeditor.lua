@@ -310,9 +310,20 @@ function FE.Open()
 	reset:Dock(RIGHT)
 	reset:SetWide(math.floor(330 * s))
 	reset:DockMargin(8, 0, 0, 0)
+	f.refresh = function()
+		list = snapshot()
+		sel = nil
+		dirty = false
+		fill()
+		form()
+	end
 	fill()
 	form()
 end
+
+hook.Add('HLAFabCfgChanged', 'HLAFabEditor', function()
+	if IsValid(FE.frame) and FE.frame.refresh then FE.frame.refresh() end
+end)
 
 concommand.Add('hla_fabricator_editor', function() FE.Open() end)
 

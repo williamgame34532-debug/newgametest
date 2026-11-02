@@ -296,6 +296,14 @@ end)
 hook.Add('PreDrawViewModel', 'HLATab', function() if T.open then return true end end)
 
 local icons = {}
+hook.Add('HLAFabCfgChanged', 'HLATabIcons', function()
+	for id, m in pairs(icons) do
+		if string.sub(id, 1, 4) == 'fab_' then
+			if IsValid(m) then m:Remove() end
+			icons[id] = nil
+		end
+	end
+end)
 local function iconModel(id)
 	local m = icons[id]
 	if IsValid(m) then return m end

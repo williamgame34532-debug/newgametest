@@ -348,17 +348,23 @@ local function zoneFonts()
 	surface.CreateFont('hla_zone_small', {font = 'Exo 2', size = math.max(13, math.floor(20 * S())), weight = 700, italic = true, extended = true})
 end
 local function zup(s) return (CFRework and CFRework.Upper) and CFRework.Upper(s) or string.upper(s) end
-local zoneLast
+local zoneLast, zoneSince, zoneShown, zoneShownAt
 hook.Add('Think', 'HLAZoneCard', function()
 	local p = LocalPlayer()
 	if not IsValid(p) or not p:Alive() or p:GetNWBool('hla_in_menu') then return end
 	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(p:GetPos())
-	if zone == zoneLast then return end
-	zoneLast = zone
-	if zone then
-		zoneCard = {name = zup(zone), t = RealTime()}
-		surface.PlaySound('hla/ui/textline_end.wav')
+	if zone == zoneLast then zoneSince = nil return end
+	if not zone then
+		zoneSince = zoneSince or RealTime()
+		if RealTime() - zoneSince > 1 then zoneLast = nil zoneSince = nil end
+		return
 	end
+	zoneSince = nil
+	zoneLast = zone
+	if zone == zoneShown and RealTime() - (zoneShownAt or 0) < 8 then return end
+	zoneShown, zoneShownAt = zone, RealTime()
+	zoneCard = {name = zup(zone), t = RealTime()}
+	surface.PlaySound('hla/ui/textline_end.wav')
 end)
 hook.Add('HUDPaint', 'HLAZoneCard', function()
 	if not zoneCard.name or baseHidden() then return end

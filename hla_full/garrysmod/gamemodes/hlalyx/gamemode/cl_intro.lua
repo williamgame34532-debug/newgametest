@@ -50,7 +50,13 @@ local function skyMaterials()
 		local mat
 		for _, n in ipairs({'skybox/' .. name .. side.suffix, 'skybox/' .. name .. '_hdr' .. side.suffix, 'skybox/sky_day01_01' .. side.suffix}) do
 			local m = Material(n)
-			local tex = m and not m:IsError() and m:GetTexture('$basetexture')
+			local tex
+			if m and not m:IsError() then
+				for _, key in ipairs({'$basetexture', '$hdrcompressedtexture', '$hdrbasetexture'}) do
+					local t = m:GetTexture(key)
+					if t and not t:IsError() then tex = t break end
+				end
+			end
 			if tex and not tex:IsError() then
 				mat = CreateMaterial('hla_intro_sky_' .. side.suffix .. '_' .. string.gsub(n, '[^%w]', '_'), 'UnlitGeneric',
 					{['$basetexture'] = tex:GetName(), ['$nocull'] = 1, ['$ignorez'] = 1})
@@ -200,7 +206,7 @@ local function drawShip(t)
 	local prev = (pos - flight(t - 0.4)):GetNormalized():Angle()
 	local turn = math.AngleDifference(ang.y, prev.y)
 	I.roll = Lerp(math.min(FrameTime() * 2, 1), I.roll or 0, math.Clamp(turn * 1.6, -30, 30))
-	local a = Angle(math.Clamp(ang.p * 0.6, -10, 10) + 3, ang.y, I.roll)
+	local a = Angle(math.Clamp(math.NormalizeAngle(ang.p) * 0.6, -10, 10) + 3, ang.y, I.roll)
 	pos = pos + Vector(0, 0, math.sin(t * 1.1) * 8)
 	render.SuppressEngineLighting(true)
 	render.ResetModelLighting(0.45, 0.5, 0.56)
@@ -227,7 +233,8 @@ hook.Add('RenderScene', 'HLAIntro', function()
 	local origin = Vector(0, 0, math.sin(t * 0.4) * 6)
 	local target = flight(t)
 	local want = (target - origin):Angle()
-	want.p = math.Clamp(want.p, -35, 35)
+	want.p = math.Clamp(math.NormalizeAngle(want.p), -35, 35)
+	if I.camAng then want.y = I.camAng.y + math.AngleDifference(want.y, I.camAng.y) end
 	I.camAng = I.camAng and LerpAngle(math.min(FrameTime() * 1.6, 1), I.camAng, want) or want
 	local shake = Angle(math.sin(t * 1.7) * 0.4, math.sin(t * 1.3) * 0.5, math.sin(t * 0.9) * 0.6)
 	local ang = I.camAng + shake

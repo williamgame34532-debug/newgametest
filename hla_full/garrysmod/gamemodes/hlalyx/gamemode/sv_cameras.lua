@@ -42,13 +42,23 @@ local function necrotic(t)
 end
 
 local FRIEND = {'combine', 'metropolice', 'cscanner', 'manhack', 'hla_npc', 'rollermine', 'turret', 'strider', 'hunter', 'helicopter', 'gunship', 'dropship', 'apc'}
+local IGNORE = {'crow', 'pigeon', 'seagull', 'bird', 'citizen', 'vortigaunt'}
+local IGNORE_CLASS = {npc_alyx = true, npc_barney = true, npc_kleiner = true, npc_eli = true, npc_mossman = true, npc_breen = true,
+	npc_monk = true, npc_dog = true, npc_gman = true, npc_fisherman = true, npc_magnusson = true}
 local function hostile(t)
 	if not IsValid(t) or t:IsPlayer() then return false end
 	if not (t:IsNPC() or t:IsNextBot()) then return false end
 	if t:Health() <= 0 then return false end
 	local c = t:GetClass()
 	if CLASSES[c] then return false end
-	for _, f in ipairs(FRIEND) do if string.find(c, f, 1, true) and not string.find(c, 'zomb', 1, true) then return false end end
+	if necrotic(t) then return true end
+	for _, f in ipairs(FRIEND) do if string.find(c, f, 1, true) then return false end end
+	if IGNORE_CLASS[c] then return false end
+	for _, f in ipairs(IGNORE) do if string.find(c, f, 1, true) then return false end end
+	if t:IsNPC() and t.Disposition then
+		local p = player.GetAll()[1]
+		if IsValid(p) and t:Disposition(p) ~= D_HT then return false end
+	end
 	return true
 end
 
@@ -69,12 +79,12 @@ local function spot(cam)
 	if hostile(en) then return en end
 	local pos, fwd = eye(cam)
 	local best, bestD
-	for _, t in ipairs(ents.FindInSphere(pos, RANGE)) do
-		if hostile(t) then
+	for _, t in ipairs(CAM.targets or {}) do
+		if IsValid(t) then
 			local c = t:WorldSpaceCenter()
 			local dir = c - pos
 			local d = dir:Length()
-			if d > 1 and dir:GetNormalized():Dot(fwd) >= CONE and (not bestD or d < bestD) then
+			if d > 1 and d <= RANGE and dir:GetNormalized():Dot(fwd) >= CONE and (not bestD or d < bestD) then
 				local tr = util.TraceLine({start = pos, endpos = c, filter = {cam}, mask = MASK_SHOT})
 				if tr.Entity == t or tr.Fraction > 0.97 then best, bestD = t, d end
 			end
@@ -109,9 +119,13 @@ end
 
 local lastGlobal = 0
 timer.Create('HLACameraWatch', 0.5, 0, function()
+	local targets = {}
+	for _, t in ipairs(ents.FindByClass('npc_*')) do if hostile(t) then targets[#targets + 1] = t end end
+	for _, t in ipairs(ents.GetAll()) do if t:IsNextBot() and hostile(t) then targets[#targets + 1] = t end end
+	CAM.targets = targets
 	for cls in pairs(CLASSES) do
 		for _, cam in ipairs(ents.FindByClass(cls)) do
-			local en = spot(cam)
+			local en = (cam:Health() > 0 and not cam:IsEffectActive(EF_NODRAW)) and spot(cam) or nil
 			if en then
 				if cam.HLASeen ~= en and CurTime() >= (cam.HLANextAlert or 0) and CurTime() >= lastGlobal then
 					cam.HLASeen = en

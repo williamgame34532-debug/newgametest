@@ -18,7 +18,7 @@ local function state(self)
 end
 
 function ENT:LampPos()
-	return self:GetPos() + self:GetUp() * -8.7 + self:GetForward() * -3.85 + self:GetRight() * -6
+	return self:GetPos() + self:GetUp() * -8.7 + self:GetForward() * -4.9 + self:GetRight() * -6
 end
 
 function ENT:Think()

@@ -34,7 +34,11 @@ S.Participants = participants
 local function setGoals(list)
 	local out = {}
 	for _, g in ipairs(list or {}) do
-		if istable(g.p) then out[#out + 1] = {p = g.p, name = tostring(g.name or '')} end
+		if #out >= 8 then break end
+		if istable(g.p) then
+			out[#out + 1] = {p = {math.Round(tonumber(g.p[1]) or 0), math.Round(tonumber(g.p[2]) or 0), math.Round(tonumber(g.p[3]) or 0)},
+				name = string.sub(tostring(g.name or ''), 1, 24)}
+		end
 	end
 	SetGlobal2String('hla_goals', #out > 0 and util.TableToJSON(out) or '')
 end
