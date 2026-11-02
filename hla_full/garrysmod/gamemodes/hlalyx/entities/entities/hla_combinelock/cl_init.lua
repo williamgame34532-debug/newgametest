@@ -17,14 +17,12 @@ local function state(self)
 	return 'open', GREEN
 end
 
-local cvX = CreateClientConVar('hla_lock_lamp_x', '0', true, false, 'Combine lock lamp: shift forward/back')
-local cvY = CreateClientConVar('hla_lock_lamp_y', '0', true, false, 'Combine lock lamp: shift left/right')
+local cvX = CreateClientConVar('hla_lock_lamp_x', '0', true, false, 'Combine lock lamp: shift in depth')
+local cvY = CreateClientConVar('hla_lock_lamp_y', '0', true, false, 'Combine lock lamp: shift sideways')
 local cvZ = CreateClientConVar('hla_lock_lamp_z', '0', true, false, 'Combine lock lamp: shift up/down')
 
 function ENT:LampPos()
-	local mn, mx = self:OBBMins(), self:OBBMaxs()
-	local loc = Vector(mn.x - 0.4 + cvX:GetFloat(), (mn.y + mx.y) / 2 + cvY:GetFloat(), -8.7 + cvZ:GetFloat())
-	return self:LocalToWorld(loc)
+	return self:GetPos() + self:GetForward() * (-1.9 + cvY:GetFloat()) + self:GetRight() * (-6 + cvX:GetFloat()) + self:GetUp() * (-7.7 + cvZ:GetFloat())
 end
 
 function ENT:Think()
@@ -36,7 +34,7 @@ function ENT:Think()
 	if EyePos():DistToSqr(self:GetPos()) < 700 * 700 then
 		local d = DynamicLight(self:EntIndex())
 		if d then
-			d.pos = self:LampPos() + self:GetForward() * -4
+			d.pos = self:LampPos() + self:GetRight() * -4
 			d.r, d.g, d.b = col.r, col.g, col.b
 			d.brightness = st == 'error' and 1 or 0.35
 			d.size = 48
