@@ -67,7 +67,18 @@ function ENT:SpawnFunction(p, tr)
 	e:SetPos(tr.HitPos)
 	e:Spawn()
 	e:Activate()
-	local pos, ang = e:LockPlacement(door, tr.HitNormal:Angle())
+	local _, ang = e:LockPlacement(door, tr.HitNormal:Angle())
+	e:SetAngles(ang)
+	e:SetPos(tr.HitPos)
+	local n = tr.HitNormal
+	local mn, mx = e:OBBMins(), e:OBBMaxs()
+	local back = math.huge
+	for _, x in ipairs({mn.x, mx.x}) do for _, y in ipairs({mn.y, mx.y}) do for _, z in ipairs({mn.z, mx.z}) do
+		back = math.min(back, (e:LocalToWorld(Vector(x, y, z)) - tr.HitPos):Dot(n))
+	end end end
+	local c = (e:LocalToWorld(e:OBBCenter()) - tr.HitPos)
+	local side = c - n * c:Dot(n)
+	local pos = tr.HitPos - side - n * (back - 0.3)
 	e:SetDoor(door, pos, ang)
 	L.Save()
 	return e

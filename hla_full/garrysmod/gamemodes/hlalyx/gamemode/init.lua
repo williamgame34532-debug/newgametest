@@ -12,6 +12,7 @@ include('sv_ambient.lua')
 include('sv_story.lua')
 include('sv_dropship.lua')
 include('sv_cameras.lua')
+include('sv_bots.lua')
 
 local function sendFolder(path)
 	local files, dirs = file.Find(path .. '/*', 'GAME')

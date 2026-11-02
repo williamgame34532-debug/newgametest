@@ -751,6 +751,34 @@ local function generalTab(sheet)
 	col.row(button(nil, 'ГОЛОСОВАНИЕ', function() act('vote') end),
 		button(nil, 'СЮЖЕТ СЕЙЧАС', function() act('start', 'story') end),
 		button(nil, 'ОСТАНОВИТЬ РАУНД', function() act('stop') end))
+	col.add(label(nil, 'УДАЛЕНИЕ', 'hla_ed_big'))
+	col.add(label(nil, 'Удаляет сделанное в редакторе для этой карты и сразу сохраняет. Нажмите кнопку дважды.'))
+	local function wipe(text, fn)
+		local b = button(nil, text, function() end)
+		b.DoClick = function(self)
+			if not self.armed then
+				self.armed = true
+				self:SetText('ТОЧНО? ЕЩЁ РАЗ')
+				self:SizeToContentsX(math.floor(28 * sc()))
+				timer.Simple(3, function() if IsValid(self) then self.armed = nil self:SetText(text) self:SizeToContentsX(math.floor(28 * sc())) end end)
+				return
+			end
+			surface.PlaySound('hla/ui/textline_end.wav')
+			local d = S.Default()
+			fn(d)
+			E.cfg = S.Normalize(E.cfg)
+			save()
+			timer.Simple(0.3, function() act('get') end)
+		end
+		return b
+	end
+	col.row(
+		wipe('ГЛАВЫ', function(d) E.cfg.chapters = d.chapters end),
+		wipe('ЗОНЫ', function() E.cfg.zones = {} end),
+		wipe('NPC', function() E.cfg.npcs = {} end),
+		wipe('ДЕСАНТНИК', function(d) E.cfg.dropship = d.dropship end),
+		wipe('ПВП-ТОЧКИ', function(d) E.cfg.pvp.spawns = d.pvp.spawns end))
+	col.add(wipe('УДАЛИТЬ ВСЁ ДЛЯ ЭТОЙ КАРТЫ', function(d) E.cfg = d end))
 	return root
 end
 
