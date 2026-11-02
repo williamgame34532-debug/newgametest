@@ -72,12 +72,17 @@ local white = Color(255, 255, 255)
 local fallbackTop, fallbackBottom = Color(40, 70, 100), Color(150, 170, 185)
 local plain = CreateMaterial('hla_intro_plain2', 'UnlitGeneric', {['$basetexture'] = 'vgui/white', ['$vertexcolor'] = 1, ['$nocull'] = 1, ['$ignorez'] = 1})
 
-local function drawSky(origin)
+local function drawSky(origin, yaw)
 	local mats = skyMaterials()
 	local R = 4000
 	for _, side in ipairs(SIDES) do
 		local m = mats[side.suffix]
-		local c = side.c
+		local c = {}
+		for i, v in ipairs(side.c) do
+			local r = Vector(v.x, v.y, v.z)
+			r:Rotate(Angle(0, yaw or 0, 0))
+			c[i] = r
+		end
 		local top, bottom = white, white
 		if not m then
 			render.SetMaterial(plain)
@@ -96,11 +101,8 @@ local function drawSky(origin)
 	end
 end
 
-local ORBIT = {cx = 300, cy = 0, cz = -140, rx = 1500, ry = 1100, rz = 160, w = 0.16}
-local function flight(t)
-	local a = t * ORBIT.w
-	return Vector(ORBIT.cx + math.cos(a) * ORBIT.rx, ORBIT.cy + math.sin(a) * ORBIT.ry, ORBIT.cz + math.sin(a * 2) * ORBIT.rz)
-end
+local SHIP_POS = Vector(560, 0, -60)
+local SKY_SPEED = 3
 
 local function startSounds()
 	local p = LocalPlayer()
@@ -124,7 +126,7 @@ end
 
 local function makeShip()
 	I.ship, I.box = nil, nil
-	if not util.IsValidModel(SHIP) then return end
+	if not file.Exists(SHIP, 'GAME') then return end
 	local e = ClientsideModel(SHIP, RENDERGROUP_OPAQUE)
 	if not IsValid(e) then return end
 	e:SetNoDraw(true)
@@ -132,7 +134,7 @@ local function makeShip()
 	if not seq or seq < 0 then seq = e:LookupSequence('idle') end
 	if seq and seq >= 0 then e:ResetSequence(seq) end
 	I.ship = e
-	if util.IsValidModel(BOX) then
+	if file.Exists(BOX, 'GAME') then
 		local b = ClientsideModel(BOX, RENDERGROUP_OPAQUE)
 		if IsValid(b) then b:SetNoDraw(true) I.box = b end
 	end
@@ -150,8 +152,6 @@ function I.Start(onDone)
 	I.born = RealTime()
 	I.leaving = nil
 	I.onDone = onDone
-	I.camAng = nil
-	I.roll = 0
 	makeShip()
 	startSounds()
 	return true
@@ -179,12 +179,9 @@ hook.Add('Think', 'HLAIntro', function()
 	if not I.active then return end
 	if not I.leaving and RealTime() - I.born > 1 and input.IsKeyDown(KEY_SPACE) and not vgui.GetKeyboardFocus() then I.Leave() end
 	if I.leaving and RealTime() - I.leaving > 1.3 then finish() return end
-	local t = RealTime() - I.born
-	local pos = flight(t)
-	local d = pos:Length()
 	local L = I.loops or {}
-	if L.near then L.near:ChangeVolume(math.Clamp(1.25 - d / 1800, 0, 1), 0.1) end
-	if L.far then L.far:ChangeVolume(math.Clamp(0.35 + d / 4000, 0.35, 0.9), 0.1) end
+	if L.near then L.near:ChangeVolume(0.8, 0.5) end
+	if L.far then L.far:ChangeVolume(0.45, 0.5) end
 end)
 hook.Add('PlayerBindPress', 'HLAIntro', function(_, bind)
 	if not I.active then return end
@@ -199,15 +196,8 @@ surface.CreateFont('hla_intro_title', {font = 'Exo 2', size = math.max(28, math.
 
 local function drawShip(t)
 	if not IsValid(I.ship) then return end
-	local pos = flight(t)
-	local ahead = flight(t + 0.4)
-	local dir = (ahead - pos):GetNormalized()
-	local ang = dir:Angle()
-	local prev = (pos - flight(t - 0.4)):GetNormalized():Angle()
-	local turn = math.AngleDifference(ang.y, prev.y)
-	I.roll = Lerp(math.min(FrameTime() * 2, 1), I.roll or 0, math.Clamp(turn * 1.6, -30, 30))
-	local a = Angle(math.Clamp(math.NormalizeAngle(ang.p) * 0.6, -10, 10) + 3, ang.y, I.roll)
-	pos = pos + Vector(0, 0, math.sin(t * 1.1) * 8)
+	local pos = SHIP_POS + Vector(math.sin(t * 0.35) * 18, math.sin(t * 0.23) * 10, math.sin(t * 0.9) * 10)
+	local a = Angle(4 + math.sin(t * 0.5) * 1.5, 90, math.sin(t * 0.6) * 3)
 	render.SuppressEngineLighting(true)
 	render.ResetModelLighting(0.45, 0.5, 0.56)
 	render.SetModelLighting(BOX_TOP, 0.95, 0.97, 1)
@@ -224,24 +214,17 @@ local function drawShip(t)
 		I.box:DrawModel()
 	end
 	render.SuppressEngineLighting(false)
-	return pos
 end
 
 hook.Add('RenderScene', 'HLAIntro', function()
 	if not I.active then return end
 	local t = RealTime() - I.born
-	local origin = Vector(0, 0, math.sin(t * 0.4) * 6)
-	local target = flight(t)
-	local want = (target - origin):Angle()
-	want.p = math.Clamp(math.NormalizeAngle(want.p), -35, 35)
-	if I.camAng then want.y = I.camAng.y + math.AngleDifference(want.y, I.camAng.y) end
-	I.camAng = I.camAng and LerpAngle(math.min(FrameTime() * 1.6, 1), I.camAng, want) or want
-	local shake = Angle(math.sin(t * 1.7) * 0.4, math.sin(t * 1.3) * 0.5, math.sin(t * 0.9) * 0.6)
-	local ang = I.camAng + shake
-	local fov = 62 - math.Clamp(1 - target:Distance(origin) / 2600, 0, 1) * 10
+	local origin = Vector(0, 0, 0)
+	local ang = (SHIP_POS - origin):Angle()
+	local fov = 60
 	render.Clear(0, 0, 0, 255, true, true)
 	cam.Start3D(origin, ang, fov, 0, 0, ScrW(), ScrH(), 4, 20000)
-		drawSky(origin)
+		drawSky(origin, -t * SKY_SPEED)
 		render.ClearDepth()
 		drawShip(t)
 	cam.End3D()

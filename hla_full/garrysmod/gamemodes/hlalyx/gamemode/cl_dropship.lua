@@ -1,5 +1,3 @@
--- The dropship flight (see sv_dropship): a smooth curve through the points at a steady speed, the nose along
--- the way, banking into the turns, the engines heard from afar and up close.
 local D = {}
 HLA.DropshipCL = D
 local MODEL = 'models/combine_dropship.mdl'
@@ -10,7 +8,6 @@ local flights = {}
 
 local function has(snd) return file.Exists('sound/' .. snd, 'GAME') end
 
--- Catmull-Rom through the points, sampled; the length along it for a steady speed
 local function buildPath(pts)
 	local out, dist = {pts[1]}, {0}
 	local n = #pts
@@ -51,7 +48,7 @@ net.Receive('hla_dropship', function()
 	local speed = net.ReadUInt(12)
 	local pts = {}
 	for i = 1, net.ReadUInt(7) do pts[i] = net.ReadVector() end
-	if #pts < 2 or not util.IsValidModel(MODEL) then return end
+	if #pts < 2 or not file.Exists(MODEL, 'GAME') then return end
 	local f = {start = start, speed = speed}
 	f.pts, f.dist = buildPath(pts)
 	f.len = f.dist[#f.dist]
@@ -61,7 +58,7 @@ net.Receive('hla_dropship', function()
 	local seq = f.ship:LookupSequence(container and 'cargo_idle' or 'idle')
 	if not seq or seq < 0 then seq = f.ship:LookupSequence('idle') end
 	if seq and seq >= 0 then f.ship:ResetSequence(seq) end
-	if container and util.IsValidModel(CONTAINER) then
+	if container and file.Exists(CONTAINER, 'GAME') then
 		f.box = ClientsideModel(CONTAINER, RENDERGROUP_OPAQUE)
 		if IsValid(f.box) then f.box:SetRenderBounds(Vector(-600, -600, -600), Vector(600, 600, 600)) end
 	end
@@ -83,14 +80,12 @@ hook.Add('Think', 'HLADropshipFly', function()
 		else
 			local pos, dir = at(f, math.max(d, 0))
 			local ang = dir:Angle()
-			-- the turn rate gives the bank, the climb a little pitch
 			local yaw = ang.y
 			local turn = f.yaw and math.AngleDifference(yaw, f.yaw) / math.max(FrameTime(), 0.001) or 0
 			f.yaw = yaw
 			f.roll = Lerp(math.min(FrameTime() * 2, 1), f.roll or 0, math.Clamp(turn * 0.35, -28, 28))
 			local pitch = math.Clamp(math.NormalizeAngle(ang.p) * 0.5, -12, 12) + 4
 			local a = Angle(pitch, yaw, f.roll)
-			-- a soft hover bob
 			pos = pos + Vector(0, 0, math.sin(CurTime() * 1.3 + i) * 6)
 			f.ship:SetPos(pos)
 			f.ship:SetAngles(a)
