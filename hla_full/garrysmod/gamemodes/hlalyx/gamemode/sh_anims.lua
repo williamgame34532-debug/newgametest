@@ -1,12 +1,8 @@
--- Players with unit models (Combine NPC models) are animated with the Combine soldier NPC activities:
--- idle / walk / run / crouch with the rifle when armed, unarmed ones with the hands, firing and
--- reloading as gestures, aiming with the model's aim_pitch / aim_yaw, legs with move_yaw.
 local M = HLA.Menu
 
 local function isUnit(p) return IsValid(p) and M.Class(p:GetModel()) ~= nil end
 HLA.IsUnit = isUnit
 
--- activity lists: the first one the model has wins (models differ a little)
 local SETS = {
 	armed = {
 		idle = {ACT_IDLE_ANGRY_SMG1, ACT_IDLE_ANGRY, ACT_IDLE_SMG1, ACT_IDLE},
@@ -17,7 +13,6 @@ local SETS = {
 		air = {ACT_GLIDE, ACT_JUMP, ACT_IDLE_ANGRY_SMG1, ACT_IDLE},
 		swim = {ACT_SWIM, ACT_GLIDE, ACT_IDLE},
 	},
-	-- the weapon on safety (Shift + E + R): lowered, relaxed — the «at ease» activities of the Combine
 	safe = {
 		idle = {ACT_IDLE_SMG1_RELAXED, ACT_IDLE_AR2_RELAXED, ACT_IDLE_RIFLE, ACT_IDLE_RELAXED, ACT_IDLE_SMG1, ACT_IDLE},
 		walk = {ACT_WALK_RIFLE_RELAXED, ACT_WALK_AR2_RELAXED, ACT_WALK_RELAXED, ACT_WALK_RIFLE, ACT_WALK},
@@ -42,7 +37,6 @@ local GESTURES = {
 	reload = {ACT_GESTURE_RELOAD_SMG1, ACT_GESTURE_RELOAD, ACT_GESTURE_RELOAD_SHOTGUN},
 }
 
--- sequence for an activity, looked up once per model
 local cache = {}
 local function pick(p, acts)
 	local mdl = p:GetModel()
@@ -89,12 +83,9 @@ hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	if p:WaterLevel() >= 2 then kind = 'swim'
 	elseif not p:IsOnGround() and p:GetMoveType() ~= MOVETYPE_NOCLIP then kind = 'air'
 	elseif p:Crouching() then kind = speed > 4 and 'cwalk' or 'cidle'
-	-- running: Shift held and really faster than a walk (the speed alone sat on the line between them)
 	elseif (p:KeyDown(IN_SPEED) and speed > p:GetWalkSpeed() * 1.1) or speed > (p:GetWalkSpeed() + p:GetRunSpeed()) * 0.5 then kind = 'run'
 	elseif speed > 4 then kind = 'walk'
 	else kind = 'idle' end
-	-- sequences by name first (the HL:A Combine models: safety — idle1 / walkeasy_all / runall,
-	-- weapon up — combatidle1 / walk_aiming_all / runaimall1), when the model has them
 	local byName = SEQ_NAMES[setName] and SEQ_NAMES[setName][kind]
 	if byName then
 		local seq = named(p, byName)
@@ -110,9 +101,6 @@ hook.Add('CalcMainActivity', 'HLAUnitAnims', function(p, vel)
 	return act, seq
 end)
 
--- turning on the spot (as Barney and the HL2 humans do it, male_shared.mdl): standing, the body keeps its
--- direction while the head and the weapon follow the view; past 50° it turns with a turn gesture
--- (ACT_GESTURE_TURN_LEFT45 / 90, RIGHT45 / 90 — when the model has them), moving it simply faces the view
 local TURN = {left45 = ACT_GESTURE_TURN_LEFT45, left90 = ACT_GESTURE_TURN_LEFT90, right45 = ACT_GESTURE_TURN_RIGHT45, right90 = ACT_GESTURE_TURN_RIGHT90}
 local function bodyYaw(p, vel)
 	local eye = p:EyeAngles().y
@@ -152,7 +140,6 @@ hook.Add('UpdateAnimation', 'HLAUnitAnims', function(p, vel, maxSeqSpeed)
 	if speed > 4 then
 		p:SetPoseParameter('move_yaw', math.NormalizeAngle(vel:Angle().y - body))
 		local gs = p:GetSequenceGroundSpeed(p:GetSequence())
-		-- the run is never slowed down into a walk, the walk never sped up into a run
 		local running = p.CalcIdeal == ACT_RUN or (p.CalcIdeal and string.find(tostring(p:GetSequenceActivityName(p:GetSequence()) or ''), 'RUN', 1, true))
 		if gs and gs > 1 then rate = math.Clamp(speed / gs, running and 0.85 or 0.6, running and 1.6 or 1.3) end
 	end
@@ -186,10 +173,6 @@ hook.Add('DoAnimationEvent', 'HLAUnitAnims', function(p, event, data)
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- Safety: Shift + E + R together puts the weapon on safety (lowered, relaxed animations, it does not
--- fire) and takes it off again. Read from the movement command, so client and server agree; the E and R of
--- the combo do not use or reload.
 local HELD = IN_SPEED + IN_USE + IN_RELOAD
 hook.Add('StartCommand', 'HLASafety', function(p, cmd)
 	local b = cmd:GetButtons()
@@ -209,7 +192,43 @@ hook.Add('StartCommand', 'HLASafety', function(p, cmd)
 end)
 HLA.IsSafe = function(p) return IsValid(p) and p:GetNW2Bool('hla_safe') and armed(p) end
 
--- the body direction also when the model is drawn (other code may set the render angles back)
+if SERVER then
+	local function tfaSafe(w) return IsValid(w) and w.IsTFAWeapon and w.IsSafety and w.CycleSafety and w:IsSafety() end
+	local function tfaIdle(w) return not (TFA and TFA.Enum and w.GetStatus) or w:GetStatus() == TFA.Enum.STATUS_IDLE end
+	hook.Add('PlayerPostThink', 'HLATFASafety', function(p)
+		local w = p:GetActiveWeapon()
+		if not IsValid(w) or not w.IsTFAWeapon or not w.IsSafety or not w.CycleSafety then
+			p.HLATFAWep = nil
+			return
+		end
+		local want = p:GetNW2Bool('hla_safe')
+		local now = tfaSafe(w) and true or false
+		if p.HLATFAWep ~= w then
+			p.HLATFAWep = w
+			p.HLATFALast = now
+			p.HLATFAPush = now ~= want
+		elseif now ~= p.HLATFALast then
+			p.HLATFALast = now
+			p.HLATFAPush = false
+			if now ~= want then
+				p:SetNW2Bool('hla_safe', now)
+				want = now
+			end
+		end
+		if p.HLASafeWant ~= want then
+			p.HLASafeWant = want
+			if now ~= want then p.HLATFAPush = true end
+		end
+		if p.HLATFAPush and now ~= want and tfaIdle(w) and CurTime() >= (w.GetNextPrimaryFire and w:GetNextPrimaryFire() or 0) then
+			w:CycleSafety()
+			p.HLATFALast = tfaSafe(w) and true or false
+			p.HLATFAPush = p.HLATFALast ~= want
+		elseif now == want then
+			p.HLATFAPush = false
+		end
+	end)
+end
+
 if CLIENT then
 	hook.Add('PrePlayerDraw', 'HLAUnitBodyYaw', function(p)
 		if p.HLABody and isUnit(p) then p:SetRenderAngles(Angle(0, p.HLABody, 0)) end
