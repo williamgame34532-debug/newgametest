@@ -1,23 +1,12 @@
--- Story / rounds (server). Flow:
---   wait  — fewer players than needed (settings.minPlayers, 2): free play
---   vote  — 20 s: 1 сюжет, 2 ПвП по командам, 3 ПвП каждый сам за себя (keys 1..3)
---   story — chapter by chapter: everyone spawns at the chapter's spawns; a living player entering the
---           chapter's trigger moves all to the next one (everyone respawns: health, ammo, the dead return);
---           the dead watch; all dead -> the chapter starts again; after the last chapter -> end
---   pvp   — teams or each for himself on the PvP spawns; the dead watch; last team / last one standing,
---           or the time is up -> end
---   end   — 10 s, then wait (a new vote when there are enough players)
--- Players who are still choosing a character take no part; who enters during a round watches until the next
--- chapter (story) or the next round (PvP).
 local S = HLA.Story
 local CH = HLA.Chat
 
-util.AddNetworkString('hla_story_cfg')   -- server -> admin: the whole config (editor)
-util.AddNetworkString('hla_story_save')  -- admin -> server: the whole config
-util.AddNetworkString('hla_story_do')    -- admin -> server: actions (start vote, stop, dispatcher now ...)
-util.AddNetworkString('hla_story_card')  -- server -> clients: the chapter card
-util.AddNetworkString('hla_vote')        -- client -> server: a vote
-util.AddNetworkString('hla_story_msg')   -- server -> clients: a big line in the middle (round results)
+util.AddNetworkString('hla_story_cfg')
+util.AddNetworkString('hla_story_save')
+util.AddNetworkString('hla_story_do')
+util.AddNetworkString('hla_story_card')
+util.AddNetworkString('hla_vote')
+util.AddNetworkString('hla_story_msg')
 
 file.CreateDir('hla/story')
 local function path() return 'hla/story/' .. game.GetMap() .. '.json' end
@@ -33,8 +22,6 @@ end
 
 local function vec(t) return Vector(t[1] or 0, t[2] or 0, t[3] or 0) end
 
----------------------------------------------------------------------------------------------------
--- participants: players who play a character (not in the main menu)
 local function participants()
 	local out = {}
 	for _, p in ipairs(player.GetAll()) do
@@ -54,8 +41,6 @@ local function msgAll(text, sub)
 	net.Start('hla_story_msg') net.WriteString(text) net.WriteString(sub or '') net.Broadcast()
 end
 
----------------------------------------------------------------------------------------------------
--- spawns: a free point of a list (the one farthest from the other players), {p = {x,y,z}, y = yaw}
 local function pickSpawn(list, taken)
 	if not list or #list == 0 then return end
 	local best, bestD
@@ -69,7 +54,7 @@ local function pickSpawn(list, taken)
 			if not bestD or d > bestD then best, bestD = i, d end
 		end
 	end
-	if not best then best = math.random(#list) end -- more players than points: share them
+	if not best then best = math.random(#list) end
 	taken[best] = true
 	return list[best]
 end
@@ -87,7 +72,6 @@ local function spawnList(p)
 	return ch and ch.spawns
 end
 
--- respawn a player for the round: alive, full health, the loadout (ammo) again, at a spawn point
 function S.Respawn(p, taken)
 	p.HLAOut = false
 	p:UnSpectate()
@@ -99,7 +83,6 @@ end
 hook.Add('PlayerSpawn', 'HLAStorySpawn', function(p)
 	local sp = p.HLASpawnAt
 	if not sp and not p.HLAInMenu and S.Config then
-		-- outside a round: the first chapter's points (when there are any)
 		local l = spawnList(p)
 		if l and #l > 0 and not S.InRound() then sp = l[math.random(#l)] end
 	end
@@ -113,8 +96,6 @@ hook.Add('PlayerSpawn', 'HLAStorySpawn', function(p)
 	end)
 end)
 
----------------------------------------------------------------------------------------------------
--- spectators
 local function aliveOthers(p)
 	local out = {}
 	for _, o in ipairs(participants()) do
@@ -157,7 +138,6 @@ hook.Add('PlayerDeath', 'HLAStoryOut', function(p)
 	end
 end)
 
--- the dead stay dead during a round; outside a round the usual respawn
 hook.Add('PlayerDeathThink', 'HLAStoryOut', function(p)
 	if p.HLAOut and S.InRound() then return false end
 end)
@@ -174,7 +154,6 @@ hook.Add('KeyPress', 'HLASpectate', function(p, key)
 	end
 end)
 
--- someone enters as a character during a round: watches until the next chapter / round
 hook.Add('HLAPlayerEnteredGame', 'HLAStoryLate', function(p)
 	S.Card(p)
 	if S.InRound() and not p.HLAJoinedRound then
@@ -182,8 +161,6 @@ hook.Add('HLAPlayerEnteredGame', 'HLAStoryLate', function(p)
 	end
 end)
 
--- damage between players: PvP by teams — not to the own team (unless friendly fire), story — only
--- with storyFriendlyFire, each for himself — always
 hook.Add('PlayerShouldTakeDamage', 'HLAStoryPvP', function(victim, attacker)
 	if not IsValid(attacker) or not attacker:IsPlayer() or attacker == victim then return end
 	local st, mode = S.State(), S.Mode()
@@ -194,8 +171,6 @@ hook.Add('PlayerShouldTakeDamage', 'HLAStoryPvP', function(victim, attacker)
 	if st == S.STORY and not S.Config.settings.storyFriendlyFire then return false end
 end)
 
----------------------------------------------------------------------------------------------------
--- chapter card: «ГЛАВА 1» and its name in the middle of the screen
 function S.Card(to)
 	local c = S.Config
 	if not c then return end
@@ -237,8 +212,6 @@ function S.StartChapter(n)
 	if d and d ~= '' then timer.Simple(2, function() dispatchID(d) end) end
 end
 
----------------------------------------------------------------------------------------------------
--- rounds
 local function resetPlayers()
 	for _, p in ipairs(player.GetAll()) do
 		p.HLAJoinedRound = false
@@ -272,7 +245,7 @@ function S.StartRound(mode)
 	SetGlobal2String('hla_team1', c.pvp.team1)
 	SetGlobal2String('hla_team2', c.pvp.team2)
 	local list = participants()
-	for i = #list, 2, -1 do local j = math.random(i) list[i], list[j] = list[j], list[i] end -- shuffle
+	for i = #list, 2, -1 do local j = math.random(i) list[i], list[j] = list[j], list[i] end
 	for i, p in ipairs(list) do
 		p:SetTeam(mode == 'teams' and (i % 2 == 1 and S.TEAM1 or S.TEAM2) or TEAM_UNASSIGNED)
 		p:SetFrags(0) p:SetDeaths(0)
@@ -304,7 +277,7 @@ local function tally()
 	local best, bestN = 1, -1
 	for i = 1, #S.CHOICES do
 		local n = GetGlobal2Int('hla_vote_' .. i, 0)
-		if n > bestN then best, bestN = i, n end -- ties: the first (story)
+		if n > bestN then best, bestN = i, n end
 	end
 	return S.CHOICES[best].id
 end
@@ -341,7 +314,6 @@ timer.Create('HLAStoryTick', 0.5, 0, function()
 		end
 	elseif st == S.STORY then
 		if #list == 0 then S.Stop() return end
-		-- the transition trigger of the chapter
 		local ch = S.Config.chapters[S.Chapter or 1]
 		if ch and ch.trigger then
 			for _, p in ipairs(list) do
@@ -355,7 +327,6 @@ timer.Create('HLAStoryTick', 0.5, 0, function()
 				end
 			end
 		end
-		-- everybody dead: the chapter again
 		if aliveIn(list) == 0 then
 			S.AllDeadAt = S.AllDeadAt or CurTime()
 			if CurTime() - S.AllDeadAt > 6 then
@@ -392,8 +363,6 @@ timer.Create('HLAStoryTick', 0.5, 0, function()
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- kill callouts: the killer reports on the radio (a voiceline, in the chat and over the head)
 local function callout(attacker, playerVictim)
 	if not S.Config.settings.killCallout or not IsValid(attacker) or not attacker:IsPlayer() then return end
 	if (attacker.HLACalloutAt or 0) > CurTime() then return end
@@ -410,8 +379,6 @@ hook.Add('PlayerDeath', 'HLAKillCallout', function(victim, _, attacker)
 	if attacker ~= victim then callout(attacker, true) end
 end)
 
----------------------------------------------------------------------------------------------------
--- a unit died: the dispatcher reports the lost biosignal, with the HL2 radio voice reading the number
 local DIGITS = {['0'] = 'zero', ['1'] = 'one', ['2'] = 'two', ['3'] = 'three', ['4'] = 'four', ['5'] = 'five',
 	['6'] = 'six', ['7'] = 'seven', ['8'] = 'eight', ['9'] = 'nine'}
 hook.Add('PlayerDeath', 'HLADispatchDeath', function(p)
@@ -424,14 +391,11 @@ hook.Add('PlayerDeath', 'HLADispatchDeath', function(p)
 	local seq = {rv('on3'), rv('lostbiosignalforunit')}
 	for d in string.gmatch(num, '%d') do seq[#seq + 1] = rv(DIGITS[d]) end
 	seq[#seq + 1] = rv('off2')
-	-- the death of the unit itself, heard near the body
 	p:EmitSound('hla/death/die_' .. math.random(1, 2) .. '.wav', 80, math.random(96, 104), 1, CHAN_VOICE)
 	local text = 'Потерян биосигнал юнита' .. (num ~= '' and (' ' .. num) or '') .. '.'
 	timer.Simple(1.2, function() CH.Dispatch(text, table.concat(seq, ';'), 'ДИСПЕТЧЕР') end)
 end)
 
----------------------------------------------------------------------------------------------------
--- the dispatcher on the air now and then
 timer.Create('HLADispatcher', 15, 0, function()
 	local d = S.Config and S.Config.dispatch
 	if not d or (d.every or 0) <= 0 or #d.pool == 0 then return end
@@ -441,8 +405,6 @@ timer.Create('HLADispatcher', 15, 0, function()
 	dispatchID(d.pool[math.random(#d.pool)])
 end)
 
----------------------------------------------------------------------------------------------------
--- NPCs of the map from the config
 function S.SpawnNPCs()
 	for _, e in ipairs(ents.FindByClass('hla_npc*')) do e.HLARespawning = true e:Remove() end
 	for i, n in ipairs(S.Config.npcs) do
@@ -471,27 +433,40 @@ function S.Apply()
 	S.SpawnNPCs()
 end
 
--- the flickering lights of the maps (light styles 1..12: flicker, strobe, candle, fluorescent …) burn steady;
--- hla_steady_lights 0 keeps them as the map has them. (Styles 32+ are the switchable lights: not touched.)
 CreateConVar('hla_steady_lights', '1', {FCVAR_ARCHIVE}, 'Flickering map lights burn steady (0/1)')
+local FLICKER_FX = {[kRenderFxStrobeSlow or 9] = true, [kRenderFxStrobeFast or 10] = true, [kRenderFxStrobeFaster or 11] = true,
+	[kRenderFxFlickerSlow or 12] = true, [kRenderFxFlickerFast or 13] = true, [kRenderFxHologram or 16] = true, [kRenderFxPulseSlow or 1] = true,
+	[kRenderFxPulseFast or 2] = true, [kRenderFxPulseSlowWide or 3] = true, [kRenderFxPulseFastWide or 4] = true}
 local function steadyLights()
 	if not GetConVar('hla_steady_lights'):GetBool() then return end
 	for i = 1, 12 do engine.LightStyle(i, 'm') end
+	for _, e in ipairs(ents.FindByClass('light*')) do
+		local kv = e:GetKeyValues()
+		local pat = kv and kv.pattern
+		if isstring(pat) and #pat > 1 and string.find(pat, '[^' .. string.sub(pat, 1, 1) .. ']') then
+			local top = 'a'
+			for c in string.gmatch(pat, '%a') do if c > top then top = c end end
+			e:Fire('SetPattern', top < 'm' and top or 'm')
+		end
+	end
+	for _, cls in ipairs({'env_sprite', 'env_sprite_oriented', 'env_glow', 'env_lightglow'}) do
+		for _, e in ipairs(ents.FindByClass(cls)) do
+			if FLICKER_FX[e:GetRenderFX()] then e:SetRenderFX(kRenderFxNone or 0) end
+		end
+	end
 end
-hook.Add('InitPostEntity', 'HLASteadyLights', steadyLights)
-hook.Add('PostCleanupMap', 'HLASteadyLights', steadyLights)
+hook.Add('InitPostEntity', 'HLASteadyLights', function() steadyLights() timer.Simple(3, steadyLights) end)
+hook.Add('PostCleanupMap', 'HLASteadyLights', function() steadyLights() timer.Simple(3, steadyLights) end)
 
 hook.Add('InitPostEntity', 'HLAStory', function()
 	S.Load()
 	setState(S.WAIT, '')
-	RunConsoleCommand('mp_show_voice_icons', '0') -- our own icon over the head (cl_voice.lua)
+	RunConsoleCommand('mp_show_voice_icons', '0')
 end)
 hook.Add('PreCleanupMap', 'HLAStory', function() S.Cleaning = true end)
 hook.Add('PostCleanupMap', 'HLAStory', function() S.Cleaning = false if S.Config then S.SpawnNPCs() end end)
 hook.Add('ShutDown', 'HLAStory', function() S.Cleaning = true end)
 
--- an NPC from the Q menu (hla_npc_grunt / hla_npc_ordinal): where the player aims, facing the player,
--- added to the map's config and saved at once
 function S.PlaceNPC(p, tr, label)
 	if not tr.Hit or not IsValid(p) or not HLA.CanEdit(p) or not S.Config then return end
 	local pick
@@ -521,8 +496,6 @@ function S.PlaceNPC(p, tr, label)
 	return e
 end
 
----------------------------------------------------------------------------------------------------
--- the editor (admins)
 local function sendConfig(p)
 	local data = util.Compress(util.TableToJSON(S.Config))
 	net.Start('hla_story_cfg')

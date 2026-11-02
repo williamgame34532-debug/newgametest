@@ -1,8 +1,5 @@
 include('shared.lua')
 
--- Screen of the Combine console in the look of the Combine Civil Authority terminal: identification and
--- navigation on the left, the squad register in the middle (cards with bright head bars), session activity
--- and the big buttons on the right. The monitors without power show a red warning.
 local SQ = HLA.Squads
 local W, H = 1024, 576
 local F = {blend = 0, cursor = {W / 2, H / 2}, page = 'index', kind = 1, log = {}, cw = W, sel = {}}
@@ -44,11 +41,6 @@ local function unitNumber(p)
 	return n or string.format('%03d', p:EntIndex() % 1000)
 end
 
----------------------------------------------------------------------------------------------------
--- Layout of the Combine terminal (as the HL:A / Combine Civil Authority screens): a header line,
--- three columns — identification and navigation on the left, the working list in the middle (bright
--- title bar, then cards with a bright head bar: cyan, green for the own squad, a chip button on the
--- right, a dark body with the units), session activity and the big buttons on the right — and a footer.
 local CYAN = Color(96, 198, 236)
 local CYAN_HI = Color(150, 222, 248)
 local GREEN = Color(72, 214, 156)
@@ -67,7 +59,6 @@ local function L()
 	return {cw = cw, lx = 40, lw = lw, mx = mx, mw = cw - 40 - rw - 24 - mx, rx = cw - 40 - rw, rw = rw, top = 74}
 end
 
--- the terminal being drawn (the camera terminal has its own pages)
 local DRAW_ENT
 local function camT()
 	local t = DRAW_ENT or F.ent
@@ -75,11 +66,9 @@ local function camT()
 end
 local function camList(t) return (HLA.CamTerminals and HLA.CamTerminals.lists[t:EntIndex()]) or {} end
 
--- the squad cards of the middle column
 local CARD_H, CARD_GAP = 64, 8
 local function cardY(i) return 150 + (i - 1) * (CARD_H + CARD_GAP) end
 
--- rows are kept for the selection logic (squad notice); the middle column draws them as cards
 local function rows()
 	local r = {}
 	for id, s in SortedPairs(SQ.list) do r[#r + 1] = {id, s.name, #s.members .. ' / ' .. SQ.MaxMembers} end
@@ -90,7 +79,6 @@ local function selected(r)
 	return mine and mine.id or (r[1] and r[1][1])
 end
 
--- everything clickable on the screen
 local function camButtons(t)
 	local l = L()
 	local b = {}
@@ -111,7 +99,6 @@ local function buttons()
 	if t then return camButtons(t) end
 	local l = L()
 	local b = {}
-	-- navigation (left column)
 	for i, t in ipairs({{'index', 'КОМАНДНЫЙ ИНДЕКС'}, {'squads', 'ОТРЯДЫ'}}) do
 		b[#b + 1] = {id = 'nav', arg = t[1], label = t[2], x = l.lx, y = 214 + (i - 1) * 36, w = l.lw, h = 32, tab = true, n = i}
 	end
@@ -132,7 +119,6 @@ local function buttons()
 			end
 		end
 	end
-	-- right column: forming a squad, then the big buttons at the bottom
 	local rx, rw = l.rx, l.rw
 	b[#b + 1] = {id = 'kind', arg = -1, label = '<', x = rx, y = 360, w = 30, h = 30, chip = true}
 	b[#b + 1] = {id = 'kind', arg = 1, label = '>', x = rx + rw - 30, y = 360, w = 30, h = 30, chip = true}
@@ -177,8 +163,6 @@ local function activate(b)
 	end
 end
 
----------------------------------------------------------------------------------------------------
--- drawing
 local function txt(t, font, x, y, c, ax, ay) draw.SimpleText(t, font, x, y, c, ax or TEXT_ALIGN_LEFT, ay or TEXT_ALIGN_TOP) end
 local function line(x, y, w, c, a) surface.SetDrawColor(c.r, c.g, c.b, a or 255) surface.DrawRect(x, y, w, 1) end
 local function frame(x, y, w, h, c, a)
@@ -186,7 +170,6 @@ local function frame(x, y, w, h, c, a)
 	surface.DrawOutlinedRect(x, y, w, h, 1)
 end
 local function fill(x, y, w, h, c, a) surface.SetDrawColor(c.r, c.g, c.b, a or 255) surface.DrawRect(x, y, w, h) end
--- a bright bar with a soft scratch texture over it (the HL:A screens are not flat)
 local function brightBar(x, y, w, h, c, a)
 	fill(x, y, w, h, Color(c.r * 0.82, c.g * 0.82, c.b * 0.82), 235 * (a or 1))
 	surface.SetMaterial(bar)
@@ -219,13 +202,12 @@ local function drawButton(b, hot)
 		brightBar(b.x, b.y, b.w, b.h, hot and CYAN_HI or CYAN, hot and 1 or 0.85)
 		txt(b.label, 'hlaterm_xs', b.x + 12, b.y + b.h / 2, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 		txt('›', 'hlaterm_s', b.x + b.w - 12, b.y + b.h / 2 - 1, NAVY, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	else -- chips on the cards, arrows
+	else
 		fill(b.x, b.y, b.w, b.h, hot and CYAN_HI or (b.dim and BLUE_DIM or CYAN), hot and 255 or 210)
 		txt(b.label, 'hlaterm_xs', b.x + b.w / 2, b.y + b.h / 2, NAVY, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
 end
 
--- Combine script lines: the same for a terminal every time (seeded by its index)
 local CMB = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 local function combineLines(seed, n)
 	local out, x = {}, seed * 7919
@@ -256,7 +238,7 @@ local function camMiddle(l, t)
 		fill(x, y, w, CARD_H, PANEL_BG, 230)
 		frame(x, y, w, CARD_H, on and GREEN or BLUE_DIM, 150)
 		brightBar(x, y, w - 136, 32, on and GREEN or CYAN)
-		txt('КАМ-' .. string.format('%02d', c.n), 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+		txt(c.id or ('КАМ-' .. string.format('%02d', c.n)), 'hlaterm_bar', x + 12, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 		local d = math.floor(c.pos:Distance(t:GetPos()) / 52.5 + 0.5)
 		txt(fit((c.zone ~= '' and (string.upper(c.zone) .. '   ::   ') or '') .. d .. ' М ОТ ТЕРМИНАЛА', 'hlaterm_xs', w - 160), 'hlaterm_xs', x + 12, y + 48, on and GREEN or CYAN, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	end
@@ -268,7 +250,6 @@ local function camMiddle(l, t)
 	end
 end
 
--- the right column of the camera terminal: the live preview
 local function camPreview(l, t)
 	txt('ТРАНСЛЯЦИЯ', 'hlaterm_s', l.rx, l.top + 2, CYAN_HI)
 	local pw = l.rw
@@ -309,7 +290,6 @@ local function middle(l)
 			fill(x, y, 40, 32, NAVY, 200)
 			txt(string.format('%02d', i), 'hlaterm_num2', x + 20, y + 16, acc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 			txt(fit(s.name .. '   [' .. #s.members .. '/' .. SQ.MaxMembers .. ']', 'hlaterm_bar', w - 200), 'hlaterm_bar', x + 52, y + 16, NAVY, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
-			-- the units as chips
 			local cx = x + 12
 			local any = false
 			for _, m in ipairs(s.members) do
@@ -353,7 +333,6 @@ local function middle(l)
 	end
 end
 
--- corner brackets
 local function corners(x, y, w, h, c, len)
 	surface.SetDrawColor(c.r, c.g, c.b, 255)
 	for _, p in ipairs({{x, y, 1, 1}, {x + w, y, -1, 1}, {x, y + h, 1, -1}, {x + w, y + h, -1, -1}}) do
@@ -368,14 +347,11 @@ local function drawScreen(cur, live, seed, ent)
 	DRAW_ENT = ent
 	local l = L()
 	local cw = l.cw
-	-- the glass: one animated material (dark teal, grid, scanlines, a glow band, noise) instead of drawing
-	-- all of it every frame
 	surface.SetMaterial(bgAnim)
 	surface.SetDrawColor(255, 255, 255, 255)
 	surface.DrawTexturedRect(0, 0, cw, H)
 	corners(5, 5, cw - 10, H - 10, CYAN, 22)
 	local me = LocalPlayer()
-	-- header: the Combine symbol (when installed), the title, the node with a live signal
 	local tx = 40
 	if not logoMat:IsError() then
 		surface.SetMaterial(logoMat)
@@ -389,7 +365,6 @@ local function drawScreen(cur, live, seed, ent)
 		fill(cw - 300 + k * 7, 42 - 16 * v, 4, 16 * v, CYAN, 200)
 	end
 	txt('ЛОКАЛЬНЫЙ УЗЕЛ :: 08', 'hlaterm_xs', cw - 92, 34, CYAN, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	-- the Combine mark: a ring cut by a wedge
 	draw.NoTexture()
 	surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 220)
 	for k = 0, 23 do
@@ -400,7 +375,6 @@ local function drawScreen(cur, live, seed, ent)
 		end
 	end
 	line(40, 56, cw - 80, BLUE_DIM, 140)
-	-- left: identification, navigation, Combine script
 	txt('ИДЕНТИФИКАЦИЯ', 'hlaterm_xs', l.lx, l.top + 2, BLUE_DIM)
 	txt(fit(string.upper(me:GetNWString('hla_name', me:Nick())), 'hlaterm_id', l.lw), 'hlaterm_id', l.lx, l.top + 20, CYAN_HI)
 	txt(live and 'СЕАНС АКТИВЕН' or 'E :: ВХОД В СИСТЕМУ', 'hlaterm_xs', l.lx, l.top + 58, live and CYAN or TEXT)
@@ -409,9 +383,7 @@ local function drawScreen(cur, live, seed, ent)
 	for i, s in ipairs(combineLines(seed or 1, 7)) do
 		txt(s, 'hlaterm_cmb', l.lx, 306 + (i - 1) * 24, Color(CYAN.r, CYAN.g, CYAN.b, 140))
 	end
-	-- middle
 	middle(l)
-	-- right: session activity, forming a squad
 	local ct = camT()
 	if ct then camPreview(l, ct) else
 	txt('АКТИВНОСТЬ СЕАНСА', 'hlaterm_s', l.rx, l.top + 2, CYAN_HI)
@@ -424,15 +396,12 @@ local function drawScreen(cur, live, seed, ent)
 	txt('ТИП НОВОГО ОТРЯДА', 'hlaterm_xs', l.rx, 340, BLUE_DIM)
 	txt(fit(SQ.Kinds[F.kind] or '', 'hlaterm_xs', l.rw - 70), 'hlaterm_xs', l.rx + l.rw / 2, 375, CYAN_HI, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	end
-	-- footer
 	line(40, H - 22, cw - 80, BLUE_DIM, 90)
 	txt('ВЛАСТЬ АЛЬЯНСА / ЗАЩИЩЁННЫЙ ДОСТУП', 'hlaterm_xs', 40, H - 12, BLUE_DIM, TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 	txt(os.date('%H:%M:%S') .. '  /  ЭХО-' .. unitNumber(me), 'hlaterm_xs', cw - 40, H - 12, BLUE_DIM, TEXT_ALIGN_RIGHT, TEXT_ALIGN_CENTER)
-	-- buttons
 	local hot = live and hovered(cur) or nil
 	local hk = bkey(hot)
 	for _, b in ipairs(buttons()) do drawButton(b, live and bkey(b) == hk) end
-	-- a squad was just created / joined: its name large across the screen for a few seconds
 	local n = F.notice
 	if live and n and CurTime() - n.t < 4 then
 		local k = CurTime() - n.t
@@ -451,11 +420,9 @@ local function drawScreen(cur, live, seed, ent)
 		surface.SetDrawColor(CYAN_HI.r, CYAN_HI.g, CYAN_HI.b, 255)
 		surface.DrawTexturedRect(cur[1] - 10, cur[2] - 10, 20, 20)
 	end
-	DRAW_ENT = nil -- clicks work with the focused terminal again
+	DRAW_ENT = nil
 end
 
-
--- a monitor without power: red, «:: ВНИМАНИЕ, ВНИМАНИЕ - ТЕРМИНАЛ ОБЕСТОЧЕН ::» blinking
 local function drawDead(cw, seed)
 	local t = CurTime() + seed
 	surface.SetMaterial(bg)
@@ -464,7 +431,6 @@ local function drawDead(cw, seed)
 	fill(0, 0, cw, H, Color(40, 0, 0), 120)
 	frame(10, 10, cw - 20, H - 20, RED_DIM, 200)
 	corners(10, 10, cw - 20, H - 20, RED, 22)
-	-- warning stripes top and bottom
 	for i = 0, math.ceil(cw / 40) do
 		local x = i * 40 - (t * 30) % 40
 		fill(x, 30, 18, 10, RED, 90)
@@ -481,7 +447,6 @@ local function drawDead(cw, seed)
 	line(40, H / 2 + 43, cw - 80, RED, a)
 	txt(warn, font, cw / 2, H / 2, Color(255, 120, 110, a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	txt('ПИТАНИЕ :: 0%   ·   ЛИНИЯ СВЯЗИ :: НЕТ СИГНАЛА   ·   ОБРАТИТЕСЬ К ТЕРМИНАЛУ УЗЛА', 'hlaterm_xs', cw / 2, H / 2 + 70, RED_DIM, TEXT_ALIGN_CENTER)
-	-- now and then a torn line
 	if math.random() < 0.06 then fill(0, math.random(60, H - 60), cw, math.random(2, 6), RED, 60) end
 end
 
@@ -492,7 +457,7 @@ end
 function ENT:DrawTranslucent()
 	local origin, right, down, normal, scale, center, cw = self:Screen()
 	if EyePos():DistToSqr(origin) > 900 * 900 then return end
-	if (EyePos() - origin):Dot(normal) < 0 then return end -- from behind: nothing
+	if (EyePos() - origin):Dot(normal) < 0 then return end
 	if not self.Powered then
 		cam.Start3D2D(origin, right:AngleEx(normal), scale)
 			drawDead(cw, self:EntIndex() * 0.37)
@@ -500,7 +465,6 @@ function ENT:DrawTranslucent()
 		return
 	end
 	local live = F.ent == self
-	-- the screen lights up when someone comes close, goes dark when nobody is around
 	local since = CurTime() - self:GetOpenedAt()
 	local a = (self:GetOpen() or live) and math.Clamp(since / 0.5, 0, 1) or math.Clamp(1 - since / 0.25, 0, 1)
 	if a <= 0 then return end
@@ -515,8 +479,6 @@ function ENT:DrawTranslucent()
 	surface.SetAlphaMultiplier(1)
 end
 
----------------------------------------------------------------------------------------------------
--- focus: the camera in front of the screen, the mouse moves the cursor, LMB clicks
 net.Receive('hla_term', function()
 	local e = net.ReadEntity()
 	if IsValid(e) then
@@ -560,7 +522,6 @@ hook.Add('CreateMove', 'HLATerminal', function(cmd)
 	cmd:SetButtons(bit.band(cmd:GetButtons(), IN_USE))
 end)
 
--- the own squad changed while at the terminal: show its name, choose it in the list
 local lastMine
 hook.Add('Think', 'HLATerminalSquadNotice', function()
 	local p = LocalPlayer()
@@ -588,7 +549,6 @@ hook.Add('Think', 'HLATerminalHover', function()
 	lastHover = key
 end)
 
--- the camera close in front of the screen: far enough that the whole canvas fits the view
 local last
 hook.Add('CalcView', 'HLATerminal', function(p, origin, angles, fov)
 	local e = IsValid(F.ent) and F.ent or nil

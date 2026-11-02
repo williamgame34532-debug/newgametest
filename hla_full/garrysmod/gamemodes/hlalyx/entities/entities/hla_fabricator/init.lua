@@ -6,17 +6,10 @@ local C = CFRework
 local S = C.State
 local SND = 'combine_fabricator/'
 
----------------------------------------------------------------------------------------------------
--- Sequence playback. The model's sequences chain pose to pose exactly as in Half-Life: Alyx:
---   dormant > eye_deploy > interface_deploy > menu_idle
---   menu_idle > hatch_open > tray_deploy > tray_idle_00 > tray_cycle_01 > tray_idle_01 ... (one step per resin)
---   tray_retract > bay_open > print > bay_open > bay_idle            (print and delivery)
---   bay_close > hatch_close > menu_idle > interface_retract > eye_retract > dormant
--- Entries of a queue are sequence names or functions (run when reached).
 local LOOPS = {dormant = true, menu_idle = true, hatch_idle = true, bay_idle = true, print_done = true}
 for i = 0, 9 do LOOPS[string.format('tray_idle_%02d', i)] = true end
 
-local ON = {}  -- per sequence: start(self, duration)
+local ON = {}
 ON.eye_deploy = function(self) self:Snd('combine_3d_printer_eyestalk_extend_01.wav', 60) end
 ON.interface_deploy = function(self) self:Snd('combine_3d_printer_interface_open_01.wav', 62) end
 ON.menu_idle = function(self)
@@ -31,7 +24,7 @@ ON.tray_retract = function(self) self.Mech.tray = false self:SetTrayReady(false)
 ON.bay_open = function(self) self.Mech.bay = true self:Snd('combine_3d_printer_upgrader_open_01.wav', 62) end
 ON.bay_close = function(self) self.Mech.bay = false self:SetBayOpen(false) self:Snd('combine_3d_printer_resin_tray_retract_01.wav', 56, 90) end
 ON.print = function(self, dur)
-	self.Mech.bay = false -- the ribs close around the item while it prints
+	self.Mech.bay = false
 	self:SetTrayOut(false)
 	self:SetStageStarted(CurTime())
 	self:SetStageUntil(CurTime() + dur)
@@ -59,14 +52,13 @@ function ENT:StartSeq(name)
 	if ON[name] then ON[name](self, dur) end
 end
 
--- run the queue until it waits on a playing sequence or reaches an idle loop
 function ENT:Advance()
 	while self.Queue[1] do
 		local nxt = table.remove(self.Queue, 1)
 		if isfunction(nxt) then
 			local serial = self.SeqSerial
 			nxt(self)
-			if self.SeqSerial ~= serial then return end -- it started a new chain itself
+			if self.SeqSerial ~= serial then return end
 		else
 			self:StartSeq(nxt)
 			return
@@ -74,13 +66,11 @@ function ENT:Advance()
 	end
 end
 
--- replace what is waiting; the playing transition finishes first (only a print in progress is cut)
 function ENT:Play(list, cut)
 	self.Queue = table.Copy(list)
 	if cut or not self.SeqEnd or self.SeqName == 'print' then self:Advance() end
 end
 
--- what has to close, judged by the sequences that actually played (or are playing)
 function ENT:CloseList(tail)
 	local out = {}
 	local m = self.Mech
@@ -91,10 +81,8 @@ function ENT:CloseList(tail)
 	return out
 end
 
----------------------------------------------------------------------------------------------------
 function ENT:Initialize()
 	if not util.IsValidModel(C.Model) then
-		-- the model ships as source (modelsrc/hla_station) and has to be compiled once
 		local msg = '[Combine Fabricator] ' .. C.Model .. ' не найдена: скомпилируйте modelsrc/hla_station/hla_station.qc (README_RU.txt)'
 		ErrorNoHalt(msg .. '\n')
 		for _, p in ipairs(player.GetAll()) do if p:IsAdmin() then p:ChatPrint(msg) end end
@@ -131,7 +119,6 @@ function ENT:Snd(name, level, pitch)
 	self:EmitSound(SND .. name, level or 62, pitch or 100)
 end
 
--- everything goes through the aim-based KeyPress hook (sv_resin.lua)
 function ENT:Use() end
 
 function ENT:CanOrder(p, item)
@@ -149,7 +136,7 @@ function ENT:RequestFocus(p)
 	for _, v in ipairs(player.GetAll()) do
 		if v ~= p and v.CFFocus == self then self:Notify(p, 'ТЕРМИНАЛ ЗАНЯТ') return end
 	end
-	if self:GetStage() == S.DONE then return end -- the item is taken from the bay by hand
+	if self:GetStage() == S.DONE then return end
 	self.LastAction = CurTime()
 	C.SetFocus(p, self)
 	self:EmitSound('buttons/lightswitch2.wav', 45, 140)
@@ -175,7 +162,7 @@ function ENT:Interact(p, x, y, part)
 		self:SetStatusText('')
 		self:EmitSound(C.ClickSounds[math.random(1, 2)], 50, 100)
 		if b.id == 'exit' then
-			C.SetFocus(p, nil) -- the order is kept: resin goes into the tray by hand
+			C.SetFocus(p, nil)
 			return
 		end
 		if st == S.MENU then
@@ -199,7 +186,7 @@ end
 
 function ENT:Order(p, index)
 	local item = C.Items[index]
-	if not item or not C.Ready(self) then return end
+	if not item or item.off or not C.Ready(self) then return end
 	local ok, why = self:CanOrder(p, item)
 	if not ok then self:Notify(p, why) return end
 	if C.Balance(p) < item.cost then self:Notify(p, 'НЕДОСТАТОЧНО СМОЛЫ — НУЖНО ' .. item.cost) return end
@@ -210,7 +197,6 @@ function ENT:Order(p, index)
 	self:SetCost(item.cost)
 	self:SetPaid(0)
 	self:SetPhase(S.DEPOSIT)
-	-- the resin tray only comes out now that an item is chosen
 	self:Play({'hatch_open', 'tray_deploy', 'tray_idle_00'})
 	if item.cost <= 0 then self:StartPrint() end
 end
@@ -218,7 +204,7 @@ end
 function ENT:InsertResin(p)
 	if self:GetOperator() ~= p or not C.CellsOpen(self) then return end
 	if (self.NextFeed or 0) > CurTime() or self:GetPaid() >= self:GetCost() then return end
-	if self.SeqEnd then return end -- the carousel is still turning
+	if self.SeqEnd then return end
 	self.NextFeed = CurTime() + C.FeedInterval
 	if not C.ChangeBalance(p, -1) then self:Notify(p, 'НЕТ СМОЛЫ — ПОДБЕРИТЕ ЕЁ') return end
 	self:SetStatusText('')
@@ -236,7 +222,6 @@ end
 function ENT:StartPrint()
 	if self:GetStage() ~= S.DEPOSIT or self:GetPaid() < self:GetCost() then return end
 	self:SetTrayReady(false)
-	-- stage times cover the whole run; the 'print' sequence resets them to its own length
 	self:SetPhase(S.PRINT, 13)
 	self:Play({'tray_retract', 'bay_open', 'print', 'bay_open', function(s) s:FinishPrint() end, 'bay_idle'})
 end
@@ -282,7 +267,6 @@ function ENT:Collect(p)
 	self:EndSession(false)
 end
 
--- back to the catalogue; refund = return the resin of an unfinished or uncollected order
 function ENT:EndSession(refund, fold)
 	self.SessionSerial = (self.SessionSerial or 0) + 1
 	self:StopSound(SND .. 'combine_3d_printer_upgrading_01.wav')
@@ -313,7 +297,6 @@ function ENT:WakeUp()
 	self:Play({'eye_deploy', 'interface_deploy', 'menu_idle'})
 end
 
--- nobody around: close everything that is open, then fold the screen and the eye away
 function ENT:Fold()
 	if not self.Awake then return end
 	self.Awake = false
@@ -325,13 +308,11 @@ end
 function ENT:Think()
 	local now = CurTime()
 
-	-- sequence chain
 	if self.SeqEnd and now >= self.SeqEnd then
 		self.SeqEnd = nil
 		self:Advance()
 	end
 
-	-- wake up / close everything depending on who is around
 	if now >= (self.NextScan or 0) then
 		self.NextScan = now + 0.3
 		local near = false
@@ -340,13 +321,11 @@ function ENT:Think()
 		end
 		if near then self.LastNearby = now end
 		local awake = near or now - self.LastNearby < C.CloseDelay
-		-- it wakes up only when someone presses E on it (sv_resin.lua); it folds when nobody is near
 		if not awake and self.Awake then
 			if self:GetStage() > S.MENU then self:EndSession(true, true) else self:Fold() end
 		end
 	end
 
-	-- session watchdog: the operator walked away, died or went idle
 	local st = self:GetStage()
 	if st > S.MENU then
 		local p = self:GetOperator()
@@ -359,7 +338,6 @@ function ENT:Think()
 		end
 	end
 
-	-- hold E on the tray to keep feeding resin
 	if st == S.DEPOSIT then
 		local p = self:GetOperator()
 		if IsValid(p) and p:KeyDown(IN_USE) and C.AimedPart(self, p) == 'cells' then

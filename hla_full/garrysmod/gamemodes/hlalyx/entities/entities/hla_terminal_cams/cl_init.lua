@@ -1,7 +1,5 @@
 include('shared.lua')
 
--- the picture of the chosen camera: rendered into a texture of its own ~20 times a second while someone is
--- near, then put on the screen of the monitor over the terminal (and as a preview on the terminal's screen)
 local CT = HLA.CamTerminals or {lists = {}}
 HLA.CamTerminals = CT
 local RW, RH = 640, 360
@@ -11,6 +9,8 @@ net.Receive('hla_cams', function()
 	local list = {}
 	for i = 1, net.ReadUInt(8) do
 		list[i] = {idx = net.ReadUInt(16), pos = net.ReadVector(), zone = net.ReadString(), n = i}
+		list[i].id = net.ReadString()
+		if list[i].id == '' then list[i].id = 'КАМ-' .. string.format('%02d', i) end
 	end
 	if IsValid(t) then CT.lists[t:EntIndex()] = list end
 end)
@@ -43,16 +43,15 @@ hook.Add('PreRender', 'HLACamTerminals', function()
 				render.Clear(0, 0, 0, 255, true, true)
 				render.RenderView({origin = t:GetCamPos(), angles = t:GetCamAng(), x = 0, y = 0, w = RW, h = RH, fov = 80,
 					drawviewmodel = false, drawhud = false, dopostprocess = false, drawmonitors = false, znear = 4})
-				-- the look of a Combine feed: cold tint, scanlines, the camera number and the time
 				cam.Start2D()
 					surface.SetDrawColor(20, 60, 90, 70)
 					surface.DrawRect(0, 0, RW, RH)
 					surface.SetMaterial(scan)
 					surface.SetDrawColor(120, 210, 255, 40)
 					surface.DrawTexturedRectUV(0, 0, RW, RH, 0, 0, RW / 64, RH / 64)
-					local n = 0
-					for _, c in ipairs(CT.lists[t:EntIndex()] or {}) do if c.idx == t:GetCamIndex() then n = c.n end end
-					draw.SimpleTextOutlined('КАМ-' .. string.format('%02d', n) .. '  ::  ' .. os.date('%H:%M:%S'), 'hla_cam_osd', 14, 12, Color(170, 230, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 180))
+					local n = ''
+					for _, c in ipairs(CT.lists[t:EntIndex()] or {}) do if c.idx == t:GetCamIndex() then n = c.id end end
+					draw.SimpleTextOutlined(n .. '  ::  ' .. os.date('%H:%M:%S'), 'hla_cam_osd', 14, 12, Color(170, 230, 255), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 1, Color(0, 0, 0, 180))
 					if math.floor(RealTime() * 2) % 2 == 0 then
 						draw.NoTexture()
 						surface.SetDrawColor(255, 60, 50, 230)
@@ -66,7 +65,6 @@ hook.Add('PreRender', 'HLACamTerminals', function()
 	end
 end)
 
--- the monitor's screen material is swapped for the feed (or back when no camera is chosen)
 local function screenIndex(m)
 	if m.HLAScreenIdx ~= nil then return m.HLAScreenIdx end
 	m.HLAScreenIdx = false

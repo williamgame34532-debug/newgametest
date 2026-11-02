@@ -1,15 +1,7 @@
--- The intro: on joining, before the main menu, the unit rides a Combine train at night. A car of metal, cold
--- lamps, benches; behind the windows the poles and the lamps of the line rush by, the city's blocks slide
--- past slower. The rumble of the wheels, the clank of the couplings, now and then a horn far ahead, all with
--- the echo of the car. Space (the hint at the bottom) fades to black and opens the main menu.
--- hla_intro 0 — no intro; hla_intro_play — watch it again.
--- Also here: HLA.FadeSwap(fn) — a short black blink around a camera change (third person on / off).
 local I = {active = false}
 HLA.Intro = I
 local cvIntro = CreateClientConVar('hla_intro', '1', true, false, 'The train intro before the main menu (0/1)')
 
----------------------------------------------------------------------------------------------------
--- a black blink: fade in, fn() at full black, fade out
 local blink = {t = 0, mode = 0}
 function HLA.FadeSwap(fn, dIn, dOut)
 	blink.dIn, blink.dOut = dIn or 0.16, dOut or 0.28
@@ -30,8 +22,6 @@ hook.Add('PostRenderVGUI', 'HLAFadeSwap', function()
 	surface.DrawRect(0, 0, ScrW(), ScrH())
 end)
 
----------------------------------------------------------------------------------------------------
--- materials: the first one the game has, else a plain colour
 local function pick(list)
 	for _, name in ipairs(list) do
 		local m = Material(name)
@@ -58,7 +48,6 @@ local function mats()
 	return MAT
 end
 
--- a quad through mesh (tiled UVs, a colour per corner): a, b, c, d counter-clockwise seen from the front
 local function quad(a, b, c, d, tile, ca, cb, cc, cd)
 	local w, h = a:Distance(b) / tile, a:Distance(d) / tile
 	mesh.Begin(MATERIAL_QUADS, 1)
@@ -69,13 +58,10 @@ local function quad(a, b, c, d, tile, ca, cb, cc, cd)
 	mesh.End()
 end
 
----------------------------------------------------------------------------------------------------
--- the car: x along the train (-400..400), y across (-56..56), z up (0..100); the train goes to +x
 local L, Wd, Hh = 400, 56, 100
 local WIN_LO, WIN_HI, WIN_W, WIN_STEP = 44, 80, 72, 120
-local SPEED = 900 -- how fast the world outside runs past
+local SPEED = 900
 
--- the light at a point of the car: the lamps of the ceiling, and the lamps outside flashing through the windows
 local function light(x, z, outside)
 	local base = 0.30 + 0.28 * math.Clamp(z / Hh, 0, 1)
 	for k = -3, 3 do
@@ -92,7 +78,6 @@ local function col(x, z, outside, tint)
 	return Color(math.min(255, r), math.min(255, g), math.min(255, b))
 end
 
--- a wall strip from x0 to x1 between z0 and z1 at side sy (+1 / -1), cut into pieces for the light
 local function wallStrip(sy, x0, x1, z0, z1, outside, tint)
 	local y = sy * Wd
 	local step = 40
@@ -112,14 +97,13 @@ end
 
 local function box(mn, mx, c)
 	local function q(a, b, cc, d) quad(a, b, cc, d, 64, c, c, c, c) end
-	q(Vector(mn.x, mn.y, mx.z), Vector(mx.x, mn.y, mx.z), Vector(mx.x, mx.y, mx.z), Vector(mn.x, mx.y, mx.z)) -- top
+	q(Vector(mn.x, mn.y, mx.z), Vector(mx.x, mn.y, mx.z), Vector(mx.x, mx.y, mx.z), Vector(mn.x, mx.y, mx.z))
 	q(Vector(mn.x, mn.y, mn.z), Vector(mx.x, mn.y, mn.z), Vector(mx.x, mn.y, mx.z), Vector(mn.x, mn.y, mx.z))
 	q(Vector(mx.x, mx.y, mn.z), Vector(mn.x, mx.y, mn.z), Vector(mn.x, mx.y, mx.z), Vector(mx.x, mx.y, mx.z))
 	q(Vector(mx.x, mn.y, mn.z), Vector(mx.x, mx.y, mn.z), Vector(mx.x, mx.y, mx.z), Vector(mx.x, mn.y, mx.z))
 	q(Vector(mn.x, mx.y, mn.z), Vector(mn.x, mn.y, mn.z), Vector(mn.x, mn.y, mx.z), Vector(mn.x, mx.y, mx.z))
 end
 
--- the city outside: blocks with lit windows, fixed by a seed, scrolling past
 local city = {}
 local function buildCity()
 	if #city > 0 then return end
@@ -139,10 +123,11 @@ local function buildCity()
 	end
 end
 
-local function drawOutside(t)
+local function drawOutside(t, half, reach)
+	half = half or Wd
+	reach = reach or L
 	local M = mats()
 	render.SetMaterial(M.plain)
-	-- the night sky and the haze over the city
 	for side = -1, 1, 2 do
 		local y = side * 3000
 		local a, b = Vector(-9000, y, -400), Vector(9000, y, -400)
@@ -150,7 +135,6 @@ local function drawOutside(t)
 		local lo, hi = Color(22, 34, 46), Color(4, 8, 14)
 		if side > 0 then quad(b, a, d, c, 9000, lo, lo, hi, hi) else quad(a, b, c, d, 9000, lo, lo, hi, hi) end
 	end
-	-- the blocks: slower (far away)
 	for _, b in ipairs(city) do
 		local x = (b.x - t * SPEED * 0.35) % 6000 - 3000
 		local y = b.side * b.d
@@ -167,18 +151,17 @@ local function drawOutside(t)
 			else quad(Vector(lx, yy, lz), Vector(lx + 14, yy, lz), Vector(lx + 14, yy, lz + 18), Vector(lx, yy, lz + 18), 9000, lc, lc, lc, lc) end
 		end
 	end
-	-- the poles of the line, close and fast, each with a lamp
 	local lamps = {}
 	local POLE = 420
 	for side = -1, 1, 2 do
 		local off = side > 0 and 0 or POLE / 2
 		for k = -6, 6 do
 			local x = ((k * POLE + off - t * SPEED) % (POLE * 13)) - POLE * 6.5
-			local y = side * 150
+			local y = side * (half + 94)
 			local c = Color(6, 8, 10)
-			box(Vector(x - 5, y - 5, -200), Vector(x + 5, y + 5, 170), c)
-			box(Vector(x - 5, y - side * 40, 160), Vector(x + 5, y, 166), c)
-			lamps[#lamps + 1] = {pos = Vector(x, y - side * 36, 156), x = x}
+			box(Vector(x - 5, y - 5, -200), Vector(x + 5, y + 5, 230), c)
+			box(Vector(x - 5, y - side * 40, 220), Vector(x + 5, y, 226), c)
+			lamps[#lamps + 1] = {pos = Vector(x, y - side * 36, 216), x = x}
 		end
 	end
 	render.SetMaterial(M.glow)
@@ -187,14 +170,13 @@ local function drawOutside(t)
 		render.DrawSprite(l.pos, 24, 24, Color(230, 245, 255, 255))
 	end
 	local near = {}
-	for _, l in ipairs(lamps) do if math.abs(l.x) < L + 200 then near[#near + 1] = l.x end end
+	for _, l in ipairs(lamps) do if math.abs(l.x) < reach + 200 then near[#near + 1] = l.x end end
 	return near
 end
 
 local function drawCar(outside)
 	local M = mats()
 	local tintWall, tintFloor, tintCeil = {120, 140, 150}, {80, 90, 96}, {90, 104, 114}
-	-- the walls with the window openings
 	render.SetMaterial(M.wall)
 	for sy = -1, 1, 2 do
 		wallStrip(sy, -L, L, 0, WIN_LO, outside, tintWall)
@@ -206,7 +188,6 @@ local function drawCar(outside)
 		end
 		wallStrip(sy, x, L, WIN_LO, WIN_HI, outside, tintWall)
 	end
-	-- the floor and the ceiling
 	render.SetMaterial(M.floor)
 	for x = -L, L - 40, 40 do
 		local a, b = col(x, 0, outside, tintFloor), col(x + 40, 0, outside, tintFloor)
@@ -217,18 +198,15 @@ local function drawCar(outside)
 		local a, b = col(x, Hh, outside, tintCeil), col(x + 40, Hh, outside, tintCeil)
 		quad(Vector(x, Wd, Hh), Vector(x + 40, Wd, Hh), Vector(x + 40, -Wd, Hh), Vector(x, -Wd, Hh), 64, a, b, b, a)
 	end
-	-- the ends of the car
 	render.SetMaterial(M.wall)
 	local e = Color(70, 82, 90)
 	quad(Vector(L, -Wd, 0), Vector(L, Wd, 0), Vector(L, Wd, Hh), Vector(L, -Wd, Hh), 64, e, e, e, e)
 	quad(Vector(-L, Wd, 0), Vector(-L, -Wd, 0), Vector(-L, -Wd, Hh), Vector(-L, Wd, Hh), 64, e, e, e, e)
-	-- the door at the far end, its window lit
 	render.SetMaterial(M.plain)
 	local dc = Color(30, 38, 44)
 	quad(Vector(L - 1, -22, 0), Vector(L - 1, 22, 0), Vector(L - 1, 22, 86), Vector(L - 1, -22, 86), 64, dc, dc, dc, dc)
 	local wc = Color(110, 170, 210)
 	quad(Vector(L - 2, -12, 50), Vector(L - 2, 12, 50), Vector(L - 2, 12, 76), Vector(L - 2, -12, 76), 64, wc, wc, wc, wc)
-	-- the benches along the walls, the window frames, the handrail and the lamps
 	render.SetMaterial(M.wall)
 	for sy = -1, 1, 2 do
 		local y0, y1 = sy > 0 and Wd - 24 or -Wd, sy > 0 and Wd or -Wd + 24
@@ -247,8 +225,6 @@ local function drawCar(outside)
 	end
 end
 
----------------------------------------------------------------------------------------------------
--- sound: the first file the game has of each list
 local SND = {
 	rumble = {'ambient/machines/train_rumble_loop1.wav', 'plats/ttrain4.wav', 'plats/tram_move.wav', 'ambient/machines/machine6.wav'},
 	wheels = {'ambient/machines/train_wheels_loop1.wav', 'plats/ttrain1.wav', 'ambient/machines/city_ventpump_loop1.wav'},
@@ -276,7 +252,7 @@ local function startSounds()
 	I.horns, I.clanks = all(SND.horn), all(SND.clank)
 	I.nextHorn = RealTime() + 4 + math.random() * 4
 	I.nextClank = RealTime() + 1.5
-	if p.SetDSP then p:SetDSP(4, false) end -- a large metal room: the echo of the car
+	if p.SetDSP then p:SetDSP(4, false) end
 end
 
 local function stopSounds()
@@ -286,7 +262,70 @@ local function stopSounds()
 	if IsValid(p) and p.SetDSP then p:SetDSP(0, false) end
 end
 
----------------------------------------------------------------------------------------------------
+local TRAIN_CAR = 'models/props_combine/combine_train02b.mdl'
+local TRAIN_HEAD = 'models/props_combine/combine_train02a.mdl'
+local cvTrain = CreateClientConVar('hla_intro_train', '1', true, false, 'Intro: the HL2 Combine train model (1) or the simple car (0)')
+local cvCamX = CreateClientConVar('hla_intro_cam_x', '0.25', true, false, 'Intro camera along the car, 0..1')
+local cvCamY = CreateClientConVar('hla_intro_cam_y', '0.32', true, false, 'Intro camera across the car, 0..1')
+local cvCamZ = CreateClientConVar('hla_intro_cam_z', '0.45', true, false, 'Intro camera height in the car, 0..1')
+local EXTERIOR = 7
+
+local function makeTrain()
+	I.cars = {}
+	if not cvTrain:GetBool() or not util.IsValidModel(TRAIN_CAR) then return end
+	local probe = ClientsideModel(TRAIN_CAR, RENDERGROUP_OPAQUE)
+	if not IsValid(probe) then return end
+	local mn, mx = probe:GetModelBounds()
+	local yaw = 0
+	if (mx.y - mn.y) > (mx.x - mn.x) then
+		yaw = 90
+		mn, mx = Vector(-mx.y, mn.x, mn.z), Vector(-mn.y, mx.x, mx.z)
+	end
+	local len = mx.x - mn.x
+	local cy, cz = (mn.y + mx.y) / 2, mn.z
+	I.box = {len = len, half = (mx.y - mn.y) / 2, h = mx.z - mn.z}
+	local function place(e, k)
+		e:SetNoDraw(true)
+		e:SetAngles(Angle(0, yaw, 0))
+		e:SetPos(Vector(-(mn.x + mx.x) / 2 + k * (len + 18), -cy, -cz))
+		e:SetRenderBounds(Vector(-2000, -2000, -500), Vector(2000, 2000, 800))
+		e.HLAK = k
+	end
+	place(probe, 0)
+	I.cars[1] = probe
+	for k = -2, 2 do
+		if k ~= 0 then
+			local mdl = (k == 2 and util.IsValidModel(TRAIN_HEAD)) and TRAIN_HEAD or TRAIN_CAR
+			local e = ClientsideModel(mdl, RENDERGROUP_OPAQUE)
+			if IsValid(e) then place(e, k) I.cars[#I.cars + 1] = e end
+		end
+	end
+end
+
+local function dropTrain()
+	for _, e in ipairs(I.cars or {}) do if IsValid(e) then e:Remove() end end
+	I.cars = {}
+	I.box = nil
+end
+
+local function trainLight(pass, k)
+	local b = (0.16 + 0.5 * pass) * k
+	render.SuppressEngineLighting(true)
+	render.ResetModelLighting(b * 0.55, b * 0.7, b * 0.85)
+	render.SetModelLighting(BOX_TOP, b * 1.4, b * 1.6, b * 1.8)
+	render.SetModelLighting(BOX_BOTTOM, b * 0.2, b * 0.25, b * 0.3)
+end
+
+local function drawTrain(inside, pass)
+	if inside then render.CullMode(MATERIAL_CULLMODE_CW) end
+	trainLight(pass, inside and 1.2 or 1)
+	for _, e in ipairs(I.cars) do
+		if IsValid(e) and (not inside or e.HLAK == 0) then e:DrawModel() end
+	end
+	render.SuppressEngineLighting(false)
+	if inside then render.CullMode(MATERIAL_CULLMODE_CCW) end
+end
+
 function I.Start(onDone)
 	if not cvIntro:GetBool() or I.active then return false end
 	buildCity()
@@ -303,6 +342,7 @@ function I.Start(onDone)
 			I.monitor:SetAngles(Angle(0, 180, 0))
 		end
 	end
+	makeTrain()
 	startSounds()
 	return true
 end
@@ -312,10 +352,11 @@ local function finish()
 	stopSounds()
 	if IsValid(I.monitor) then I.monitor:Remove() end
 	I.monitor = nil
+	dropTrain()
 	local f = I.onDone
 	I.onDone = nil
 	if f then f() end
-	HLA.FadeSwap(nil, 0.01, 1.2) -- out of the black
+	HLA.FadeSwap(nil, 0.01, 1.2)
 end
 
 function I.Leave()
@@ -354,24 +395,42 @@ surface.CreateFont('hla_intro_title', {font = 'Exo 2', size = math.max(28, math.
 hook.Add('RenderScene', 'HLAIntro', function()
 	if not I.active then return end
 	local t = RealTime() - I.born
-	-- the camera: on a bench, looking along the car; the train sways and shakes
 	local sway = math.sin(t * 0.9) * 0.8 + math.sin(t * 2.3) * 0.25
 	local shake = (math.sin(t * 31) + math.sin(t * 47)) * 0.12
-	local origin = Vector(-250 + math.sin(t * 0.05) * 6, -22 + sway * 0.6, 60 + shake)
-	local ang = Angle(4 + math.sin(t * 0.21) * 1.5 + shake * 0.5, 14 + math.sin(t * 0.13) * 6, sway * 0.9)
+	local B = I.box
+	local outsideShot = B and t < EXTERIOR
+	local origin, ang
+	if not B then
+		origin = Vector(-250 + math.sin(t * 0.05) * 6, -22 + sway * 0.6, 60 + shake)
+		ang = Angle(4 + math.sin(t * 0.21) * 1.5 + shake * 0.5, 14 + math.sin(t * 0.13) * 6, sway * 0.9)
+	elseif outsideShot then
+		local k = t / EXTERIOR
+		origin = Vector(-B.len * 0.9 + k * B.len * 0.7, -(B.half + 330), B.h * 0.55 + math.sin(t * 0.7) * 4)
+		ang = Angle(6 + shake * 0.3, 74 - k * 18, 0)
+	else
+		local fx, fy, fz = math.Clamp(cvCamX:GetFloat(), 0.05, 0.95), math.Clamp(cvCamY:GetFloat(), 0.05, 0.95), math.Clamp(cvCamZ:GetFloat(), 0.1, 0.9)
+		origin = Vector(-B.len / 2 + B.len * fx + math.sin(t * 0.05) * 4, -B.half + 2 * B.half * fy + sway * 0.6, B.h * fz + shake)
+		ang = Angle(4 + math.sin(t * 0.21) * 1.5 + shake * 0.5, 12 + math.sin(t * 0.13) * 6, sway * 0.9)
+	end
 	render.Clear(0, 0, 0, 255, true, true)
-	cam.Start3D(origin, ang, 72, 0, 0, ScrW(), ScrH(), 2, 10000)
-		I.flick = (math.random() < 0.01) and 0.7 or 1 -- a lamp hiccups now and then
-		local outside = drawOutside(t)
-		drawCar(outside)
-		if IsValid(I.monitor) then
+	cam.Start3D(origin, ang, 72, 0, 0, ScrW(), ScrH(), 2, 12000)
+		I.flick = (math.random() < 0.01) and 0.7 or 1
+		if B then
+			local outside = drawOutside(t, B.half, B.len / 2)
+			local pass = 0
+			for _, lx in ipairs(outside) do pass = pass + math.exp(-((lx - origin.x) / 160) ^ 2) end
+			drawTrain(not outsideShot, math.min(pass, 1.5) * (I.flick or 1))
+		else
+			local outside = drawOutside(t)
+			drawCar(outside)
+		end
+		if IsValid(I.monitor) and not B then
 			render.SuppressEngineLighting(true)
 			render.ResetModelLighting(0.5, 0.6, 0.7)
 			I.monitor:DrawModel()
 			render.SuppressEngineLighting(false)
 		end
 	cam.End3D()
-	-- 2D: the bars, the line, the hint, the fades
 	cam.Start2D()
 		local W, H = ScrW(), ScrH()
 		local bar = math.floor(H * 0.09)
@@ -389,6 +448,7 @@ hook.Add('RenderScene', 'HLAIntro', function()
 		local hk = math.Clamp((t - 2) / 1.5, 0, 1)
 		draw.SimpleText('[ ПРОБЕЛ ]   ПРОДОЛЖИТЬ', 'hla_intro_hint', W / 2, H - bar / 2, Color(170, 230, 255, (120 + 135 * pulse) * hk), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 		local black = math.Clamp(1 - t / 2.5, 0, 1)
+		if I.box then black = math.max(black, 1 - math.Clamp(math.abs(t - EXTERIOR) / 0.6, 0, 1)) end
 		if I.leaving then black = math.max(black, math.Clamp((RealTime() - I.leaving) / 1.1, 0, 1)) end
 		if black > 0 then
 			surface.SetDrawColor(0, 0, 0, 255 * black)

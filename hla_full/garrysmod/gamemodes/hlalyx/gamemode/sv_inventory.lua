@@ -1,10 +1,7 @@
--- Inventory (server): 16 slots per character, saved in data/hla/inv/char_<character ID>.json
--- (the permanent ID of the character, see sv_menu.lua).
--- Clients only request actions (move / use / drop / place); every action is checked here.
 local I = HLA.Items
 
-util.AddNetworkString('hla_inv')        -- server -> client: the full inventory
-util.AddNetworkString('hla_inv_do')     -- client -> server: action
+util.AddNetworkString('hla_inv')
+util.AddNetworkString('hla_inv_do')
 file.CreateDir('hla/inv')
 
 local function key(p)
@@ -69,7 +66,6 @@ function I.Take(p, slot)
 	return id
 end
 
--- a world item in front of the player
 function I.SpawnWorld(id, pos, ang)
 	local e = ents.Create('hla_item')
 	if not IsValid(e) then return end
@@ -91,6 +87,22 @@ function USE.armor(p, d)
 	if p:Armor() >= 100 then return false, 'Броня уже полная' end
 	p:SetArmor(math.min(100, p:Armor() + d.amount))
 	p:EmitSound('items/battery_pickup.wav', 60)
+	return true
+end
+
+function USE.ammo(p, d)
+	local ammo, amount = d.ammo, d.amount
+	if not ammo then
+		local w = p:GetActiveWeapon()
+		if not IsValid(w) or w:GetPrimaryAmmoType() < 0 then
+			for _, o in ipairs(p:GetWeapons()) do if o:GetPrimaryAmmoType() >= 0 then w = o break end end
+		end
+		if not IsValid(w) or w:GetPrimaryAmmoType() < 0 then return false, 'Нет оружия для этих магазинов' end
+		ammo = game.GetAmmoName(w:GetPrimaryAmmoType())
+		amount = math.max(w:GetMaxClip1(), 10) * (d.clips or 2)
+	end
+	if p:GiveAmmo(amount, ammo, true) <= 0 then return false, 'Не удалось взять патроны' end
+	p:EmitSound('items/ammo_pickup.wav', 60)
 	return true
 end
 
@@ -120,7 +132,6 @@ net.Receive('hla_inv_do', function(_, p)
 		I.SpawnWorld(id, tr.HitPos + tr.HitNormal * 6)
 		p:EmitSound(I.MoveSound(), 50, 90)
 	elseif what == 'place' then
-		-- put an item into a station (health vial into a health station)
 		local s, ent = net.ReadUInt(5), net.ReadEntity()
 		local id = inv[s]
 		if not id or not IsValid(ent) or not ent.AcceptItem then return end
@@ -132,8 +143,6 @@ end)
 hook.Add('PlayerDisconnected', 'HLAInventory', function(p) I.Save(p) end)
 hook.Add('ShutDown', 'HLAInventory', function() for _, p in ipairs(player.GetAll()) do I.Save(p) end end)
 
----------------------------------------------------------------------------------------------------
--- picking up world items: hold E on the item for I.PickupTime
 hook.Add('KeyPress', 'HLAPickup', function(p, k)
 	if k ~= IN_USE or not p:Alive() or p.HLAInMenu then return end
 	local tr = p:GetEyeTrace()

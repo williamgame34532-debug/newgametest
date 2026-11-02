@@ -1,7 +1,3 @@
--- Chat (client): an own chat box in the blue HUD style. Messages print in like a terminal
--- (IBM Plex Mono from hla_chat_content), stay ~14 s and fade; what someone says also hangs over
--- their head for a few seconds. The standard chat box is hidden; its messages (ChatPrint,
--- chat.AddText of other addons) come here too. Enter / Y — write, Esc — cancel.
 local CH = HLA.Chat
 local C = {lines = {}, open = false, bubbles = {}}
 HLA.ChatBox = C
@@ -12,7 +8,7 @@ local GREY = Color(122, 150, 170)
 local ENV = Color(150, 192, 214)
 local ACT = Color(176, 214, 236)
 local LIFE, FADE, MAXLINES = 14, 2, 60
-local SPEED = 110 -- letters per second of the print-in
+local SPEED = 110
 
 local bg, inputBg, mark = Material('hla/chat/bg'), Material('hla/chat/input'), Material('hla/chat/mark')
 
@@ -31,16 +27,13 @@ end
 surface.CreateFont('hla_chat_head', {font = 'IBM Plex Mono', size = 44, weight = 600, extended = true})
 surface.CreateFont('hla_chat_head_i', {font = 'IBM Plex Mono', size = 40, weight = 400, italic = true, extended = true})
 
--- utf8 helpers
 local function ulen(s) return utf8.len(s) or #s end
-local function usub(s, n) -- first n letters
+local function usub(s, n)
 	if n <= 0 then return '' end
 	local o = utf8.offset(s, n + 1)
 	return o and string.sub(s, 1, o - 1) or s
 end
 
----------------------------------------------------------------------------------------------------
--- a message is a list of segments {text, colour, font}
 function C.Add(segs, opts)
 	local line = {segs = segs, t = RealTime(), total = 0}
 	for _, sg in ipairs(segs) do line.total = line.total + ulen(sg[1]) end
@@ -49,7 +42,6 @@ function C.Add(segs, opts)
 	while #C.lines > MAXLINES do table.remove(C.lines, 1) end
 end
 
--- wrap the segments to rows of width w; each word keeps its segment's colour and font
 local function layout(line, w)
 	if line.cacheW == w then return line.rows end
 	local rows, row, x = {}, {}, 0
@@ -75,8 +67,6 @@ local function layout(line, w)
 	return rows
 end
 
----------------------------------------------------------------------------------------------------
--- incoming messages
 local function soft(path)
 	if file.Exists('sound/' .. path, 'GAME') then LocalPlayer():EmitSound(path, 0, 100, 0.25, CHAN_STATIC) end
 end
@@ -91,12 +81,9 @@ net.Receive('hla_chat', function()
 	local radioSounds = (mode and mode.radio) and net.ReadString() or ''
 	if id == CH.DISPATCH then
 		local snd = net.ReadString()
-		-- «// ОВЕРВОТЧ — …» (city broadcast) or «// ДИСПЕТЧЕР — …» (radio), red
 		local who = name ~= '' and name or 'ДИСПЕТЧЕР'
 		C.Add({{'// ' .. who .. ' — ', Color(236, 64, 52), 'hla_chat_b'}, {text, Color(255, 120, 108), 'hla_chat'}})
 		if snd == '' then soft('hla/ui/textline_7.wav') return end
-		-- the chain plays from the player, not positional, one part after another by its length
-		-- (no file.Exists check: it does not always see the sounds inside the game archives)
 		local me = LocalPlayer()
 		local at = 0
 		for part in string.gmatch(snd, '[^;]+') do
@@ -105,7 +92,7 @@ net.Receive('hla_chat', function()
 			dur = tonumber(dur) or 0
 			if dur <= 0 then dur = SoundDuration(path) end
 			if not dur or dur <= 0 then dur = 1.2 end
-			timer.Simple(at, function() surface.PlaySound(path) end) -- 2D: heard the same everywhere
+			timer.Simple(at, function() surface.PlaySound(path) end)
 			at = at + math.max(0.06, dur - 0.03)
 		end
 		return
@@ -122,12 +109,10 @@ net.Receive('hla_chat', function()
 	if muffled then
 		segs = {{name, BLUE, 'hla_chat_b'}, {m.key == 'y' and ' что-то кричит вдалеке.' or ' говорит что-то неразборчиво.', GREY, 'hla_chat_i'}}
 	elseif m.radio then
-		-- radios: [ТАК-РАЦИЯ] in blue to every unit, [РАЦИЯ] of the squad in green
 		local c = m.radio == 'tac' and Color(110, 200, 255) or Color(110, 232, 128)
 		local cd = m.radio == 'tac' and Color(170, 222, 255) or Color(178, 244, 186)
 		segs = {{'[' .. m.label .. '] ', c, 'hla_chat_b'}, {name, c, 'hla_chat_b'}, {' ' .. m.verb .. ': ', c, 'hla_chat'}, {'"' .. text .. '"', cd, 'hla_chat'}}
 		C.Add(segs)
-		-- radio click, the voicelines through the radio one after another, the closing click
 		local me = LocalPlayer()
 		me:EmitSound('npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav', 0, 100, 0.3, CHAN_STATIC)
 		local at = 0.15
@@ -144,21 +129,18 @@ net.Receive('hla_chat', function()
 	elseif m.env then
 		segs = {{'* ', BLUE, 'hla_chat_b'}, {text, ENV, 'hla_chat_i'}, {'  (' .. name .. ')', GREY, 'hla_chat_s'}}
 	else
-		-- speech of a unit: the words in the Combine brackets <:: ... ::>
 		local body = m.key == 'w' and 'hla_chat_i' or 'hla_chat'
 		segs = {{name, BLUE, 'hla_chat_b'}, {' ' .. m.verb .. ': ', GREY, 'hla_chat'}, {'<:: ', BLUE, 'hla_chat_b'},
 			{text, m.key == 'w' and ACT or WHITE, body}, {' ::>', BLUE, 'hla_chat_b'}}
 	end
 	C.Add(segs)
 	soft(m.key == 'w' and 'hla/ui/textline_8.wav' or 'hla/ui/textline_6.wav')
-	-- over the head of the speaker (players and story NPCs)
 	if IsValid(who) and not muffled and not m.env then
 		C.bubbles[who] = {text = m.action and ('* ' .. text) or nil, inner = (not m.action) and text or nil, t = RealTime(),
 			italic = m.action or m.key == 'w', yell = m.key == 'y', life = math.Clamp(4 + ulen(text) / 14, 5, 12)}
 	end
 end)
 
--- messages of the game and of other addons
 local origAddText = chat.AddText
 function chat.AddText(...)
 	local segs, col = {}, WHITE
@@ -168,7 +150,7 @@ function chat.AddText(...)
 		elseif v ~= nil then segs[#segs + 1] = {tostring(v), col, 'hla_chat'} end
 	end
 	if #segs > 0 then C.Add(segs) end
-	return origAddText(...) -- also into the console
+	return origAddText(...)
 end
 
 hook.Add('ChatText', 'HLAChat', function(_, _, text, kind)
@@ -177,12 +159,8 @@ hook.Add('ChatText', 'HLAChat', function(_, _, text, kind)
 	return true
 end)
 hook.Add('HUDShouldDraw', 'HLAChatHideDefault', function(name) if name == 'CHudChat' then return false end end)
-function GM:OnPlayerChat() return true end -- everything is shown by the box above
+function GM:OnPlayerChat() return true end
 
----------------------------------------------------------------------------------------------------
--- input line
--- where the chat stands: dragged by its hint line while it is open, remembered between sessions
--- (as fractions of the screen, so it stays in place at another resolution)
 local posX = CreateClientConVar('hla_chat_x', '-1', true, false, 'Chat position: left edge, 0..1 of the screen width (-1 = default)')
 local posY = CreateClientConVar('hla_chat_y', '-1', true, false, 'Chat position: bottom line, 0..1 of the screen height (-1 = default)')
 local function geometry()
@@ -204,8 +182,6 @@ function C.Close()
 	C.frame, C.suggPanel, C.sugg = nil, nil, nil
 end
 
--- voicelines: what is typed after the last comma (and after /w, /y) is looked up in the list;
--- the closest lines are shown over the input, the first is greyed in after the cursor, Tab takes it
 local V = HLA.Voice
 local function splitInput(v)
 	local cmd, rest = '', v
@@ -227,7 +203,6 @@ local function updateSugg(v)
 	local list = V.Suggest(typed, 5)
 	if #list == 0 then return end
 	C.sugg = list
-	-- the rest of the first line after what is typed (when it is typed from its beginning)
 	local n = ulen(typed)
 	local head = usub(list[1].text, n)
 	if V.Norm(head) == V.Norm(typed) and string.sub(v, -1) ~= ' ' then
@@ -254,14 +229,12 @@ function C.Open()
 	fonts()
 	C.open = true
 	local x, bottom, w, s = geometry()
-	-- a line of hints with the commands over the input field, always shown while typing
 	local hintH, entryH = math.floor(26 * s), math.floor(46 * s)
 	local f = vgui.Create('EditablePanel')
 	C.frame = f
 	f:SetPos(x, bottom + math.floor(6 * s))
 	f:SetSize(w, hintH + entryH)
 	f:MakePopup()
-	-- drag the chat by the line of hints over the input
 	f:SetMouseInputEnabled(true)
 	f:SetCursor('sizeall')
 	f.OnMousePressed = function(self, code)
@@ -286,7 +259,6 @@ function C.Open()
 		local nx = math.Clamp(mx - self.drag[1], 0, ScrW() - self:GetWide())
 		local ny = math.Clamp(my - self.drag[2], math.floor(120 * s), ScrH() - self:GetTall())
 		self:SetPos(nx, ny)
-		-- the messages follow at once
 		posX:SetFloat(nx / ScrW()) posY:SetFloat((ny - math.floor(6 * s)) / ScrH())
 	end
 	f.Paint = function(self, pw, ph)
@@ -301,7 +273,6 @@ function C.Open()
 			draw.SimpleText(h[2], 'hla_chat_s', hx, hintH / 2, Color(GREY.r, GREY.g, GREY.b, on and 255 or 200), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 			hx = hx + surface.GetTextSize(h[2]) + math.floor(22 * s)
 		end
-		-- (Enter — сказать, Esc — отмена: no room for it next to six commands)
 	end
 	local e = vgui.Create('DTextEntry', f)
 	e:SetPos(0, hintH)
@@ -313,7 +284,6 @@ function C.Open()
 	e:SetTextInset(math.floor(14 * s), 0)
 	e.AllowInput = function(self) return ulen(self:GetValue()) >= CH.MaxLen end
 	e.Paint = function(self, pw, ph)
-		-- dark field, a thin blue line under it, the mode and its range on the right
 		surface.SetDrawColor(4, 12, 20, 225)
 		surface.DrawRect(0, 0, pw, ph)
 		surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 200)
@@ -325,7 +295,6 @@ function C.Open()
 			draw.SimpleText('Сообщение — слышат только те, кто рядом', 'hla_chat_i', math.floor(14 * s), ph / 2, Color(GREY.r, GREY.g, GREY.b, 140), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
 		end
 		self:DrawTextEntryText(WHITE, Color(BLUE.r, BLUE.g, BLUE.b, 120), WHITE)
-		-- the rest of the voiceline, greyed, after the typed text
 		if C.ghost and self:GetCaretPos() >= ulen(self:GetValue()) then
 			surface.SetFont('hla_chat')
 			local tw = surface.GetTextSize(self:GetValue())
@@ -348,13 +317,11 @@ function C.Open()
 		C.Close()
 		if t == '' then return end
 		if string.sub(t, 1, 1) == '!' then
-			-- commands of admin addons go the usual way
 			RunConsoleCommand('say', (string.gsub(t, '"', "'")))
 		else
 			net.Start('hla_say') net.WriteString(usub(t, CH.MaxLen + 40)) net.SendToServer()
 		end
 	end
-	-- the list of matching voicelines over the input
 	local sp = vgui.Create('DPanel')
 	C.suggPanel = sp
 	local rowH = math.floor(26 * s)
@@ -402,8 +369,6 @@ hook.Add('OnPauseMenuShow', 'HLAChat', function()
 	if C.open then C.Close() return false end
 end)
 
----------------------------------------------------------------------------------------------------
--- drawing the box
 hook.Add('HUDPaint', 'HLAChat', function()
 	local p = LocalPlayer()
 	if not IsValid(p) or p:GetNWBool('hla_in_menu') then return end
@@ -426,14 +391,12 @@ hook.Add('HUDPaint', 'HLAChat', function()
 		local hgt = #rows * lh + math.floor(6 * s)
 		y = y - hgt
 		if y < ScrH() * 0.3 then break end
-		-- backdrop and marker
 		surface.SetMaterial(bg)
 		surface.SetDrawColor(255, 255, 255, 230 * a)
 		surface.DrawTexturedRect(x, y, w, hgt - math.floor(2 * s))
 		surface.SetMaterial(mark)
 		surface.SetDrawColor(255, 255, 255, 220 * a)
 		surface.DrawTexturedRect(x - math.floor(6 * s), y + math.floor(3 * s), math.floor(12 * s), hgt - math.floor(8 * s))
-		-- print-in: letters appear one after another
 		local left = math.floor(age * SPEED)
 		local blink = left < line.total and (math.floor(now * 8) % 2 == 0)
 		local lastX, lastY
@@ -460,8 +423,6 @@ hook.Add('HUDPaint', 'HLAChat', function()
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- words over the head, as long as they are fresh
 local function wrapWords(text, maxLetters)
 	local rows, cur, cut = {}, '', false
 	for word in string.gmatch(text, '%S+') do
@@ -476,7 +437,6 @@ local function wrapWords(text, maxLetters)
 	return rows
 end
 
--- rows of a bubble: speech gets the brackets around all of it, «<::» opens the first row, «::>» closes the last
 local function bubbleRows(b)
 	if b.rows then return b.rows end
 	local rows = wrapWords(b.inner or b.text, 32)
@@ -488,8 +448,6 @@ local function bubbleRows(b)
 	return rows
 end
 
--- the point over the head: players by their eyes (the view follows crouching smoothly, the bones of an
--- unseen player are stale), others by the head bone; smoothed so running does not shake the words
 local function headPos(ent)
 	local pos
 	if ent:IsPlayer() then
@@ -512,9 +470,9 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 		local life = b.life or 7
 		if not IsValid(ent) or age > life or (ent:IsPlayer() and not ent:Alive()) then
 			C.bubbles[ent] = nil
-		elseif ent ~= me then
+		elseif ent ~= me or me:ShouldDrawLocalPlayer() then
 			local a = math.Clamp(math.min(age * 4, (life - age) / 1.2), 0, 1)
-			local target = headPos(ent) + Vector(0, 0, 22) -- over the name tag
+			local target = headPos(ent) + Vector(0, 0, 22)
 			b.pos = b.pos and LerpVector(math.min(1, FrameTime() * 14), b.pos, target) or target
 			local pos = b.pos
 			if pos:DistToSqr(EyePos()) < 900 * 900 then
@@ -532,7 +490,6 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 	end
 end)
 
--- hla_dispatch_test — the sound of an Overwatch line and of a dispatcher line, to check they are heard
 concommand.Add('hla_dispatch_test', function()
 	local city = 'npc/overwatch/cityvoice/f_innactionisconspiracy_spkr.wav'
 	local radio = 'hla/radiovoice/attention.wav'

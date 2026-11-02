@@ -1,17 +1,10 @@
--- Tab menu in the style of the HL:A menu, drawn in the world where the player looks (3D2D).
--- The camera does not move: the player stands, the mouse drives a cursor on the panel.
--- It closes only with the «ВЕРНУТЬСЯ» button (or by dying).
--- Pages: root (Инвентарь / Помощь / Главное меню), inventory (4 x 4 + item info), help.
--- From the inventory a health vial goes into «placement»: a ghost vial follows the aim and snaps
--- into a health station; LMB puts it in.
 local I = HLA.Items
 local T = {open = false, page = 'root', cursor = {450, 260}, sel = nil, moveFrom = nil, fade = 0}
 HLA.Tab = T
 
 local W, H = 900, 520
-local SCALE = 0.03          -- 27 x 15.6 units
+local SCALE = 0.03
 local DIST = 28
--- blue HUD colours (names kept from the golden version)
 local GOLD = Color(140, 206, 238)
 local GOLD_HI = Color(222, 246, 255)
 local GOLD_DIM = Color(86, 156, 196)
@@ -42,7 +35,6 @@ surface.CreateFont('hlat_big', {font = 'Roboto Condensed', size = 34, weight = 7
 surface.CreateFont('hlat_mid', {font = 'Roboto Condensed', size = 24, weight = 700, extended = true})
 surface.CreateFont('hlat_small', {font = 'Roboto Condensed', size = 17, weight = 500, extended = true})
 
--- inventory as sent by the server
 T.inv = {}
 net.Receive('hla_inv', function()
 	for i = 1, I.Slots do
@@ -59,15 +51,12 @@ local function send(what, a, b)
 	net.SendToServer()
 end
 
----------------------------------------------------------------------------------------------------
--- layout: buttons per page, in canvas pixels
 local GRID = {x = 40, y = 80, cell = 92, gap = 8}
 local function slotRect(i)
 	local c, r = (i - 1) % 4, math.floor((i - 1) / 4)
 	return GRID.x + c * (GRID.cell + GRID.gap), GRID.y + r * (GRID.cell + GRID.gap), GRID.cell, GRID.cell
 end
 
--- TAB > НАСТРОЙКИ: own settings of the player (client convars, kept between sessions)
 T.SETTINGS = {
 	{cv = 'hla_thirdperson', label = 'ТРЕТЬЕ ЛИЦО  (F3)', kind = 'bool'},
 	{cv = 'hla_tp_side', label = 'ПЛЕЧО КАМЕРЫ  (F4)', kind = 'side'},
@@ -75,6 +64,7 @@ T.SETTINGS = {
 	{cv = 'hla_hud_curve', label = 'ИЗОГНУТЫЙ HUD', kind = 'bool'},
 	{cv = 'hla_grade', label = 'ЦВЕТОКОРРЕКЦИЯ (меньше пересвета)', kind = 'bool'},
 	{cv = 'hla_hdr', label = 'HDR-СВЕЧЕНИЕ', kind = 'bool'},
+	{cv = 'hla_atmos', label = 'ШЕЙДЕР АТМОСФЕРЫ', kind = 'bool'},
 	{cv = 'hla_music', label = 'МУЗЫКА АЛЬЯНСА', kind = 'bool'},
 	{cv = 'hla_music_volume', label = 'ГРОМКОСТЬ МУЗЫКИ', kind = 'num', min = 0, max = 1, step = 0.1},
 	{cv = 'hla_hud_scale', label = 'РАЗМЕР HUD', kind = 'num', min = 0.4, max = 1.2, step = 0.05},
@@ -92,7 +82,6 @@ T.SettingValue = setValue
 local function buttons()
 	local b = {}
 	if T.page == 'root' then
-		-- admins get the story editor as one more line (the lines move closer together)
 		local admin = HLA.CanEdit(LocalPlayer())
 		local rows = {{'inventory', 'ИНВЕНТАРЬ'}, {'settings', 'НАСТРОЙКИ'}, {'help', 'ПОМОЩЬ'}, {'mainmenu', 'ГЛАВНОЕ МЕНЮ'}}
 		if admin then rows[#rows + 1] = {'editor', 'РЕДАКТОР'} end
@@ -103,12 +92,12 @@ local function buttons()
 		end
 	elseif T.page == 'settings' then
 		for i, st in ipairs(T.SETTINGS) do
-			local y = 56 + (i - 1) * 40
+			local y = 54 + (i - 1) * 37
 			if st.kind == 'num' then
-				b[#b + 1] = {id = 'dec', arg = i, label = '−', x = 640, y = y, w = 70, h = 36}
-				b[#b + 1] = {id = 'inc', arg = i, label = '+', x = 800, y = y, w = 70, h = 36}
+				b[#b + 1] = {id = 'dec', arg = i, label = '−', x = 640, y = y, w = 70, h = 34}
+				b[#b + 1] = {id = 'inc', arg = i, label = '+', x = 800, y = y, w = 70, h = 34}
 			else
-				b[#b + 1] = {id = 'set', arg = i, x = 40, y = y, w = 830, h = 36}
+				b[#b + 1] = {id = 'set', arg = i, x = 40, y = y, w = 830, h = 34}
 			end
 		end
 		b[#b + 1] = {id = 'back', label = 'НАЗАД', x = 720, y = 462, w = 150, h = 44}
@@ -138,7 +127,6 @@ local function hovered()
 	end
 end
 
----------------------------------------------------------------------------------------------------
 function T.Open()
 	if T.open or T.placing then return end
 	local p = LocalPlayer()
@@ -146,10 +134,8 @@ function T.Open()
 	if CFRework and CFRework.FocusEnt and CFRework.FocusEnt() then return end
 	T.open, T.page, T.sel, T.moveFrom = true, 'root', nil, nil
 	T.cursor = {W / 2, H / 2}
-	-- the panel stands where the player looks, up or down too, facing the eyes
 	local ea = p:EyeAngles()
 	local va = Angle(math.Clamp(ea.p, -60, 60), ea.y, 0)
-	-- from where the camera really is (the eyes of the model, see cl_view.lua)
 	T.pos = p:EyePos() + (HLA.ViewOffset or vector_origin) + va:Forward() * DIST
 	T.fwd = va:Forward()
 	T.right, T.up = va:Right(), va:Up()
@@ -165,16 +151,11 @@ function T.Close()
 	click('hover')
 end
 
--- Tab only opens the menu; it is left with the «ВЕРНУТЬСЯ» button
--- Q (held): for admins (and the host) the Sandbox spawn menu, Shift + Q this menu; for everyone else Q is
--- this menu only. An admin can swap it in the settings (hla_q_sandbox 0: Q this menu, Shift + Q Sandbox).
--- TAB is the scoreboard (cl_scoreboard.lua).
 local cvQ = CreateClientConVar('hla_q_sandbox', '1', true, false, 'Admins: Q opens the Sandbox spawn menu (1) or the unit menu (0); Shift+Q the other')
 local spawnMenuMode
 local function sandboxOpen(gm)
 	local base = gm.BaseClass
 	if base and base.OnSpawnMenuOpen then base.OnSpawnMenuOpen(gm) end
-	-- if the base did not open it (another hook said no), open it ourselves
 	if IsValid(g_SpawnMenu) and not g_SpawnMenu:IsVisible() then
 		g_SpawnMenu:Open()
 		if menubar and menubar.ParentTo then menubar.ParentTo(g_SpawnMenu) end
@@ -244,7 +225,7 @@ local function activate(b)
 	elseif b.id == 'slot' then
 		local i = b.arg
 		if T.moveFrom and T.moveFrom ~= i then
-			send('move', T.moveFrom, i) -- the server plays the move sound
+			send('move', T.moveFrom, i)
 			T.sel, T.moveFrom = i, nil
 		elseif T.inv[i] then
 			if T.sel == i then T.moveFrom = i click('move') else T.sel, T.moveFrom = i, nil end
@@ -265,7 +246,6 @@ local function activate(b)
 	end
 end
 
--- input: the cursor follows the mouse, no movement or shooting while the panel is up
 hook.Add('InputMouseApply', 'HLATab', function(cmd, x, y)
 	if not T.open then return end
 	T.cursor[1] = math.Clamp(T.cursor[1] + x * 0.6, 0, W)
@@ -315,8 +295,6 @@ hook.Add('HUDShouldDraw', 'HLATab', function(name)
 end)
 hook.Add('PreDrawViewModel', 'HLATab', function() if T.open then return true end end)
 
----------------------------------------------------------------------------------------------------
--- drawing
 local icons = {}
 local function iconModel(id)
 	local m = icons[id]
@@ -414,14 +392,12 @@ local function drawPanel(a)
 		for i, line in ipairs(HELP) do draw.SimpleText(line, 'hlat_small', 40, 70 + (i - 1) * 34, Color(GOLD.r, GOLD.g, GOLD.b, 240 * a)) end
 		for _, b in ipairs(buttons()) do button(b, b.label, hot == b, a) end
 	end
-	-- cursor
 	local cx, cy = T.cursor[1], T.cursor[2]
 	surface.SetDrawColor(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 255 * a)
 	surface.DrawRect(cx - 8, cy - 1, 16, 2)
 	surface.DrawRect(cx - 1, cy - 8, 2, 16)
 end
 
--- item models standing in the slots, slowly turning
 local function drawIcons()
 	if T.page ~= 'inventory' then return end
 	local origin = T.pos
@@ -452,7 +428,6 @@ hook.Add('PostDrawTranslucentRenderables', 'HLATab', function(depth, sky)
 	if sky then return end
 	T.fade = math.Clamp(T.fade + (T.open and FrameTime() * 5 or -FrameTime() * 6), 0, 1)
 	if T.fade <= 0 or not T.pos then return end
-	-- the panel keeps its distance from the eyes even when the player was carried a step after opening
 	if T.open and T.fwd then
 		T.pos = LocalPlayer():EyePos() + (HLA.ViewOffset or vector_origin) + T.fwd * DIST
 	end
@@ -465,8 +440,6 @@ hook.Add('PostDrawTranslucentRenderables', 'HLATab', function(depth, sky)
 	cam.IgnoreZ(false)
 end)
 
----------------------------------------------------------------------------------------------------
--- placement of a vial into a health station
 local ghostMat = Material('cf_rework/holo/hologram')
 local ghost
 hook.Add('PostDrawTranslucentRenderables', 'HLAPlace', function(depth, sky)

@@ -1,8 +1,8 @@
 AddCSLuaFile('shared.lua')
 AddCSLuaFile('cl_init.lua')
 include('shared.lua')
-util.AddNetworkString('hla_cams')       -- server -> the unit at the screen: the cameras of the map
-util.AddNetworkString('hla_cam_pick')   -- client -> server: show this camera (0 — off)
+util.AddNetworkString('hla_cams')
+util.AddNetworkString('hla_cam_pick')
 
 local function cameras(self)
 	local out = {}
@@ -13,7 +13,6 @@ local function cameras(self)
 	return out
 end
 
--- the eye of a camera: its «eyes» / «light» attachment, or its centre looking where it faces
 local function eye(cam)
 	for _, name in ipairs({'eyes', 'light', 'lens'}) do
 		local id = cam:LookupAttachment(name)
@@ -27,7 +26,6 @@ end
 
 function ENT:Initialize()
 	self.BaseClass.Initialize(self)
-	-- the monitor stands on the terminal, its screen the same way as the terminal's
 	if util.IsValidModel(self.MonitorModel) then
 		local m = ents.Create('prop_dynamic')
 		m:SetModel(self.MonitorModel)
@@ -54,13 +52,12 @@ function ENT:Think()
 		self:SetCamPos(pos)
 		self:SetCamAng(ang)
 	elseif self:GetCamIndex() > 0 then
-		self:SetCamIndex(0) -- the camera is gone
+		self:SetCamIndex(0)
 	end
 	self:NextThink(CurTime() + 0.05)
 	return true
 end
 
--- the list goes to the unit that steps up to the screen
 hook.Add('HLATerminalFocus', 'HLACamTerminal', function(p, e)
 	if not e.IsCamTerminal then return end
 	local list = cameras(e)
@@ -72,6 +69,7 @@ hook.Add('HLATerminalFocus', 'HLACamTerminal', function(p, e)
 		net.WriteVector(c:GetPos())
 		local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(c:GetPos()) or ''
 		net.WriteString(zone or '')
+		net.WriteString(c:GetNWString('hla_cam_id', ''))
 	end
 	net.Send(p)
 end)
@@ -89,7 +87,6 @@ net.Receive('hla_cam_pick', function(_, p)
 	t:EmitSound('hla/terminal/combine_tech_click_0' .. math.random(1, 5) .. '.wav', 55)
 end)
 
--- what the camera sees is sent to the players near a terminal showing it (also when it is far away)
 hook.Add('SetupPlayerVisibility', 'HLACamTerminal', function(p)
 	for _, t in ipairs(ents.FindByClass('hla_terminal_cams')) do
 		if t:GetCamIndex() > 0 and t:GetPos():DistToSqr(p:GetPos()) < 1200 * 1200 then AddOriginToPVS(t:GetCamPos()) end

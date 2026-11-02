@@ -1,5 +1,3 @@
--- Display layout (pixel space of the 3D2D canvas, 2:1 like the Half-Life: Alyx screen).
--- Shared: the server validates clicks against the same rectangles the client draws.
 CFRework = CFRework or {}
 local C = CFRework
 local S = C.State
@@ -19,9 +17,16 @@ function Lay.Buttons(stage, tab)
 	local b = {}
 	if stage == S.MENU then
 		local R = Lay.ROW
-		for row, index in ipairs(C.CategoryItems(tab or 1)) do
-			if row > R.max then break end
-			b[#b + 1] = {id = 'select', arg = index, x = R.x, y = R.y + (row - 1) * (R.h + R.gap), w = R.w, h = R.h}
+		local list = C.CategoryItems(tab or 1)
+		local n = math.min(#list, 6)
+		local h, gap = R.h, R.gap
+		if n > R.max then
+			gap = 8
+			h = math.floor((R.max * R.h + (R.max - 1) * R.gap - (n - 1) * gap) / n)
+		end
+		for row, index in ipairs(list) do
+			if row > n then break end
+			b[#b + 1] = {id = 'select', arg = index, x = R.x, y = R.y + (row - 1) * (h + gap), w = R.w, h = h}
 		end
 		local T = Lay.TAB
 		for i = 1, #C.Categories do
@@ -41,7 +46,6 @@ function Lay.ButtonAt(stage, tab, x, y)
 	end
 end
 
--- UTF-8 upper case for Russian (string.upper only knows ASCII)
 function C.Upper(s)
 	s = string.upper(s)
 	s = s:gsub('\208([\176-\191])', function(c) return '\208' .. string.char(c:byte() - 32) end)

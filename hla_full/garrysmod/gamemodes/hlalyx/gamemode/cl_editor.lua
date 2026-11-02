@@ -1,15 +1,3 @@
--- The story editor (admins): hla_editor, or TAB > РЕДАКТОР. Tabs:
---   ГЛАВЫ      chapters: title, name, subtitle, spawn points (where you stand), the transition trigger
---              (two corners where you look), the dispatcher line at its start
---   ПВП        team names, round time, friendly fire, spawn points of team 1 / team 2 / each for himself
---   NPC        story NPCs: place where you look, name, model, weapon, idle animations, lines for E
---   ДИСПЕТЧЕР  the HL2 dispatcher lines (listen, correct the text, on the air now, random air every N min),
---              own lines
---   ДЕСАНТНИК  the dropship's path (points where you stand), how often, with the container
---   ОБЩЕЕ      players to start, vote time, card time, kill callouts, friendly fire in the story; round control
--- «СОХРАНИТЬ» sends everything to the server (data/hla/story/<map>.json). While the editor is open the spawn
--- points, triggers and NPC places are drawn in the world. NPCs can also be edited with C held: click the NPC
--- (or right click > «NPC: реплики и настройки»).
 local S = HLA.Story
 local E = {}
 HLA.Editor = E
@@ -59,8 +47,6 @@ local function aimPoint()
 	return {math.Round(v.x, 1), math.Round(v.y, 1), math.Round(v.z, 1)}
 end
 
----------------------------------------------------------------------------------------------------
--- small building blocks in the visor style
 local function label(parent, text, font)
 	local l = vgui.Create('DLabel', parent)
 	l:SetText(text)
@@ -120,7 +106,6 @@ local function check(parent, text, value, onChange)
 	return c
 end
 
--- a column of controls with a gap: add(panel, height?)
 local function column(parent)
 	local c = vgui.Create('DScrollPanel', parent)
 	c:Dock(FILL)
@@ -155,8 +140,6 @@ local function list(parent, cols)
 	return l
 end
 
----------------------------------------------------------------------------------------------------
--- dispatcher lines for combo boxes: built-in + own
 local function dispatchChoices()
 	local out = {{'', '— нет —'}}
 	for _, l in ipairs(HLA.DispatchLines) do out[#out + 1] = {l.id, S.DispatchText(E.cfg, l.id)} end
@@ -176,8 +159,6 @@ local function dispatchCombo(parent, value, onChange)
 	return cb
 end
 
----------------------------------------------------------------------------------------------------
--- NPC form (the NPC tab and C + click use it): n = config entry; changed() after each change
 function E.NPCForm(parent, n, changed)
 	local col = column(parent)
 	col.add(label(nil, 'ИМЯ (над головой и в чате)'))
@@ -216,7 +197,6 @@ function E.NPCForm(parent, n, changed)
 		col.add(label(nil, i .. '-й раз'))
 		col.add(entry(nil, n.lines[i] or '', function(v)
 			n.lines[i] = v
-			-- no holes: an empty line in the middle stays an empty string
 			for k = 1, i - 1 do n.lines[k] = n.lines[k] or '' end
 			changed()
 		end))
@@ -225,12 +205,10 @@ function E.NPCForm(parent, n, changed)
 	return col
 end
 
--- C held + click on an NPC: its own small window, saved at once
 local function openNPCForm(ent)
 	if not IsValid(ent) then return end
 	fonts()
 	local n = {name = ent:GetNWString('hla_name', ''), model = ent:GetModel(), weapon = ent:GetWeapon(), lines = {}, chatter = true, idles = ''}
-	-- the full entry from the server's config (fetched just before): the nearest NPC place
 	local best, bestD
 	for _, c in ipairs(E.cfg and E.cfg.npcs or {}) do
 		if c.pos then
@@ -256,7 +234,6 @@ local function openNPCForm(ent)
 	b:Dock(BOTTOM)
 end
 
--- C held + click on an NPC: the config is fetched, then the NPC's own window opens (saved at once)
 local function openNPC(ent)
 	if not IsValid(ent) or not HLA.CanEdit(LocalPlayer()) then return end
 	E.pendingNPC = ent
@@ -269,15 +246,12 @@ properties.Add('hla_npc_edit', {
 	Filter = function(self, ent, p) return IsValid(ent) and ent.IsHLANPC and HLA.CanEdit(p) end,
 	Action = function(self, ent) openNPC(ent) end,
 })
--- with C held, a plain left click on an NPC opens it too
 hook.Add('GUIMousePressed', 'HLANPCEdit', function(code, aim)
 	if code ~= MOUSE_LEFT or not HLA.CanEdit(LocalPlayer()) then return end
 	local tr = util.TraceLine({start = EyePos(), endpos = EyePos() + aim * 400, filter = LocalPlayer()})
 	if IsValid(tr.Entity) and tr.Entity.IsHLANPC then openNPC(tr.Entity) end
 end)
 
----------------------------------------------------------------------------------------------------
--- tabs
 local function chaptersTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
 	root:SetPaintBackground(false)
@@ -537,7 +511,6 @@ local function dispatchTab(sheet)
 	return root
 end
 
--- zones: named places (two corners where you look); the visor shows the zone the unit is in
 local function zonesTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
 	root:SetPaintBackground(false)
@@ -607,7 +580,6 @@ local function zonesTab(sheet)
 	return root
 end
 
--- the dropship: points where the admin stands (also in the air, noclip), how often it flies, the container
 local function dropshipTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
 	root:SetPaintBackground(false)
@@ -639,7 +611,42 @@ local function dropshipTab(sheet)
 	return root
 end
 
--- the dispatcher's radio voice: words and phrases (sound/hla/radiovoice) chained into an announcement
+local function fabricatorTab(sheet)
+	local root = vgui.Create('DPanel', sheet)
+	root:SetPaintBackground(false)
+	local C = CFRework
+	local F = HLA.FabCfg
+	local edit = F and F.Current() or {}
+	local col = column(root)
+	col.add(label(nil, 'ФАБРИКАТОР', 'hla_ed_big'))
+	col.add(label(nil, 'Цена в смоле, количество (здоровье / броня / патроны) и есть ли предмет в меню фабрикатора. Для всего сервера.'))
+	local cats = C and C.Categories or {}
+	for ci, cname in ipairs(cats) do
+		col.add(label(nil, cname, 'hla_ed_big'))
+		for _, it in ipairs(C.Items) do
+			if it.category == ci then
+				local e = edit[it.id] or {}
+				edit[it.id] = e
+				local name = label(nil, it.name)
+				name:SetWide(math.floor(330 * sc()))
+				local parts = {name, label(nil, 'СМОЛА'), number(nil, e.cost or it.cost, 0, 9999, function(x) e.cost = x end)}
+				if F.Base[it.id] and F.Base[it.id].amount then
+					parts[#parts + 1] = label(nil, 'КОЛ-ВО')
+					parts[#parts + 1] = number(nil, e.amount or it.amount, 1, 9999, function(x) e.amount = x end)
+				end
+				parts[#parts + 1] = check(nil, 'В МЕНЮ', not e.off, function(x) e.off = not x end)
+				col.row(unpack(parts))
+			end
+		end
+	end
+	col.row(button(nil, 'СОХРАНИТЬ ФАБРИКАТОР', function() if F then F.SendEdit(edit) end end),
+		button(nil, 'СБРОСИТЬ ЦЕНЫ', function()
+			for id, b in pairs(F.Base) do edit[id] = {cost = b.cost, amount = b.amount, off = false} end
+			F.SendEdit(edit)
+		end))
+	return root
+end
+
 local function radioTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
 	root:SetPaintBackground(false)
@@ -753,7 +760,6 @@ local function generalTab(sheet)
 	return root
 end
 
----------------------------------------------------------------------------------------------------
 function E.Open()
 	if IsValid(E.frame) then E.frame:Remove() end
 	local s = sc()
@@ -784,6 +790,7 @@ function E.Open()
 	sheet:AddSheet('NPC', npcTab(sheet))
 	sheet:AddSheet('ЗОНЫ', zonesTab(sheet))
 	sheet:AddSheet('ДЕСАНТНИК', dropshipTab(sheet))
+	sheet:AddSheet('ФАБРИКАТОР', fabricatorTab(sheet))
 	sheet:AddSheet('ДИСПЕТЧЕР', dispatchTab(sheet))
 	sheet:AddSheet('РАЦИЯ', radioTab(sheet))
 	sheet:AddSheet('ОБЩЕЕ', generalTab(sheet))
@@ -808,8 +815,6 @@ net.Receive('hla_story_cfg', function()
 	E.Open()
 end)
 
----------------------------------------------------------------------------------------------------
--- while the editor is open: spawn points, triggers and NPC places in the world
 local function v3(t) return Vector(t[1], t[2], t[3]) end
 surface.CreateFont('hla_ed3d', {font = 'Play', size = 40, weight = 700, extended = true})
 local function mark(pos, yaw, col, text)
@@ -872,7 +877,6 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 	end
 end)
 
--- the editor on the desktop of the C menu (admins)
 _G.list.Set('DesktopWindows', 'HLAStoryEditor', {
 	title = 'Редактор сюжета', icon = 'icon64/tool.png', width = 10, height = 10, onewindow = true,
 	init = function(icon, window)

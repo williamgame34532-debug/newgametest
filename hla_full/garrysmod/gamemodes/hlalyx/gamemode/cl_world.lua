@@ -1,23 +1,52 @@
--- World-facing client bits: no hover hints, names over players, the hold-E pickup ring.
 local I = HLA.Items
 
--- nothing pops up when looking at things (sandbox target id and its hints)
 function GM:HUDDrawTargetID() end
 hook.Add('HUDShouldDraw', 'HLANoHints', function(name)
 	if name == 'CHudHintDisplay' then return false end
 end)
 
----------------------------------------------------------------------------------------------------
--- unit name over the player you look at: well above the helmet, Exo 2 (hla_chat_content, OFL), the Combine
--- symbol on its left in the same colour (hla/ui/combine_logo, from HL:A — shown once it is installed)
-surface.CreateFont('hla_name3d', {font = 'Exo 2', size = 52, weight = 700, extended = true, antialias = true})
-local AMBER = HLA.Hud.AMBER_C -- blue HUD colour
+surface.CreateFont('hla_tag_name', {font = 'Roboto Condensed', size = 44, weight = 700, italic = true, extended = true, antialias = true})
+surface.CreateFont('hla_tag_line', {font = 'Roboto Condensed', size = 32, weight = 700, italic = true, extended = true, antialias = true})
+surface.CreateFont('hla_name3d', {font = 'Roboto Condensed', size = 52, weight = 700, italic = true, extended = true, antialias = true})
+local AMBER = HLA.Hud.AMBER_C
 local lookAt, lookAlpha = nil, 0
 local logo = Material('hla/ui/combine_logo', 'smooth')
+local TAG_WHITE = Color(232, 240, 246)
+local TAG_GREY = Color(170, 196, 214)
+local TAG_GREEN = Color(110, 236, 150)
+local TAG_RED = Color(255, 84, 72)
 
--- a name tag in the world: pos is the point over the head, col its colour, a 0..1
-function HLA.NameTag(pos, text, col, a, scale)
+local function tagLines(e, text)
+	local cls = HLA.Menu and HLA.Menu.ModelLabel and HLA.Menu.ModelLabel(e:GetModel()) or ''
+	local sq = HLA.Squads and HLA.Squads.Of and HLA.Squads.Of(e)
+	local second = string.upper((cls ~= '' and cls ~= '?') and cls or 'ЮНИТ ГО') .. (sq and ('  ::  ' .. string.upper(sq.name)) or '')
+	local hp = e:Health()
+	local third = hp > 30 and 'СТАТУС: В НОРМЕ' or 'СТАТУС: КРИТИЧЕСКИЙ'
+	return {{text, 'hla_tag_name', TAG_WHITE}, {second, 'hla_tag_line', TAG_GREY}, {third, 'hla_tag_line', hp > 30 and TAG_GREEN or TAG_RED}}
+end
+
+function HLA.NameTag(pos, text, col, a, scale, ent)
 	local hasLogo = not logo:IsError()
+	if IsValid(ent) then
+		local right = EyeAngles():Right()
+		cam.Start3D2D(pos + right * 10, Angle(0, EyeAngles().y - 90, 90), scale or 0.05)
+			local lines = tagLines(ent, text)
+			local icon = 72
+			local x = hasLogo and (icon + 16) or 0
+			local h = 44 + 34 + 34
+			local y = -h / 2
+			if hasLogo then
+				surface.SetMaterial(logo)
+				surface.SetDrawColor(TAG_WHITE.r, TAG_WHITE.g, TAG_WHITE.b, 245 * a)
+				surface.DrawTexturedRect(0, -icon / 2, icon, icon)
+			end
+			for i, l in ipairs(lines) do
+				draw.SimpleTextOutlined(l[1], l[2], x, y, Color(l[3].r, l[3].g, l[3].b, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_TOP, 2, Color(0, 6, 12, 150 * a))
+				y = y + (i == 1 and 44 or 34)
+			end
+		cam.End3D2D()
+		return
+	end
 	cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), scale or 0.055)
 		surface.SetFont('hla_name3d')
 		local tw, th = surface.GetTextSize(text)
@@ -48,22 +77,18 @@ hook.Add('Think', 'HLANameTarget', function()
 	end
 end)
 
--- the point for name tags: over the helmet (the eyes + a head and a little more)
 function HLA.TagPos(e)
 	local base = (HLA.ChatBox and HLA.ChatBox.HeadPos) and HLA.ChatBox.HeadPos(e) or e:EyePos() + Vector(0, 0, 11)
-	return base + Vector(0, 0, 12)
+	return base - Vector(0, 0, 4)
 end
 
 hook.Add('PostDrawTranslucentRenderables', 'HLANames', function(depth, sky)
 	if sky or not IsValid(lookAt) or lookAlpha <= 0 then return end
-	-- squad mates have their own tag (cl_squads.lua)
 	local SQ = HLA.Squads
 	if SQ and SQ.Of(LocalPlayer()) and SQ.Of(LocalPlayer()) == SQ.Of(lookAt) then return end
-	HLA.NameTag(HLA.TagPos(lookAt), string.upper(lookAt:GetNWString('hla_name')), AMBER, lookAlpha)
+	HLA.NameTag(HLA.TagPos(lookAt), string.upper(lookAt:GetNWString('hla_name')), AMBER, lookAlpha, 0.045, lookAt)
 end)
 
----------------------------------------------------------------------------------------------------
--- pickup ring at the crosshair while E is held on an item
 hook.Add('HUDPaint', 'HLAPickupRing', function()
 	local p = LocalPlayer()
 	if not IsValid(p) then return end

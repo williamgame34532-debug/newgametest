@@ -1,5 +1,3 @@
--- Squad on the HUD (top right), squad mates outlined in blue with their name over the head,
--- Combine binoculars (the zoom key), the ring crosshair, gear rattle while running.
 local SQ = HLA.Squads
 local BLUE = HLA.Hud.AMBER_C
 local TEXT = Color(196, 232, 248)
@@ -40,17 +38,11 @@ local function baseHidden()
 end
 local function hidden() return baseHidden() or (HLA.Binoculars and HLA.Binoculars.k > 0.2) end
 
----------------------------------------------------------------------------------------------------
--- top left of the visor, as on the Combine screens: Combine glyphs, ОТРЯД :: / ЮНИТ :: and the squad
 local glyphs = Material('hla/hud/glyphs')
 local zoneWas, zoneAt
--- the status lines of the visor (as on the Combine HUD): on the left «<:: …» — the network, a ticker of what
--- the visor is doing, the squad and its units; on the right «… ::>» — the index of the unit: number, zone,
--- status, the current objective. Italic, on the curved visor.
 local function line(text, font, x, y, col, right)
 	draw.SimpleText(text, font, x, y, col, right and TEXT_ALIGN_RIGHT or TEXT_ALIGN_LEFT)
 end
--- a thin rule that fades out away from the edge of the screen
 local function rule(x, y, w, col, right)
 	local n = 12
 	for i = 0, n - 1 do
@@ -60,7 +52,6 @@ local function rule(x, y, w, col, right)
 		surface.DrawRect(right and (x - (i + 1) * seg) or (x + i * seg), y, seg, 1)
 	end
 end
--- the edge bracket of a block: a vertical line with short ticks
 local function bracket(x, y, h, col, right)
 	surface.SetDrawColor(col.r, col.g, col.b, col.a)
 	surface.DrawRect(x, y, 2, h)
@@ -68,7 +59,6 @@ local function bracket(x, y, h, col, right)
 	surface.DrawRect(right and x - t + 2 or x, y, t, 2)
 	surface.DrawRect(right and x - t + 2 or x, y + h - 2, t, 2)
 end
--- segments: how much of something, as on the Combine screens
 local function segments(x, y, n, k, w, h, col, right)
 	for i = 0, n - 1 do
 		local on = i < math.Round(k * n)
@@ -87,7 +77,6 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	local lh = math.floor(26 * s)
 	local GREENC, REDC = Color(110, 236, 150), Color(255, 84, 72)
 	local glow = 0.75 + 0.25 * math.sin(RealTime() * 1.7)
-	-- left: the network lines (Combine letters), the squad and its units
 	local x0, y0 = math.floor(54 * s), math.floor(42 * s)
 	local x, y = x0 + math.floor(14 * s), y0
 	line('<:: COMBINE NETWORK STABLE', 'hla_combine', x, y, Color(BLUE.r, BLUE.g, BLUE.b, 230 * glow))
@@ -115,7 +104,6 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 		y = y + math.floor(22 * s)
 	end
 	bracket(x0, y0, y - y0 + math.floor(4 * s), Color(BLUE.r, BLUE.g, BLUE.b, 150))
-	-- right: the index of the unit, the zone, the status, the objective
 	local rx0, ry0 = ScrW() - math.floor(54 * s), math.floor(42 * s)
 	local rx, ry = rx0 - math.floor(14 * s), ry0
 	local unit = string.upper(p:GetNWString('hla_name', p:Nick()))
@@ -146,12 +134,9 @@ hook.Add('HLAHUDPaint', 'HLASquadHUD', function()
 	line((task and task ~= '' and string.upper(task) or 'НЕТ АКТИВНЫХ ЗАДАЧ') .. ' ::>', 'hla_vis_s', rx, ry, task and TEXT or REDC, true)
 	ry = ry + math.floor(22 * s)
 	bracket(rx0 - 2, ry0, ry - ry0 + math.floor(4 * s), Color(BLUE.r, BLUE.g, BLUE.b, 150), true)
-	HLA.HudRightBottom = ry + math.floor(20 * s) -- the lost biosignals go under it
+	HLA.HudRightBottom = ry + math.floor(20 * s)
 end)
 
----------------------------------------------------------------------------------------------------
--- outline: the squad mates are drawn flat white (through walls) into a render target, the screen
--- gets that silhouette shifted around in blue, except where the mates themselves are (stencil)
 local function mates()
 	local p = LocalPlayer()
 	local sq = SQ.Of(p)
@@ -189,14 +174,12 @@ hook.Add('PostDrawEffects', 'HLASquadOutline', function()
 	local list = mates()
 	if #list == 0 or hidden() then return end
 	local t, c = target()
-	-- 1) silhouettes into the render target
 	render.PushRenderTarget(t)
 	render.Clear(0, 0, 0, 0, true, true)
 	cam.Start3D()
 		drawFlat(list)
 	cam.End3D()
 	render.PopRenderTarget()
-	-- 2) stencil: where the mates are
 	render.ClearStencil()
 	render.SetStencilEnable(true)
 	render.SetStencilWriteMask(255) render.SetStencilTestMask(255)
@@ -210,7 +193,6 @@ hook.Add('PostDrawEffects', 'HLASquadOutline', function()
 		drawFlat(list)
 		render.OverrideColorWriteEnable(false, false)
 	cam.End3D()
-	-- 3) the blue edge around them
 	render.SetStencilCompareFunction(STENCIL_NOTEQUAL)
 	render.SetStencilPassOperation(STENCIL_KEEP)
 	cam.Start2D()
@@ -224,21 +206,17 @@ hook.Add('PostDrawEffects', 'HLASquadOutline', function()
 	render.SetStencilEnable(false)
 end)
 
--- the name of a squad mate over the head, always (other players only when looked at, see cl_world)
 hook.Add('PostDrawTranslucentRenderables', 'HLASquadNames', function(_, sky)
 	if sky or hidden() then return end
 	for _, m in ipairs(mates()) do
 		local pos = HLA.TagPos and HLA.TagPos(m) or m:EyePos() + Vector(0, 0, 22)
 		local d = pos:Distance(EyePos())
 		cam.IgnoreZ(true)
-		if HLA.NameTag then HLA.NameTag(pos, string.upper(m:GetNWString('hla_name', m:Nick())), BLUE, 1, math.Clamp(d / 1100, 0.05, 0.5)) end
+		if HLA.NameTag then HLA.NameTag(pos, string.upper(m:GetNWString('hla_name', m:Nick())), BLUE, 1, math.Clamp(d / 1300, 0.045, 0.45), m) end
 		cam.IgnoreZ(false)
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- Combine binoculars: B or the zoom key (Z, «+zoom»), or the console command hla_binoculars:
--- zoom 4x with the visor overlay, a blue picture, scanlines, a compass, range and the target's name
 local B = {on = false, k = 0}
 HLA.Binoculars = B
 local overlay = Material('hla/binoculars/overlay')
@@ -247,8 +225,7 @@ local function toggle()
 	B.on = not B.on
 	surface.PlaySound(B.on and 'weapons/sniper/sniper_zoomin.wav' or 'weapons/sniper/sniper_zoomout.wav')
 end
-concommand.Add('hla_binoculars', toggle) -- (a toggle for a key of one's own)
--- held, not toggled: the binoculars are up while B (or the zoom key) is held, released — they go down
+concommand.Add('hla_binoculars', toggle)
 local zoomHeld = false
 hook.Add('PlayerBindPress', 'HLABinoculars', function(p, bind, pressed)
 	if not string.find(bind, '+zoom', 1, true) then return end
@@ -273,8 +250,6 @@ end)
 hook.Add('AdjustMouseSensitivity', 'HLABinoculars', function() if B.k > 0 then return 1 - B.k * 0.72 end end)
 hook.Add('PreDrawViewModel', 'HLABinoculars', function() if B.k > 0.5 then return true end end)
 
--- the visor of the unit's mask: the glass only tints the picture (blue rounded edges), nothing is
--- bent, the HUD is drawn later on top of it. hla_visor 0 = off.
 local visorCv = CreateClientConVar('hla_visor', '1', true, false, 'Combine visor overlay (0/1)')
 local visor, visorBino = Material('hla/overlay/visor'), Material('hla/overlay/visor_bino')
 hook.Add('RenderScreenspaceEffects', 'HLAVisor', function()
@@ -286,7 +261,6 @@ hook.Add('RenderScreenspaceEffects', 'HLAVisor', function()
 	render.DrawScreenQuad()
 end)
 
--- the picture through the visor: cold blue, harder contrast, scanlines
 local scan = Material('hla/ui/scanlines')
 hook.Add('RenderScreenspaceEffects', 'HLABinoculars', function()
 	if B.k <= 0 then return end
@@ -313,8 +287,7 @@ hook.Add('HUDPaint', 'HLABinocularsOverlay', function()
 	surface.SetDrawColor(255, 255, 255, 255 * a)
 	surface.DrawTexturedRect(0, 0, ScrW(), ScrH())
 	local s = S()
-	-- compass strip at the top
-	local yaw = (360 - EyeAngles().y + 90) % 360 -- 0 = north (map +Y)
+	local yaw = (360 - EyeAngles().y + 90) % 360
 	local cx, y = ScrW() / 2, math.floor(70 * s)
 	local span = 60
 	for d = math.floor((yaw - span) / 5) * 5, yaw + span, 5 do
@@ -329,7 +302,6 @@ hook.Add('HUDPaint', 'HLABinocularsOverlay', function()
 	end
 	surface.SetDrawColor(TEXT.r, TEXT.g, TEXT.b, 255 * a)
 	surface.DrawRect(cx - 1, y - 6 * s, 2, 20 * s)
-	-- range to what is in the middle
 	local tr = LocalPlayer():GetEyeTrace()
 	local m = tr.Hit and math.floor(tr.HitPos:Distance(EyePos()) / 52.5 + 0.5) or nil
 	draw.SimpleText('ДАЛЬНОСТЬ :: ' .. (m and (m .. ' М') or '—'), 'hla_bino', cx + 120 * s, ScrH() / 2 + 40 * s, Color(BLUE.r, BLUE.g, BLUE.b, 230 * a))
@@ -339,12 +311,9 @@ hook.Add('HUDPaint', 'HLABinocularsOverlay', function()
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- crosshair: a small ring instead of the standard cross
 local ring = Material('hla/ui_blue/crosshair')
 hook.Add('HUDShouldDraw', 'HLACrosshair', function(name) if name == 'CHudCrosshair' then return false end end)
 hook.Add('InitPostEntity', 'HLACrosshairTFA', function()
-	-- TFA weapons draw their own cross unless told to use the game's (which is hidden above)
 	if ConVarExists('cl_tfa_hud_crosshair_enable_custom') then RunConsoleCommand('cl_tfa_hud_crosshair_enable_custom', '0') end
 end)
 hook.Add('HUDPaint', 'HLACrosshair', function()
@@ -352,7 +321,6 @@ hook.Add('HUDPaint', 'HLACrosshair', function()
 	local p = LocalPlayer()
 	local cx, cy = ScrW() / 2, ScrH() / 2
 	if p:ShouldDrawLocalPlayer() then
-		-- third person: the ring sits where the shots land
 		if not (HLA.ThirdPerson and HLA.ThirdPerson.Active(p)) then return end
 		local x, y, vis = HLA.ThirdPerson.AimScreen()
 		if not vis then return end
@@ -364,8 +332,6 @@ hook.Add('HUDPaint', 'HLACrosshair', function()
 	surface.DrawTexturedRect(cx - size / 2, cy - size / 2, size, size)
 end)
 
----------------------------------------------------------------------------------------------------
--- running: the gear rattles with the steps (hla_menu_content/sound/hla/player/gear1-4.wav)
 hook.Add('PlayerFootstep', 'HLAGearRattle', function(p, pos, foot, sound, volume)
 	if not IsValid(p) or not p:IsOnGround() then return end
 	if p:GetVelocity():Length2D() < p:GetWalkSpeed() * 1.2 then return end

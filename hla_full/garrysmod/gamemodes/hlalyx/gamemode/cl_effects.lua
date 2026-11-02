@@ -1,10 +1,3 @@
--- Picture and music (client), all switchable in TAB > НАСТРОЙКИ:
---   hla_grade 1   colour grade: a little darker and more contrast, less saturation — the bright maps of GMod
---                 stop looking overexposed, closer to the cold City 17 of HL:A
---   hla_hdr 1     a small HDR: only the brightest parts (lamps, sky, screens) glow softly; the eye adapts a little
---                 when going from dark to light and back
---   hla_music 1   Combine music now and then (sound/hla/music/combine_1..5.mp3), never two at once, not in menus;
---                 hla_music_volume 0..1
 local cvGrade = CreateClientConVar('hla_grade', '1', true, false, 'Colour grade (0/1)')
 local cvHDR = CreateClientConVar('hla_hdr', '1', true, false, 'Small HDR glow (0/1)')
 local cvMusic = CreateClientConVar('hla_music', '1', true, false, 'Combine music now and then (0/1)')
@@ -15,8 +8,6 @@ local function inMenu()
 	return not IsValid(p) or p:GetNWBool('hla_in_menu') or (HLA.Menu and HLA.Menu.State and HLA.Menu.State.fade > 0)
 end
 
----------------------------------------------------------------------------------------------------
--- eye adaptation: the average light where the player looks, followed slowly
 local adapt = 1
 local nextProbe = 0
 local function probe()
@@ -27,17 +18,45 @@ local function probe()
 	local tr = util.TraceLine({start = EyePos(), endpos = EyePos() + EyeAngles():Forward() * 600, filter = p})
 	local c = render.GetLightColor(tr.HitPos + tr.HitNormal * 4)
 	local lum = (c.x * 0.3 + c.y * 0.59 + c.z * 0.11)
-	-- dark places a bit brighter (up to +12%), very bright ones a bit darker (down to -18%)
 	local want = math.Clamp(0.55 / math.max(lum, 0.05), 0.82, 1.12)
 	adapt = Lerp(0.08, adapt, want)
 end
 
+local cvAtmos = CreateClientConVar('hla_atmos', '1', true, false, 'Atmosphere shader: tone curve, split toning, sharpening, lens edges, grain (0/1)')
+local atmosMat, atmosOK
+local function atmos()
+	if atmosOK == nil then atmosOK = file.Exists('shaders/fxc/hla_atmos_ps30.vcs', 'GAME') end
+	if not atmosOK or not cvAtmos:GetBool() then return end
+	if not atmosMat then
+		atmosMat = CreateMaterial('hla_atmos_pass', 'screenspace_general', {
+			['$pixshader'] = 'hla_atmos_ps30',
+			['$basetexture'] = '_rt_FullFrameFB',
+			['$texture1'] = 'hla/atmos/grain',
+			['$ignorez'] = 1, ['$vertextransform'] = 1, ['$vertexcolor'] = 0,
+			['$alpha_blend'] = 0, ['$alpha_blend_color_overlay'] = 0, ['$copyalpha'] = 0,
+			['$linearread_basetexture'] = 0, ['$linearread_texture1'] = 1, ['$linearwrite'] = 0,
+		})
+	end
+	render.UpdateScreenEffectTexture()
+	atmosMat:SetFloat('$c0_x', CurTime() % 100)
+	atmosMat:SetFloat('$c0_y', 0.035)
+	atmosMat:SetFloat('$c0_z', 0.35)
+	atmosMat:SetFloat('$c0_w', 0.006)
+	atmosMat:SetFloat('$c1_x', 0.35)
+	atmosMat:SetFloat('$c1_y', 0.6)
+	atmosMat:SetFloat('$c1_z', 0.25)
+	atmosMat:SetFloat('$c2_x', 1 / ScrW())
+	atmosMat:SetFloat('$c2_y', 1 / ScrH())
+	atmosMat:SetFloat('$c2_z', ScrW() / 256)
+	atmosMat:SetFloat('$c2_w', ScrH() / 256)
+	render.SetMaterial(atmosMat)
+	render.DrawScreenQuad()
+end
+
 hook.Add('RenderScreenspaceEffects', 'HLAPicture', function()
 	if inMenu() then return end
-	-- at a screen (terminal, fabricator) no glow: it would wash out the text of the screen
 	local atScreen = (HLA.TerminalFocus and HLA.TerminalFocus.blend > 0) or (CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0)
 	if cvHDR:GetBool() and not atScreen then
-		-- the glow only over the brightest parts (no eye adaptation: it made the picture pulse)
 		DrawBloom(0.74, 0.45, 7, 7, 2, 0.8, 1, 1, 1)
 	else
 		adapt = 1
@@ -52,10 +71,9 @@ hook.Add('RenderScreenspaceEffects', 'HLAPicture', function()
 			['$pp_colour_mulr'] = 0, ['$pp_colour_mulg'] = 0, ['$pp_colour_mulb'] = 0,
 		})
 	end
+	if not atScreen then atmos() end
 end)
 
----------------------------------------------------------------------------------------------------
--- music: one track at a time, 4..9 minutes of quiet between them, fades in and out
 local TRACKS = {'combine_1', 'combine_2', 'combine_3', 'combine_4', 'combine_5'}
 local M = {chan = nil, last = nil, nextAt = RealTime() + math.random(60, 150), fade = 0}
 HLA.Music = M
@@ -91,7 +109,6 @@ concommand.Add('hla_music_next', function() stop() M.Play() end)
 hook.Add('Think', 'HLAMusic', function()
 	local ch = M.chan
 	if IsValid(ch) then
-		-- menu, setting off: fade out and stop; at the end: fade out the last 3 s
 		local leaving = inMenu() or not cvMusic:GetBool()
 		local len, pos = ch:GetLength(), ch:GetTime()
 		local target = leaving and 0 or 1
@@ -105,7 +122,7 @@ hook.Add('Think', 'HLAMusic', function()
 		return
 	end
 	if cvMusic:GetBool() and not inMenu() and RealTime() >= M.nextAt then
-		M.nextAt = RealTime() + 30 -- try again later if it does not start
+		M.nextAt = RealTime() + 30
 		M.Play()
 	end
 end)
