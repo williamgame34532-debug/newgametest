@@ -5,9 +5,9 @@ hook.Add('HUDShouldDraw', 'HLANoHints', function(name)
 	if name == 'CHudHintDisplay' then return false end
 end)
 
-surface.CreateFont('hla_tag_name', {font = 'Roboto Condensed', size = 44, weight = 700, italic = true, extended = true, antialias = true})
-surface.CreateFont('hla_tag_line', {font = 'Roboto Condensed', size = 32, weight = 700, italic = true, extended = true, antialias = true})
-surface.CreateFont('hla_name3d', {font = 'Roboto Condensed', size = 52, weight = 700, italic = true, extended = true, antialias = true})
+surface.CreateFont('hla_tag_name', {font = 'Tektur', size = 42, weight = 600, italic = true, extended = true, antialias = true})
+surface.CreateFont('hla_tag_line', {font = 'Tektur', size = 30, weight = 600, italic = true, extended = true, antialias = true})
+surface.CreateFont('hla_name3d', {font = 'Tektur', size = 52, weight = 600, italic = true, extended = true, antialias = true})
 local AMBER = HLA.Hud.AMBER_C
 local lookAt, lookAlpha = nil, 0
 local logo = Material('hla/ui/combine_logo', 'smooth')
