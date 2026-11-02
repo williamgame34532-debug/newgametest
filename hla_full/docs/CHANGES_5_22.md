@@ -63,3 +63,9 @@
 - замки и их состояние сохраняются по карте: `data/hla/locks/<карта>.json`;
 - если дверь уже заперта картой, замок ставится запертым и отпереть её может только админ (чтобы не ломать прохождение);
 - модель — HL2 `models/props_combine/combine_lock01.mdl` (модель HL:A не портирована, см. отчёт).
+
+## Эмблема Альянса (обновлено)
+`hla_menu_content/materials/hla/ui/combine_logo.vtf` — каноническая эмблема Альянса (City 17, HL2), взята из
+реконструкции https://github.com/riggs9162/combine-logo-studio (`examples/city17.png`, 1024×1024 PNG). Файла лицензии
+в репозитории нет; сама эмблема — собственность Valve. Перекрашена в белый (цвет задаётся в игре). Оригинал HL:A
+(`panorama/images/upgrade_station_ui/combine_logo_psd.vtex_c`) лежит в `pak01_424.vpk`, которого не было среди присланного.
