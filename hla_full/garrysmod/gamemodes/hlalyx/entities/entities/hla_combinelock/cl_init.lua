@@ -17,8 +17,14 @@ local function state(self)
 	return 'open', GREEN
 end
 
+local cvX = CreateClientConVar('hla_lock_lamp_x', '0', true, false, 'Combine lock lamp: shift forward/back')
+local cvY = CreateClientConVar('hla_lock_lamp_y', '0', true, false, 'Combine lock lamp: shift left/right')
+local cvZ = CreateClientConVar('hla_lock_lamp_z', '0', true, false, 'Combine lock lamp: shift up/down')
+
 function ENT:LampPos()
-	return self:GetPos() + self:GetUp() * -8.7 + self:GetForward() * -4.9 + self:GetRight() * -6
+	local mn, mx = self:OBBMins(), self:OBBMaxs()
+	local loc = Vector(mn.x - 0.4 + cvX:GetFloat(), (mn.y + mx.y) / 2 + cvY:GetFloat(), -8.7 + cvZ:GetFloat())
+	return self:LocalToWorld(loc)
 end
 
 function ENT:Think()
