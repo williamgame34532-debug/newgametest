@@ -621,34 +621,46 @@ local function fabricatorTab(sheet)
 	col.add(label(nil, 'ФАБРИКАТОР', 'hla_ed_big'))
 	col.add(label(nil, 'Цена в смоле, количество (здоровье / броня / патроны) и есть ли предмет в меню фабрикатора. Для всего сервера.'))
 	local cats = C and C.Categories or {}
+	local widgets = {}
 	for ci, cname in ipairs(cats) do
 		col.add(label(nil, cname, 'hla_ed_big'))
 		for _, it in ipairs(C.Items) do
 			if it.category == ci then
 				local e = edit[it.id] or {}
 				edit[it.id] = e
+				local w = {}
+				widgets[it.id] = w
 				local name = label(nil, it.name)
 				name:SetWide(math.floor(330 * sc()))
-				local parts = {name, label(nil, 'СМОЛА'), number(nil, e.cost or it.cost, 0, 9999, function(x) e.cost = x end)}
+				w.cost = number(nil, e.cost or it.cost, 0, 9999, function(x) e.cost = x end)
+				local parts = {name, label(nil, 'СМОЛА'), w.cost}
 				if F.Base[it.id] and F.Base[it.id].amount then
 					parts[#parts + 1] = label(nil, 'КОЛ-ВО')
-					parts[#parts + 1] = number(nil, e.amount or it.amount, 1, 9999, function(x) e.amount = x end)
+					w.amount = number(nil, e.amount or it.amount, 1, 9999, function(x) e.amount = x end)
+					parts[#parts + 1] = w.amount
 				end
-				parts[#parts + 1] = check(nil, 'В МЕНЮ', not e.off, function(x) e.off = not x end)
+				w.on = check(nil, 'В МЕНЮ', not e.off, function(x) e.off = not x end)
+				parts[#parts + 1] = w.on
 				col.row(unpack(parts))
 			end
 		end
 	end
 	col.row(button(nil, 'СОХРАНИТЬ ФАБРИКАТОР', function() if F then F.SendEdit(edit) end end),
 		button(nil, 'СБРОСИТЬ ЦЕНЫ', function()
+			local dirty = E.dirty
 			for id, b in pairs(F.Base) do
 				local e = edit[id] or {}
 				edit[id] = e
 				e.cost, e.amount, e.off = b.cost, b.amount, false
+				local w = widgets[id]
+				if w then
+					if IsValid(w.cost) then w.cost:SetValue(b.cost) end
+					if IsValid(w.amount) and b.amount then w.amount:SetValue(b.amount) end
+					if IsValid(w.on) then w.on:SetValue(1) end
+				end
 			end
+			E.dirty = dirty
 			F.SendEdit(edit)
-			if IsValid(E.frame) then E.frame:Remove() end
-			timer.Simple(0.3, function() act('get') end)
 		end))
 	return root
 end

@@ -52,9 +52,10 @@ function ENT:SetDoor(door, pos, ang)
 	local was = door:GetInternalVariable('m_bLocked')
 	if was == true then
 		self.mapLocked = true
+		local prev = L.loading
 		L.loading = true
 		self:SetLocked(true)
-		L.loading = false
+		L.loading = prev
 	end
 end
 
@@ -85,9 +86,12 @@ end
 
 function ENT:OnRemove()
 	for _, d in ipairs({self.door, self.doorPartner}) do
-		if IsValid(d) then d:Fire('Unlock') d.HLALock = nil end
+		if IsValid(d) then
+			if not self.mapLocked then d:Fire('Unlock') end
+			d.HLALock = nil
+		end
 	end
-	if not L.loading and not L.cleaning and IsValid(self.door) and not self.door.HLARemoving then timer.Simple(0, L.Save) end
+	if not L.loading and not L.cleaning and IsValid(self.door) and not self.door.HLARemoving and not self.door:IsMarkedForDeletion() then timer.Simple(0, L.Save) end
 end
 
 function ENT:OnLockChanged(_, was, now)
@@ -118,7 +122,7 @@ function ENT:Use(p)
 	if self.nextUse > CurTime() then return end
 	self.nextUse = CurTime() + 1.5
 	if not L.CanUse(p) or (self.mapLocked and not (HLA.CanEdit and HLA.CanEdit(p))) then self:ShowError() return end
-	self.mapLocked = nil
+	if self.mapLocked then self.mapLocked = nil self.adminUnlocked = true end
 	self:SetLocked(not self:GetLocked())
 end
 
@@ -140,7 +144,7 @@ function L.Save()
 	for _, e in ipairs(ents.FindByClass('hla_combinelock')) do
 		local d = e.door
 		if IsValid(d) and d:MapCreationID() >= 0 then
-			out[#out + 1] = {door = d:MapCreationID(), pos = d:WorldToLocal(e:GetPos()), ang = d:WorldToLocalAngles(e:GetAngles()), locked = e:GetLocked()}
+			out[#out + 1] = {door = d:MapCreationID(), pos = d:WorldToLocal(e:GetPos()), ang = d:WorldToLocalAngles(e:GetAngles()), locked = e:GetLocked(), unlocked = e.adminUnlocked or nil}
 		end
 	end
 	file.CreateDir('hla/locks')
@@ -160,6 +164,11 @@ function L.Load()
 			e:Spawn()
 			e:Activate()
 			e:SetDoor(d, d:LocalToWorld(r.pos), d:LocalToWorldAngles(r.ang))
+			if r.unlocked and e.mapLocked then
+				e.mapLocked = nil
+				e.adminUnlocked = true
+				e:SetLocked(false)
+			end
 			if r.locked then e:SetLocked(true) end
 		end
 	end

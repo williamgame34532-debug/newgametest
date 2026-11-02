@@ -462,9 +462,11 @@ local function steadyLights(withLamps)
 end
 hook.Add('InitPostEntity', 'HLASteadyLights', function() steadyLights(true) timer.Simple(3, function() steadyLights(false) end) end)
 hook.Add('PostCleanupMap', 'HLASteadyLights', function() steadyLights(true) timer.Simple(3, function() steadyLights(false) end) end)
+local cvSteady = GetConVar('hla_steady_lights')
 hook.Add('AcceptInput', 'HLASteadyLights', function(e, input)
-	if not GetConVar('hla_steady_lights'):GetBool() or string.lower(input) ~= 'turnon' then return end
-	if not string.find(e:GetClass(), '^light') then return end
+	if string.sub(e:GetClass(), 1, 5) ~= 'light' then return end
+	local i = string.lower(input)
+	if (i ~= 'turnon' and i ~= 'toggle') or not cvSteady:GetBool() then return end
 	local p = steadyPattern(e)
 	if p then timer.Simple(0, function() if IsValid(e) then e:Fire('SetPattern', p) end end) end
 end)
