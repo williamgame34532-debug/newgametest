@@ -57,8 +57,7 @@ end
 
 local function closeMenu()
 	RM.open = false
-	local other = (HLA.ContainerUI and IsValid(HLA.ContainerUI.frame)) or (HLA.Tab and HLA.Tab.open) or (HLA.ChatBox and HLA.ChatBox.open)
-	if not other then gui.EnableScreenClicker(false) end
+	gui.EnableScreenClicker(false)
 end
 
 local function run(item)
