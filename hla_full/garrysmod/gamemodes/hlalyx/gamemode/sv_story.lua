@@ -31,7 +31,17 @@ local function participants()
 end
 S.Participants = participants
 
+local function setGoals(list)
+	local out = {}
+	for _, g in ipairs(list or {}) do
+		if istable(g.p) then out[#out + 1] = {p = g.p, name = tostring(g.name or '')} end
+	end
+	SetGlobal2String('hla_goals', #out > 0 and util.TableToJSON(out) or '')
+end
+S.SetGoals = setGoals
+
 local function setState(st, mode)
+	if st ~= S.STORY then setGoals(nil) end
 	SetGlobal2String('hla_state', st)
 	if mode then SetGlobal2String('hla_mode', mode) end
 	S.StateAt = CurTime()
@@ -201,6 +211,7 @@ function S.StartChapter(n)
 	S.Chapter = math.Clamp(n, 1, #c.chapters)
 	SetGlobal2Int('hla_chapter', S.Chapter)
 	SetGlobal2String('hla_chapter_title', c.chapters[S.Chapter].title .. ': ' .. c.chapters[S.Chapter].name)
+	setGoals(c.chapters[S.Chapter].goals)
 	S.AllDeadAt = nil
 	local taken = {}
 	for _, p in ipairs(participants()) do

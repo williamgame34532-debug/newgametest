@@ -1,11 +1,8 @@
--- Voice chat as the units' radio: instead of the standard voice panel, a list on the right of the visor
--- («ЭФИР», the unit, the channel, a level meter), a radio click when someone keys in, and over a talking
--- player a small radio icon with waves that follow the voice level (the engine icon is off: sv_story.lua).
 local BLUE = HLA.Hud.AMBER_C
 local WHITE = Color(226, 236, 244)
 local GREY = Color(122, 150, 170)
 
-local talking = {} -- player -> {t = start time, level = smoothed}
+local talking = {}
 
 local function click(on)
 	local snd = on and ('npc/combine_soldier/vo/on' .. math.random(1, 2) .. '.wav') or ('npc/combine_soldier/vo/off' .. math.random(1, 3) .. '.wav')
@@ -23,7 +20,6 @@ function GM:PlayerEndVoice(p)
 	talking[p] = nil
 end
 
--- the standard panel list of the base gamemode stays hidden
 hook.Add('InitPostEntity', 'HLAVoicePanel', function()
 	if IsValid(g_VoicePanelList) then g_VoicePanelList:SetVisible(false) end
 end)
@@ -77,10 +73,10 @@ hook.Add('HUDPaint', 'HLAVoicePanel', function()
 		local acc = radio and Color(110, 232, 128) or BLUE
 		surface.SetDrawColor(acc.r, acc.g, acc.b, 230 * a)
 		surface.DrawRect(x, y, math.max(2, math.floor(3 * s)), h)
-		local name = p == me and 'ВЫ В ЭФИРЕ' or string.upper(p:GetNWString('hla_name', p:Nick()))
+		local name = p == me and 'ВЫ ГОВОРИТЕ' or string.upper(p:GetNWString('hla_name', p:Nick()))
+		if p == me then ch = radio and 'Вас слышит отряд по рации' or 'Вас слышат рядом' close = true end
 		draw.SimpleText(name, 'hla_vc_name', x + 14 * s, y + 6 * s, Color(WHITE.r, WHITE.g, WHITE.b, 255 * a))
 		draw.SimpleText(ch, 'hla_vc_small', x + 14 * s, y + h - 6 * s, close and Color(acc.r, acc.g, acc.b, 220 * a) or Color(GREY.r, GREY.g, GREY.b, 220 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_BOTTOM)
-		-- level meter: 10 bars
 		local bars, bw, gap = 10, math.max(2, math.floor(5 * s)), math.max(1, math.floor(3 * s))
 		local bx = x + w - 12 * s - bars * (bw + gap)
 		local lit = math.floor(math.Clamp(v.level * 1.6, 0, 1) * bars + 0.5)
@@ -93,7 +89,6 @@ hook.Add('HUDPaint', 'HLAVoicePanel', function()
 	end
 end)
 
--- over the head of a talking player: a radio mark with waves
 local function arc(cx, cy, r, th, a0, a1, col)
 	local seg = 10
 	for i = 0, seg - 1 do
@@ -114,20 +109,18 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAVoiceIcons', function(_, sky)
 	local me = LocalPlayer()
 	for p, v in pairs(talking) do
 		if IsValid(p) and p ~= me and p:Alive() and not p:GetNoDraw() and p:GetPos():DistToSqr(EyePos()) < 1500 * 1500 then
-			local pos = (HLA.TagPos and HLA.TagPos(p) or p:EyePos() + Vector(0, 0, 23)) + Vector(0, 0, 9) -- just over the name tag
+			local pos = (HLA.TagPos and HLA.TagPos(p) or p:EyePos() + Vector(0, 0, 23)) + Vector(0, 0, 9)
 			local lvl = math.Clamp((v.level or 0) * 1.6, 0, 1)
 			cam.Start3D2D(pos, Angle(0, EyeAngles().y - 90, 90), 0.08)
 				draw.NoTexture()
 				local col = Color(BLUE.r, BLUE.g, BLUE.b, 235)
-				-- the body of the radio
 				surface.SetDrawColor(4, 12, 20, 200)
 				surface.DrawRect(-14, -22, 28, 44)
 				surface.SetDrawColor(col)
 				surface.DrawOutlinedRect(-14, -22, 28, 44, 3)
-				surface.DrawRect(6, -40, 4, 20) -- the antenna
+				surface.DrawRect(6, -40, 4, 20)
 				surface.DrawRect(-8, -12, 16, 4)
 				surface.DrawRect(-8, -4, 16, 4)
-				-- waves on both sides, louder voice — more of them
 				for i = 1, 3 do
 					local on = lvl >= (i - 1) / 3
 					local c = Color(BLUE.r, BLUE.g, BLUE.b, on and 235 or 50)
@@ -139,10 +132,6 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAVoiceIcons', function(_, sky)
 	end
 end)
 
----------------------------------------------------------------------------------------------------
--- H held: talk over the squad radio (voice to the whole squad, wherever they are). The microphone is
--- opened with permissions.EnableVoiceChat — the allowed way (RunConsoleCommand('+voicerecord') is blocked
--- for Lua). Released — the microphone closes. The normal voice key keeps working as usual (near only).
 local radioOn = false
 local function setRadio(on)
 	if radioOn == on then return end

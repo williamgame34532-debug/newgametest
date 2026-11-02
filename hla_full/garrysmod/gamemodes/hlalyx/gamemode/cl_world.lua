@@ -124,3 +124,30 @@ hook.Add('HUDPaint', 'HLAPickupRing', function()
 	local d = I.Get(e:GetItemID())
 	if d then draw.SimpleText(string.upper(d.name), 'hla_label', cx, cy + r + 18, AMBER, TEXT_ALIGN_CENTER, TEXT_ALIGN_TOP) end
 end)
+
+local flashes = {}
+local flashGlow = Material('sprites/light_glow02_add')
+net.Receive('hla_cam_flash', function()
+	flashes[#flashes + 1] = {pos = net.ReadVector(), t = RealTime()}
+end)
+hook.Add('Think', 'HLACamFlash', function()
+	for i = #flashes, 1, -1 do
+		local f = flashes[i]
+		local age = RealTime() - f.t
+		if age > 0.35 then table.remove(flashes, i) else
+			local d = DynamicLight(9000 + i)
+			if d then
+				d.pos = f.pos d.r, d.g, d.b = 220, 240, 255 d.brightness = 4 * (1 - age / 0.35)
+				d.size = 420 d.decay = 2000 d.dietime = CurTime() + 0.1
+			end
+		end
+	end
+end)
+hook.Add('PostDrawTranslucentRenderables', 'HLACamFlash', function(_, sky)
+	if sky or #flashes == 0 then return end
+	render.SetMaterial(flashGlow)
+	for _, f in ipairs(flashes) do
+		local k = 1 - math.Clamp((RealTime() - f.t) / 0.35, 0, 1)
+		render.DrawSprite(f.pos, 90 * k + 20, 90 * k + 20, Color(230, 245, 255, 255 * k))
+	end
+end)

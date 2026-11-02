@@ -166,7 +166,7 @@ function ENT:Interact(p, x, y, part)
 			return
 		end
 		if st == S.MENU then
-			if b.id == 'tab' then
+			if b.id == 'tab' or b.id == 'page' then
 				self:SetTab(b.arg)
 			elseif b.id == 'select' then
 				self:Order(p, b.arg)
@@ -194,6 +194,7 @@ function ENT:Order(p, index)
 	self:SetOperator(p)
 	self.OrderID = C.SaveKey and C.SaveKey(p) or p:SteamID64()
 	self:SetSelection(index)
+	self.HLAOrderItem = item
 	self:SetCost(item.cost)
 	self:SetPaid(0)
 	self:SetPhase(S.DEPOSIT)
@@ -257,7 +258,7 @@ end
 
 function ENT:Collect(p)
 	if self:GetOperator() ~= p or self:GetStage() ~= S.DONE or not self:GetBayOpen() then return end
-	local item = C.Items[self:GetSelection()]
+	local item = self.HLAOrderItem or C.Items[self:GetSelection()]
 	if not item then self:EndSession(false) return end
 	local ok, why = self:Deliver(p, item)
 	if not ok then self:Notify(p, why or 'ВЫДАЧА НЕ УДАЛАСЬ') return end

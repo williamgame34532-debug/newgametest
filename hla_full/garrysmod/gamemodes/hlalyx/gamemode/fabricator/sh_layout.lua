@@ -17,16 +17,29 @@ function Lay.Buttons(stage, tab)
 	local b = {}
 	if stage == S.MENU then
 		local R = Lay.ROW
-		local list = C.CategoryItems(tab or 1)
-		local n = math.min(#list, 6)
+		local cat, page = C.TabCat(tab)
+		local list = C.CategoryItems(cat)
+		local paged = #list > 6
+		local per = paged and 5 or #list
+		local pages = paged and math.ceil(#list / per) or 1
+		page = math.Clamp(page, 0, pages - 1)
+		local slots = paged and 6 or math.min(#list, 6)
 		local h, gap = R.h, R.gap
-		if n > R.max then
+		if slots > R.max then
 			gap = 8
-			h = math.floor((R.max * R.h + (R.max - 1) * R.gap - (n - 1) * gap) / n)
+			h = math.floor((R.max * R.h + (R.max - 1) * R.gap - (slots - 1) * gap) / slots)
 		end
-		for row, index in ipairs(list) do
-			if row > n then break end
-			b[#b + 1] = {id = 'select', arg = index, x = R.x, y = R.y + (row - 1) * (h + gap), w = R.w, h = h}
+		local row = 0
+		for i = page * per + 1, math.min(#list, page * per + per) do
+			row = row + 1
+			b[#b + 1] = {id = 'select', arg = list[i], x = R.x, y = R.y + (row - 1) * (h + gap), w = R.w, h = h}
+		end
+		if paged then
+			local y = R.y + 5 * (h + gap)
+			local w = math.floor((R.w - gap) / 2)
+			if page > 0 then b[#b + 1] = {id = 'page', arg = cat + (page - 1) * 16, label = '<  НАЗАД', x = R.x, y = y, w = w, h = h} end
+			if page < pages - 1 then b[#b + 1] = {id = 'page', arg = cat + (page + 1) * 16, label = 'ДАЛЕЕ  >', x = R.x + w + gap, y = y, w = w, h = h} end
+			b.pageText = (page + 1) .. ' / ' .. pages
 		end
 		local T = Lay.TAB
 		for i = 1, #C.Categories do

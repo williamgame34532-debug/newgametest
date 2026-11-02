@@ -1,6 +1,3 @@
--- Fabricator display, drawn in the style of the Half-Life: Alyx fabricator screen.
--- Everything is drawn through the small adapter C.Draw (rect/outline/line/poly/text/size) so the
--- exact same code is rendered offline for previews; cl_init.lua maps it onto surface/draw.
 CFRework = CFRework or {}
 local C = CFRework
 local S = C.State
@@ -8,7 +5,6 @@ local Lay = C.Layout
 local UI = {}
 C.UI = UI
 
--- palette sampled from the reference screenshots
 local function rgb(r, g, b, a) return {r, g, b, a or 255} end
 local COL = {
 	bg = rgb(7, 38, 50), bg2 = rgb(10, 50, 64), panel = rgb(13, 58, 74), rowbg = rgb(7, 38, 50, 0),
@@ -37,7 +33,6 @@ local function wrap(D, str, font, x, y, w, col, lh)
 	return y
 end
 
--- small Combine glyph used in the top-right corner of every HL:A screen
 local function glyph(D, x, y, s, col)
 	D.outline(x, y, s, s, col, 2)
 	D.poly({{x + s * 0.25, y + s * 0.72}, {x + s * 0.5, y + s * 0.28}, {x + s * 0.75, y + s * 0.72}}, col)
@@ -54,7 +49,6 @@ local function warn(D, x, y, s, col)
 	D.rect(x + s * 0.45, y + s * 0.7, s * 0.1, s * 0.1, COL.bg)
 end
 
--- deterministic barcode strip (bottom-left on the reference)
 local BARS = {}
 do
 	local seed = 7
@@ -71,20 +65,15 @@ end
 local function frame(D, ctx, title)
 	local W, H = Lay.W, Lay.H
 	D.rect(0, 0, W, H, COL.bg)
-	-- dense scanlines over the whole display, one slow brighter sweep
 	for y = 0, H, 3 do D.rect(0, y, W, 1, A(COL.bg2, 120)) end
 	D.rect(0, (ctx.t * 40) % H, W, 2, A(COL.line, 14))
-	-- thick bright bar on the left with a break near the bottom
 	D.rect(6, 0, 12, 424, COL.bar)
 	D.rect(6, 436, 12, H - 436, COL.bar)
-	-- header: title, the run of X's, station id and the small glyph
 	local tw = D.size(title, 'cfr_hdr')
 	D.text(title, D.size(title, 'cfr_hdr') > 620 and 'cfr_s' or 'cfr_hdr', 38, 10, COL.textHi)
-	-- Keep the long Russian item name clear of the station ID.
 	D.text('СТАНЦИЯ КОМПЛЕКТОВАНИЯ 6.3.5.333', 'cfr_xxs', W - 74, 18, COL.textDim, 2)
 	glyph(D, W - 58, 9, 26, COL.line)
 	D.rect(38, 44, W - 60, 1, COL.lineDim)
-	-- bottom strip: barcode, small print, «СМОЛЫ У ВАС:» with a big number, a long diagonal
 	D.rect(28, Lay.BOTTOM, W - 50, 2, COL.lineDim)
 	if D.barcode then
         D.barcode(40, Lay.BOTTOM + 10, 210, 38, {255,255,255,230})
@@ -130,12 +119,20 @@ function UI.Exit(D, ctx)
 end
 
 function UI.Menu(D, ctx)
-	frame(D, ctx, C.Upper(C.Categories[ctx.tab] or ''))
+	local cat = C.TabCat(ctx.tab)
+	frame(D, ctx, C.Upper(C.Categories[cat] or ''))
 	D.text('ПРЕДМЕТЫ', 'cfr_xs', 52, 58, COL.textDim)
 	D.text('СТОИМОСТЬ', 'cfr_xs', 626, 58, COL.textDim, 2)
 	local shown
-	for _, b in ipairs(Lay.Buttons(S.MENU, ctx.tab)) do
-		if b.id == 'select' then
+	local buttons = Lay.Buttons(S.MENU, ctx.tab)
+	if buttons.pageText then D.text('СТР. ' .. buttons.pageText, 'cfr_xs', 340, 58, COL.textDim, 1) end
+	for _, b in ipairs(buttons) do
+		if b.id == 'page' then
+			local over = isHover(ctx, 'page', b.arg)
+			D.rect(b.x, b.y, b.w, b.h, over and COL.sel or COL.rowbg)
+			D.outline(b.x, b.y, b.w, b.h, COL.line, 2)
+			D.text(b.label, 'cfr_row', b.x + b.w / 2, b.y + b.h / 2, over and COL.selText or COL.textHi, 1, 1)
+		elseif b.id == 'select' then
 			local item = C.Items[b.arg]
 			local over = isHover(ctx, 'select', b.arg)
 			if over then shown = item end
@@ -155,7 +152,7 @@ function UI.Menu(D, ctx)
 				warn(D, b.x + b.w - 16 - cw - 30, b.y + b.h / 2 - 11, 22, over and COL.selText or COL.red)
 			end
 		elseif b.id == 'tab' then
-			local on = ctx.tab == b.arg
+			local on = cat == b.arg
 			local over = isHover(ctx, 'tab', b.arg)
 			D.rect(b.x, b.y, b.w, b.h, (on or over) and COL.panel or COL.bg)
 			D.outline(b.x, b.y, b.w, b.h, on and COL.bar or COL.lineDim, on and 2 or 1)
@@ -189,7 +186,6 @@ function UI.Deposit(D, ctx)
 	D.outline(bx, by, bw, bh, COL.line, 2)
 	local f = (ctx.cost or 0) > 0 and math.min(1, (ctx.paid or 0) / ctx.cost) or 0
 	if f > 0 then D.rect(bx + 4, by + 4, (bw - 8) * f, bh - 8, COL.bar) end
-	-- the ten cells of the magazine
 	local filled = (ctx.paid or 0) % 10
 	if (ctx.paid or 0) > 0 and filled == 0 then filled = 10 end
 	for i = 1, 10 do

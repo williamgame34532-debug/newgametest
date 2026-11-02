@@ -1,13 +1,3 @@
--- Markers of the visor (as on the Combine HUD): a round badge with an icon, the title between two dashes over
--- it («— БИОСИГНАЛ ПОТЕРЯН —»), the distance, the name and a small line (the zone) under it. Off the screen a
--- small badge with an arrow sits at the edge.
---   ТОЧКА        a squad member's mark (middle mouse), cyan ring with a dot
---   ВЫДВИЖЕНИЕ   the leader's mark, cyan double chevron (the leader has 3, a member 1, the oldest goes)
---   КОНТАКТ      a mark put on a player / NPC, orange crosshair
---   БИОСИГНАЛ ПОТЕРЯН   where a unit died — sent to EVERYONE, red broken heart, 90 s
---   БИОСИГНАЛ КРИТИЧЕСКИЙ   a squad mate with little health, orange heart (from the client, always current)
--- Squad marks are seen by the squad, through walls; a click on one's own mark removes it. Marks live 60 s.
--- Top right of the visor: «ПОТЕРЯ БИОСИГНАЛА :: ЭХО-443» for every unit that dies.
 HLA = HLA or {}
 local MK = {list = {}}
 HLA.Markers = MK
@@ -15,9 +5,9 @@ MK.Life, MK.DeathLife = 60, 90
 MK.PerMember, MK.PerLeader = 1, 3
 
 if SERVER then
-	util.AddNetworkString('hla_mark')     -- client -> server: put / remove
-	util.AddNetworkString('hla_marks')    -- server -> player: the marks this player sees
-	util.AddNetworkString('hla_biosig')   -- server -> all: a unit died (top right)
+	util.AddNetworkString('hla_mark')
+	util.AddNetworkString('hla_marks')
+	util.AddNetworkString('hla_biosig')
 	local nextID = 0
 
 	local function visible(m, p)
@@ -84,7 +74,6 @@ if SERVER then
 		add({kind = kind, pos = pos, owner = p, squad = sq.id, name = name})
 	end)
 
-	-- a unit died: a mark for everyone where it fell, and the line top right
 	hook.Add('PlayerDeath', 'HLADeathMark', function(p)
 		if p.HLAInMenu or not p.HLACharID then return end
 		local name = p:GetNWString('hla_name', p:Nick())
@@ -108,8 +97,6 @@ if SERVER then
 	return
 end
 
----------------------------------------------------------------------------------------------------
--- client
 MK.marks = {}
 local LIFE = {death = MK.DeathLife}
 net.Receive('hla_marks', function()
@@ -144,6 +131,7 @@ local STYLE = {
 	target = {title = 'КОНТАКТ', col = Color(255, 150, 60)},
 	death = {title = 'БИОСИГНАЛ ПОТЕРЯН', col = Color(255, 72, 64)},
 	critical = {title = 'БИОСИГНАЛ КРИТИЧЕСКИЙ', col = Color(255, 140, 60)},
+	goal = {title = 'ЦЕЛЬ', col = Color(255, 210, 80)},
 }
 
 local function sc() return math.min(ScrW() / 1920, ScrH() / 1080) end
@@ -191,12 +179,11 @@ local function heart(x, y, r, c, a, broken)
 		surface.DrawTexturedRect(x - r, y - r, r * 2, r * 2)
 		return
 	end
-	-- two lobes and a point
 	local lr = r * 0.5
 	circle(x - lr * 0.95, y - r * 0.15, lr, c, a, 16)
 	circle(x + lr * 0.95, y - r * 0.15, lr, c, a, 16)
 	poly({{x = x - r * 0.98, y = y - r * 0.05}, {x = x + r * 0.98, y = y - r * 0.05}, {x = x, y = y + r * 0.95}}, c, a)
-	if broken then -- the crack
+	if broken then
 		local k = Color(18, 4, 4)
 		poly({{x = x - 1, y = y - r * 0.55}, {x = x + r * 0.18, y = y - r * 0.1}, {x = x - r * 0.12, y = y + r * 0.15}, {x = x + r * 0.1, y = y + r * 0.7},
 			{x = x - r * 0.04, y = y + r * 0.7}, {x = x - r * 0.26, y = y + r * 0.15}, {x = x + r * 0.02, y = y - r * 0.12}, {x = x - r * 0.16, y = y - r * 0.55}}, k, a)
@@ -223,7 +210,6 @@ local function icon(kind, x, y, r, c, a)
 	end
 end
 
--- the badge: dark disc, coloured ring with a slow sweep, the icon
 local function badge(kind, x, y, r, c, a)
 	circle(x, y, r, Color(4, 10, 16), a * 0.75)
 	ring(x, y, r, math.max(2, r * 0.1), c, a * 0.9)
@@ -291,6 +277,24 @@ local function drawMark(m, s, W, H)
 	end
 end
 
+local goalSrc, goalList = nil, {}
+function MK.Goals()
+	local raw = GetGlobal2String('hla_goals', '')
+	if raw ~= goalSrc then
+		goalSrc = raw
+		goalList = {}
+		local t = raw ~= '' and util.JSONToTable(raw) or nil
+		for _, g in ipairs(t or {}) do
+			if istable(g.p) then
+				goalList[#goalList + 1] = {kind = 'goal', pos = Vector(tonumber(g.p[1]) or 0, tonumber(g.p[2]) or 0, tonumber(g.p[3]) or 0),
+					owner = NULL, name = tostring(g.name or ''), persistent = true, born = RealTime(), t = CurTime()}
+			end
+		end
+		if #goalList > 0 then surface.PlaySound('hla/ui/textline_6.wav') end
+	end
+	return goalList
+end
+
 local function critical()
 	local out = {}
 	local SQ = HLA.Squads
@@ -314,10 +318,9 @@ hook.Add('HUDPaint', 'HLAMarks', function()
 	local s, W, H = sc(), ScrW(), ScrH()
 	for _, m in ipairs(MK.marks) do drawMark(m, s, W, H) end
 	for _, m in ipairs(critical()) do drawMark(m, s, W, H) end
+	for _, m in ipairs(MK.Goals()) do drawMark(m, s, W, H) end
 end)
 
----------------------------------------------------------------------------------------------------
--- top right of the visor: the lost biosignals (drawn on the curved HUD)
 local feed = {}
 net.Receive('hla_biosig', function()
 	table.insert(feed, 1, {name = net.ReadString(), t = RealTime(), time = os.date('%H:%M:%S')})

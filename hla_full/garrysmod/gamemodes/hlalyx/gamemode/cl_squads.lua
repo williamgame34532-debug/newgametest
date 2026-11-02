@@ -337,3 +337,62 @@ hook.Add('PlayerFootstep', 'HLAGearRattle', function(p, pos, foot, sound, volume
 	if p:GetVelocity():Length2D() < p:GetWalkSpeed() * 1.2 then return end
 	p:EmitSound('hla/player/gear' .. math.random(1, 4) .. '.wav', 62, math.random(95, 106), 0.55)
 end)
+
+local zoneCard = {}
+local zcKey
+local function zoneFonts()
+	local key = ScrW() .. 'x' .. ScrH()
+	if zcKey == key then return end
+	zcKey = key
+	surface.CreateFont('hla_zone_big', {font = 'Exo 2', size = math.max(26, math.floor(58 * S())), weight = 700, italic = true, extended = true})
+	surface.CreateFont('hla_zone_small', {font = 'Exo 2', size = math.max(13, math.floor(20 * S())), weight = 700, italic = true, extended = true})
+end
+local function zup(s) return (CFRework and CFRework.Upper) and CFRework.Upper(s) or string.upper(s) end
+local zoneLast
+hook.Add('Think', 'HLAZoneCard', function()
+	local p = LocalPlayer()
+	if not IsValid(p) or not p:Alive() or p:GetNWBool('hla_in_menu') then return end
+	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(p:GetPos())
+	if zone == zoneLast then return end
+	zoneLast = zone
+	if zone then
+		zoneCard = {name = zup(zone), t = RealTime()}
+		surface.PlaySound('hla/ui/textline_end.wav')
+	end
+end)
+hook.Add('HUDPaint', 'HLAZoneCard', function()
+	if not zoneCard.name or baseHidden() then return end
+	local age = RealTime() - zoneCard.t
+	local life = 4.5
+	if age > life then zoneCard = {} return end
+	zoneFonts()
+	local s = S()
+	local a = math.Clamp(math.min(age * 4, (life - age) * 1.5), 0, 1)
+	local cx, cy = ScrW() / 2, math.floor(ScrH() * 0.2)
+	local name = zoneCard.name
+	local n = utf8.len(name) or #name
+	local shown = math.min(n, math.floor(math.max(0, age - 0.25) * 28))
+	local o = utf8.offset(name, shown + 1)
+	local typed = o and string.sub(name, 1, o - 1) or name
+	surface.SetFont('hla_zone_big')
+	local fw = surface.GetTextSize(name)
+	local grow = math.Clamp(age / 0.6, 0, 1)
+	grow = grow * grow * (3 - 2 * grow)
+	local half = (fw / 2 + math.floor(40 * s)) * grow
+	local bandH = math.floor(150 * s)
+	for i = 0, 7 do
+		local w = (half + math.floor(60 * s)) * (1 - i * 0.09)
+		surface.SetDrawColor(0, 6, 12, 22 * a)
+		surface.DrawRect(cx - w, cy - bandH / 2 + math.floor(8 * s), w * 2, bandH)
+	end
+	surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, 200 * a)
+	surface.DrawRect(cx - half, cy + math.floor(38 * s), half * 2, math.max(1, math.floor(2 * s)))
+	local tick = math.floor(10 * s)
+	surface.DrawRect(cx - half, cy + math.floor(38 * s) - tick + 2, math.max(2, math.floor(2 * s)), tick)
+	surface.DrawRect(cx + half - math.max(2, math.floor(2 * s)), cy + math.floor(38 * s) - tick + 2, math.max(2, math.floor(2 * s)), tick)
+	draw.SimpleText('<:: ВХОД В ЗОНУ ::>', 'hla_zone_small', cx, cy - math.floor(52 * s), Color(BLUE.r, BLUE.g, BLUE.b, 230 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText(typed, 'hla_zone_big', cx - fw / 2 + 2, cy + 2, Color(0, 8, 16, 120 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	draw.SimpleText(typed, 'hla_zone_big', cx - fw / 2, cy, Color(232, 244, 252, 255 * a), TEXT_ALIGN_LEFT, TEXT_ALIGN_CENTER)
+	local sub = os.date('%H:%M') .. '  ::  ' .. string.upper(LocalPlayer():GetNWString('hla_name', ''))
+	draw.SimpleText(sub, 'hla_zone_small', cx, cy + math.floor(62 * s), Color(170, 196, 214, 200 * a * grow), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+end)

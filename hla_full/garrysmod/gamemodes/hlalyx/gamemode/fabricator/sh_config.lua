@@ -47,6 +47,11 @@ C.Items = {
 		model = 'models/hla/health_station/health_vial.mdl', text = 'Для станции первой помощи. Попадает в инвентарь.'},
 }
 
+function C.TabCat(tab)
+	tab = tonumber(tab) or 1
+	return math.max(1, tab % 16), math.floor(tab / 16)
+end
+
 function C.CategoryItems(cat)
 	local out = {}
 	for i, v in ipairs(C.Items) do if v.category == cat and not v.off then out[#out + 1] = i end end

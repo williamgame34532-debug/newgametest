@@ -41,10 +41,55 @@ local function necrotic(t)
 	return NECRO[c] or string.find(c, 'zomb', 1, true) or string.find(c, 'headcrab', 1, true) or string.find(c, 'necro', 1, true)
 end
 
+local FRIEND = {'combine', 'metropolice', 'cscanner', 'manhack', 'hla_npc', 'rollermine', 'turret', 'strider', 'hunter', 'helicopter', 'gunship', 'dropship', 'apc'}
 local function hostile(t)
-	if not IsValid(t) then return false end
-	if t:IsPlayer() then return false end
-	return t:IsNPC() or t:IsNextBot()
+	if not IsValid(t) or t:IsPlayer() then return false end
+	if not (t:IsNPC() or t:IsNextBot()) then return false end
+	if t:Health() <= 0 then return false end
+	local c = t:GetClass()
+	if CLASSES[c] then return false end
+	for _, f in ipairs(FRIEND) do if string.find(c, f, 1, true) and not string.find(c, 'zomb', 1, true) then return false end end
+	return true
+end
+
+local function eye(cam)
+	for _, name in ipairs({'eyes', 'light', 'lens'}) do
+		local id = cam:LookupAttachment(name)
+		if id and id > 0 then
+			local a = cam:GetAttachment(id)
+			if a then return a.Pos, a.Ang:Forward() end
+		end
+	end
+	return cam:WorldSpaceCenter(), cam:GetForward()
+end
+
+local RANGE, CONE = 1600, math.cos(math.rad(55))
+local function spot(cam)
+	local en = cam.GetEnemy and cam:GetEnemy()
+	if hostile(en) then return en end
+	local pos, fwd = eye(cam)
+	local best, bestD
+	for _, t in ipairs(ents.FindInSphere(pos, RANGE)) do
+		if hostile(t) then
+			local c = t:WorldSpaceCenter()
+			local dir = c - pos
+			local d = dir:Length()
+			if d > 1 and dir:GetNormalized():Dot(fwd) >= CONE and (not bestD or d < bestD) then
+				local tr = util.TraceLine({start = pos, endpos = c, filter = {cam}, mask = MASK_SHOT})
+				if tr.Entity == t or tr.Fraction > 0.97 then best, bestD = t, d end
+			end
+		end
+	end
+	return best
+end
+
+util.AddNetworkString('hla_cam_flash')
+local function flash(cam)
+	local pos = eye(cam)
+	cam:EmitSound('npc/scanner/scanner_photo1.wav', 75, 100)
+	net.Start('hla_cam_flash')
+	net.WriteVector(pos)
+	net.Broadcast()
 end
 
 local function alert(cam, target)
@@ -58,6 +103,7 @@ local function alert(cam, target)
 	local zone = HLA.Story and HLA.Story.ZoneAt and HLA.Story.ZoneAt(cam:GetPos())
 	local text = 'Внимание: зафиксирован ' .. (necro and 'некротик' or 'нарушитель') .. ' на камере «' .. id .. '»' .. (zone and (', зона «' .. zone .. '»') or '') .. '.'
 	if HLA.Chat and HLA.Chat.Dispatch then HLA.Chat.Dispatch(text, table.concat(chain, ';'), 'ДИСПЕТЧЕР') end
+	flash(cam)
 	hook.Run('HLACameraSpotted', cam, target, id)
 end
 
@@ -65,19 +111,18 @@ local lastGlobal = 0
 timer.Create('HLACameraWatch', 0.5, 0, function()
 	for cls in pairs(CLASSES) do
 		for _, cam in ipairs(ents.FindByClass(cls)) do
-			local en = cam.GetEnemy and cam:GetEnemy()
-			if hostile(en) then
-				if cam.HLASeen ~= en then
-					if CurTime() >= (cam.HLANextAlert or 0) and CurTime() >= lastGlobal then
-						cam.HLASeen = en
-						cam.HLANextAlert = CurTime() + cvCooldown:GetFloat()
-						lastGlobal = CurTime() + 6
-						alert(cam, en)
-					end
+			local en = spot(cam)
+			if en then
+				if cam.HLASeen ~= en and CurTime() >= (cam.HLANextAlert or 0) and CurTime() >= lastGlobal then
+					cam.HLASeen = en
+					cam.HLANextAlert = CurTime() + cvCooldown:GetFloat()
+					lastGlobal = CurTime() + 6
+					alert(cam, en)
 				end
-			else
+			elseif not IsValid(cam.HLASeen) or (cam.HLASeenLost or 0) < CurTime() - 10 then
 				cam.HLASeen = nil
 			end
+			if en then cam.HLASeenLost = CurTime() end
 		end
 	end
 end)

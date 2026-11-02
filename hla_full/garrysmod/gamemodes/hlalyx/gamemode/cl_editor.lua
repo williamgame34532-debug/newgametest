@@ -315,6 +315,24 @@ local function chaptersTab(sheet)
 				button(nil, 'ВЫШЕ +32', function() ch.trigger.b[3] = ch.trigger.b[3] + 32 E.dirty = true end),
 				button(nil, 'НИЖЕ −32', function() ch.trigger.b[3] = math.max(ch.trigger.a[3] + 16, ch.trigger.b[3] - 32) E.dirty = true end))
 		end
+		ch.goals = ch.goals or {}
+		col.add(label(nil, 'МЕТКИ «КУДА ИДТИ» (видят все игроки, пока идёт эта глава): ' .. #ch.goals))
+		for gi, g in ipairs(ch.goals) do
+			local en = entry(nil, g.name or '', function(v) g.name = v end)
+			en:SetWide(math.floor(380 * sc()))
+			col.row(label(nil, '#' .. gi), en, button(nil, 'УБРАТЬ', function() table.remove(ch.goals, gi) E.dirty = true form() end))
+		end
+		col.row(
+			button(nil, '+ МЕТКА ГДЕ СТОЮ', function()
+				local h = here()
+				ch.goals[#ch.goals + 1] = {p = {h.p[1], h.p[2], h.p[3] + 40}, name = 'ЦЕЛЬ'}
+				E.dirty = true form()
+			end),
+			button(nil, '+ МЕТКА КУДА СМОТРЮ', function()
+				local a = aimPoint()
+				ch.goals[#ch.goals + 1] = {p = {a[1], a[2], a[3] + 40}, name = 'ЦЕЛЬ'}
+				E.dirty = true form()
+			end))
 		col.add(label(nil, sel == #E.cfg.chapters and 'Это последняя глава: её триггер завершает сюжет.' or ''))
 		col.add(button(nil, 'ЗАПУСТИТЬ С ЭТОЙ ГЛАВЫ (сначала сохраните)', function() act('chapter', tostring(sel)) end))
 	end
@@ -614,54 +632,11 @@ end
 local function fabricatorTab(sheet)
 	local root = vgui.Create('DPanel', sheet)
 	root:SetPaintBackground(false)
-	local C = CFRework
-	local F = HLA.FabCfg
-	local edit = F and F.Current() or {}
 	local col = column(root)
 	col.add(label(nil, 'ФАБРИКАТОР', 'hla_ed_big'))
-	col.add(label(nil, 'Цена в смоле, количество (здоровье / броня / патроны) и есть ли предмет в меню фабрикатора. Для всего сервера.'))
-	local cats = C and C.Categories or {}
-	local widgets = {}
-	for ci, cname in ipairs(cats) do
-		col.add(label(nil, cname, 'hla_ed_big'))
-		for _, it in ipairs(C.Items) do
-			if it.category == ci then
-				local e = edit[it.id] or {}
-				edit[it.id] = e
-				local w = {}
-				widgets[it.id] = w
-				local name = label(nil, it.name)
-				name:SetWide(math.floor(330 * sc()))
-				w.cost = number(nil, e.cost or it.cost, 0, 9999, function(x) e.cost = x end)
-				local parts = {name, label(nil, 'СМОЛА'), w.cost}
-				if F.Base[it.id] and F.Base[it.id].amount then
-					parts[#parts + 1] = label(nil, 'КОЛ-ВО')
-					w.amount = number(nil, e.amount or it.amount, 1, 9999, function(x) e.amount = x end)
-					parts[#parts + 1] = w.amount
-				end
-				w.on = check(nil, 'В МЕНЮ', not e.off, function(x) e.off = not x end)
-				parts[#parts + 1] = w.on
-				col.row(unpack(parts))
-			end
-		end
-	end
-	col.row(button(nil, 'СОХРАНИТЬ ФАБРИКАТОР', function() if F then F.SendEdit(edit) end end),
-		button(nil, 'СБРОСИТЬ ЦЕНЫ', function()
-			local dirty = E.dirty
-			for id, b in pairs(F.Base) do
-				local e = edit[id] or {}
-				edit[id] = e
-				e.cost, e.amount, e.off = b.cost, b.amount, false
-				local w = widgets[id]
-				if w then
-					if IsValid(w.cost) then w.cost:SetValue(b.cost) end
-					if IsValid(w.amount) and b.amount then w.amount:SetValue(b.amount) end
-					if IsValid(w.on) then w.on:SetValue(1) end
-				end
-			end
-			E.dirty = dirty
-			F.SendEdit(edit)
-		end))
+	col.add(label(nil, 'Все предметы фабрикатора: свои оружия, патроны, здоровье, броня; цены и что есть в меню.'))
+	col.add(label(nil, 'То же окно открывается из C-меню: значок «Фабрикатор».'))
+	col.add(button(nil, 'ОТКРЫТЬ НАСТРОЙКУ ФАБРИКАТОРА', function() if HLA.FabEditor then HLA.FabEditor.Open() end end))
 	return root
 end
 
@@ -885,6 +860,15 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 		cam.Start3D2D(pos + Vector(0, 0, 40), Angle(0, EyeAngles().y - 90, 90), 0.2)
 			draw.SimpleTextOutlined('ДЕСАНТНИК #' .. k, 'hla_ed3d', 0, 0, Color(255, 170, 60), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
 		cam.End3D2D()
+	end
+	for i, ch in ipairs(E.cfg.chapters) do
+		for k, g in ipairs(ch.goals or {}) do
+			local pos = v3(g.p)
+			render.DrawWireframeSphere(pos, 16, 8, 8, Color(255, 210, 80), true)
+			cam.Start3D2D(pos + Vector(0, 0, 30), Angle(0, EyeAngles().y - 90, 90), 0.2)
+				draw.SimpleTextOutlined('ГЛ.' .. i .. ' ЦЕЛЬ #' .. k .. ': ' .. (g.name or ''), 'hla_ed3d', 0, 0, Color(255, 210, 80), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
+			cam.End3D2D()
+		end
 	end
 	local pv = E.cfg.pvp.spawns
 	for k, sp in ipairs(pv.t1) do mark(v3(sp.p), sp.y, Color(110, 200, 255), 'К1 #' .. k) end

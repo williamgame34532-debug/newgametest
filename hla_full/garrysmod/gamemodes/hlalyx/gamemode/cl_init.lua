@@ -18,6 +18,7 @@ include('cl_pause.lua')
 include('cl_scoreboard.lua')
 include('cl_dropship.lua')
 include('cl_intro.lua')
+include('cl_fabeditor.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}
@@ -27,15 +28,11 @@ function GM:HUDShouldDraw(name)
 	return self.BaseClass.HUDShouldDraw(self, name)
 end
 
--- HL:A shows pickups on its own counters, not in a pickup list
 function GM:HUDDrawPickupHistory() end
 
--- no kill feed in the corner (deaths are reported by the dispatcher)
 function GM:AddDeathNotice() end
 function GM:DrawDeathNotice() end
 
--- the standard weapon list is hidden, so weapons switch instantly: wheel cycles, 1..6 pick
--- (the active one is highlighted among the icons on the right of the HUD)
 local function ordered(p)
 	local list = p:GetWeapons()
 	table.sort(list, function(a, b)
@@ -46,8 +43,6 @@ local function ordered(p)
 	return list
 end
 
--- weapon switch: a sleeve rustle for the hands, a pistol draw, a rifle grab + raise
--- (sound/hla/weapon: recordings of rzen1th, free for non-commercial use, see CREDITS in hla_menu_content)
 local SW = {
 	hands = {'hla/weapon/cloth_1.wav', 'hla/weapon/cloth_2.wav', 'hla/weapon/cloth_3.wav'},
 	pistol = {'hla/weapon/draw_pistol.wav'},
@@ -69,7 +64,7 @@ end
 
 hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
 	if not pressed or (CFRework and CFRework.FocusEnt and CFRework.FocusEnt()) then return end
-	if HLA.Story and HLA.Story.VoteKey and HLA.Story.VoteKey(bind) then return true end -- 1..3 vote (cl_story.lua)
+	if HLA.Story and HLA.Story.VoteKey and HLA.Story.VoteKey(bind) then return true end
 	local list = ordered(p)
 	if #list == 0 then return end
 	local cur = p:GetActiveWeapon()
@@ -92,7 +87,6 @@ hook.Add('PlayerBindPress', 'HLAWeaponSwitch', function(p, bind, pressed)
 	end
 end)
 
--- an old standalone combine_fabricator addon draws its own resin box: not in this gamemode
 hook.Add('InitPostEntity', 'HLARemoveAddonHud', function() hook.Remove('HUDPaint', 'CFReworkHints') end)
 timer.Simple(5, function() hook.Remove('HUDPaint', 'CFReworkHints') end)
 
@@ -108,7 +102,6 @@ local function fonts()
 	local key = ScrW() .. 'x' .. ScrH() .. '@' .. s
 	if fontsFor == key then return end
 	fontsFor = key
-	-- Play (hla_chat_content, OFL): a squared interface face with Cyrillic, bold for the labels
 	surface.CreateFont('hla_label', {font = 'Play', size = math.max(11, math.floor(28 * s)), weight = 700, extended = true})
 	surface.CreateFont('hla_value', {font = 'Play', size = math.max(15, math.floor(48 * s)), weight = 700, extended = true})
 	surface.CreateFont('hla_big', {font = 'Play', size = math.max(22, math.floor(100 * s)), weight = 700, extended = true})
@@ -148,8 +141,7 @@ function GM:HUDPaint()
 	end
 	if CFRework and CFRework.FocusState and CFRework.FocusState.blend > 0 then return end
 	if HLA.Tab and HLA.Tab.fade > 0 then return end
-	if HLA.Binoculars and HLA.Binoculars.k > 0.2 then return end -- the binoculars have their own overlay
-	-- no HUD while the main menu is up
+	if HLA.Binoculars and HLA.Binoculars.k > 0.2 then return end
 	if p:GetNWBool('hla_in_menu') or (HLA.Menu.State and HLA.Menu.State.fade > 0) then return end
 	fonts()
 	local resin = p:GetNWInt('cf_resin', 0)
@@ -187,7 +179,6 @@ function GM:HUDPaint()
 		resinFlash = math.Clamp(1 - (CurTime() - flashAt) / 0.6, 0, 1),
 		hp = hp, maxhp = p:GetMaxHealth(), hurt = math.Clamp(1 - (CurTime() - hurtAt) / 0.35, 0, 1),
 		weapons = weps, notes = shown}
-	-- stamina bar fades in when used and out a moment after it is full again
 	local stam = HLA.Stamina and HLA.Stamina(p) or HLA.Menu.Stamina.max
 	if stam < HLA.Menu.Stamina.max - 0.5 then staminaSeen = CurTime() end
 	st.stamina, st.staminaMax = stam, HLA.Menu.Stamina.max
@@ -200,7 +191,6 @@ function GM:HUDPaint()
 		st.reserve = p:GetAmmoCount(active:GetPrimaryAmmoType())
 		st.safe = HLA.IsSafe and HLA.IsSafe(p)
 	end
-	-- the vignette flat on the screen, the HUD itself on the curved visor with the other HUD layers
 	H.Vignette(D, st)
 	local beat
 	HLA.HudCurve.Paint(function()
@@ -209,15 +199,12 @@ function GM:HUDPaint()
 	end)
 	beat = beat or 0
 
-	-- heartbeat in time with the hearts; a warning sound when health first drops low
 	local low = hp > 0 and hp <= H.LOW
 	if low and not wasLow then
 		local snd = H.Sound('lowhealth')
 		if snd then surface.PlaySound(snd) end
 	end
 	wasLow = low
-	-- the heartbeat is one sound object: HL2's player/heartbeat1.wav is a loop, so it is started once while
-	-- health is low and stopped as soon as it is not (surface.PlaySound could never stop it)
 	local snd = H.Sound('heartbeat')
 	if low and snd then
 		if not hbSound or hbPath ~= snd then
@@ -229,7 +216,7 @@ function GM:HUDPaint()
 			if not hbSound:IsPlaying() then hbSound:PlayEx(0.7, 100) end
 			hbSound:ChangePitch(math.Clamp(85 + H.Rate(hp) * 18, 90, 130), 0.2)
 		elseif idx ~= lastBeat then
-			hbSound:Stop() hbSound:PlayEx(0.8, 100) -- own one-beat file: once per beat
+			hbSound:Stop() hbSound:PlayEx(0.8, 100)
 		end
 		lastBeat = idx
 	elseif hbSound and hbSound:IsPlaying() then

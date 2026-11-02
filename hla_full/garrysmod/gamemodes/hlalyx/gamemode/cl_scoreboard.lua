@@ -1,6 +1,3 @@
--- TAB (held): the biosignal index of the units, in the look of the visor. Squads together (their name over
--- them, the leader marked), then the units without a squad; status (В СТРОЮ / ВЫВЕДЕН / НАБЛЮДАЕТ / В МЕНЮ),
--- the zone of the units one sees, kills and ping; in PvP by teams the team colour on the left.
 local SB = {shown = false, k = 0}
 HLA.Scoreboard = SB
 
@@ -10,7 +7,6 @@ local WHITE = Color(226, 236, 244)
 local GREY = Color(122, 150, 170)
 local GREEN = Color(96, 228, 150)
 local RED = Color(255, 90, 76)
-local logo = Material('hla/ui/combine_logo', 'smooth')
 
 function GM:ScoreboardShow() SB.shown = true end
 function GM:ScoreboardHide() SB.shown = false end
@@ -35,7 +31,6 @@ local function status(p)
 	return 'ВЫВЕДЕН', RED
 end
 
--- the rows: {kind = 'squad', name} / {kind = 'unit', p, leader}
 local function rows()
 	local SQ = HLA.Squads
 	local out, used = {}, {}
@@ -71,27 +66,14 @@ hook.Add('HUDPaint', 'HLAScoreboard', function()
 	local rowH = math.floor(34 * s)
 	local h = math.floor(120 * s) + #list * rowH + math.floor(30 * s)
 	h = math.min(h, H - y - math.floor(40 * s))
-	-- the glass
 	surface.SetDrawColor(3, 10, 16, 215 * a)
 	surface.DrawRect(x, y, w, h)
 	surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 230 * a)
 	surface.DrawRect(x, y, w, math.max(2, math.floor(3 * s)))
-	for _, c in ipairs({{x, y + h}, {x + w, y + h}}) do
-		surface.DrawRect(c[1] - (c[1] > x and math.floor(24 * s) or 0), c[2] - 2, math.floor(24 * s), 2)
-	end
-	-- head: the symbol, the title, the counter
 	local tx = x + math.floor(24 * s)
-	if not logo:IsError() then
-		local ls = math.floor(46 * s)
-		surface.SetMaterial(logo)
-		surface.SetDrawColor(CYAN.r, CYAN.g, CYAN.b, 230 * a)
-		surface.DrawTexturedRect(tx, y + math.floor(18 * s), ls, ls)
-		tx = tx + ls + math.floor(16 * s)
-	end
 	draw.SimpleText('ИНДЕКС БИОСИГНАЛОВ', 'hla_sb_title', tx, y + math.floor(22 * s), Color(CYAN_HI.r, CYAN_HI.g, CYAN_HI.b, 255 * a))
 	draw.SimpleText(string.upper(GetHostName() or ''), 'hla_sb_head', tx, y + math.floor(62 * s), Color(GREY.r, GREY.g, GREY.b, 230 * a))
 	draw.SimpleText('В СЕТИ  ' .. #player.GetAll() .. ' / ' .. game.MaxPlayers(), 'hla_sb_row', x + w - math.floor(24 * s), y + math.floor(30 * s), Color(CYAN.r, CYAN.g, CYAN.b, 255 * a), TEXT_ALIGN_RIGHT)
-	-- columns
 	local cy = y + math.floor(92 * s)
 	local cols = {{'ЮНИТ', 0.04}, {'СТАТУС', 0.42}, {'ЗОНА', 0.58}, {'УБИЙСТВ', 0.82, TEXT_ALIGN_RIGHT}, {'ПИНГ', 0.95, TEXT_ALIGN_RIGHT}}
 	for _, c in ipairs(cols) do

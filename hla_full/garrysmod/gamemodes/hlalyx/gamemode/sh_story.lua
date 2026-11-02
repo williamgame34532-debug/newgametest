@@ -1,13 +1,8 @@
--- Story / rounds (shared): chapters with spawns and transition triggers, the vote before a round
--- (story, PvP by teams, PvP each for himself), spectators, PvP settings, story NPCs and the dispatcher.
--- Everything is set per map in the editor (hla_editor, admins) and kept in data/hla/story/<map>.json.
 HLA = HLA or {}
 local S = HLA.Story or {}
 HLA.Story = S
 
--- round states (GetGlobal2String('hla_state'))
 S.WAIT, S.VOTE, S.STORY, S.PVP, S.END = 'wait', 'vote', 'story', 'pvp', 'end'
--- vote choices
 S.CHOICES = {
 	{id = 'story', label = 'СЮЖЕТ'},
 	{id = 'teams', label = 'ПВП — ПО КОМАНДАМ'},
@@ -15,7 +10,6 @@ S.CHOICES = {
 }
 S.TEAM1, S.TEAM2 = 1, 2
 
--- models offered for story NPCs: only those installed are shown in the editor (any path can be typed too)
 S.NPCModels = {
 	{label = 'ГРАНТ', model = 'models/cultist/hl_a/combine_grunt/combine_grunt.mdl', weapon = 'tfa_osips'},
 	{label = 'ОРДИНАЛ', model = 'models/cultist/hl_a/combine_ordinal/combine_ordinal.mdl', weapon = 'tfa_ocipr'},
@@ -32,8 +26,8 @@ function S.Default()
 		pvp = {team1 = 'ОТРЯД АЛЬФА', team2 = 'ОТРЯД ОМЕГА', time = 10, friendly = false,
 			spawns = {ffa = {}, t1 = {}, t2 = {}}},
 		npcs = {},
-		dropship = {points = {}, every = 5, container = true, speed = 700}, -- the flight path of the dropship
-		zones = {}, -- {name, a = {x,y,z}, b = {x,y,z}}: named places shown on the visor and under marks
+		dropship = {points = {}, every = 5, container = true, speed = 700},
+		zones = {},
 		dispatch = {every = 0, pool = {}, custom = {}, edits = {}},
 		settings = {minPlayers = 2, voteTime = 20, cardTime = 7, killCallout = true, storyFriendlyFire = false,
 			killLines = {'Противник нейтрализован.', 'Цель уничтожена.', 'Ликвидация подтверждена.'},
@@ -41,7 +35,6 @@ function S.Default()
 	}
 end
 
--- fill missing keys of a loaded config from the defaults (older files, hand edits)
 function S.Normalize(c)
 	local d = S.Default()
 	if not istable(c) then return d end
@@ -53,16 +46,16 @@ function S.Normalize(c)
 	end
 	fill(c, d)
 	if #c.chapters == 0 then c.chapters = d.chapters end
-	if c.pvp.time == 8 then c.pvp.time = 10 end -- the old default: rounds are 10 minutes now
+	if c.pvp.time == 8 then c.pvp.time = 10 end
 	for _, ch in ipairs(c.chapters) do
 		ch.title = tostring(ch.title or '') ch.name = tostring(ch.name or '') ch.sub = tostring(ch.sub or '')
 		ch.spawns = istable(ch.spawns) and ch.spawns or {}
 		ch.dispatch = tostring(ch.dispatch or '')
+		ch.goals = istable(ch.goals) and ch.goals or {}
 	end
 	return c
 end
 
--- the text of a dispatcher line: the admin's own edit, the built-in line or an own line
 function S.DispatchText(cfg, id)
 	local own = cfg and cfg.dispatch
 	if own and own.edits and own.edits[id] and own.edits[id] ~= '' then return own.edits[id] end
@@ -73,12 +66,10 @@ function S.DispatchText(cfg, id)
 	end
 end
 
--- who may use the story editor and place story NPCs: admins, the host of a listen server, single player
 function HLA.CanEdit(p)
 	return IsValid(p) and (p:IsAdmin() or game.SinglePlayer() or p:IsListenServerHost())
 end
 
--- zones (sent to everyone as a small JSON): the name of the zone a point is in, or nil
 local zoneCache, zoneSrc = {}, nil
 function S.Zones()
 	local src = GetGlobal2String('hla_zones', '[]')
@@ -98,7 +89,6 @@ function S.State() return GetGlobal2String('hla_state', S.WAIT) end
 function S.Mode() return GetGlobal2String('hla_mode', '') end
 function S.InRound() local s = S.State() return s == S.STORY or s == S.PVP end
 
--- a point inside a trigger box {a = {x,y,z}, b = {x,y,z}}
 function S.Inside(box, pos)
 	if not box or not box.a or not box.b then return false end
 	local a, b = box.a, box.b
