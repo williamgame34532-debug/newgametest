@@ -22,130 +22,113 @@ local function partner(door)
 	end
 end
 
-function ENT:LockPlacement(door, normal)
-	local pos = door:GetPos()
-	local bone = door:LookupBone('handle')
-	if bone and bone >= 1 then pos = door:GetBonePosition(bone) or pos end
+function ENT:GetLockPosition(door, normal)
+	local index = door:LookupBone('handle')
+	local position = door:GetPos()
 	normal = normal or door:GetForward():Angle()
-	pos = pos + normal:Forward() * 7.2 + normal:Up() * 10 + normal:Right() * 2
+	if index and index >= 1 then position = door:GetBonePosition(index) end
+	position = position + normal:Forward() * 7.2 + normal:Up() * 10 + normal:Right() * 2
 	normal:RotateAroundAxis(normal:Up(), 90)
 	normal:RotateAroundAxis(normal:Forward(), 180)
 	normal:RotateAroundAxis(normal:Right(), 180)
-	return pos, normal
+	return position, normal
 end
 
-function ENT:SetDoor(door, pos, ang)
+function ENT:SetDoor(door, position, angles)
 	if not HLA.IsDoor(door) then return end
+	local doorPartner = partner(door)
 	self.door = door
+	self.door:DeleteOnRemove(self)
 	door.HLALock = self
-	door:DeleteOnRemove(self)
-	local p = partner(door)
-	if IsValid(p) then
-		self.doorPartner = p
-		p.HLALock = self
-		p:DeleteOnRemove(self)
+	if IsValid(doorPartner) then
+		self.doorPartner = doorPartner
+		self.doorPartner:DeleteOnRemove(self)
+		doorPartner.HLALock = self
 	end
-	self:SetPos(pos)
-	self:SetAngles(ang)
+	self:SetPos(position)
+	self:SetAngles(angles)
 	self:SetParent(door)
-	door:CallOnRemove('HLALockDoor', function(d) d.HLARemoving = true end)
-	local was = door:GetInternalVariable('m_bLocked')
-	if was == true then
-		self.mapLocked = true
-		local prev = L.loading
-		L.loading = true
-		self:SetLocked(true)
-		L.loading = prev
-	end
 end
 
-function ENT:SpawnFunction(p, tr)
-	local door = tr.Entity
-	if not HLA.IsDoor(door) then p:ChatPrint('[HLA] Наведитесь на дверь') return end
-	if IsValid(door.HLALock) then p:ChatPrint('[HLA] На этой двери уже есть замок') return end
-	local e = ents.Create('hla_combinelock')
-	e:SetPos(tr.HitPos)
-	e:Spawn()
-	e:Activate()
-	local _, ang = e:LockPlacement(door, tr.HitNormal:Angle())
-	e:SetAngles(ang)
-	e:SetPos(tr.HitPos)
-	local n = tr.HitNormal
-	local mn, mx = e:OBBMins(), e:OBBMaxs()
-	local back = math.huge
-	for _, x in ipairs({mn.x, mx.x}) do for _, y in ipairs({mn.y, mx.y}) do for _, z in ipairs({mn.z, mx.z}) do
-		back = math.min(back, (e:LocalToWorld(Vector(x, y, z)) - tr.HitPos):Dot(n))
-	end end end
-	local c = (e:LocalToWorld(e:OBBCenter()) - tr.HitPos)
-	local side = c - n * c:Dot(n)
-	local pos = tr.HitPos - side - n * (back - 0.3)
-	e:SetDoor(door, pos, ang)
+function ENT:SpawnFunction(client, trace)
+	local door = trace.Entity
+	if not HLA.IsDoor(door) or IsValid(door.HLALock) then
+		client:ChatPrint('[HLA] Наведитесь на дверь без замка')
+		return
+	end
+	local normal = client:GetEyeTrace().HitNormal:Angle()
+	local position, angles = self:GetLockPosition(door, normal)
+	local entity = ents.Create('hla_combinelock')
+	entity:SetPos(trace.HitPos)
+	entity:Spawn()
+	entity:Activate()
+	entity:SetDoor(door, position, angles)
 	L.Save()
-	return e
+	return entity
 end
 
 function ENT:Initialize()
 	self:SetModel(self.LockModel)
-	self:PhysicsInit(SOLID_VPHYSICS)
 	self:SetSolid(SOLID_VPHYSICS)
+	self:PhysicsInit(SOLID_VPHYSICS)
 	self:SetCollisionGroup(COLLISION_GROUP_WEAPON)
 	self:SetUseType(SIMPLE_USE)
-	local phys = self:GetPhysicsObject()
-	if IsValid(phys) then phys:EnableMotion(false) end
-	self.nextUse = 0
+	self.nextUseTime = 0
 end
 
 function ENT:OnRemove()
-	for _, d in ipairs({self.door, self.doorPartner}) do
-		if IsValid(d) then
-			if not self.mapLocked then d:Fire('Unlock') end
-			d.HLALock = nil
-		end
+	if IsValid(self) then self:SetParent(nil) end
+	if IsValid(self.door) then
+		self.door:Fire('unlock')
+		self.door.HLALock = nil
 	end
-	if not L.loading and not L.cleaning and IsValid(self.door) and not self.door.HLARemoving and not self.door:IsMarkedForDeletion() then timer.Simple(0, L.Save) end
+	if IsValid(self.doorPartner) then
+		self.doorPartner:Fire('unlock')
+		self.doorPartner.HLALock = nil
+	end
+	if not L.cleaning and not L.loading then timer.Simple(0, L.Save) end
 end
 
-function ENT:OnLockChanged(_, was, now)
-	if was == now then return end
-	for _, d in ipairs({self.door, self.doorPartner}) do
-		if IsValid(d) then
-			if now then d:Fire('Close') d:Fire('Lock') elseif not self.mapLocked then d:Fire('Unlock') end
+function ENT:OnLockChanged(name, bWasLocked, bLocked)
+	if not IsValid(self.door) then return end
+	if bLocked then
+		if not L.loading then self:EmitSound(self.SndLock) end
+		self.door:Fire('lock')
+		self.door:Fire('close')
+		if IsValid(self.doorPartner) then
+			self.doorPartner:Fire('lock')
+			self.doorPartner:Fire('close')
 		end
+	else
+		if not L.loading then self:EmitSound(self.SndUnlock[math.random(#self.SndUnlock)]) end
+		self.door:Fire('unlock')
+		if IsValid(self.doorPartner) then self.doorPartner:Fire('unlock') end
 	end
-	if L.loading then return end
-	if now then self:EmitSound(self.SndLock, 65) else self:EmitSound(self.SndUnlock[math.random(#self.SndUnlock)], 65) end
-	timer.Simple(0, L.Save)
+	if not L.loading then timer.Simple(0, L.Save) end
 end
 
-function ENT:ShowError()
-	if self:GetDisplayError() then return end
-	self:EmitSound(self.SndError, 65)
+function ENT:DisplayError()
+	self:EmitSound(self.SndError)
 	self:SetDisplayError(true)
-	timer.Simple(1.2, function() if IsValid(self) then self:SetDisplayError(false) end end)
+	timer.Simple(1.2, function()
+		if IsValid(self) then self:SetDisplayError(false) end
+	end)
 end
 
-function L.CanUse(p)
-	if not IsValid(p) or not p:Alive() or p.HLAInMenu then return false end
-	return hook.Run('HLACanUseCombineLock', p) ~= false
-end
-
-function ENT:Use(p)
-	if self.nextUse > CurTime() then return end
-	self.nextUse = CurTime() + 1.5
-	if not L.CanUse(p) or (self.mapLocked and not (HLA.CanEdit and HLA.CanEdit(p))) then self:ShowError() return end
-	if self.mapLocked then self.mapLocked = nil self.adminUnlocked = true end
-	self:SetLocked(not self:GetLocked())
-end
-
-hook.Add('PlayerUse', 'HLACombineLock', function(p, e)
-	local lock = IsValid(e) and e.HLALock
-	if IsValid(lock) and lock:GetLocked() then
-		if (p.HLALockMsg or 0) < CurTime() then
-			p.HLALockMsg = CurTime() + 1.5
-			lock:ShowError()
-		end
+function ENT:Toggle(client)
+	if self.nextUseTime > CurTime() then return end
+	if not IsValid(client) or not client:Alive() or client.HLAInMenu or hook.Run('HLACanUseCombineLock', client) == false then
+		self:DisplayError()
+		self.nextUseTime = CurTime() + 2
+		return
 	end
-end)
+	self:SetLocked(not self:GetLocked())
+	self.nextUseTime = CurTime() + 2
+end
+
+function ENT:Use(client)
+	self:Toggle(client)
+end
 
 local function path() return 'hla/locks/' .. game.GetMap() .. '.json' end
 
@@ -155,7 +138,7 @@ function L.Save()
 	for _, e in ipairs(ents.FindByClass('hla_combinelock')) do
 		local d = e.door
 		if IsValid(d) and d:MapCreationID() >= 0 then
-			out[#out + 1] = {door = d:MapCreationID(), pos = d:WorldToLocal(e:GetPos()), ang = d:WorldToLocalAngles(e:GetAngles()), locked = e:GetLocked(), unlocked = e.adminUnlocked or nil}
+			out[#out + 1] = {door = d:MapCreationID(), pos = d:WorldToLocal(e:GetPos()), ang = d:WorldToLocalAngles(e:GetAngles()), locked = e:GetLocked()}
 		end
 	end
 	file.CreateDir('hla/locks')
@@ -175,11 +158,6 @@ function L.Load()
 			e:Spawn()
 			e:Activate()
 			e:SetDoor(d, d:LocalToWorld(r.pos), d:LocalToWorldAngles(r.ang))
-			if r.unlocked and e.mapLocked then
-				e.mapLocked = nil
-				e.adminUnlocked = true
-				e:SetLocked(false)
-			end
 			if r.locked then e:SetLocked(true) end
 		end
 	end

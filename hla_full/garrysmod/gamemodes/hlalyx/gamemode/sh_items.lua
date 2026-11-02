@@ -58,6 +58,16 @@ I.Defs = {
 	},
 }
 
+local STACK = {pills = 5, battery = 3, medkit = 2, ammo_service = 5, ammo_pistol = 5, ammo_smg = 5, ammo_shotgun = 5, ammo_ar2 = 5}
+function I.Stack(id)
+	local d = I.Defs[id]
+	if not d then return 1 end
+	if d.stack then return d.stack end
+	if STACK[id] then return STACK[id] end
+	if d.use == 'ammo' then return 5 end
+	return 1
+end
+
 function I.Get(id) return I.Defs[id] end
 
 function I.Model(id)

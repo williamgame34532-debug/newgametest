@@ -191,6 +191,7 @@ hook.Add('StartCommand', 'HLASafety', function(p, cmd)
 	end
 end)
 HLA.IsSafe = function(p) return IsValid(p) and p:GetNW2Bool('hla_safe') and armed(p) end
+HLA.IsArmed = armed
 
 if SERVER then
 	local function tfaSafe(w) return IsValid(w) and w.IsTFAWeapon and w.IsSafety and w.CycleSafety and w:IsSafety() end

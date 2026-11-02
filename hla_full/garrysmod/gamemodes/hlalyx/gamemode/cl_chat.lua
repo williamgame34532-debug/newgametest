@@ -35,7 +35,7 @@ local function usub(s, n)
 end
 
 function C.Add(segs, opts)
-	local line = {segs = segs, t = RealTime(), total = 0}
+	local line = {segs = segs, t = RealTime(), total = 0, time = os.date('%H:%M')}
 	for _, sg in ipairs(segs) do line.total = line.total + ulen(sg[1]) end
 	if opts and opts.instant then line.t = RealTime() - 60 end
 	table.insert(C.lines, line)
@@ -247,6 +247,11 @@ function C.Open()
 		self.drag = {mx - fx, my - fy}
 		self:MouseCapture(true)
 	end
+	C.scroll = 0
+	f.OnMouseWheeled = function(self, d)
+		C.scroll = math.Clamp((C.scroll or 0) + (d > 0 and 1 or -1), 0, math.max(0, #C.lines - 1))
+		return true
+	end
 	f.OnMouseReleased = function(self)
 		if not self.drag then return end
 		self.drag = nil
@@ -307,8 +312,20 @@ function C.Open()
 		end
 	end
 	e.OnValueChange = function(self, v) updateSugg(v or self:GetValue()) end
+	e.OnMouseWheeled = function(self, d) return f:OnMouseWheeled(d) end
 	e.OnKeyCodeTyped = function(self, code)
 		if code == KEY_TAB then takeSugg(self) return true end
+		if not C.sugg and (code == KEY_UP or code == KEY_DOWN) and #(C.hist or {}) > 0 then
+			C.histPos = math.Clamp((C.histPos or (#C.hist + 1)) + (code == KEY_UP and -1 or 1), 1, #C.hist + 1)
+			local v = C.hist[C.histPos] or ''
+			self:SetText(v)
+			self:SetCaretPos(ulen(v))
+			return true
+		end
+		if code == KEY_PAGEUP or code == KEY_PAGEDOWN then
+			C.scroll = math.Clamp((C.scroll or 0) + (code == KEY_PAGEUP and 4 or -4), 0, math.max(0, #C.lines - 1))
+			return true
+		end
 		if C.sugg and (code == KEY_UP or code == KEY_DOWN) then
 			C.sel = (C.sel - 1 + (code == KEY_DOWN and 1 or -1)) % #C.sugg + 1
 			return true
@@ -319,6 +336,10 @@ function C.Open()
 		local t = string.Trim(self:GetValue())
 		C.Close()
 		if t == '' then return end
+		C.hist = C.hist or {}
+		if C.hist[#C.hist] ~= t then C.hist[#C.hist + 1] = t end
+		while #C.hist > 30 do table.remove(C.hist, 1) end
+		C.histPos = nil
 		if string.sub(t, 1, 1) == '!' then
 			RunConsoleCommand('say', (string.gsub(t, '"', "'")))
 		else
@@ -385,18 +406,24 @@ hook.Add('HUDPaint', 'HLAChat', function()
 	local y = bottom
 	local now = RealTime()
 	local shown = 0
-	for i = #C.lines, 1, -1 do
+	local first = #C.lines - (C.open and (C.scroll or 0) or 0)
+	for i = first, 1, -1 do
 		local line = C.lines[i]
 		local age = now - line.t
 		local a = C.open and 1 or math.Clamp(1 - (age - LIFE) / FADE, 0, 1)
 		if a <= 0 and not C.open then break end
-		local rows = layout(line, w - pad * 3)
+		local rows = layout(line, w - pad * 3 - math.floor(44 * s))
 		local hgt = #rows * lh + math.floor(6 * s)
 		y = y - hgt
 		if y < ScrH() * 0.3 then break end
+		local slide = math.floor((1 - math.Clamp(age / 0.18, 0, 1)) ^ 2 * 24 * s)
+		local x = x - slide
 		surface.SetMaterial(bg)
 		surface.SetDrawColor(255, 255, 255, 230 * a)
 		surface.DrawTexturedRect(x, y, w, hgt - math.floor(2 * s))
+		if line.time then
+			draw.SimpleText(line.time, 'hla_chat_s', x + w - pad, y + math.floor(3 * s), Color(GREY.r, GREY.g, GREY.b, 150 * a), TEXT_ALIGN_RIGHT, TEXT_ALIGN_TOP)
+		end
 		surface.SetMaterial(mark)
 		surface.SetDrawColor(255, 255, 255, 220 * a)
 		surface.DrawTexturedRect(x - math.floor(6 * s), y + math.floor(3 * s), math.floor(12 * s), hgt - math.floor(8 * s))

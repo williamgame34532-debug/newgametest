@@ -126,3 +126,18 @@ hook.Add('Think', 'HLAMusic', function()
 		M.Play()
 	end
 end)
+
+local wmKey
+hook.Add('DrawOverlay', 'HLAWatermark', function()
+	local W, H = ScrW(), ScrH()
+	local s = math.min(W / 1920, H / 1080)
+	local key = W .. 'x' .. H
+	if wmKey ~= key then
+		wmKey = key
+		surface.CreateFont('hla_wm_title', {font = 'Tektur', size = math.max(12, math.floor(19 * s)), weight = 600, italic = true, extended = true, antialias = true})
+		surface.CreateFont('hla_wm_sub', {font = 'Exo 2', size = math.max(10, math.floor(13 * s)), weight = 600, italic = true, extended = true, antialias = true})
+	end
+	local x, y = W - math.floor(14 * s), H - math.floor(8 * s)
+	draw.SimpleText('work in progress', 'hla_wm_sub', x, y, Color(170, 196, 214, 110), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
+	draw.SimpleText('HL-A: Last soldier', 'hla_wm_title', x, y - math.floor(14 * s), Color(226, 240, 250, 130), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
+end)

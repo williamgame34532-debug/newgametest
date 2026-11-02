@@ -153,6 +153,7 @@ function I.Start(onDone)
 	I.leaving = nil
 	I.onDone = onDone
 	makeShip()
+	makePanel()
 	startSounds()
 	return true
 end
@@ -161,6 +162,8 @@ local function finish()
 	I.active = false
 	stopSounds()
 	dropShip()
+	if IsValid(I.panel) then I.panel:Remove() end
+	I.panel = nil
 	local f = I.onDone
 	I.onDone = nil
 	if f then f() end
@@ -198,6 +201,9 @@ local function drawShip(t)
 	if not IsValid(I.ship) then return end
 	local pos = SHIP_POS + Vector(math.sin(t * 0.35) * 18, math.sin(t * 0.23) * 10, math.sin(t * 0.9) * 10)
 	local a = Angle(4 + math.sin(t * 0.5) * 1.5, 90, math.sin(t * 0.6) * 3)
+	render.SetColorModulation(1, 1, 1)
+	render.SetBlend(1)
+	render.SetLightingOrigin(SHIP_POS)
 	render.SuppressEngineLighting(true)
 	render.ResetModelLighting(0.45, 0.5, 0.56)
 	render.SetModelLighting(BOX_TOP, 0.95, 0.97, 1)
@@ -216,20 +222,17 @@ local function drawShip(t)
 	render.SuppressEngineLighting(false)
 end
 
-hook.Add('RenderScene', 'HLAIntro', function()
-	if not I.active then return end
+local function paintIntro(panel, W, H)
 	local t = RealTime() - I.born
 	local origin = Vector(0, 0, 0)
 	local ang = (SHIP_POS - origin):Angle()
-	local fov = 60
-	render.Clear(0, 0, 0, 255, true, true)
-	cam.Start3D(origin, ang, fov, 0, 0, ScrW(), ScrH(), 4, 20000)
+	local x, y = panel:LocalToScreen(0, 0)
+	cam.Start3D(origin, ang, 60, x, y, W, H, 4, 20000)
 		drawSky(origin, -t * SKY_SPEED)
 		render.ClearDepth()
 		drawShip(t)
 	cam.End3D()
-	cam.Start2D()
-		local W, H = ScrW(), ScrH()
+	do
 		local bar = math.floor(H * 0.09)
 		surface.SetDrawColor(0, 0, 0, 255)
 		surface.DrawRect(0, 0, W, bar)
@@ -250,7 +253,24 @@ hook.Add('RenderScene', 'HLAIntro', function()
 			surface.SetDrawColor(0, 0, 0, 255 * black)
 			surface.DrawRect(0, 0, W, H)
 		end
-	cam.End2D()
+	end
+end
+
+local function makePanel()
+	if IsValid(I.panel) then I.panel:Remove() end
+	local p = vgui.Create('DPanel')
+	p:SetPos(0, 0)
+	p:SetSize(ScrW(), ScrH())
+	p:SetMouseInputEnabled(false)
+	p:SetKeyboardInputEnabled(false)
+	p:SetZPos(-100)
+	p.Paint = function(self, w, h) paintIntro(self, w, h) end
+	I.panel = p
+end
+
+hook.Add('RenderScene', 'HLAIntro', function()
+	if not I.active then return end
+	render.Clear(0, 0, 0, 255, true, true)
 	return true
 end)
 

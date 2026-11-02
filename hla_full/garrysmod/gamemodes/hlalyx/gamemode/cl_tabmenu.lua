@@ -36,11 +36,15 @@ surface.CreateFont('hlat_mid', {font = 'Roboto Condensed', size = 24, weight = 7
 surface.CreateFont('hlat_small', {font = 'Roboto Condensed', size = 17, weight = 500, extended = true})
 
 T.inv = {}
+T.invN = {}
 net.Receive('hla_inv', function()
 	for i = 1, I.Slots do
 		local id = net.ReadString()
+		local n = net.ReadUInt(8)
 		T.inv[i] = id ~= '' and id or nil
+		T.invN[i] = T.inv[i] and n or nil
 	end
+	hook.Run('HLAInventoryChanged')
 end)
 
 local function send(what, a, b)
@@ -363,6 +367,9 @@ local function drawPanel(a)
 			if T.moveFrom == i then
 				surface.SetDrawColor(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 90 * a)
 				surface.DrawRect(x, y, w, h)
+			end
+			if T.inv[i] and (T.invN[i] or 1) > 1 then
+				draw.SimpleText('×' .. T.invN[i], 'hlat_small', x + w - 6, y + h - 4, Color(GOLD_HI.r, GOLD_HI.g, GOLD_HI.b, 255 * a), TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
 			end
 		end
 		local id = T.sel and T.inv[T.sel]

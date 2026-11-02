@@ -11,30 +11,50 @@ end
 function I.Load(p)
 	local k = key(p)
 	local t = k and util.JSONToTable(file.Read('hla/inv/' .. k .. '.json', 'DATA') or '') or {}
-	local inv = {}
+	local inv, cnt = {}, {}
 	for i = 1, I.Slots do
-		local id = t[tostring(i)] or t[i]
-		if isstring(id) and I.Defs[id] then inv[i] = id end
+		local v = t[tostring(i)] or t[i]
+		local id, n = v, 1
+		if istable(v) then id, n = v.id, tonumber(v.n) or 1 end
+		if isstring(id) and I.Defs[id] then
+			inv[i] = id
+			cnt[i] = math.Clamp(math.floor(n), 1, I.Stack(id))
+		end
 	end
-	p.HLAInv = inv
+	p.HLAInv, p.HLAInvN = inv, cnt
 	I.Send(p)
 end
 
 function I.Save(p)
 	if not p.HLAInv or not key(p) then return end
 	local t = {}
-	for i = 1, I.Slots do if p.HLAInv[i] then t[tostring(i)] = p.HLAInv[i] end end
+	for i = 1, I.Slots do
+		local id = p.HLAInv[i]
+		if id then
+			local n = I.N(p, i)
+			t[tostring(i)] = n > 1 and {id = id, n = n} or id
+		end
+	end
 	file.Write('hla/inv/' .. key(p) .. '.json', util.TableToJSON(t))
+end
+
+function I.N(p, slot)
+	p.HLAInvN = p.HLAInvN or {}
+	return p.HLAInv and p.HLAInv[slot] and (p.HLAInvN[slot] or 1) or 0
 end
 
 function I.Send(p)
 	net.Start('hla_inv')
-	for i = 1, I.Slots do net.WriteString(p.HLAInv and p.HLAInv[i] or '') end
+	for i = 1, I.Slots do
+		net.WriteString(p.HLAInv and p.HLAInv[i] or '')
+		net.WriteUInt(math.min(I.N(p, i), 255), 8)
+	end
 	net.Send(p)
 end
 
 function I.Inv(p)
 	if not p.HLAInv then I.Load(p) end
+	p.HLAInvN = p.HLAInvN or {}
 	return p.HLAInv
 end
 
@@ -43,27 +63,66 @@ function I.FreeSlot(p)
 	for i = 1, I.Slots do if not inv[i] then return i end end
 end
 
+function I.Room(p, id)
+	local inv = I.Inv(p)
+	local room = 0
+	local max = I.Stack(id)
+	for i = 1, I.Slots do
+		if not inv[i] then room = room + max
+		elseif inv[i] == id then room = room + math.max(0, max - I.N(p, i)) end
+	end
+	return room
+end
+
 function I.Count(p, id)
 	local n = 0
-	for i = 1, I.Slots do if I.Inv(p)[i] == id then n = n + 1 end end
+	for i = 1, I.Slots do if I.Inv(p)[i] == id then n = n + I.N(p, i) end end
 	return n
 end
 
-function I.Add(p, id)
-	local s = I.FreeSlot(p)
-	if not s or not I.Defs[id] then return false end
-	I.Inv(p)[s] = id
+function I.Add(p, id, n)
+	n = n or 1
+	if not I.Defs[id] or n < 1 or I.Room(p, id) < n then return false end
+	local inv = I.Inv(p)
+	local max = I.Stack(id)
+	local first
+	for i = 1, I.Slots do
+		if n <= 0 then break end
+		if inv[i] == id and I.N(p, i) < max then
+			local put = math.min(n, max - I.N(p, i))
+			p.HLAInvN[i] = I.N(p, i) + put
+			n = n - put
+			first = first or i
+		end
+	end
+	for i = 1, I.Slots do
+		if n <= 0 then break end
+		if not inv[i] then
+			local put = math.min(n, max)
+			inv[i] = id
+			p.HLAInvN[i] = put
+			n = n - put
+			first = first or i
+		end
+	end
 	I.Save(p) I.Send(p)
-	return s
+	return first
 end
 
-function I.Take(p, slot)
+function I.Take(p, slot, n)
 	local inv = I.Inv(p)
 	local id = inv[slot]
 	if not id then return end
-	inv[slot] = nil
+	n = math.min(n or 1, I.N(p, slot))
+	local left = I.N(p, slot) - n
+	if left <= 0 then
+		inv[slot] = nil
+		p.HLAInvN[slot] = nil
+	else
+		p.HLAInvN[slot] = left
+	end
 	I.Save(p) I.Send(p)
-	return id
+	return id, n
 end
 
 function I.SpawnWorld(id, pos, ang)
@@ -115,7 +174,17 @@ net.Receive('hla_inv_do', function(_, p)
 	if what == 'move' then
 		local a, b = net.ReadUInt(5), net.ReadUInt(5)
 		if a < 1 or b < 1 or a > I.Slots or b > I.Slots or a == b then return end
-		inv[a], inv[b] = inv[b], inv[a]
+		local N = p.HLAInvN
+		if inv[a] and inv[a] == inv[b] and I.Stack(inv[a]) > 1 then
+			local max = I.Stack(inv[a])
+			local moveN = math.min(I.N(p, a), max - I.N(p, b))
+			N[b] = I.N(p, b) + moveN
+			N[a] = I.N(p, a) - moveN
+			if N[a] <= 0 then inv[a], N[a] = nil, nil end
+		else
+			inv[a], inv[b] = inv[b], inv[a]
+			N[a], N[b] = N[b], N[a]
+		end
 		I.Save(p) I.Send(p)
 		p:EmitSound(I.MoveSound(), 45, 100)
 	elseif what == 'use' then

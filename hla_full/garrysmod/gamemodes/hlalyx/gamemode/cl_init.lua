@@ -19,6 +19,8 @@ include('cl_scoreboard.lua')
 include('cl_dropship.lua')
 include('cl_intro.lua')
 include('cl_fabeditor.lua')
+include('cl_radial.lua')
+include('cl_container.lua')
 
 local H = HLA.Hud
 local HIDE = {CHudHealth = true, CHudBattery = true, CHudAmmo = true, CHudSecondaryAmmo = true, CHudWeaponSelection = true}

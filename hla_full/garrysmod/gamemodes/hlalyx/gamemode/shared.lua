@@ -40,6 +40,10 @@ include('sh_radiovoice.lua')
 include('sh_story.lua')
 if SERVER then AddCSLuaFile('sh_markers.lua') end
 include('sh_markers.lua')
+if SERVER then AddCSLuaFile('sh_radial.lua') AddCSLuaFile('cl_radial.lua') end
+include('sh_radial.lua')
+if SERVER then AddCSLuaFile('sh_loot.lua') AddCSLuaFile('cl_container.lua') end
+include('sh_loot.lua')
 
 HLA.DropChance = CreateConVar('hla_resin_drop_chance', '0.6', {FCVAR_ARCHIVE, FCVAR_REPLICATED, FCVAR_NOTIFY}, 'Chance an NPC drops resin')
 HLA.StartResin = CreateConVar('hla_start_resin', '10', {FCVAR_ARCHIVE, FCVAR_NOTIFY}, 'Resin a new player starts with')
