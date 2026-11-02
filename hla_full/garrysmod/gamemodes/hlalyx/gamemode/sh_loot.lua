@@ -91,7 +91,12 @@ if SERVER then
 	end
 
 	function L.Refill(e)
-		e.items = L.Roll(e.cfg.table, e.cfg.slots)
+		e.items = e.items or {}
+		local free = {}
+		for i = 1, e.cfg.slots do if not e.items[i] then free[#free + 1] = i end end
+		for k, it in ipairs(L.Roll(e.cfg.table, #free)) do
+			if it and free[k] then e.items[free[k]] = it end
+		end
 		e.nextRefill = CurTime() + math.max(1, e.cfg.respawn) * 60
 		filled(e)
 		L.SendTo(e)
@@ -150,7 +155,7 @@ if SERVER then
 			if not it then return false end
 			local room = math.min(it.n, I.Room(p, it.id))
 			if room < 1 then return false end
-			I.Add(p, it.id, room)
+			if not I.Add(p, it.id, room) then return false end
 			it.n = it.n - room
 			if it.n <= 0 then e.items[i] = nil end
 			return true
@@ -289,7 +294,10 @@ if SERVER then
 		end
 	end)
 
-	hook.Add('Initialize', 'HLALoot', L.LoadTables)
+	hook.Add('InitPostEntity', 'HLALootTables', function()
+		if HLA.FabCfg and HLA.FabCfg.Load then HLA.FabCfg.Load() end
+		L.LoadTables()
+	end)
 	hook.Add('InitPostEntity', 'HLALoot', function() timer.Simple(1, L.LoadMap) end)
 	hook.Add('PreCleanupMap', 'HLALoot', function() L.cleaning = true end)
 	hook.Add('PostCleanupMap', 'HLALoot', function() timer.Simple(1, function() L.cleaning = false L.LoadMap() end) end)

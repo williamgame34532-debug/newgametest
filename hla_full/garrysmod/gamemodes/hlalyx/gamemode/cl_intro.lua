@@ -146,6 +146,8 @@ local function dropShip()
 	I.ship, I.box = nil, nil
 end
 
+local makePanel
+
 function I.Start(onDone)
 	if not cvIntro:GetBool() or I.active then return false end
 	I.active = true
@@ -256,7 +258,7 @@ local function paintIntro(panel, W, H)
 	end
 end
 
-local function makePanel()
+makePanel = function()
 	if IsValid(I.panel) then I.panel:Remove() end
 	local p = vgui.Create('DPanel')
 	p:SetPos(0, 0)

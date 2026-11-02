@@ -39,7 +39,7 @@ local function btn(parent, text, fn)
 	return b
 end
 
-local function cell(parent, size, id, n, onClick, onHover)
+local function cell(parent, size, onClick, onHover)
 	local c = vgui.Create('DButton', parent)
 	c:SetText('')
 	c:SetSize(size, size)
@@ -47,22 +47,31 @@ local function cell(parent, size, id, n, onClick, onHover)
 		local hot = self:IsHovered()
 		surface.SetDrawColor(CELL)
 		surface.DrawRect(0, 0, w, h)
-		surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, hot and 230 or (id and 90 or 35))
+		surface.SetDrawColor(BLUE.r, BLUE.g, BLUE.b, hot and 230 or (self.id and 90 or 35))
 		surface.DrawOutlinedRect(0, 0, w, h, hot and 2 or 1)
-		if hot then onHover(id) end
+		if hot then onHover(self.id) end
 	end
 	c.PaintOver = function(self, w, h)
-		if id and n and n > 1 then
-			draw.SimpleText('×' .. n, 'hla_ct_count', w - 5, h - 3, WHITE, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
+		if self.id and self.n and self.n > 1 then
+			draw.SimpleText('×' .. self.n, 'hla_ct_count', w - 5, h - 3, WHITE, TEXT_ALIGN_RIGHT, TEXT_ALIGN_BOTTOM)
 		end
 	end
-	c.DoClick = function() if id then onClick() end end
-	if id then
-		local icon = vgui.Create('ModelImage', c)
-		icon:SetModel(I.Model(id))
-		icon:SetSize(size - 10, size - 10)
-		icon:SetPos(5, 5)
-		icon:SetMouseInputEnabled(false)
+	c.DoClick = function(self) if self.id then onClick() end end
+	c.icon = vgui.Create('ModelImage', c)
+	c.icon:SetSize(size - 10, size - 10)
+	c.icon:SetPos(5, 5)
+	c.icon:SetMouseInputEnabled(false)
+	c.icon:SetVisible(false)
+	c.Set = function(self, id, n)
+		self.n = n
+		if self.id == id then return end
+		self.id = id
+		if id then
+			self.icon:SetModel(I.Model(id))
+			self.icon:SetVisible(true)
+		else
+			self.icon:SetVisible(false)
+		end
 	end
 	return c
 end
@@ -85,20 +94,33 @@ local function build()
 	local f = CU.frame
 	if not IsValid(f) then return end
 	local s = sc()
-	f.cont:Clear()
-	f.inv:Clear()
 	local size = math.floor(78 * s)
 	local gap = math.floor(8 * s)
+	if f.contSlots ~= CU.slots then
+		f.cont:Clear()
+		f.contCells = {}
+		f.contSlots = CU.slots
+		for i = 1, CU.slots do
+			local c = cell(f.cont, size, function() send('take', i) end, function(id) f.hoverID = id end)
+			c:SetPos(((i - 1) % 4) * (size + gap), math.floor((i - 1) / 4) * (size + gap))
+			f.contCells[i] = c
+		end
+	end
+	if not f.invCells then
+		f.invCells = {}
+		for i = 1, I.Slots do
+			local c = cell(f.inv, size, function() send('put', i) end, function(hid) f.hoverID = hid end)
+			c:SetPos(((i - 1) % 4) * (size + gap), math.floor((i - 1) / 4) * (size + gap))
+			f.invCells[i] = c
+		end
+	end
 	for i = 1, CU.slots do
 		local it = CU.items[i]
-		local c = cell(f.cont, size, it and it.id, it and it.n, function() send('take', i) end, function(id) f.hoverID = id end)
-		c:SetPos(((i - 1) % 4) * (size + gap), math.floor((i - 1) / 4) * (size + gap))
+		f.contCells[i]:Set(it and it.id, it and it.n)
 	end
 	local T = HLA.Tab
 	for i = 1, I.Slots do
-		local id = T and T.inv[i]
-		local c = cell(f.inv, size, id, T and T.invN and T.invN[i], function() send('put', i) end, function(hid) f.hoverID = hid end)
-		c:SetPos(((i - 1) % 4) * (size + gap), math.floor((i - 1) / 4) * (size + gap))
+		f.invCells[i]:Set(T and T.inv[i], T and T.invN and T.invN[i])
 	end
 end
 

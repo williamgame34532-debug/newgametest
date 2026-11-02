@@ -130,6 +130,14 @@ function ENT:Use(client)
 	self:Toggle(client)
 end
 
+hook.Add('PlayerUse', 'HLACombineLock', function(p, e)
+	local lock = IsValid(e) and e.HLALock
+	if IsValid(lock) and lock:GetLocked() and (p.HLALockMsg or 0) < CurTime() then
+		p.HLALockMsg = CurTime() + 1.5
+		lock:DisplayError()
+	end
+end)
+
 local function path() return 'hla/locks/' .. game.GetMap() .. '.json' end
 
 function L.Save()

@@ -57,7 +57,8 @@ end
 
 local function closeMenu()
 	RM.open = false
-	gui.EnableScreenClicker(false)
+	local other = (HLA.ContainerUI and IsValid(HLA.ContainerUI.frame)) or (HLA.Tab and HLA.Tab.open) or (HLA.ChatBox and HLA.ChatBox.open)
+	if not other then gui.EnableScreenClicker(false) end
 end
 
 local function run(item)
@@ -75,7 +76,7 @@ hook.Add('Think', 'HLARadial', function()
 	local g = input.IsKeyDown(KEY_G)
 	local l, r = input.IsMouseDown(MOUSE_LEFT), input.IsMouseDown(MOUSE_RIGHT)
 	if not RM.open then
-		if g and not wasG and can() then openMenu() end
+		if g and not wasG and can() then openMenu() RM.toggle = false end
 	else
 		local me = LocalPlayer()
 		if not IsValid(me) or not me:Alive() or me:GetNWBool('hla_in_menu') then closeMenu() return end
@@ -99,7 +100,13 @@ hook.Add('Think', 'HLARadial', function()
 				closeMenu()
 			end
 		elseif not g and wasG then
-			if item and not item.sub then run(item) end
+			if RealTime() - (RM.born or 0) < 0.25 then
+				RM.toggle = true
+			else
+				if item and not item.sub then run(item) end
+				closeMenu()
+			end
+		elseif g and not wasG and RM.toggle then
 			closeMenu()
 		end
 	end
@@ -189,5 +196,5 @@ hook.Add('HUDPaint', 'HLARadial', function()
 	draw.SimpleText(title, 'hla_rad_title', cx, cy - math.floor(14 * s), Color(BLUE.r, BLUE.g, BLUE.b, 255 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 	local sub = RM.hover and items[RM.hover] and (items[RM.hover].sub and 'открыть' or 'выбрать') or (#RM.stack > 1 and 'ПКМ — назад' or 'ПКМ — закрыть')
 	draw.SimpleText(sub, 'hla_rad_hint', cx, cy + math.floor(16 * s), Color(GREY.r, GREY.g, GREY.b, 230 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
-	draw.SimpleText('ЛКМ — выбрать   ·   ПКМ — назад   ·   отпустите G — выполнить', 'hla_rad_hint', cx, cy + r1 + math.floor(40 * s), Color(GREY.r, GREY.g, GREY.b, 210 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
+	draw.SimpleText(RM.toggle and 'ЛКМ — выбрать   ·   ПКМ — назад   ·   G — закрыть' or 'ЛКМ — выбрать   ·   ПКМ — назад   ·   отпустите G — выполнить', 'hla_rad_hint', cx, cy + r1 + math.floor(40 * s), Color(GREY.r, GREY.g, GREY.b, 210 * a), TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER)
 end)
