@@ -567,6 +567,17 @@ net.Receive('hla_story_do', function(_, p)
 	elseif what == 'chapter' then
 		if S.State() ~= S.STORY then setState(S.STORY, 'story') resetPlayers() end
 		S.StartChapter(tonumber(arg) or 1)
+	elseif what == 'wipe_locks' then
+		for _, e in ipairs(ents.FindByClass('hla_combinelock')) do e:Remove() end
+		file.Delete('hla/locks/' .. game.GetMap() .. '.json')
+		p:ChatPrint('[HLA] Замки Альянса на этой карте удалены')
+	elseif what == 'wipe_fab' then
+		if HLA.FabCfg then
+			HLA.FabCfg.Apply({})
+			HLA.FabCfg.Save()
+			HLA.FabCfg.Send()
+		end
+		p:ChatPrint('[HLA] Фабрикатор сброшен: свои предметы удалены, цены по умолчанию')
 	elseif what == 'dropship' then if HLA.Dropship then HLA.Dropship.Fly() end
 	elseif what == 'dispatch' then dispatchID(arg)
 	elseif what == 'dispatch_text' then CH.Dispatch(arg, '')

@@ -475,7 +475,7 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAChatBubbles', function(_, sky)
 			C.bubbles[ent] = nil
 		elseif ent ~= me or me:ShouldDrawLocalPlayer() then
 			local a = math.Clamp(math.min(age * 4, (life - age) / 1.2), 0, 1)
-			local target = headPos(ent) + Vector(0, 0, 3)
+			local target = headPos(ent) + Vector(0, 0, (ent:IsPlayer() and ent:IsSpeaking()) and 12 or 3)
 			b.pos = b.pos and LerpVector(math.min(1, FrameTime() * 14), b.pos, target) or target
 			local pos = b.pos
 			if pos:DistToSqr(EyePos()) < 900 * 900 then

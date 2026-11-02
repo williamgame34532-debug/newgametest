@@ -778,7 +778,11 @@ local function generalTab(sheet)
 		wipe('NPC', function() E.cfg.npcs = {} end),
 		wipe('ДЕСАНТНИК', function(d) E.cfg.dropship = d.dropship end),
 		wipe('ПВП-ТОЧКИ', function(d) E.cfg.pvp.spawns = d.pvp.spawns end))
-	col.add(wipe('УДАЛИТЬ ВСЁ ДЛЯ ЭТОЙ КАРТЫ', function(d) E.cfg = d end))
+	col.row(
+		wipe('ЗАМКИ АЛЬЯНСА', function() act('wipe_locks') end),
+		wipe('ФАБРИКАТОР (СВОИ ПРЕДМЕТЫ)', function() act('wipe_fab') end))
+	col.add(wipe('УДАЛИТЬ ВСЁ ДЛЯ ЭТОЙ КАРТЫ', function(d) E.cfg = d act('wipe_locks') act('wipe_fab') end))
+	col.add(label(nil, '«Удалить всё» — главы, зоны, NPC, десантник, ПвП-точки, настройки, диспетчер, замки и свои предметы фабрикатора.'))
 	return root
 end
 

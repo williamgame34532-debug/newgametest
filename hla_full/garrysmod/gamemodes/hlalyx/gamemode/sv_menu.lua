@@ -24,6 +24,7 @@ end
 local function numbers() return util.JSONToTable(file.Read('hla/numbers.json', 'DATA') or '') or {} end
 local function saveNumbers(t) file.Write('hla/numbers.json', util.TableToJSON(t)) end
 function M.NumberFree(num, exceptID)
+	if HLA.Bots and HLA.Bots.nums[num] then return false end
 	local owner = numbers()[num]
 	return owner == nil or owner == exceptID
 end
@@ -36,7 +37,7 @@ function M.RandomFreeNumber(extra)
 	local t = numbers()
 	for _ = 1, 2000 do
 		local n = string.format('%03d', math.random(100, 999))
-		if not t[n] and not (extra and extra[n]) then return n end
+		if not t[n] and not (extra and extra[n]) and not (HLA.Bots and HLA.Bots.nums[n]) then return n end
 	end
 	return '000'
 end
