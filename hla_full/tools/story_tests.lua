@@ -69,6 +69,7 @@ local function newPlayer(name)
 	function p:SetDeaths() end
 	function p:Frags() return self.frags end
 	function p:GetPos() return self.pos end
+	function p:WorldSpaceCenter() return self.pos end
 	function p:SetPos(v) self.pos = v end
 	function p:SetEyeAngles() end
 	function p:SetVelocity() end

@@ -330,9 +330,20 @@ timer.Create('HLAStoryTick', 0.5, 0, function()
 	elseif st == S.STORY then
 		if #list == 0 then S.Stop() return end
 		local ch = S.Config.chapters[S.Chapter or 1]
+		for _, p in ipairs(list) do
+			if HLA.CanEdit(p) and p:Alive() and (p.HLATrigHint or 0) < CurTime() then
+				for i, o in ipairs(S.Config.chapters) do
+					if i ~= (S.Chapter or 1) and o.trigger and (S.Inside(o.trigger, p:GetPos()) or S.Inside(o.trigger, p:WorldSpaceCenter())) then
+						p.HLATrigHint = CurTime() + 8
+						p:ChatPrint('[HLA] Вы в триггере главы ' .. i .. ', а сейчас идёт глава ' .. (S.Chapter or 1) .. ' — он сработает только в главе ' .. i .. '.')
+						break
+					end
+				end
+			end
+		end
 		if ch and ch.trigger then
 			for _, p in ipairs(list) do
-				if p:Alive() and not p.HLAOut and S.Inside(ch.trigger, p:GetPos()) then
+				if p:Alive() and not p.HLAOut and (S.Inside(ch.trigger, p:GetPos()) or S.Inside(ch.trigger, p:WorldSpaceCenter())) then
 					if (S.Chapter or 1) >= #S.Config.chapters then
 						S.EndRound('СЮЖЕТ ЗАВЕРШЁН', ch.title .. ': ' .. ch.name)
 					else
@@ -563,6 +574,24 @@ net.Receive('hla_story_do', function(_, p)
 		local t = util.JSONToTable(arg)
 		if istable(t) and isstring(t.text) and isstring(t.snd) then CH.Dispatch(t.text, t.snd) end
 	end
+end)
+
+concommand.Add('hla_story_status', function(p)
+	if IsValid(p) and not HLA.CanEdit(p) then return end
+	local function say(t) if IsValid(p) then p:ChatPrint(t) else print(t) end end
+	local c = S.Config
+	say('[HLA] состояние: ' .. tostring(S.State()) .. ', глава: ' .. tostring(S.Chapter) .. ' из ' .. (c and #c.chapters or 0)
+		.. ', игроков в раунде: ' .. #participants())
+	for i, ch in ipairs(c and c.chapters or {}) do
+		local t = ch.trigger
+		local inside = IsValid(p) and t and (S.Inside(t, p:GetPos()) or S.Inside(t, p:WorldSpaceCenter()))
+		say('  глава ' .. i .. ': триггер ' .. (t and t.a and t.b and ('[' .. table.concat(t.a, ' ') .. '] — [' .. table.concat(t.b, ' ') .. ']') or 'нет')
+			.. (inside and '  ← ВЫ ВНУТРИ' or ''))
+	end
+	if IsValid(p) then
+		say('  вы: ' .. tostring(p:GetPos()) .. (p.HLAOut and ', выбыли (наблюдатель)' or '') .. (p.HLACharID and '' or ', не в игре'))
+	end
+	if S.State() ~= S.STORY then say('  Триггеры работают только во время сюжета: hla_round story или голосование.') end
 end)
 
 concommand.Add('hla_round', function(p, _, a)

@@ -1,6 +1,6 @@
 include('shared.lua')
 
-local core = Material('sprites/glow04')
+local core = Material('sprites/light_glow02_add')
 local halo = Material('sprites/light_glow02_add')
 local GREEN = Color(60, 255, 120)
 local BLUE = Color(60, 150, 255)
@@ -32,8 +32,8 @@ function ENT:Think()
 		if d then
 			d.pos = self:LampPos() + self:GetForward() * -4
 			d.r, d.g, d.b = col.r, col.g, col.b
-			d.brightness = st == 'error' and 1.4 or 0.6
-			d.size = 70
+			d.brightness = st == 'error' and 1 or 0.35
+			d.size = 48
 			d.decay = 400
 			d.dietime = CurTime() + 0.2
 		end
@@ -57,12 +57,12 @@ function ENT:DrawTranslucent()
 	local pos = self:LampPos()
 	render.SetMaterial(halo)
 	drawCol.r, drawCol.g, drawCol.b, drawCol.a = col.r, col.g, col.b, (110 + 120 * burst) * k
-	local hs = 22 + 40 * burst
+	local hs = 12 + 22 * burst
 	render.DrawSprite(pos, hs, hs, drawCol)
 	render.SetMaterial(core)
 	drawCol.r = math.min(255, col.r + 120)
 	drawCol.g = math.min(255, col.g + 120)
 	drawCol.b = math.min(255, col.b + 120)
 	drawCol.a = 255 * k
-	render.DrawSprite(pos, 6 + 3 * k, 6 + 3 * k, drawCol)
+	render.DrawSprite(pos, 4 + 2 * k, 4 + 2 * k, drawCol)
 end

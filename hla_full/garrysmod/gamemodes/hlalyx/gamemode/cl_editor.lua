@@ -292,9 +292,10 @@ local function chaptersTab(sheet)
 			button(nil, '+ ЗДЕСЬ', function() ch.spawns[#ch.spawns + 1] = here() E.dirty = true fill() form() end),
 			button(nil, 'УБРАТЬ ПОСЛЕДНЮЮ', function() table.remove(ch.spawns) E.dirty = true fill() form() end),
 			button(nil, 'ОЧИСТИТЬ', function() ch.spawns = {} E.dirty = true fill() form() end))
-		col.add(label(nil, 'ТРИГГЕР ПЕРЕХОДА: живой игрок вошёл — все переходят на следующую главу.'))
-		col.add(label(nil, 'Наведитесь на точку пола и нажмите «угол 1», затем на противоположную — «угол 2».'))
-		col.add(label(nil, ch.trigger and 'Триггер задан.' or 'Триггера нет: на эту главу переходят только командой.'))
+		col.add(label(nil, sel < #E.cfg.chapters and ('ТРИГГЕР ВЫХОДА ИЗ ГЛАВЫ ' .. sel .. ' → В ГЛАВУ ' .. (sel + 1) .. ': работает, пока идёт глава ' .. sel .. '.')
+			or ('ТРИГГЕР КОНЦА СЮЖЕТА: работает, пока идёт глава ' .. sel .. '.')))
+		col.add(label(nil, 'Наведитесь на точку пола и нажмите «угол 1», затем на противоположный угол — «угол 2». Потом СОХРАНИТЬ.'))
+		col.add(label(nil, ch.trigger and 'Триггер задан.' or ('Триггера нет: из главы ' .. sel .. ' переходят только командой.')))
 		col.row(
 			button(nil, 'УГОЛ 1 (куда смотрю)', function()
 				local a = aimPoint()
@@ -834,7 +835,7 @@ hook.Add('PostDrawTranslucentRenderables', 'HLAEditorDraw', function(_, sky)
 			render.DrawWireframeBox(vector_origin, angle_zero, mn, mx, tc, true)
 			render.DrawBox(vector_origin, angle_zero, mn, mx, Color(tc.r, tc.g, tc.b, on and 18 or 6))
 			cam.Start3D2D((mn + mx) / 2 + Vector(0, 0, (mx.z - mn.z) / 2 + 12), Angle(0, EyeAngles().y - 90, 90), 0.2)
-				draw.SimpleTextOutlined('ПЕРЕХОД ИЗ ГЛАВЫ ' .. i, 'hla_ed3d', 0, 0, tc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
+				draw.SimpleTextOutlined(i < #E.cfg.chapters and ('ГЛАВА ' .. i .. ' → ГЛАВА ' .. (i + 1)) or ('ГЛАВА ' .. i .. ' → КОНЕЦ'), 'hla_ed3d', 0, 0, tc, TEXT_ALIGN_CENTER, TEXT_ALIGN_CENTER, 2, Color(0, 0, 0, 200))
 			cam.End3D2D()
 		end
 	end
